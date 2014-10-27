@@ -16,9 +16,10 @@ Codis is production-ready and is widely used by Wandoujia.com.
 * GUI dashboard & admin tool with RESTful APIs
 * CLI admin tools is also provided
 
-## Install
+## Build and Install
 
-TBD
+* Install go
+* ./bootstrap.sh
 
 ## Performance
 
