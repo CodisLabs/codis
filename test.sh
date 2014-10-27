@@ -27,7 +27,9 @@ nohup ./ext/redis-2.8.13/src/redis-server ./ext/test/conf/6480.conf &
 
 sleep 2
 cd bin
-> proxy.log
+> proxy1.log
+> proxy2.log
+> proxy3.log
 
 ./gc.sh &
 ./proxy -c config1.ini -L proxy1.log --addr=0.0.0.0:9000 --http-addr=0.0.0.0:10000 &
