@@ -1,9 +1,6 @@
-for((i=1;i<=1000000;i++));do
+for((i=1;i<=1000;i++));do
 	slotNo=$((i%1024))
-	echo $slotNo
 	r=$RANDOM
-	echo $(( r %= 3 ))
-	echo $r
 	if [ $r -eq 2 ];then
 		./cconfig slot migrate $slotNo $slotNo 1 --delay=10
 	else
