@@ -23,7 +23,7 @@ Codis is production-ready and is widely used by Wandoujia.com.
 * Install go
 * ./bootstrap.sh
 * cd deploy/sample_service
-* check usage.md
+* follow instructions in usage.md
 
 ## Performance
 
