@@ -1,5 +1,8 @@
 #!/bin/sh
 
+
+cd ext/redis-2.8.13 && make && cd -
+
 go get github.com/c4pt0r/cfg
 go get github.com/garyburd/redigo/redis
 go get github.com/juju/errgo
@@ -18,4 +21,6 @@ go get github.com/nu7hatch/gouuid
 go get github.com/docopt/docopt-go
 
 make
+
+
 
