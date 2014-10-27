@@ -1,10 +1,11 @@
 package models
 
 import (
-	"codis/pkg/zkhelper"
 	"encoding/json"
 	"fmt"
 	"path"
+
+	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"github.com/juju/errors"
 )

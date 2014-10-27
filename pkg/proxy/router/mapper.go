@@ -2,8 +2,9 @@ package router
 
 import (
 	"bytes"
-	"codis/pkg/models"
 	"hash/crc32"
+
+	"github.com/wandoulabs/codis/pkg/models"
 )
 
 const (

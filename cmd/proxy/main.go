@@ -1,13 +1,14 @@
 package main
 
 import (
-	"codis/pkg/proxy/router"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"strconv"
+
+	"github.com/wandoulabs/codis/pkg/proxy/router"
 
 	"github.com/docopt/docopt-go"
 	log "github.com/ngaut/logging"

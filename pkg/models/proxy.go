@@ -1,12 +1,13 @@
 package models
 
 import (
-	"codis/pkg/zkhelper"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"path"
+
+	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"github.com/juju/errors"
 	"github.com/ngaut/go-zookeeper/zk"

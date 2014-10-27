@@ -1,11 +1,12 @@
 package main
 
 import (
-	"codis/pkg/models"
-	"codis/pkg/zkhelper"
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	log "github.com/ngaut/logging"
 

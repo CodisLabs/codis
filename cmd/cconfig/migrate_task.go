@@ -1,12 +1,14 @@
 package main
 
 import (
-	"codis/pkg/models"
-	"codis/pkg/utils"
-	"container/list"
 	"fmt"
 	"sync"
 	"time"
+
+	"container/list"
+
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils"
 
 	"github.com/juju/errors"
 

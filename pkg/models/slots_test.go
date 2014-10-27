@@ -1,8 +1,9 @@
 package models
 
 import (
-	"codis/pkg/zkhelper"
 	"testing"
+
+	"github.com/wandoulabs/codis/pkg/zkhelper"
 )
 
 func TestSlots(t *testing.T) {

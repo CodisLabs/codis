@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"codis/pkg/zkhelper"
 	"fmt"
 	"os"
+
+	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"github.com/c4pt0r/cfg"
 )

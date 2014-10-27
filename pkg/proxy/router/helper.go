@@ -2,13 +2,14 @@ package router
 
 import (
 	"bufio"
-	"codis/pkg/models"
-	"codis/pkg/proxy/parser"
 	"io"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/proxy/parser"
 
 	log "github.com/ngaut/logging"
 

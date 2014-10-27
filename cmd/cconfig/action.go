@@ -1,9 +1,10 @@
 package main
 
 import (
-	"codis/pkg/models"
 	"fmt"
 	"strconv"
+
+	"github.com/wandoulabs/codis/pkg/models"
 
 	docopt "github.com/docopt/docopt-go"
 	log "github.com/ngaut/logging"

@@ -1,11 +1,12 @@
 package main
 
 import (
-	"codis/pkg/models"
-	"codis/pkg/zkhelper"
 	"encoding/json"
 	"os"
 	"time"
+
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"sync/atomic"
 

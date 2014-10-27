@@ -1,12 +1,13 @@
 package main
 
 import (
-	"codis/pkg/models"
-	"codis/pkg/utils"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils"
 
 	"github.com/go-martini/martini"
 	"github.com/nu7hatch/gouuid"

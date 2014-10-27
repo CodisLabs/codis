@@ -1,11 +1,12 @@
 package models
 
 import (
-	"codis/pkg/utils"
 	"codis/pkg/zkhelper"
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/wandoulabs/codis/pkg/utils"
 )
 
 var (

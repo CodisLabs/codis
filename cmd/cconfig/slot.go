@@ -1,11 +1,12 @@
 package main
 
 import (
-	"codis/pkg/models"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
+
+	"github.com/wandoulabs/codis/pkg/models"
 
 	"github.com/docopt/docopt-go"
 	log "github.com/ngaut/logging"

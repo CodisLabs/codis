@@ -1,8 +1,6 @@
 package models
 
 import (
-	"codis/pkg/utils"
-	"codis/pkg/zkhelper"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -10,6 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"github.com/juju/errors"
 	"github.com/ngaut/go-zookeeper/zk"

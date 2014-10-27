@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"codis/pkg/utils"
-	"codis/pkg/zkhelper"
+	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"net/http"
 	_ "net/http/pprof"

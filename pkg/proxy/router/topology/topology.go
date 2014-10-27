@@ -1,11 +1,13 @@
 package topology
 
 import (
-	"codis/pkg/models"
-	"codis/pkg/zkhelper"
 	"encoding/json"
 	"fmt"
 	"path"
+
+	"github.com/wandoulabs/codis/pkg/zkhelper"
+
+	"github.com/wandoulabs/codis/pkg/models"
 
 	"github.com/juju/errors"
 	topo "github.com/ngaut/go-zookeeper/zk"

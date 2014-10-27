@@ -1,12 +1,14 @@
 package models
 
 import (
-	"codis/pkg/utils"
-	"codis/pkg/zkhelper"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/wandoulabs/codis/pkg/zkhelper"
+
+	"github.com/wandoulabs/codis/pkg/utils"
 
 	"github.com/juju/errors"
 )

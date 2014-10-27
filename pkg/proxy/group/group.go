@@ -1,7 +1,7 @@
 package group
 
 import (
-	"codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/models"
 
 	log "github.com/ngaut/logging"
 )

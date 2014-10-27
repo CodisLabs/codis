@@ -2,12 +2,6 @@ package router
 
 import (
 	"bufio"
-	"codis/pkg/models"
-	"codis/pkg/proxy/group"
-	"codis/pkg/proxy/parser"
-	"codis/pkg/proxy/redispool"
-	topo "codis/pkg/proxy/router/topology"
-	"codis/pkg/utils"
 	"fmt"
 	"io"
 	"net"
@@ -18,7 +12,16 @@ import (
 	"sync"
 	"time"
 
-	"codis/pkg/proxy/cachepool"
+	"github.com/wandoulabs/codis/pkg/utils"
+
+	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
+
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/proxy/group"
+	"github.com/wandoulabs/codis/pkg/proxy/parser"
+	"github.com/wandoulabs/codis/pkg/proxy/redispool"
+
+	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
 
 	"github.com/juju/errors"
 	stats "github.com/ngaut/gostats"
