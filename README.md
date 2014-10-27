@@ -2,7 +2,7 @@
 
 Codis is a proxy based high performance Redis cluster solution written in Go/C, an alternative to Twemproxy.
 
-Codis supports multiple stateless proxy with multiple Redis instances.
+Codis supports multiple stateless proxy with multiple redis instances.
 
 Codis is engineered to elastically scale, Easily add or remove redis or proxy instances on-demand/dynamicly.
 
@@ -10,11 +10,13 @@ Codis is production-ready and is widely used by Wandoujia.com.
 
 ##Features
 
-* Supports most of Redis commands (see ALL)
+* Extremely simple to use 
+* Supports most of Redis commands, Fully compatible with twemproxy(https://github.com/twitter/twemproxy)
 * Native Redis clients are supported
 * Safe and transparent data migration, Easily add or remove nodes on-demand.
-* GUI dashboard & admin tool with RESTful APIs
-* CLI admin tools is also provided
+* GUI dashboard & admin tools 
+* Command-line interface is also provided
+* RESTful APIs
 
 ## Build and Install
 
