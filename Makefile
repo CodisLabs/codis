@@ -2,10 +2,11 @@ all: build
 
 clean:
 	rm -rf bin/cconfig
-	rm *.rdb
-	rm bin/*.log
-	rm *.out
-	rm bin/*.out
+	rm -f *.rdb
+	rm -f bin/*.log
+	rm -f *.out
+	rm -f bin/*.out
+	rm -f *.dump
 
 build:
 	go build -o bin/cconfig ./cmd/cconfig
