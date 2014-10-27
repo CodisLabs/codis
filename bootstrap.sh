@@ -1,6 +1,6 @@
 #!/bin/sh
 
-
+rm bin/*.log
 cd ext/redis-2.8.13 && make && cd -
 
 go get github.com/c4pt0r/cfg
