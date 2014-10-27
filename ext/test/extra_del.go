@@ -1,0 +1,36 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"time"
+)
+
+var args struct {
+	proxy string
+}
+
+func test_init() {
+	flag.StringVar(&args.proxy, "proxy", "", "redis host:port")
+}
+
+func test_main() {
+	c := NewConn(args.proxy)
+	defer c.Close()
+	for n := 10; n <= 100*10000; n *= 10 {
+		us := UnitSlice(make([]*Unit, n))
+		for i := 0; i < len(us); i++ {
+			key := fmt.Sprintf("extra_del_%d", i)
+			us[i] = NewUnit(key)
+		}
+		for _, u := range us {
+			u.Set(c, u.key)
+			ops.Incr()
+		}
+		beg := time.Now().UnixNano()
+		us.Del(c, true)
+		avg := float64(time.Now().UnixNano()-beg) / float64(time.Millisecond)
+		fmt.Printf("n = %-10d %8dms    avg=%.2fms\n", n, int64(avg), avg/float64(n))
+	}
+	fmt.Println("done")
+}

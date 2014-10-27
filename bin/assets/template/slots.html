@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>Slots</title>
+  <link href="http://cdn.staticfile.org/twitter-bootstrap/3.2.0/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      padding: 20px;
+    }
+    td {
+      cursor: pointer;
+    }
+  </style>
+</head>
+<script type="text/template" id="slot-info-tmpl">
+<table class="table table-bordered">
+  <tr>
+    <td>Slot ID</td><td><%= id %></td>
+  </tr>
+  <tr>
+    <td>Product</td><td><%= product_name %></td>
+  </tr>
+  <tr>
+    <td>Server Grpup</td><td><a href="/server_groups#<%= group_id %>">group_<%= group_id %></a></td>
+  </tr>
+  <tr>
+    <td>Keys</td><td><%= keys %></td>
+  </tr>
+
+  <tr>
+    <td>Status</td><td><b><%= state.status %></b></td>
+  </tr>
+   <tr>
+    <td> Migrate From</td><td><a href="/server_groups#group-<%= state.migrate_status.from %>">group_<%= state.migrate_status.from %></a></td>
+   </tr>
+   <tr>
+    <td> Migrate To</td><td><a href="/server_groups#<%= state.migrate_status.to %>">group_<%= state.migrate_status.to %></a></td>
+    </tr>
+  <tr>
+    <td>Last Op Ts</td><td><%= new Date(state.last_op_ts * 1000) %></td>
+  </tr>
+</table>
+</script>
+<body>
+  <h4>Slots Status</h4>
+  <hr>
+  <div class="row">
+    <div class="col-md-4">
+      <p id="output"></p>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-12">
+      <table id="tbl-status" class="table table-bordered"></table>
+    </div>
+  </div>
+</body>
+<script src="/md5.js"></script>
+<script src="/utils.js"></script>
+<script src="http://cdn.staticfile.org/jquery/2.1.1-rc2/jquery.min.js"></script>
+<script src="http://cdn.staticfile.org/underscore.js/1.6.0/underscore-min.js"></script>
+<script src="http://cdn.staticfile.org/twitter-bootstrap/3.2.0/js/bootstrap.min.js"></script>
+<script type="text/javascript">
+
+  $(document).ready(function(){
+    var slots_info;
+    $.get('/api/slots', function(ret) {
+      var slots = JSON.parse(ret)
+      slots = _.sortBy(slots, function(s) {
+        return s.id;
+      });
+
+      refresh_grids(slots)
+    })
+
+    var refresh_grids = function(slots) {
+    // 32 * 32 == 1024 slots
+      for (var i = 0; i < 32; i++) {
+        var tr = $('<tr/>');
+        for (var j = 0; j < 32; j++) {
+          var slot_info = slots[i*32 + j];
+          var group_id = slot_info.group_id;
+          var is_migrate = slot_info.state.status == "migrate";
+          var is_offline = slot_info.state.status == "offline";
+
+          var bg_color = 'transparent';
+          if (group_id != -1) {
+            bg_color = '#' + intToARGB(hashCode(md5('server_' + group_id)))
+          }
+          var name = slot_info.id;
+          if (is_migrate) {
+            name += " (M)";
+            bg_color = "red";
+          }
+          if (is_offline) {
+            name += " (OFF)";
+            bg_color = "grey";
+          }
+          tr.append(
+            $('<td/>')
+              .html(name)
+              .css('background-color', bg_color)
+              .data('x', i)
+              .data('y', j)
+              .data('slot', i * 32 + j)
+              .data('slot-data', JSON.stringify(slots[i * 32 + j]))
+          );
+        }
+        $('#tbl-status').append(tr);
+      }
+    }
+
+    $('body').on('click', 'td', function(e){
+      var slot_id = $(this).data('slot');
+      var slot = JSON.parse($(this).data('slot-data'));
+      //$('#output').html('slot:' + slot_id + ' ' +  slot);
+      var tmpl = _.template($('#slot-info-tmpl').html())
+      $.get('/api/redis/group/' + slot.group_id + '/' + slot_id + '/slotinfo', {} ,function(d) {
+        var ret = JSON.parse(d);
+        slot.keys = ret.keys;
+        $('#output').html(tmpl(slot))
+      });
+    });
+
+  });
+</script>
+
+</html>
