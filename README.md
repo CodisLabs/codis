@@ -30,7 +30,7 @@ Codis is production-ready and is widely used by Wandoujia.com.
 TBD
 
 ## Architecture
-![Snapshot1](raw/master/doc/pictures/architecture.png)
+![Snapshot1](doc/pictures/architecture.png)
 
 
 ## Authors
