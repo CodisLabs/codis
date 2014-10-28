@@ -47,7 +47,7 @@ func TestSlots(t *testing.T) {
 		t.Error("range set error")
 	}
 
-	err = s.Migrate(fakeZkConn, 1, 2)
+	err = s.SetMigrateStatus(fakeZkConn, 1, 2)
 	if err != nil {
 		t.Error(err)
 	}

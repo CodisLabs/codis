@@ -3,10 +3,11 @@ package router
 import (
 	"bufio"
 	"bytes"
-	"codis/pkg/proxy/parser"
 	"io"
 	"testing"
 	"time"
+
+	"github.com/wandoulabs/codis/pkg/proxy/parser"
 
 	"github.com/juju/errors"
 	stats "github.com/ngaut/gostats"

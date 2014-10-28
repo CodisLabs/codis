@@ -1,10 +1,11 @@
 package models
 
 import (
-	"codis/pkg/zkhelper"
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/utils"
 )
@@ -36,7 +37,7 @@ func TestForceRemoveLock(t *testing.T) {
 		t.Error("create lock error")
 	}
 
-	zkLock.Lock()
+	zkLock.Lock("force remove lock")
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/LOCK", productName)
 	children, _, err := fakeZkConn.Children(zkPath)
 	if err != nil {
