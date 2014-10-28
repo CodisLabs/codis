@@ -133,6 +133,7 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 
 	err = WriteMigrateKeyCmd(redisConn.(*redispool.PooledConn), shd.dst.Master(), 30*1000, key)
 	if err != nil {
+		redisConn.Close()
 		log.Warningf("migrate key %s error", string(key))
 		return errors.Trace(err)
 	}
@@ -140,6 +141,7 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 	//handle migrate result
 	resp, err := parser.Parse(redisReader)
 	if err != nil {
+		redisConn.Close()
 		return errors.Trace(err)
 	}
 
@@ -149,6 +151,7 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 		string(result))
 
 	if resp.Type == parser.ErrorResp {
+		redisConn.Close()
 		log.Error(string(key), resp.Error, "migrateFrom", shd.migrateFrom.Master())
 		return errors.New(resp.Error)
 	}
