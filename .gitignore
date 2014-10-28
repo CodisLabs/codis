@@ -1,2 +1,4 @@
 *.log
 martini_log
+/bin/proxy
+/bin/cconfig
