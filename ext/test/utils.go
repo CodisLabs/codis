@@ -531,33 +531,33 @@ func Panic(format string, args ...interface{}) {
 	os.Exit(1)
 }
 
-type Test struct {
+type TestGroup struct {
 	sig chan int
 	wg  *sync.WaitGroup
 }
 
-func (t *Test) Reset() {
+func (t *TestGroup) Reset() {
 	t.sig = make(chan int)
 	t.wg = &sync.WaitGroup{}
 }
 
-func (t *Test) Start() {
+func (t *TestGroup) Start() {
 	close(t.sig)
 }
 
-func (t *Test) Wait() {
+func (t *TestGroup) Wait() {
 	t.wg.Wait()
 }
 
-func (t *Test) AddPlayer() {
+func (t *TestGroup) AddPlayer() {
 	t.wg.Add(1)
 }
 
-func (t *Test) PlayerWait() {
+func (t *TestGroup) PlayerWait() {
 	<-t.sig
 }
 
-func (t *Test) PlayerDone() {
+func (t *TestGroup) PlayerDone() {
 	t.wg.Done()
 }
 
@@ -587,7 +587,19 @@ func (i *Counter) Reset() int64 {
 
 var ops Counter
 
+type TestCase interface {
+	init()
+	main()
+}
+
+var (
+	testcase TestCase
+)
+
 func main() {
+	if testcase == nil {
+		Panic("please set testcase in init function")
+	}
 	var ncpu int
 	flag.IntVar(&ncpu, "ncpu", 0, "# of cpus")
 	flag.Usage = func() {
@@ -595,7 +607,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	test_init()
+	testcase.init()
 
 	flag.Parse()
 	runtime.GOMAXPROCS(ncpu)
@@ -607,5 +619,5 @@ func main() {
 		}
 	}()
 
-	test_main()
+	testcase.main()
 }

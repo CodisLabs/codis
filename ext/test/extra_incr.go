@@ -8,7 +8,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 )
 
-var args struct {
+type ExtraIncrTestCase struct {
 	proxy   string
 	master1 string
 	slave1  string
@@ -20,67 +20,71 @@ var args struct {
 	ntags   int
 }
 
-func test_init() {
-	flag.StringVar(&args.proxy, "proxy", "", "redis host:port")
-	flag.StringVar(&args.master1, "master1", "", "redis host:port")
-	flag.StringVar(&args.slave1, "slave1", "", "redis host:port")
-	flag.StringVar(&args.master2, "master2", "", "redis host:port")
-	flag.StringVar(&args.slave2, "slave2", "", "redis host:port")
-	flag.IntVar(&args.group, "group", 8, "# of test players")
-	flag.IntVar(&args.round, "round", 100, "# of incr opts per key")
-	flag.IntVar(&args.nkeys, "nkeys", 10000, "# of keys per test")
-	flag.IntVar(&args.ntags, "ntags", 1000, "# tags")
+func init() {
+	testcase = &ExtraIncrTestCase{}
 }
 
-func test_main() {
+func (tc *ExtraIncrTestCase) init() {
+	flag.StringVar(&tc.proxy, "proxy", "", "redis host:port")
+	flag.StringVar(&tc.master1, "master1", "", "redis host:port")
+	flag.StringVar(&tc.slave1, "slave1", "", "redis host:port")
+	flag.StringVar(&tc.master2, "master2", "", "redis host:port")
+	flag.StringVar(&tc.slave2, "slave2", "", "redis host:port")
+	flag.IntVar(&tc.group, "group", 8, "# of test players")
+	flag.IntVar(&tc.round, "round", 100, "# of incr opts per key")
+	flag.IntVar(&tc.nkeys, "nkeys", 10000, "# of keys per test")
+	flag.IntVar(&tc.ntags, "ntags", 1000, "# tags")
+}
+
+func (tc *ExtraIncrTestCase) main() {
 	go func() {
-		c := NewConn(args.proxy)
+		c := NewConn(tc.proxy)
 		for {
 			time.Sleep(time.Second * 5)
 			c.Check()
 		}
 	}()
-	t := &Test{}
-	t.Reset()
-	for g := 0; g < args.group; g++ {
-		t.AddPlayer()
-		go test_player(g, t)
+	tg := &TestGroup{}
+	tg.Reset()
+	for g := 0; g < tc.group; g++ {
+		tg.AddPlayer()
+		go tc.player(g, tg)
 	}
-	t.Start()
-	t.Wait()
+	tg.Start()
+	tg.Wait()
 	fmt.Println("done")
 }
 
-func test_player(gid int, t *Test) {
-	t.PlayerWait()
-	defer t.PlayerDone()
-	c := NewConn(args.proxy)
+func (tc *ExtraIncrTestCase) player(gid int, tg *TestGroup) {
+	tg.PlayerWait()
+	defer tg.PlayerDone()
+	c := NewConn(tc.proxy)
 	defer c.Close()
-	us := UnitSlice(make([]*Unit, args.nkeys))
+	us := UnitSlice(make([]*Unit, tc.nkeys))
 	for i := 0; i < len(us); i++ {
-		key := fmt.Sprintf("extra_incr_%d_{%d}_%d", gid, i%args.ntags, i)
+		key := fmt.Sprintf("extra_incr_%d_{%d}_%d", gid, i%tc.ntags, i)
 		us[i] = NewUnit(key)
 	}
 	for _, u := range us {
 		u.Del(c, false)
 		ops.Incr()
 	}
-	for i := 0; i < args.round; i++ {
+	for i := 0; i < tc.round; i++ {
 		for _, u := range us {
 			u.Incr(c)
 			ops.Incr()
 		}
 	}
 	time.Sleep(time.Second * 5)
-	c1s, c1m := NewConn(args.slave1), NewConn(args.master1)
-	c2s, c2m := NewConn(args.slave2), NewConn(args.master2)
+	c1s, c1m := NewConn(tc.slave1), NewConn(tc.master1)
+	c2s, c2m := NewConn(tc.slave2), NewConn(tc.master2)
 	defer c1s.Close()
 	defer c1m.Close()
 	defer c2s.Close()
 	defer c2m.Close()
 	for _, u := range us {
-		s := groupfetch(c1s, c2s, u.key)
-		m := groupfetch(c1m, c2m, u.key)
+		s := tc.groupfetch(c1s, c2s, u.key)
+		m := tc.groupfetch(c1m, c2m, u.key)
 		if s != m || s != u.val {
 			Panic("check failed, key = %s, val = %d, master = %d, slave = %d", u.key, u.val, s, m)
 		}
@@ -92,7 +96,7 @@ func test_player(gid int, t *Test) {
 	c.Check()
 }
 
-func groupfetch(c1, c2 redis.Conn, key string) int {
+func (tc *ExtraIncrTestCase) groupfetch(c1, c2 redis.Conn, key string) int {
 	r1, e1 := c1.Do("get", key)
 	r2, e2 := c2.Do("get", key)
 	if e1 != nil || e2 != nil {

@@ -6,16 +6,20 @@ import (
 	"time"
 )
 
-var args struct {
+type ExtraMgetTestCase struct {
 	proxy string
 }
 
-func test_init() {
-	flag.StringVar(&args.proxy, "proxy", "", "redis host:port")
+func init() {
+	testcase = &ExtraMgetTestCase{}
 }
 
-func test_main() {
-	c := NewConn(args.proxy)
+func (tc *ExtraMgetTestCase) init() {
+	flag.StringVar(&tc.proxy, "proxy", "", "redis host:port")
+}
+
+func (tc *ExtraMgetTestCase) main() {
+	c := NewConn(tc.proxy)
 	defer c.Close()
 	const max = 1000 * 1000 * 100
 	for n := 10; n <= max; n *= 10 {
