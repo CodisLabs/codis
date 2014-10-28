@@ -14,29 +14,34 @@ import (
 )
 
 func Decode(ncpu int, input, output string) {
-	fin, nsize := openFileReader(input)
+	log.Printf("[ncpu=%d] decode from `%s' to `%s'\n", ncpu, input, output)
+
+	fin, nsize := openReadFile(input)
 	defer fin.Close()
 
-	fout := openFileWriter(output)
+	fout := openWriteFile(output)
 	defer fout.Close()
 
 	var nread, nwrite AtomicInt64
 	var wg sync.WaitGroup
-	kick := make(chan int)
 
 	onTick := func() {
 		r, w := nread.Get(), nwrite.Get()
-		p := 100 * r / nsize
-		log.Printf("total = %d  - %3d%%, read=%-14d write=%-14d\n", nsize, p, r, w)
+		if nsize != 0 {
+			p := 100 * r / nsize
+			log.Printf("total = %d  - %3d%%, read=%-14d write=%-14d\n", nsize, p, r, w)
+		} else {
+			log.Printf("total = unknown  -  read=%-14d write=%-14d\n", r, w)
+		}
 	}
-	onKick := func() {
+	onClose := func() {
 		onTick()
 		log.Printf("done\n")
 	}
-	kick = goClockTicker(&wg, onTick, onKick)
+	ticker := NewClockTicker(&wg, onTick, onClose)
 
-	ipipe := goRdbLoader(&wg, ncpu*32, bufio.NewReaderSize(fin, 1024*1024*32), &nread)
-	opipe := goBufWriter(&wg, ncpu*32, bufio.NewWriterSize(fout, 128*1024), &nwrite)
+	loader := NewRdbLoader(&wg, ncpu*32, bufio.NewReaderSize(fin, 1024*1024*32), &nread)
+	writer := NewBufWriter(&wg, ncpu*32, bufio.NewWriterSize(fout, 128*1024), &nwrite)
 
 	for i, count := 0, AtomicInt64(ncpu); i < ncpu; i++ {
 		wg.Add(1)
@@ -44,12 +49,12 @@ func Decode(ncpu int, input, output string) {
 			defer wg.Done()
 			defer func() {
 				if count.Sub(1) == 0 {
-					close(opipe)
-					close(kick)
+					writer.Close()
+					ticker.Close()
 				}
 			}()
 			var b bytes.Buffer
-			for e := range ipipe {
+			for e := range loader.Pipe() {
 				o, err := rdb.Decode(e.Val)
 				if err != nil {
 					utils.Panic("decode error = '%s'", err)
@@ -83,7 +88,7 @@ func Decode(ncpu int, input, output string) {
 						fmt.Fprintf(&b, "db=%d type=%s expire=%d key=%s member=%s score=%f\n", e.Db, "zset", e.Expire, key, mem, x.Score)
 					}
 				}
-				opipe <- b.String()
+				writer.Append(b.String())
 				b.Reset()
 			}
 		}()

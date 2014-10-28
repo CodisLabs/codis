@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"bufio"
-
 	"log"
-
 	"sync"
 )
 
@@ -13,7 +11,9 @@ import (
 )
 
 func Restore(ncpu int, input, target string) {
-	fin, nsize := openFileReader(input)
+	log.Printf("[ncpu=%d] restore from `%s' to `%s'\n", ncpu, input, target)
+
+	fin, nsize := openReadFile(input)
 	defer fin.Close()
 
 	var nread, nrestore AtomicInt64
@@ -21,16 +21,20 @@ func Restore(ncpu int, input, target string) {
 
 	onTick := func() {
 		r, s := nread.Get(), nrestore.Get()
-		p := 100 * r / nsize
-		log.Printf("total = %d  - %3d%%, read=%-14d restore=%-14d\n", nsize, p, r, s)
+		if nsize != 0 {
+			p := 100 * r / nsize
+			log.Printf("total = %d  - %3d%%, read=%-14d restore=%-14d\n", nsize, p, r, s)
+		} else {
+			log.Printf("total = unknown  -  read=%-14d restore=%-14d\n", r, s)
+		}
 	}
-	onKick := func() {
+	onClose := func() {
 		onTick()
 		log.Printf("done\n")
 	}
-	kick := goClockTicker(&wg, onTick, onKick)
+	ticker := NewClockTicker(&wg, onTick, onClose)
 
-	pipe := goRdbLoader(&wg, ncpu*32, bufio.NewReaderSize(fin, 1024*1024*32), &nread)
+	loader := NewRdbLoader(&wg, ncpu*32, bufio.NewReaderSize(fin, 1024*1024*32), &nread)
 
 	for i, count := 0, AtomicInt64(ncpu); i < ncpu; i++ {
 		wg.Add(1)
@@ -38,12 +42,12 @@ func Restore(ncpu int, input, target string) {
 			defer wg.Done()
 			defer func() {
 				if count.Sub(1) == 0 {
-					close(kick)
+					ticker.Close()
 				}
 			}()
 			c := openRedisConn(target)
 			defer c.Close()
-			for e := range pipe {
+			for e := range loader.Pipe() {
 				if e.Db != 0 {
 					utils.Panic("dbnum must be 0, but got %d", e.Db)
 				}

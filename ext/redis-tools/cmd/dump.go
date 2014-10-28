@@ -12,11 +12,25 @@ import (
 )
 
 func Dump(ncpu int, from, output string) {
-	fout := openFileWriter(output)
+	log.Printf("[ncpu=%d] dump from `%s' to `%s'\n", ncpu, from, output)
+
+	fout := openWriteFile(output)
 	defer fout.Close()
 
-	master, nsize := openSyncConn(from)
+	master, wait := openSyncConn(from)
 	defer master.Close()
+
+	var nsize int64
+	for nsize == 0 {
+		select {
+		case nsize = <-wait:
+			if nsize == 0 {
+				log.Println("+")
+			}
+		case <-time.After(time.Second):
+			log.Println("-")
+		}
+	}
 
 	var nread, nwrite AtomicInt64
 	var wg sync.WaitGroup
@@ -39,7 +53,7 @@ func Dump(ncpu int, from, output string) {
 	reader := bufio.NewReaderSize(master, 1024*1024*32)
 	writer := bufio.NewWriterSize(fout, 1024*64)
 
-	goReaderWriterPipe(&wg, reader, writer, &nread, &nwrite, nsize)
+	PipeReaderWriter(&wg, reader, writer, &nread, &nwrite, nsize)
 
 	wg.Wait()
 

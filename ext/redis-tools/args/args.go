@@ -37,10 +37,10 @@ func strArg(name string, nonil bool) string {
 func init() {
 	usage := `
 Usage:
-	redis-tools decode  [--ncpu=N]  --input=INPUT  --output=OUTPUT
-	redis-tools restore [--ncpu=N]  --input=INPUT  --target=TARGET
-	redis-tools dump    [--ncpu=N]  --from=MASTER  --output=OUTPUT
-	redis-tools sync    [--ncpu=N]  --from=MASTER  --target=TARGET
+	redis-tools decode   [--ncpu=N]  [--input=INPUT]  [--output=OUTPUT]
+	redis-tools restore  [--ncpu=N]  [--input=INPUT]   --target=TARGET
+	redis-tools dump     [--ncpu=N]   --from=MASTER   [--output=OUTPUT]
+	redis-tools sync     [--ncpu=N]   --from=MASTER    --target=TARGET
 `
 	var err error
 	args, err = docopt.Parse(usage, nil, true, "", false)
@@ -81,11 +81,19 @@ func Code() string {
 }
 
 func Input() string {
-	return strArg("--input", true)
+	if s := strArg("--input", false); len(s) != 0 {
+		return s
+	} else {
+		return "/dev/stdin"
+	}
 }
 
 func Output() string {
-	return strArg("--output", true)
+	if s := strArg("--output", false); len(s) != 0 {
+		return s
+	} else {
+		return "/dev/stdout"
+	}
 }
 
 func From() string {
