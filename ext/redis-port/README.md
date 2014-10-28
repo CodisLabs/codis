@@ -35,11 +35,11 @@ Options
 
 + -i _INPUT_, --input=_INPUT_
 
-> use _INPUT_ as input file, or if it is not given, redis-port reads from stdin (means `/dev/stdin')
+> use _INPUT_ as input file, or if it is not given, redis-port reads from stdin (means '/dev/stdin')
 
 + -o _OUTPUT_, --output=_OUTPUT_
 
-> use _OUTPUT_ as output file, or if it is not given, redis-port writes to stdout (means `/dev/stdout')
+> use _OUTPUT_ as output file, or if it is not given, redis-port writes to stdout (means '/dev/stdout')
 
 + -m _MASTER_, --master=_MASTER_
 
@@ -72,7 +72,7 @@ $ cat dump.rdb | ./redis-port decode 2>/dev/null
 
 ```sh
 $ ./redis-port restore -i dump.rdb -t 127.0.0.1:6379 -n 8
-  2014/10/28 15:08:26 [ncpu=8] restore from `dump.rdb' to `127.0.0.1:6379'
+  2014/10/28 15:08:26 [ncpu=8] restore from 'dump.rdb' to '127.0.0.1:6379'
   2014/10/28 15:08:27 total = 280149161  -   5%, read=14267777       restore=97006
   2014/10/28 15:08:28 total = 280149161  -   9%, read=27325530       restore=186450
   2014/10/28 15:08:29 total = 280149161  -  14%, read=40670677       restore=277160
@@ -86,7 +86,7 @@ $ ./redis-port restore -i dump.rdb -t 127.0.0.1:6379 -n 8
 
 ```sh
 $ ./redis-port dump -f 127.0.0.1:6379 -o save.rdb
-  2014/10/28 15:12:05 [ncpu=1] dump from `127.0.0.1:6379' to `save.rdb'
+  2014/10/28 15:12:05 [ncpu=1] dump from '127.0.0.1:6379' to 'save.rdb'
   2014/10/28 15:12:06 -
   2014/10/28 15:12:07 -
   ... ...
@@ -95,7 +95,7 @@ $ ./redis-port dump -f 127.0.0.1:6379 -o save.rdb
   2014/10/28 15:12:11 done
 
 $ ./redis-port dump -f 127.0.0.1:6379 | tee save.rdb | ./redis-port decode -o save.log -n 8 2>/dev/null
-  2014/10/28 15:12:55 [ncpu=1] dump from `127.0.0.1:6379' to `/dev/stdout'
+  2014/10/28 15:12:55 [ncpu=1] dump from '127.0.0.1:6379' to '/dev/stdout'
   2014/10/28 15:12:56 -
   ... ...
   2014/10/28 15:13:10 total = 278110192  -  95%, read=264373070      write=264372046
@@ -107,7 +107,7 @@ $ ./redis-port dump -f 127.0.0.1:6379 | tee save.rdb | ./redis-port decode -o sa
 
 ```sh
 $ ./redis-port sync -f 127.0.0.1:6379 -t 127.0.0.1:6380 -n 8
-  2014/10/28 15:15:41 [ncpu=8] sync from `127.0.0.1:6379' to `127.0.0.1:6380'
+  2014/10/28 15:15:41 [ncpu=8] sync from '127.0.0.1:6379' to '127.0.0.1:6380'
   2014/10/28 15:15:42 -
   2014/10/28 15:15:43 -
   2014/10/28 15:15:44 -

@@ -13,7 +13,7 @@ import (
 )
 
 func Sync(ncpu int, from, target string) {
-	log.Printf("[ncpu=%d] sync from `%s' to `%s'\n", ncpu, from, target)
+	log.Printf("[ncpu=%d] sync from '%s' to '%s'\n", ncpu, from, target)
 
 	master, wait := openSyncConn(from)
 	defer master.Close()

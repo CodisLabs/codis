@@ -11,7 +11,7 @@ import (
 )
 
 func Restore(ncpu int, input, target string) {
-	log.Printf("[ncpu=%d] restore from `%s' to `%s'\n", ncpu, input, target)
+	log.Printf("[ncpu=%d] restore from '%s' to '%s'\n", ncpu, input, target)
 
 	fin, nsize := openReadFile(input)
 	defer fin.Close()
