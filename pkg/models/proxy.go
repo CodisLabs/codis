@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/wandoulabs/codis/pkg/zkhelper"
+	"github.com/ngaut/zkhelper"
 
 	"github.com/juju/errors"
 	"github.com/ngaut/go-zookeeper/zk"

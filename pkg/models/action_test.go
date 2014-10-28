@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/wandoulabs/codis/pkg/zkhelper"
+	"github.com/ngaut/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/utils"
 )
@@ -15,7 +15,7 @@ var (
 )
 
 func TestNewAction(t *testing.T) {
-	fakeZkConn := zkhelper.NewFakeConn()
+	fakeZkConn := zkhelper.NewConn()
 	err := NewAction(fakeZkConn, productName, ACTION_TYPE_SLOT_CHANGED, nil, "desc", false)
 
 	if err != nil {
@@ -31,7 +31,7 @@ func TestNewAction(t *testing.T) {
 }
 
 func TestForceRemoveLock(t *testing.T) {
-	fakeZkConn := zkhelper.NewFakeConn()
+	fakeZkConn := zkhelper.NewConn()
 	zkLock := utils.GetZkLock(fakeZkConn, productName)
 	if zkLock == nil {
 		t.Error("create lock error")

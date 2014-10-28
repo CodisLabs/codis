@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wandoulabs/codis/pkg/zkhelper"
+	"github.com/ngaut/zkhelper"
 
 	"github.com/c4pt0r/cfg"
 )

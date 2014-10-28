@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"github.com/juju/errors"
 	"github.com/ngaut/go-zookeeper/zk"

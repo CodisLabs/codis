@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wandoulabs/codis/pkg/zkhelper"
+	"github.com/ngaut/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/utils"
 

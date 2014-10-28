@@ -3,11 +3,11 @@ package models
 import (
 	"testing"
 
-	"github.com/wandoulabs/codis/pkg/zkhelper"
+	"github.com/ngaut/zkhelper"
 )
 
 func TestProxy(t *testing.T) {
-	fakeZkConn := zkhelper.NewFakeConn()
+	fakeZkConn := zkhelper.NewConn()
 
 	pi := &ProxyInfo{
 		Id:    "proxy_1",

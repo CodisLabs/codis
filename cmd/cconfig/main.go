@@ -7,8 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -127,7 +127,7 @@ func main() {
 
 	productName, _ = config.ReadString("product", "test")
 	zkAddr, _ = config.ReadString("zk", "localhost:2181")
-	zkConn, _ = zkhelper.InitZk(zkAddr)
+	zkConn, _ = zkhelper.ConnectToZk(zkAddr)
 	zkLock = utils.GetZkLock(zkConn, productName)
 
 	log.Debugf("product: %s", productName)

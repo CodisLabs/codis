@@ -3,11 +3,11 @@ package models
 import (
 	"testing"
 
-	"github.com/wandoulabs/codis/pkg/zkhelper"
+	"github.com/ngaut/zkhelper"
 )
 
 func TestSlots(t *testing.T) {
-	fakeZkConn := zkhelper.NewFakeConn()
+	fakeZkConn := zkhelper.NewConn()
 	path := GetSlotBasePath(productName)
 	children, _, _ := fakeZkConn.Children(path)
 	if len(children) != 0 {
