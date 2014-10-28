@@ -23,7 +23,7 @@ RUN go get github.com/go-martini/martini
 RUN go get github.com/martini-contrib/cors
 RUN go get github.com/nu7hatch/gouuid
 RUN go get github.com/docopt/docopt-go
-ADD pkg ${GOPATH}/src/codis/pkg
+ADD pkg ${GOPATH}/src/github.com/wandoulabs/codis/pkg
 
 RUN mkdir -p /codis
 
