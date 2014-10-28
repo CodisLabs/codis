@@ -14,6 +14,10 @@ run_shell() {
     fi
     echo '$' $@
     time $@
+    e=$?
+    if [ $e -ne 0 ]; then
+        exit $e
+    fi
     echo
     echo
 }
