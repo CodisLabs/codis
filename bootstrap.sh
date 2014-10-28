@@ -20,6 +20,7 @@ go get github.com/martini-contrib/cors
 go get github.com/nu7hatch/gouuid
 go get github.com/docopt/docopt-go
 go get github.com/cupcake/rdb
+go get github.com/alicebob/miniredis
 
 make
 
