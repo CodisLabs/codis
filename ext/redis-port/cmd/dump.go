@@ -8,7 +8,7 @@ import (
 )
 
 import (
-	"github.com/spinlock/redis-tools/utils"
+	"github.com/wandoulabs/codis/ext/redis-port/utils"
 )
 
 func Dump(ncpu int, from, output string) {

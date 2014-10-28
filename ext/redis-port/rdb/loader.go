@@ -10,7 +10,7 @@ import (
 )
 
 import (
-	"github.com/spinlock/redis-tools/rdb/digest"
+	"github.com/wandoulabs/codis/ext/redis-port/rdb/digest"
 )
 
 type Loader struct {

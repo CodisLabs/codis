@@ -8,8 +8,8 @@ import (
 )
 
 import (
-	"github.com/spinlock/redis-tools/rdb"
-	"github.com/spinlock/redis-tools/utils"
+	"github.com/wandoulabs/codis/ext/redis-port/rdb"
+	"github.com/wandoulabs/codis/ext/redis-port/utils"
 )
 
 type ClockTicker struct {

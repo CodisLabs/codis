@@ -1,6 +1,0 @@
-/redis-tools
-/redis-tools.*
-*.rdb
-*.swp
-*.log
-*.tmp

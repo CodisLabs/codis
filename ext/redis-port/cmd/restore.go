@@ -7,7 +7,7 @@ import (
 )
 
 import (
-	"github.com/spinlock/redis-tools/utils"
+	"github.com/wandoulabs/codis/ext/redis-port/utils"
 )
 
 func Restore(ncpu int, input, target string) {

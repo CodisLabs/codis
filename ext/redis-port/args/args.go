@@ -7,7 +7,7 @@ import (
 
 import (
 	"github.com/docopt/docopt-go"
-	"github.com/spinlock/redis-tools/utils"
+	"github.com/wandoulabs/codis/ext/redis-port/utils"
 )
 
 var (
@@ -37,10 +37,10 @@ func strArg(name string, nonil bool) string {
 func init() {
 	usage := `
 Usage:
-	redis-tools decode   [--ncpu=N]  [--input=INPUT]  [--output=OUTPUT]
-	redis-tools restore  [--ncpu=N]  [--input=INPUT]   --target=TARGET
-	redis-tools dump     [--ncpu=N]   --from=MASTER   [--output=OUTPUT]
-	redis-tools sync     [--ncpu=N]   --from=MASTER    --target=TARGET
+	redis-port decode   [--ncpu=N]  [--input=INPUT]  [--output=OUTPUT]
+	redis-port restore  [--ncpu=N]  [--input=INPUT]   --target=TARGET
+	redis-port dump     [--ncpu=N]   --from=MASTER   [--output=OUTPUT]
+	redis-port sync     [--ncpu=N]   --from=MASTER    --target=TARGET
 `
 	var err error
 	args, err = docopt.Parse(usage, nil, true, "", false)
