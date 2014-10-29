@@ -35,6 +35,8 @@ type Slot struct {
 	migrateFrom *group.Group
 }
 
+type OnSuicideFun func() error
+
 //change field not allowed whitout Lock()
 type Server struct {
 	mu     sync.RWMutex
@@ -51,7 +53,8 @@ type Server struct {
 	moper *MultiOperator
 	pools *cachepool.CachePool
 	//counter
-	counter *stats.Counters
+	counter   *stats.Counters
+	OnSuicide OnSuicideFun
 }
 
 func (s *Server) clearSlot(i int) {
@@ -402,8 +405,15 @@ func (s *Server) checkAndDoTopoChange(seq int) (needResponse bool) {
 }
 
 func (s *Server) handleMarkOffline() {
-	s.top.Close()
-	log.Fatalf("suicide %+v", s.pi)
+	s.top.Close(s.pi.Id)
+	if s.OnSuicide == nil {
+		s.OnSuicide = func() error {
+			log.Fatalf("suicide %+v", s.pi)
+			return nil
+		}
+	}
+
+	s.OnSuicide()
 }
 
 func (s *Server) handleProxyCommand() {

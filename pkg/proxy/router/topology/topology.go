@@ -104,7 +104,8 @@ func (top *Topology) SetProxyStatus(proxyName string, status string) error {
 	return models.SetProxyStatus(top.zkConn, top.ProductName, proxyName, status)
 }
 
-func (top *Topology) Close() {
+func (top *Topology) Close(proxyName string) {
+	zkhelper.DeleteRecursive(top.zkConn, path.Join(models.GetProxyPath(top.ProductName), proxyName), -1)
 	top.zkConn.Close()
 }
 

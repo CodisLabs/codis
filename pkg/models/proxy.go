@@ -138,7 +138,7 @@ func SetProxyStatus(zkConn zkhelper.Conn, productName string, proxyName string, 
 		// wait for the proxy down
 		for {
 			_, _, c, err := zkConn.GetW(path.Join(GetProxyPath(productName), proxyName))
-			if err == zk.ErrNoNode {
+			if zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 				return nil
 			} else if err != nil {
 				return errors.Trace(err)
@@ -146,7 +146,7 @@ func SetProxyStatus(zkConn zkhelper.Conn, productName string, proxyName string, 
 			<-c
 			info, err := GetProxyInfo(zkConn, productName, proxyName)
 			log.Info("mark_offline, check proxy status:", proxyName, info, err)
-			if err == zk.ErrNoNode {
+			if zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 				log.Info("success down")
 				return nil
 			} else if err != nil {
