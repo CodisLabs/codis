@@ -99,7 +99,11 @@ func main() {
 	http.HandleFunc("/setloglevel", handleSetLogLevel)
 	go http.ListenAndServe(httpAddr, nil)
 	log.Info("running on ", addr)
-	s := router.NewServer(addr, httpAddr, configFile)
+	conf, err := router.LoadConf(configFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	s := router.NewServer(addr, httpAddr, conf)
 	s.Run()
 	log.Warning("exit")
 }

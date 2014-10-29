@@ -548,18 +548,11 @@ func (s *Server) RegisterAndWait() {
 	s.waitOnline()
 }
 
-func NewServer(addr string, debugVarAddr string, configFile string) *Server {
-	conf, err := utils.InitConfigFromFile(configFile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	productName, _ := conf.ReadString("product", "test")
-	zkAddr, _ := conf.ReadString("zk", "localhost:2181")
-
+func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
+	log.Infof("%+v", conf)
 	s := &Server{
 		evtbus:            make(chan interface{}, 100),
-		top:               topo.NewTopo(productName, zkAddr),
+		top:               topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
 		counter:           stats.NewCounters("router"),
 		lastActionSeq:     -1,
 		startAt:           time.Now(),
@@ -568,7 +561,8 @@ func NewServer(addr string, debugVarAddr string, configFile string) *Server {
 		moper:             NewMultiOperator("localhost:" + strings.Split(addr, ":")[1]),
 		pools:             cachepool.NewCachePool(),
 	}
-	s.pi.Id, _ = conf.ReadString("proxy_id", "proxy_1")
+
+	s.pi.Id = conf.proxyId
 	s.pi.State = models.PROXY_STATE_OFFLINE
 	hname, err := os.Hostname()
 	if err != nil {
@@ -588,7 +582,7 @@ func NewServer(addr string, debugVarAddr string, configFile string) *Server {
 
 	s.RegisterAndWait()
 
-	_, err = s.top.WatchChildren(models.GetWatchActionPath(productName), s.evtbus)
+	_, err = s.top.WatchChildren(models.GetWatchActionPath(conf.productName), s.evtbus)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}

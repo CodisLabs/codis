@@ -8,8 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wandoulabs/codis/pkg/utils"
+
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
+	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
 
 	log "github.com/ngaut/logging"
 
@@ -278,4 +281,28 @@ func isTheSameSlot(keys [][]byte) bool {
 	}
 
 	return true
+}
+
+type Conf struct {
+	proxyId     string
+	productName string
+	zkAddr      string
+	f           topology.ZkFactory
+}
+
+func LoadConf(configFile string) (*Conf, error) {
+	srvConf := &Conf{}
+	conf, err := utils.InitConfigFromFile(configFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	srvConf.productName, _ = conf.ReadString("product", "test")
+	if len(srvConf.productName) == 0 {
+		log.Fatalf("invalid config: %+v", srvConf)
+	}
+	srvConf.zkAddr, _ = conf.ReadString("zk", "localhost:2181")
+	srvConf.proxyId, _ = conf.ReadString("proxy_id", "proxy_1")
+
+	return srvConf, nil
 }

@@ -19,10 +19,13 @@ type TopoUpdate interface {
 	OnSlotChange(slotId int)
 }
 
+type ZkFactory func(zkAddr string) (zkhelper.Conn, error)
+
 type Topology struct {
 	ProductName string
 	zkAddr      string
 	zkConn      zkhelper.Conn
+	fact        ZkFactory
 }
 
 func (top *Topology) GetGroup(groupId int) (*models.ServerGroup, error) {
@@ -52,15 +55,18 @@ func (top *Topology) GetSlotByIndex(i int) (*models.Slot, *models.ServerGroup, e
 	return slot, groupServer, nil
 }
 
-func NewTopo(ProductName string, zkAddr string) *Topology {
-	t := &Topology{zkAddr: zkAddr, ProductName: ProductName}
+func NewTopo(ProductName string, zkAddr string, f ZkFactory) *Topology {
+	t := &Topology{zkAddr: zkAddr, ProductName: ProductName, fact: f}
+	if t.fact == nil {
+		t.fact = zkhelper.ConnectToZk
+	}
 	t.InitZkConn()
 	return t
 }
 
 func (top *Topology) InitZkConn() {
 	var err error
-	top.zkConn, err = zkhelper.ConnectToZk(top.zkAddr)
+	top.zkConn, err = top.fact(top.zkAddr)
 	if err != nil {
 		log.Fatal(err)
 	}

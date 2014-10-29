@@ -166,11 +166,11 @@ func GetProxyInfo(zkConn zkhelper.Conn, productName string, proxyName string) (*
 	var pi ProxyInfo
 	data, _, err := zkConn.Get(path.Join(GetProxyPath(productName), proxyName))
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 
 	if err := json.Unmarshal(data, &pi); err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 
 	return &pi, nil
