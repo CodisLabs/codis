@@ -1,12 +1,6 @@
 package utils
 
-import (
-	"testing"
-
-	"github.com/garyburd/redigo/redis"
-	log "github.com/ngaut/logging"
-)
-
+/*
 const (
 	redisAddr = ":6379"
 )
@@ -26,3 +20,4 @@ func TestSlotSize(t *testing.T) {
 func TestStat(t *testing.T) {
 	log.Info(GetRedisStat(redisAddr))
 }
+*/

@@ -202,6 +202,23 @@ func ActionGC(zkConn zkhelper.Conn, productName string, gcType int, keep int) er
 	return nil
 }
 
+func CreateActionRootPath(zkConn zkhelper.Conn, path string) error {
+	// if action dir not exists, create it first
+	exists, err := zkhelper.NodeExists(zkConn, path)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	if !exists {
+		_, err := zkhelper.CreateOrUpdate(zkConn, path, "", 0, zkhelper.DefaultDirACLs(), true)
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
+
+	return nil
+}
+
 func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, target interface{}, desc string, needConfirm bool) error {
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
 
@@ -228,18 +245,11 @@ func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, 
 
 	prefix := GetWatchActionPath(productName)
 
-	// if action dir not exists, create it first
-	exists, err := zkhelper.NodeExists(zkConn, prefix)
+	err = CreateActionRootPath(zkConn, prefix)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	if !exists {
-		_, err := zkhelper.CreateOrUpdate(zkConn, prefix, "", 0, zkhelper.DefaultDirACLs(), true)
-		if err != nil {
-			return errors.Trace(err)
-		}
-	}
 	// create action node
 	actionCreated, err := zkConn.Create(prefix+"/action_", b, int32(zk.FlagSequence), zkhelper.DefaultDirACLs())
 

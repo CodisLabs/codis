@@ -59,7 +59,6 @@ func isMulOp(op string) bool {
 
 func validSlot(i int) bool {
 	if i < 0 || i >= models.DEFAULT_SLOT_NUM {
-		log.Errorf("invalid slot number, %+v", i)
 		return false
 	}
 
