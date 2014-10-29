@@ -97,7 +97,7 @@ func ProxyList(zkConn zkhelper.Conn, productName string, filter func(*ProxyInfo)
 	var ret []ProxyInfo = make([]ProxyInfo, 0)
 	root := GetProxyPath(productName)
 	proxies, _, err := zkConn.Children(root)
-	if err != nil && err != zk.ErrNoNode {
+	if err != nil && !zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 		return nil, errors.Trace(err)
 	}
 

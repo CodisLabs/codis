@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/juju/errors"
 	"github.com/ngaut/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -17,12 +18,19 @@ var (
 func TestNewAction(t *testing.T) {
 	fakeZkConn := zkhelper.NewConn()
 	err := NewAction(fakeZkConn, productName, ACTION_TYPE_SLOT_CHANGED, nil, "desc", false)
-
 	if err != nil {
-		t.Error(err)
+		t.Error(errors.ErrorStack(err))
 	}
 	prefix := GetWatchActionPath(productName)
-	d, _, _ := fakeZkConn.Get(prefix + "/action_0000000001")
+	if exist, _, _ := fakeZkConn.Exists(prefix); !exist {
+		t.Error(errors.ErrorStack(err))
+	}
+
+	d, _, err := fakeZkConn.Get(prefix + "/action_0000000001")
+	if err != nil {
+		t.Error(errors.ErrorStack(err))
+	}
+
 	var action Action
 	json.Unmarshal(d, &action)
 	if action.Desc != "desc" || action.Type != ACTION_TYPE_SLOT_CHANGED {
