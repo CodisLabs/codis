@@ -7,21 +7,25 @@ import (
 	"time"
 )
 
-var args struct {
+type BasicHashTestCase struct {
 	proxy string
 	nkeys int
 }
 
-func test_init() {
-	flag.StringVar(&args.proxy, "proxy", "", "redis host:port")
-	flag.IntVar(&args.nkeys, "nkeys", 10000, "# of nkeys")
+func init() {
+	testcase = &BasicHashTestCase{}
 }
 
-func test_main() {
-	c := NewConn(args.proxy)
+func (tc *BasicHashTestCase) init() {
+	flag.StringVar(&tc.proxy, "proxy", "", "redis host:port")
+	flag.IntVar(&tc.nkeys, "nkeys", 10000, "# of nkeys")
+}
+
+func (tc *BasicHashTestCase) main() {
+	c := NewConn(tc.proxy)
 	defer c.Close()
 	r := &Rand{time.Now().UnixNano()}
-	for i := 0; i < args.nkeys; i++ {
+	for i := 0; i < tc.nkeys; i++ {
 		u := NewUnit(fmt.Sprintf("basic_hash_%d_%d", r.Next(), r.Next()))
 		h, e := uint32(u.HashKey(c)), crc32.ChecksumIEEE([]byte(u.key))%1024
 		if h != e {

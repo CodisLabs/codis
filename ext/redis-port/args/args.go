@@ -41,6 +41,13 @@ Usage:
 	redis-port restore  [--ncpu=N]  [--input=INPUT]   --target=TARGET
 	redis-port dump     [--ncpu=N]   --from=MASTER   [--output=OUTPUT]
 	redis-port sync     [--ncpu=N]   --from=MASTER    --target=TARGET
+
+Options:
+	-n N, --ncpu=N                    Set runtime.GOMAXPROCS to N.
+	-i INPUT, --input=INPUT           Set input file, default is stdin ('/dev/stdin').
+	-o OUTPUT, --output=OUTPUT        Set output file, default is stdout ('/dev/stdout').
+	-f MASTER, --from=MASTER          Set master redis.
+	-t TARGET, --target=TARGET        Set slave redis.
 `
 	var err error
 	args, err = docopt.Parse(usage, nil, true, "", false)

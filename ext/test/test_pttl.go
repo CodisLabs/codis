@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-var args struct {
+type TestPttlTestCase struct {
 	proxy  string
 	group  int
 	round  int
@@ -15,40 +15,44 @@ var args struct {
 	expire int
 }
 
-func test_init() {
-	flag.StringVar(&args.proxy, "proxy", "", "redis host:port")
-	flag.IntVar(&args.group, "group", 8, "# of test players")
-	flag.IntVar(&args.round, "round", 100, "# push/pop all per key")
-	flag.IntVar(&args.nkeys, "nkeys", 1000, "# of keys per test")
-	flag.IntVar(&args.ntags, "ntags", 1000, "# tags")
-	flag.IntVar(&args.expire, "expire", 1, "expire seconds")
+func init() {
+	testcase = &TestPttlTestCase{}
 }
 
-func test_main() {
+func (tc *TestPttlTestCase) init() {
+	flag.StringVar(&tc.proxy, "proxy", "", "redis host:port")
+	flag.IntVar(&tc.group, "group", 8, "# of test players")
+	flag.IntVar(&tc.round, "round", 100, "# push/pop all per key")
+	flag.IntVar(&tc.nkeys, "nkeys", 1000, "# of keys per test")
+	flag.IntVar(&tc.ntags, "ntags", 1000, "# tags")
+	flag.IntVar(&tc.expire, "expire", 1, "expire seconds")
+}
+
+func (tc *TestPttlTestCase) main() {
 	go func() {
-		c := NewConn(args.proxy)
+		c := NewConn(tc.proxy)
 		for {
 			time.Sleep(time.Second * 5)
 			c.Check()
 		}
 	}()
-	t := &Test{}
-	t.Reset()
-	for g := 0; g < args.group; g++ {
-		t.AddPlayer()
-		go test_player(g, t)
+	tg := &TestGroup{}
+	tg.Reset()
+	for g := 0; g < tc.group; g++ {
+		tg.AddPlayer()
+		go tc.player(g, tg)
 	}
-	t.Start()
-	t.Wait()
+	tg.Start()
+	tg.Wait()
 	fmt.Println("done")
 }
 
-func test_player(gid int, t *Test) {
-	t.PlayerWait()
-	defer t.PlayerDone()
-	c := NewConn(args.proxy)
+func (tc *TestPttlTestCase) player(gid int, tg *TestGroup) {
+	tg.PlayerWait()
+	defer tg.PlayerDone()
+	c := NewConn(tc.proxy)
 	defer c.Close()
-	us := UnitSlice(make([]*Unit, args.nkeys))
+	us := UnitSlice(make([]*Unit, tc.nkeys))
 	for i := 0; i < len(us); i++ {
 		key := fmt.Sprintf("test_pttl_%d_{%d}", gid, i)
 		us[i] = NewUnit(key)
@@ -59,10 +63,10 @@ func test_player(gid int, t *Test) {
 		ttls[u.key] = &TTL{}
 		ops.Incr()
 	}
-	for i := 0; i < args.round; i++ {
+	for i := 0; i < tc.round; i++ {
 		for _, u := range us {
 			u.Set(c, u.key)
-			Expire(c, u, ttls[u.key], args.expire)
+			Expire(c, u, ttls[u.key], tc.expire)
 			ops.Incr()
 		}
 		for {

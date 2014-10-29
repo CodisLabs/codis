@@ -6,24 +6,28 @@ import (
 	"time"
 )
 
-var args struct {
+type TestStringTestCase struct {
 	proxy  string
 	maxlen int
 }
 
-func test_init() {
-	flag.StringVar(&args.proxy, "proxy", "", "redis# host:port")
-	flag.IntVar(&args.maxlen, "maxlen", 10000, "# bytes of test string")
+func init() {
+	testcase = &TestStringTestCase{}
 }
 
-func test_main() {
-	c := NewConn(args.proxy)
+func (tc *TestStringTestCase) init() {
+	flag.StringVar(&tc.proxy, "proxy", "", "redis# host:port")
+	flag.IntVar(&tc.maxlen, "maxlen", 10000, "# bytes of test string")
+}
+
+func (tc *TestStringTestCase) main() {
+	c := NewConn(tc.proxy)
 	defer c.Close()
 	u := NewUnit("test_{string}_string")
 	u.Del(c, false)
 	r := &Rand{time.Now().UnixNano()}
 	n := 0
-	if step := args.maxlen / 1000; step != 0 {
+	if step := tc.maxlen / 1000; step != 0 {
 		buf := make([]byte, step)
 		for i := 0; i < 1000; i++ {
 			for j := 0; j < step; j++ {
@@ -35,7 +39,7 @@ func test_main() {
 			ops.Incr()
 		}
 	}
-	for ; n < args.maxlen; n++ {
+	for ; n < tc.maxlen; n++ {
 		u.Append(c, string(byte(uint64(r.Next())%(127-32)+32)))
 		u.GetString(c)
 		ops.Incr()

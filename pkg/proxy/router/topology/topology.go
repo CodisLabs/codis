@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/wandoulabs/codis/pkg/zkhelper"
+	"github.com/ngaut/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/models"
 
@@ -60,7 +60,7 @@ func NewTopo(ProductName string, zkAddr string) *Topology {
 
 func (top *Topology) InitZkConn() {
 	var err error
-	top.zkConn, err = zkhelper.InitZk(top.zkAddr)
+	top.zkConn, err = zkhelper.ConnectToZk(top.zkAddr)
 	if err != nil {
 		log.Fatal(err)
 	}

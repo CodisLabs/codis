@@ -12,7 +12,7 @@ import (
 )
 
 func Dump(ncpu int, from, output string) {
-	log.Printf("[ncpu=%d] dump from `%s' to `%s'\n", ncpu, from, output)
+	log.Printf("[ncpu=%d] dump from '%s' to '%s'\n", ncpu, from, output)
 
 	fout := openWriteFile(output)
 	defer fout.Close()

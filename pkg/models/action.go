@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"github.com/juju/errors"
 	"github.com/ngaut/go-zookeeper/zk"
@@ -233,14 +233,18 @@ func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, 
 	if err != nil {
 		return errors.Trace(err)
 	}
+
 	if !exists {
-		zkhelper.CreateOrUpdate(zkConn, prefix, "", 0, zkhelper.DefaultDirACLs(), true)
+		_, err := zkhelper.CreateOrUpdate(zkConn, prefix, "", 0, zkhelper.DefaultDirACLs(), true)
+		if err != nil {
+			return errors.Trace(err)
+		}
 	}
 	// create action node
 	actionCreated, err := zkConn.Create(prefix+"/action_", b, int32(zk.FlagSequence), zkhelper.DefaultDirACLs())
 
 	if err != nil {
-		log.Error(err)
+		log.Error(err, prefix)
 		return errors.Trace(err)
 	}
 

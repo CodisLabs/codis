@@ -14,7 +14,7 @@ import (
 )
 
 func Decode(ncpu int, input, output string) {
-	log.Printf("[ncpu=%d] decode from `%s' to `%s'\n", ncpu, input, output)
+	log.Printf("[ncpu=%d] decode from '%s' to '%s'\n", ncpu, input, output)
 
 	fin, nsize := openReadFile(input)
 	defer fin.Close()

@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"path"
 
-	"github.com/wandoulabs/codis/pkg/zkhelper"
+	"github.com/ngaut/zkhelper"
 
 	"github.com/juju/errors"
 	"github.com/ngaut/go-zookeeper/zk"
@@ -97,7 +97,7 @@ func ProxyList(zkConn zkhelper.Conn, productName string, filter func(*ProxyInfo)
 	var ret []ProxyInfo = make([]ProxyInfo, 0)
 	root := GetProxyPath(productName)
 	proxies, _, err := zkConn.Children(root)
-	if err != nil && err != zk.ErrNoNode {
+	if err != nil && !zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 		return nil, errors.Trace(err)
 	}
 

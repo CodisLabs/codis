@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	"sync/atomic"
 
@@ -52,7 +52,7 @@ options:
 var proxiesSpeed int64
 
 func CreateZkConn() zkhelper.Conn {
-	conn, _ := zkhelper.InitZk(zkAddr)
+	conn, _ := zkhelper.ConnectToZk(zkAddr)
 	return conn
 }
 

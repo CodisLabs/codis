@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/zkhelper"
 
 	log "github.com/ngaut/logging"
 

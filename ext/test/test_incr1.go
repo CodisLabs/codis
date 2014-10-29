@@ -6,52 +6,56 @@ import (
 	"time"
 )
 
-var args struct {
+type TestIncr1TestCase struct {
 	proxy string
 	group int
 	round int
 	nkeys int
 }
 
-func test_init() {
-	flag.StringVar(&args.proxy, "proxy", "", "redis host:port")
-	flag.IntVar(&args.group, "group", 8, "# of test players")
-	flag.IntVar(&args.round, "round", 100, "# of incr opts per key")
-	flag.IntVar(&args.nkeys, "nkeys", 10000, "# of keys per test")
+func init() {
+	testcase = &TestIncr1TestCase{}
 }
 
-func test_main() {
+func (tc *TestIncr1TestCase) init() {
+	flag.StringVar(&tc.proxy, "proxy", "", "redis host:port")
+	flag.IntVar(&tc.group, "group", 8, "# of test players")
+	flag.IntVar(&tc.round, "round", 100, "# of incr opts per key")
+	flag.IntVar(&tc.nkeys, "nkeys", 10000, "# of keys per test")
+}
+
+func (tc *TestIncr1TestCase) main() {
 	go func() {
-		c := NewConn(args.proxy)
+		c := NewConn(tc.proxy)
 		for {
 			time.Sleep(time.Second * 5)
 			c.Check()
 		}
 	}()
-	t := &Test{}
-	t.Reset()
-	for g := 0; g < args.group; g++ {
-		t.AddPlayer()
-		go test_player(g, t)
+	tg := &TestGroup{}
+	tg.Reset()
+	for g := 0; g < tc.group; g++ {
+		tg.AddPlayer()
+		go tc.player(g, tg)
 	}
-	t.Start()
-	t.Wait()
+	tg.Start()
+	tg.Wait()
 	fmt.Println("done")
 }
 
-func test_player(gid int, t *Test) {
-	t.PlayerWait()
-	defer t.PlayerDone()
-	c := NewConn(args.proxy)
+func (tc *TestIncr1TestCase) player(gid int, tg *TestGroup) {
+	tg.PlayerWait()
+	defer tg.PlayerDone()
+	c := NewConn(tc.proxy)
 	defer c.Close()
-	us := make([]*Unit, args.nkeys)
+	us := make([]*Unit, tc.nkeys)
 	for i := 0; i < len(us); i++ {
 		key := fmt.Sprintf("test_incr1_%d_{%d}", gid, i)
 		us[i] = NewUnit(key)
 		us[i].Del(c, false)
 		ops.Incr()
 	}
-	for i := 0; i < args.round; i++ {
+	for i := 0; i < tc.round; i++ {
 		for _, u := range us {
 			u.Incr(c)
 			ops.Incr()

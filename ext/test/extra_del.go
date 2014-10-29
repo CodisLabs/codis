@@ -6,16 +6,20 @@ import (
 	"time"
 )
 
-var args struct {
+type ExtraDelTestCase struct {
 	proxy string
 }
 
-func test_init() {
-	flag.StringVar(&args.proxy, "proxy", "", "redis host:port")
+func init() {
+	testcase = &ExtraDelTestCase{}
 }
 
-func test_main() {
-	c := NewConn(args.proxy)
+func (tc *ExtraDelTestCase) init() {
+	flag.StringVar(&tc.proxy, "proxy", "", "redis host:port")
+}
+
+func (tc *ExtraDelTestCase) main() {
+	c := NewConn(tc.proxy)
 	defer c.Close()
 	for n := 10; n <= 100*10000; n *= 10 {
 		us := UnitSlice(make([]*Unit, n))

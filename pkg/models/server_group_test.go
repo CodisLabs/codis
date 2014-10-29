@@ -3,11 +3,11 @@ package models
 import (
 	"testing"
 
-	"github.com/wandoulabs/codis/pkg/zkhelper"
+	"github.com/ngaut/zkhelper"
 )
 
 func TestServerGroup(t *testing.T) {
-	fakeZkConn := zkhelper.NewFakeConn()
+	fakeZkConn := zkhelper.NewConn()
 	g := NewServerGroup(productName, 1)
 	g.Create(fakeZkConn)
 
