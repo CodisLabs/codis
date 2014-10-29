@@ -5,3 +5,4 @@ nohup.out
 martini_log
 /bin/proxy
 /bin/cconfig
+/Dockerfile
