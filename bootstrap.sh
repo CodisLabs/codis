@@ -11,6 +11,7 @@ go get github.com/juju/loggo
 go get github.com/ngaut/go-zookeeper/zk
 go get github.com/ngaut/gostats
 go get github.com/ngaut/logging
+go get github.com/ngaut/zkhelper
 go get github.com/ngaut/pools
 go get github.com/ngaut/resp
 go get github.com/ngaut/sync2
