@@ -272,9 +272,6 @@ func ForceRemoveLock(zkConn zkhelper.Conn, productName string) error {
 			return errors.Trace(err)
 		}
 	}
-	err = zkConn.Delete(lockPath, 0)
-	if err != nil {
-		return errors.Trace(err)
-	}
+
 	return nil
 }

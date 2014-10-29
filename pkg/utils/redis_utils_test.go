@@ -18,8 +18,8 @@ func TestSlotSize(t *testing.T) {
 	ret, err := SlotsInfo(redisAddr, 1023, 0)
 	log.Info(len(ret))
 
-	if err != nil {
-		t.Error(err)
+	if err == nil {
+		t.Error("should be error")
 	}
 }
 

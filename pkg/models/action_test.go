@@ -22,7 +22,7 @@ func TestNewAction(t *testing.T) {
 		t.Error(errors.ErrorStack(err))
 	}
 	prefix := GetWatchActionPath(productName)
-	if exist, _, _ := fakeZkConn.Exists(prefix); !exist {
+	if exist, _, err := fakeZkConn.Exists(prefix); !exist {
 		t.Error(errors.ErrorStack(err))
 	}
 
