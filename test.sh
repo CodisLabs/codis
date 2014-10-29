@@ -1,5 +1,7 @@
 #!/bin/bash
 
+trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
+
 pkill cconfig
 
 cd test

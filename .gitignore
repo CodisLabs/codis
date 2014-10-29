@@ -1,4 +1,7 @@
 *.log
+*.dump
+*.rdb
+nohup.out
 martini_log
 /bin/proxy
 /bin/cconfig
