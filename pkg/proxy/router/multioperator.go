@@ -66,8 +66,6 @@ func (oper *MultiOperator) work() {
 			oper.mget(mop)
 		case "DEL":
 			oper.del(mop)
-		default:
-			log.Warning("unknown op", mop)
 		}
 	}
 }

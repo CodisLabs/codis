@@ -177,7 +177,20 @@ func TestMultiKeyRedisCmd(t *testing.T) {
 	}
 }
 
-func TestInvalidRedisCmd(t *testing.T) {
+func TestInvalidRedisCmdUnknown(t *testing.T) {
+	InitEnv()
+	c, err := redis.Dial("tcp", "localhost:19000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	if _, err := c.Do("unknown", "key1", "key2", "key3"); err == nil {
+		t.Fatal(err)
+	}
+}
+
+func TestInvalidRedisCmdPing(t *testing.T) {
 	InitEnv()
 	c, err := redis.Dial("tcp", "localhost:19000")
 	if err != nil {
@@ -187,6 +200,20 @@ func TestInvalidRedisCmd(t *testing.T) {
 
 	_, err = c.Do("info")
 	if err != io.EOF {
+		t.Fatal(err)
+	}
+}
+
+func TestInvalidRedisCmdQuit(t *testing.T) {
+	InitEnv()
+	c, err := redis.Dial("tcp", "localhost:19000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	_, err = c.Do("quit")
+	if err != nil {
 		t.Fatal(err)
 	}
 }
