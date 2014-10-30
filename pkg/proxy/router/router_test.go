@@ -49,14 +49,11 @@ func InitEnv() {
 			log.Fatal(err)
 		}
 
-		err = models.SetSlotRange(conn, conf.productName, 0, 1023, 1, models.SLOT_STATUS_ONLINE)
-		if err != nil {
-			log.Fatal(err)
-		}
-
 		//init  server group
-		g := models.NewServerGroup(conf.productName, 1)
-		g.Create(conn)
+		g1 := models.NewServerGroup(conf.productName, 1)
+		g1.Create(conn)
+		g2 := models.NewServerGroup(conf.productName, 2)
+		g2.Create(conn)
 
 		redis1, _ := miniredis.Run()
 		redis2, _ := miniredis.Run()
@@ -64,8 +61,20 @@ func InitEnv() {
 		s1 := models.NewServer(models.SERVER_TYPE_MASTER, redis1.Addr())
 		s2 := models.NewServer(models.SERVER_TYPE_MASTER, redis2.Addr())
 
-		g.AddServer(conn, s1)
-		g.AddServer(conn, s2)
+		g1.AddServer(conn, s1)
+		g2.AddServer(conn, s2)
+
+		//set slot range
+		err = models.SetSlotRange(conn, conf.productName, 0, 511, 1, models.SLOT_STATUS_ONLINE)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = models.SetSlotRange(conn, conf.productName, 512, 1023, 2, models.SLOT_STATUS_ONLINE)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		go func() { //set proxy online
 			time.Sleep(5 * time.Second)
 			err := models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_ONLINE)
