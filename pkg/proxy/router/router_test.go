@@ -218,6 +218,26 @@ func TestInvalidRedisCmdQuit(t *testing.T) {
 	}
 }
 
+func TestInvalidRedisCmdEcho(t *testing.T) {
+	InitEnv()
+	c, err := redis.Dial("tcp", "localhost:19000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	_, err = c.Do("echo", "xx")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.Do("echo")
+	if err == nil {
+		t.Fatal("should be error")
+	}
+
+}
+
 //this should be the last test
 func TestMarkOffline(t *testing.T) {
 	InitEnv()
