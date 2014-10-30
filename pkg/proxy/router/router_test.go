@@ -13,11 +13,10 @@ import (
 )
 
 var (
-	conf    *Conf
-	s       *Server
-	once    sync.Once
-	conn    zkhelper.Conn
-	suicide = false
+	conf *Conf
+	s    *Server
+	once sync.Once
+	conn zkhelper.Conn
 )
 
 func InitEnv() {
@@ -32,7 +31,6 @@ func InitEnv() {
 
 		//init action path
 		prefix := models.GetWatchActionPath(conf.productName)
-
 		err := models.CreateActionRootPath(conn, prefix)
 		if err != nil {
 			log.Fatal(err)
@@ -58,33 +56,34 @@ func InitEnv() {
 
 		g.AddServer(conn, s1)
 		g.AddServer(conn, s2)
+		go func() { //set proxy online
+			time.Sleep(5 * time.Second)
+			err := models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_ONLINE)
+			if err != nil {
+				log.Fatal(errors.ErrorStack(err))
+			}
+			time.Sleep(2 * time.Second)
+			if s.pi.State != models.PROXY_STATE_ONLINE {
+				log.Fatalf("should be online, we got %s", s.pi.State)
+			}
+		}()
 
 		s = NewServer(":1900", ":11000",
 			conf,
 		)
-
-		s.OnSuicide = func() error {
-			suicide = true
-			return nil
-		}
 	})
 }
 
 func TestMarkOffline(t *testing.T) {
 	go InitEnv()
-	time.Sleep(2 * time.Second)
+	time.Sleep(8 * time.Second)
 
-	err := models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_ONLINE)
-	if err != nil {
-		t.Fatal(errors.ErrorStack(err))
+	suicide := false
+	s.OnSuicide = func() error {
+		suicide = true
+		return nil
 	}
-	time.Sleep(2 * time.Second)
-	if s.pi.State != models.PROXY_STATE_ONLINE {
-		t.Errorf("should be online, we got %s", s.pi.State)
-	}
-
-	time.Sleep(3 * time.Second)
-	err = models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_MARK_OFFLINE)
+	err := models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_MARK_OFFLINE)
 	if err != nil {
 		t.Fatal(errors.ErrorStack(err))
 	}
