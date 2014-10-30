@@ -2,6 +2,7 @@ package router
 
 import (
 	"bufio"
+	"errors"
 	"net"
 	"time"
 )
@@ -17,7 +18,7 @@ type session struct {
 
 //make sure all read using bufio.Reader
 func (s *session) Read(p []byte) (int, error) {
-	return s.r.Read(p)
+	return 0, errors.New("not implemented")
 }
 
 //write without bufio

@@ -1,6 +1,7 @@
 package router
 
 import (
+	"io"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -93,13 +94,13 @@ func InitEnv() {
 	})
 }
 
-func TestClusterWork(t *testing.T) {
+func TestSingleKeyRedisCmd(t *testing.T) {
 	InitEnv()
-	log.Debug("try to connect")
 	c, err := redis.Dial("tcp", "localhost:19000")
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer c.Close()
 
 	_, err = c.Do("SET", "foo", "bar")
 	if err != nil {
@@ -117,6 +118,54 @@ func TestClusterWork(t *testing.T) {
 
 	if got, err := redis.String(c.Do("get", "bar")); err != nil || got != "foo" {
 		t.Error("'bar' has the wrong value")
+	}
+}
+
+func TestMultiKeyRedisCmd(t *testing.T) {
+	InitEnv()
+	c, err := redis.Dial("tcp", "localhost:19000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	_, err = c.Do("SET", "key1", "value1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = c.Do("SET", "key2", "value2")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var value1 string
+	var value2 string
+	var value3 string
+	reply, err := redis.Values(c.Do("MGET", "key1", "key2", "key3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := redis.Scan(reply, &value1, &value2, &value3); err != nil {
+		t.Fatal(err)
+	}
+
+	if value1 != "value1" || value2 != "value2" || len(value3) != 0 {
+		t.Error("value not match")
+	}
+}
+
+func TestInvalidRedisCmd(t *testing.T) {
+	InitEnv()
+	c, err := redis.Dial("tcp", "localhost:19000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	_, err = c.Do("info")
+	if err != io.EOF {
+		t.Fatal(err)
 	}
 }
 
