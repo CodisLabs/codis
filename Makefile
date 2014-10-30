@@ -1,4 +1,6 @@
-all: build
+.PHONY: all build test clean
+
+all: clean build test
 
 clean:
 	rm -rf bin/cconfig
@@ -7,6 +9,10 @@ clean:
 	rm -f *.out
 	rm -f bin/*.out
 	rm -f *.dump
+
+test:
+	go test ./... -race
+
 
 build:
 	go build -o bin/cconfig ./cmd/cconfig

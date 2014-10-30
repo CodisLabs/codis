@@ -1,26 +1,32 @@
 package router
 
 import (
-	"log"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis"
+	"github.com/garyburd/redigo/redis"
 	"github.com/juju/errors"
-	"github.com/wandoulabs/codis/pkg/models"
-
+	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/codis/pkg/models"
 )
 
 var (
-	conf *Conf
-	s    *Server
-	once sync.Once
-	conn zkhelper.Conn
+	conf       *Conf
+	s          *Server
+	once       sync.Once
+	waitonce   sync.Once
+	conn       zkhelper.Conn
+	redis1     *miniredis.Miniredis
+	redis2     *miniredis.Miniredis
+	proxyMutex sync.Mutex
 )
 
 func InitEnv() {
-	once.Do(func() {
+	go once.Do(func() {
 		conn = zkhelper.NewConn()
 		conf = &Conf{
 			proxyId:     "proxy_test",
@@ -51,8 +57,11 @@ func InitEnv() {
 		g := models.NewServerGroup(conf.productName, 1)
 		g.Create(conn)
 
-		s1 := models.NewServer(models.SERVER_TYPE_MASTER, "localhost:1111")
-		s2 := models.NewServer(models.SERVER_TYPE_MASTER, "localhost:2222")
+		redis1, _ := miniredis.Run()
+		redis2, _ := miniredis.Run()
+
+		s1 := models.NewServer(models.SERVER_TYPE_MASTER, redis1.Addr())
+		s2 := models.NewServer(models.SERVER_TYPE_MASTER, redis2.Addr())
 
 		g.AddServer(conn, s1)
 		g.AddServer(conn, s2)
@@ -63,26 +72,65 @@ func InitEnv() {
 				log.Fatal(errors.ErrorStack(err))
 			}
 			time.Sleep(2 * time.Second)
-			if s.pi.State != models.PROXY_STATE_ONLINE {
-				log.Fatalf("should be online, we got %s", s.pi.State)
+			proxyMutex.Lock()
+			defer proxyMutex.Unlock()
+			pi := s.getProxyInfo()
+			if pi.State != models.PROXY_STATE_ONLINE {
+				log.Fatalf("should be online, we got %s", pi.State)
 			}
 		}()
 
-		s = NewServer(":1900", ":11000",
+		proxyMutex.Lock()
+		s = NewServer(":19000", ":11000",
 			conf,
 		)
+		proxyMutex.Unlock()
+		s.Run()
+	})
+
+	waitonce.Do(func() {
+		time.Sleep(10 * time.Second)
 	})
 }
 
-func TestMarkOffline(t *testing.T) {
-	go InitEnv()
-	time.Sleep(8 * time.Second)
+func TestClusterWork(t *testing.T) {
+	InitEnv()
+	log.Debug("try to connect")
+	c, err := redis.Dial("tcp", "localhost:19000")
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	suicide := false
+	_, err = c.Do("SET", "foo", "bar")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if got, err := redis.String(c.Do("get", "foo")); err != nil || got != "bar" {
+		t.Error("'foo' has the wrong value")
+	}
+
+	_, err = c.Do("SET", "bar", "foo")
+	if err != nil {
+		t.Error(err)
+	}
+
+	if got, err := redis.String(c.Do("get", "bar")); err != nil || got != "foo" {
+		t.Error("'bar' has the wrong value")
+	}
+}
+
+func TestMarkOffline(t *testing.T) {
+	InitEnv()
+
+	suicide := int64(0)
+	proxyMutex.Lock()
 	s.OnSuicide = func() error {
-		suicide = true
+		atomic.StoreInt64(&suicide, 1)
 		return nil
 	}
+	proxyMutex.Unlock()
+
 	err := models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_MARK_OFFLINE)
 	if err != nil {
 		t.Fatal(errors.ErrorStack(err))
@@ -90,7 +138,7 @@ func TestMarkOffline(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 
-	if !suicide {
+	if atomic.LoadInt64(&suicide) == 0 {
 		t.Error("shoud be suicided")
 	}
 }

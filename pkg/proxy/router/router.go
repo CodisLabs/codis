@@ -362,6 +362,13 @@ func (s *Server) responseAction(seq int64) {
 	}
 }
 
+func (s *Server) getProxyInfo() models.ProxyInfo {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var pi = s.pi
+	return pi
+}
+
 func (s *Server) getActionObject(seq int, target interface{}) {
 	act := &models.Action{Target: target}
 	log.Infof("%+v", act)
@@ -572,6 +579,7 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 		pools:             cachepool.NewCachePool(),
 	}
 
+	s.mu.Lock()
 	s.pi.Id = conf.proxyId
 	s.pi.State = models.PROXY_STATE_OFFLINE
 	hname, err := os.Hostname()
@@ -581,6 +589,7 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	s.pi.Addr = hname + ":" + strings.Split(addr, ":")[1]
 	s.pi.DebugVarAddr = hname + ":" + strings.Split(debugVarAddr, ":")[1]
 	log.Infof("proxy_info:%+v", s.pi)
+	s.mu.Unlock()
 	//todo:fill more field
 
 	stats.Publish("evtbus", stats.StringFunc(func() string {
