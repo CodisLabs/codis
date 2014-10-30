@@ -46,6 +46,9 @@ RUN rm -rf \${BUILDDIR}
 ADD cmd/cconfig/assets \${HOMEDIR}/bin/assets
 ADD deploy/sample_service \${HOMEDIR}/sample_service
 
+WORKDIR \${HOMEDIR}
+RUN ln -s sample_service/config.ini .
+
 EXPOSE 19000
 EXPOSE 11000
 EXPOSE 8087
