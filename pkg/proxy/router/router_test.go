@@ -153,6 +153,28 @@ func TestMultiKeyRedisCmd(t *testing.T) {
 	if value1 != "value1" || value2 != "value2" || len(value3) != 0 {
 		t.Error("value not match")
 	}
+
+	//test del
+	if _, err := c.Do("del", "key1", "key2", "key3"); err != nil {
+		t.Fatal(err)
+	}
+
+	//reset
+	value1 = ""
+	value2 = ""
+	value3 = ""
+	reply, err = redis.Values(c.Do("MGET", "key1", "key2", "key3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := redis.Scan(reply, &value1, &value2, &value3); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(value1) != 0 || len(value2) != 0 || len(value3) != 0 {
+		t.Error("value not match", value1, value2, value3)
+	}
 }
 
 func TestInvalidRedisCmd(t *testing.T) {
@@ -169,6 +191,7 @@ func TestInvalidRedisCmd(t *testing.T) {
 	}
 }
 
+//this should be the last test
 func TestMarkOffline(t *testing.T) {
 	InitEnv()
 
