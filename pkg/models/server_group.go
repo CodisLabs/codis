@@ -165,11 +165,7 @@ func (self *ServerGroup) RemoveServer(zkConn zkhelper.Conn, s Server) error {
 	}
 
 	err = NewAction(zkConn, self.ProductName, ACTION_TYPE_SERVER_GROUP_CHANGED, self, "", false)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	return nil
+	return errors.Trace(err)
 }
 
 func (self *ServerGroup) Promote(conn zkhelper.Conn, addr string) error {
@@ -210,10 +206,7 @@ func (self *ServerGroup) Promote(conn zkhelper.Conn, addr string) error {
 	// promote new server to master
 	s.Type = SERVER_TYPE_MASTER
 	err = self.AddServer(conn, &s)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	return nil
+	return errors.Trace(err)
 }
 
 func (self *ServerGroup) Create(zkConn zkhelper.Conn) error {
@@ -226,11 +219,7 @@ func (self *ServerGroup) Create(zkConn zkhelper.Conn) error {
 		return errors.Trace(err)
 	}
 	err = NewAction(zkConn, self.ProductName, ACTION_TYPE_SERVER_GROUP_CHANGED, self, "", false)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	return nil
+	return errors.Trace(err)
 }
 
 func (self *ServerGroup) Exists(zkConn zkhelper.Conn) (bool, error) {

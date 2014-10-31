@@ -158,10 +158,7 @@ func SetSlotRange(zkConn zkhelper.Conn, productName string, fromSlot, toSlot, gr
 		Status:  status,
 	}
 	err := NewAction(zkConn, productName, ACTION_TYPE_MULTI_SLOT_CHANGED, param, "", true)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	return nil
+	return errors.Trace(err)
 }
 
 // danger!
@@ -224,10 +221,5 @@ func (s *Slot) Update(zkConn zkhelper.Conn) error {
 		err = NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_CHANGED, s, "", true)
 	}
 
-	if err != nil {
-
-		return errors.Trace(err)
-	}
-
-	return nil
+	return errors.Trace(err)
 }
