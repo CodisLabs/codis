@@ -22,9 +22,9 @@ type MulOp struct {
 }
 
 func NewMultiOperator(server string) *MultiOperator {
-	oper := &MultiOperator{q: make(chan *MulOp, 5)}
+	oper := &MultiOperator{q: make(chan *MulOp, 128)}
 	oper.pool = newPool(server, "")
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 64; i++ {
 		go oper.work()
 	}
 
