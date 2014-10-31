@@ -185,11 +185,9 @@ func (s *Server) filter(opstr string, resp *parser.Resp, c *session) (next bool,
 			return false, errors.Trace(err)
 		}
 
-		if !isTheSameSlot(keys) {
-			keys, err := resp.Keys()
-			if err != nil {
-				return false, errors.Trace(err)
-			}
+		if len(keys) == 1 { //can send to redis directly
+			return true, nil
+		} else {
 			return false, s.moper.handleMultiOp(opstr, keys, c)
 		}
 	}

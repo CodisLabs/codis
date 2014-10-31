@@ -43,7 +43,7 @@ func TestIsMulOp(t *testing.T) {
 		t.Error("is not mulOp")
 	}
 
-	if !isMulOp("MGET") || !isMulOp("DEL") {
+	if !isMulOp("MGET") || !isMulOp("DEL") || !isMulOp("MSET") {
 		t.Error("should be mulOp")
 	}
 }
@@ -75,19 +75,6 @@ func TestRecordResponTime(t *testing.T) {
 	}
 	if cnts[">=5000ms"] != 1 {
 		t.Fail()
-	}
-}
-
-func TestIsTheSameSlot(t *testing.T) {
-	var s = [][]byte{[]byte("x"), []byte("x")}
-	if !isTheSameSlot(s) {
-		t.Error("should be the same slot")
-	}
-
-	s[1] = []byte("y")
-
-	if isTheSameSlot(s) {
-		t.Error("should not be the same slot")
 	}
 }
 

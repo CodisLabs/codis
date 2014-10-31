@@ -184,6 +184,29 @@ func TestMultiKeyRedisCmd(t *testing.T) {
 	if len(value1) != 0 || len(value2) != 0 || len(value3) != 0 {
 		t.Error("value not match", value1, value2, value3)
 	}
+
+	//reset
+	value1 = ""
+	value2 = ""
+	value3 = ""
+
+	_, err = c.Do("MSET", "key1", "value1", "key2", "value2", "key3", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reply, err = redis.Values(c.Do("MGET", "key1", "key2", "key3"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := redis.Scan(reply, &value1, &value2, &value3); err != nil {
+		t.Fatal(err)
+	}
+
+	if value1 != "value1" || value2 != "value2" || len(value3) != 0 {
+		t.Error("value not match", value1, value2, value3)
+	}
 }
 
 func TestInvalidRedisCmdUnknown(t *testing.T) {

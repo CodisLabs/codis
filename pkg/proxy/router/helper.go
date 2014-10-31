@@ -50,7 +50,7 @@ func allowOp(op string) bool {
 }
 
 func isMulOp(op string) bool {
-	if op == "MGET" || op == "DEL" {
+	if op == "MGET" || op == "DEL" || op == "MSET" {
 		return true
 	}
 
@@ -265,21 +265,6 @@ func recordResponseTime(c *stats.Counters, d time.Duration) {
 	default:
 		c.Add(">=5000ms", 1)
 	}
-}
-
-func isTheSameSlot(keys [][]byte) bool {
-	firstSlot := -1
-	for _, k := range keys {
-		if firstSlot == -1 {
-			firstSlot = mapKey2Slot(k)
-		} else {
-			if firstSlot != mapKey2Slot(k) {
-				return false
-			}
-		}
-	}
-
-	return true
 }
 
 type Conf struct {

@@ -64,54 +64,29 @@ func (oper *MultiOperator) work() {
 		switch mop.op {
 		case "MGET":
 			oper.mget(mop)
+		case "MSET":
+			oper.mset(mop)
 		case "DEL":
 			oper.del(mop)
 		}
 	}
 }
 
-type pair struct {
-	key []byte
-	pos int
-}
-
-func getSlotMap(keys [][]byte) map[int][]*pair {
-	slotmap := make(map[int][]*pair)
-	for i, k := range keys { //get slots
-		slot := mapKey2Slot(k)
-		vec, exist := slotmap[slot]
-		if !exist {
-			vec = make([]*pair, 0)
-		}
-		vec = append(vec, &pair{key: k, pos: i})
-
-		slotmap[slot] = vec
-	}
-
-	return slotmap
-}
-
 func (oper *MultiOperator) mgetResults(mop *MulOp) ([]byte, error) {
-	slotmap := getSlotMap(mop.keys)
 	results := make([]interface{}, len(mop.keys))
 	conn := oper.pool.Get()
 	defer conn.Close()
-	for _, vec := range slotmap {
-		req := make([]interface{}, 0, len(vec))
-		for _, p := range vec {
-			req = append(req, p.key)
-		}
-
-		replys, err := redis.Values(conn.Do("mget", req...))
+	for i, key := range mop.keys {
+		replys, err := redis.Values(conn.Do("mget", key))
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
 
-		for i, reply := range replys {
+		for _, reply := range replys {
 			if reply != nil {
-				results[vec[i].pos] = reply
+				results[i] = reply
 			} else {
-				results[vec[i].pos] = nil
+				results[i] = nil
 			}
 		}
 	}
@@ -165,6 +140,42 @@ func (oper *MultiOperator) delResults(mop *MulOp) ([]byte, error) {
 	}
 
 	return b, nil
+}
+
+func (oper *MultiOperator) msetResults(mop *MulOp) ([]byte, error) {
+	conn := oper.pool.Get()
+	defer conn.Close()
+	for i := 0; i < len(mop.keys); i += 2 {
+		_, err := conn.Do("set", mop.keys[i], mop.keys[i+1]) //change mset to set
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+	}
+
+	return OK_BYTES, nil
+}
+
+func (oper *MultiOperator) mset(mop *MulOp) {
+	start := time.Now()
+	defer func() { //todo:extra function
+		if sec := time.Since(start).Seconds(); sec > 2 {
+			log.Warning("too long to do del", sec)
+		}
+	}()
+
+	b, err := oper.msetResults(mop)
+	if err != nil {
+		mop.wait <- errors.Trace(err)
+		return
+	}
+
+	if err := mop.w.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		mop.wait <- errors.Trace(err)
+		return
+	}
+
+	_, err = mop.w.Write(b)
+	mop.wait <- errors.Trace(err)
 }
 
 func (oper *MultiOperator) del(mop *MulOp) {

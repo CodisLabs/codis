@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "this is gonna take a while"
+
 trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
 
 pkill cconfig
