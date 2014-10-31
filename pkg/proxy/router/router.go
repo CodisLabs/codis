@@ -263,11 +263,7 @@ check_state:
 		redisConn.Close()
 	}
 	s.pools.ReleaseConn(redisConn)
-	if clientErr != nil {
-		return errors.Trace(clientErr)
-	}
-
-	return nil
+	return errors.Trace(clientErr)
 }
 
 func (s *Server) handleConn(c net.Conn) {

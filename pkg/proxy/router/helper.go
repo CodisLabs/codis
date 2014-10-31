@@ -68,16 +68,12 @@ func validSlot(i int) bool {
 func WriteMigrateKeyCmd(w io.Writer, addr string, timeoutMs int, key []byte) error {
 	hostPort := strings.Split(addr, ":")
 	if len(hostPort) != 2 {
-		return errors.Trace(errors.New("invalid address " + addr))
+		return errors.Errorf("invalid address " + addr)
 	}
 	respW := respcoding.NewRESPWriter(w)
 	err := respW.WriteCommand("slotsmgrttagone", hostPort[0], hostPort[1],
 		strconv.Itoa(int(timeoutMs)), string(key))
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	return err
+	return errors.Trace(err)
 }
 
 type DeadlineReadWriter interface {
@@ -138,11 +134,7 @@ func write2Client(redisReader *bufio.Reader, clientWriter io.Writer) (redisErr e
 	}
 
 	_, err = clientWriter.Write(b)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return nil, nil
+	return nil, errors.Trace(err)
 }
 
 func write2Redis(resp *parser.Resp, redisWriter io.Writer) error {
@@ -158,11 +150,7 @@ func write2Redis(resp *parser.Resp, redisWriter io.Writer) error {
 func writeBytes2Redis(b []byte, redisWriter io.Writer) error {
 	// write to redis
 	_, err := redisWriter.Write(b)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	return nil
+	return errors.Trace(err)
 }
 
 type BufioDeadlineReadWriter interface {
