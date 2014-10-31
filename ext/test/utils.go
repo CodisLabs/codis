@@ -499,6 +499,32 @@ func (us UnitSlice) Mget(c *Conn) {
 	}
 }
 
+func (us UnitSlice) Mset(c *Conn, vals ...interface{}) {
+	if len(us) != len(vals) {
+		Panic("mset: len(keys) = %d, len(vals) = %d", len(us), len(vals))
+	}
+	args := make([]interface{}, len(us)*2)
+	for i := 0; i < len(us); i++ {
+		if vals[i] == nil {
+			Panic("mset: with nil argument, please use del instead")
+		}
+		args[i*2], args[i*2+1] = us[i].key, vals[i]
+	}
+	var rsp interface{}
+	defer func() {
+		if x := recover(); x != nil {
+			Panic("mset: c = %s, args = %v, error = '%s', rsp = %v", c.Addr(), args, x, rsp)
+		}
+	}()
+	var err error
+	if rsp, err = c.Do("mset", args...); err != nil {
+		panic(err)
+	}
+	for i := 0; i < len(us); i++ {
+		us[i].val = vals[i]
+	}
+}
+
 func Trace() (r string, ss []string, full bool) {
 	bs := make([]byte, 16*1024)
 	if n := runtime.Stack(bs, false); n != len(bs) {

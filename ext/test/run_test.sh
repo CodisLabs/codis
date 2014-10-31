@@ -59,6 +59,17 @@ run_test_mget() {
         -ntags=1000
 }
 
+run_test_mset() {
+    run_shell go run \
+        test_mset.go \
+        utils.go -ncpu=8 \
+        -proxy=$proxy1 \
+        -group=8 \
+        -round=10 \
+        -nkeys=$((press * 1000)) \
+        -ntags=1000
+}
+
 run_test_incr1() {
     run_shell go run \
         test_incr1.go \
@@ -172,6 +183,7 @@ else
     # run_basic_incr
     run_test_incr1
     run_test_mget
+    run_test_mset
     run_test_incr2
     run_test_string
     run_test_list
