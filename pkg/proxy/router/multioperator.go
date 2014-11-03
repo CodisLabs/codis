@@ -92,11 +92,7 @@ func (oper *MultiOperator) mgetResults(mop *MulOp) ([]byte, error) {
 	}
 
 	b, err := respcoding.Marshal(results)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return b, nil
+	return b, errors.Trace(err)
 }
 
 func (oper *MultiOperator) mget(mop *MulOp) {
@@ -135,11 +131,7 @@ func (oper *MultiOperator) delResults(mop *MulOp) ([]byte, error) {
 	}
 
 	b, err := respcoding.Marshal(int(results))
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	return b, nil
+	return b, errors.Trace(err)
 }
 
 func (oper *MultiOperator) msetResults(mop *MulOp) ([]byte, error) {
