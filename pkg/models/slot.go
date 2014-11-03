@@ -161,7 +161,7 @@ func SetSlotRange(zkConn zkhelper.Conn, productName string, fromSlot, toSlot, gr
 	return errors.Trace(err)
 }
 
-// danger!
+// danger operation !
 func InitSlotSet(zkConn zkhelper.Conn, productName string, totalSlotNum int) error {
 	for i := 0; i < totalSlotNum; i++ {
 		slot := NewSlot(productName, i)
@@ -174,9 +174,9 @@ func InitSlotSet(zkConn zkhelper.Conn, productName string, totalSlotNum int) err
 
 func (s *Slot) SetMigrateStatus(zkConn zkhelper.Conn, fromGroup, toGroup int) error {
 	if fromGroup < 0 || toGroup < 0 {
-		return errors.NotSupportedf("invalid group id")
+		return errors.Errorf("invalid group id, from %d, to %d", fromGroup, toGroup)
 	}
-	// wait until all proxy confirm
+	// wait until all proxy confirmed
 	err := NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_PREMIGRATE, s, "", true)
 	if err != nil {
 		return errors.Trace(err)
@@ -192,7 +192,7 @@ func (s *Slot) SetMigrateStatus(zkConn zkhelper.Conn, fromGroup, toGroup int) er
 }
 
 func (s *Slot) Update(zkConn zkhelper.Conn) error {
-	// check if legal status string
+	// status validation
 	switch s.State.Status {
 	case SLOT_STATUS_MIGRATE, SLOT_STATUS_OFFLINE,
 		SLOT_STATUS_ONLINE, SLOT_STATUS_PRE_MIGRATE:
