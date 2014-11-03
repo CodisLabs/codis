@@ -10,23 +10,18 @@ import (
 	"github.com/nu7hatch/gouuid"
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils"
-
-	"fmt"
 )
 
 type NodeInfo struct {
 	GroupId   int
 	CurSlots  []int
-	MaxMemory int
+	MaxMemory int64
 }
-
-var ErrNoMaster = fmt.Errorf("group has no master")
-var ErrNotAllSlotsOnline = fmt.Errorf("not all slots are online")
 
 func getLivingNodeInfos(zkConn zkhelper.Conn) ([]*NodeInfo, error) {
 	groups, err := models.ServerGroups(zkConn, productName)
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 	slots, err := models.Slots(zkConn, productName)
 	slotMap := make(map[int][]int)
@@ -42,16 +37,18 @@ func getLivingNodeInfos(zkConn zkhelper.Conn) ([]*NodeInfo, error) {
 			return nil, errors.Trace(err)
 		}
 		if master == nil {
-			return nil, errors.Trace(ErrNoMaster)
+			return nil, errors.Errorf("group %d has no master", g.Id)
 		}
-		log.Info(master.Addr)
 		out, err := utils.GetRedisConfig(master.Addr, "maxmemory")
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		maxMem, err := strconv.Atoi(out)
+		maxMem, err := strconv.ParseInt(out, 10, 64)
 		if err != nil {
 			return nil, errors.Trace(err)
+		}
+		if maxMem <= 0 {
+			return nil, errors.Errorf("redis %s should set maxmemory", master.Addr)
 		}
 		node := &NodeInfo{
 			GroupId:   g.Id,
@@ -65,7 +62,7 @@ func getLivingNodeInfos(zkConn zkhelper.Conn) ([]*NodeInfo, error) {
 		cnt += len(info.CurSlots)
 	}
 	if cnt != 1024 {
-		return nil, errors.Trace(ErrNotAllSlotsOnline)
+		return nil, errors.New("not all slots are online")
 	}
 	return ret, nil
 }
@@ -73,11 +70,11 @@ func getLivingNodeInfos(zkConn zkhelper.Conn) ([]*NodeInfo, error) {
 func getQuotaMap(zkConn zkhelper.Conn) (map[int]int, error) {
 	nodes, err := getLivingNodeInfos(zkConn)
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 
 	ret := make(map[int]int)
-	totalMem := 0
+	var totalMem int64
 	totalQuota := 0
 	for _, node := range nodes {
 		totalMem += node.MaxMemory
@@ -116,31 +113,33 @@ func Rebalance(zkConn zkhelper.Conn, delay int) error {
 				if dest.GroupId != node.GroupId && len(dest.CurSlots) < targetQuota[dest.GroupId] {
 					slot := node.CurSlots[len(node.CurSlots)-1]
 					// create a migration task
-					t := &MigrateTask{}
-					t.Delay = delay
-					t.FromSlot = slot
-					t.ToSlot = slot
-					t.NewGroupId = dest.GroupId
-					t.Status = "migrating"
-					t.CreateAt = strconv.FormatInt(time.Now().Unix(), 10)
+					t := &MigrateTask{
+						MigrateTaskForm: MigrateTaskForm{
+							Delay:      delay,
+							FromSlot:   slot,
+							ToSlot:     slot,
+							NewGroupId: dest.GroupId,
+							Status:     "migrating",
+							CreateAt:   strconv.FormatInt(time.Now().Unix(), 10),
+						},
+						stopChan: make(chan struct{}),
+					}
 					u, err := uuid.NewV4()
 					if err != nil {
-						return err
+						return errors.Trace(err)
 					}
 					t.Id = u.String()
-					t.stopChan = make(chan struct{})
 
 					if ok, err := preMigrateCheck(t); ok {
 						err = RunMigrateTask(t)
 						if err != nil {
 							log.Warning(err)
-							return err
+							return errors.Trace(err)
 						}
 					} else {
 						log.Warning(err)
-						return err
+						return errors.Trace(err)
 					}
-
 					node.CurSlots = node.CurSlots[0 : len(node.CurSlots)-1]
 					dest.CurSlots = append(dest.CurSlots, slot)
 				}

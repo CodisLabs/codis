@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/juju/errors"
 	"github.com/wandoulabs/codis/pkg/models"
 
 	"github.com/docopt/docopt-go"
@@ -29,7 +30,7 @@ options:
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {
 		log.Error(err)
-		return err
+		return errors.Trace(err)
 	}
 	log.Debug(args)
 
@@ -42,19 +43,19 @@ options:
 			delay, err = strconv.Atoi(args["--delay"].(string))
 			if err != nil {
 				log.Warning(err)
-				return err
+				return errors.Trace(err)
 			}
 		}
 		slotFrom, err := strconv.Atoi(args["<slot_from>"].(string))
 		if err != nil {
 			log.Warning(err)
-			return err
+			return errors.Trace(err)
 		}
 
 		slotTo, err := strconv.Atoi(args["<slot_to>"].(string))
 		if err != nil {
 			log.Warning(err)
-			return err
+			return errors.Trace(err)
 		}
 		return runSlotMigrate(slotFrom, slotTo, groupId, delay)
 	}
@@ -64,7 +65,7 @@ options:
 			delay, err = strconv.Atoi(args["--delay"].(string))
 			if err != nil {
 				log.Warning(err)
-				return err
+				return errors.Trace(err)
 			}
 		}
 		return runRebalance(delay)
@@ -86,7 +87,7 @@ options:
 		slotId, err := strconv.Atoi(args["<slot_id>"].(string))
 		if err != nil {
 			log.Warning(err)
-			return err
+			return errors.Trace(err)
 		}
 		return runSlotInfo(slotId)
 	}
@@ -94,7 +95,7 @@ options:
 	groupId, err := strconv.Atoi(args["<group_id>"].(string))
 	if err != nil {
 		log.Warning(err)
-		return err
+		return errors.Trace(err)
 	}
 
 	if args["set"].(bool) {
@@ -102,7 +103,7 @@ options:
 		status := args["<status>"].(string)
 		if err != nil {
 			log.Warning(err)
-			return err
+			return errors.Trace(err)
 		}
 		return runSlotSet(slotId, groupId, status)
 	}
@@ -112,12 +113,12 @@ options:
 		slotFrom, err := strconv.Atoi(args["<slot_from>"].(string))
 		if err != nil {
 			log.Warning(err)
-			return err
+			return errors.Trace(err)
 		}
 		slotTo, err := strconv.Atoi(args["<slot_to>"].(string))
 		if err != nil {
 			log.Warning(err)
-			return err
+			return errors.Trace(err)
 		}
 		return runSlotRangeSet(slotFrom, slotTo, groupId, status)
 	}
@@ -127,7 +128,7 @@ options:
 func runSlotInit() error {
 	err := models.InitSlotSet(zkConn, productName, models.DEFAULT_SLOT_NUM)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	return nil
 }
@@ -135,7 +136,7 @@ func runSlotInit() error {
 func runSlotInfo(slotId int) error {
 	s, err := models.GetSlot(zkConn, productName, slotId)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	b, _ := json.MarshalIndent(s, " ", "  ")
 	fmt.Println(string(b))
@@ -145,7 +146,7 @@ func runSlotInfo(slotId int) error {
 func runSlotRangeSet(fromSlotId, toSlotId int, groupId int, status string) error {
 	err := models.SetSlotRange(zkConn, productName, fromSlotId, toSlotId, groupId, models.SlotStatus(status))
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	return nil
 }
@@ -157,7 +158,7 @@ func runSlotSet(slotId int, groupId int, status string) error {
 	ts := time.Now().Unix()
 	slot.State.LastOpTs = strconv.FormatInt(ts, 10)
 	if err := slot.Update(zkConn); err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	return nil
 }
@@ -172,7 +173,8 @@ func runSlotMigrate(fromSlotId, toSlotId int, newGroupId int, delay int) error {
 	t.CreateAt = strconv.FormatInt(time.Now().Unix(), 10)
 	u, err := uuid.NewV4()
 	if err != nil {
-		return err
+		log.Warning(err)
+		return errors.Trace(err)
 	}
 	t.Id = u.String()
 	t.stopChan = make(chan struct{})
@@ -182,11 +184,11 @@ func runSlotMigrate(fromSlotId, toSlotId int, newGroupId int, delay int) error {
 		err = RunMigrateTask(t)
 		if err != nil {
 			log.Warning(err)
-			return err
+			return errors.Trace(err)
 		}
 	} else {
 		log.Warning(err)
-		return err
+		return errors.Trace(err)
 	}
 	return nil
 }
@@ -195,7 +197,7 @@ func runRebalance(delay int) error {
 	err := Rebalance(zkConn, delay)
 	if err != nil {
 		log.Warning(err)
-		return err
+		return errors.Trace(err)
 	}
 	return nil
 }
