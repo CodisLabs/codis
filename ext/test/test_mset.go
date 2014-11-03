@@ -80,6 +80,9 @@ func (tc *TestMsetTestCase) player(gid int, tg *TestGroup) {
 				vals[j] = k
 			}
 			UnitSlice(t).Mset(c, vals...)
+			for _, u := range t {
+				u.Incr(c)
+			}
 			ops.Incr()
 		}
 	}
