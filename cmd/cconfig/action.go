@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/juju/errors"
 	"github.com/wandoulabs/codis/pkg/models"
 
 	docopt "github.com/docopt/docopt-go"
@@ -23,11 +24,11 @@ options:
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {
 		log.Error(err)
-		return err
+		return errors.Trace(err)
 	}
 
 	if args["remove-lock"].(bool) {
-		return runRemoveLock()
+		return errors.Trace(runRemoveLock())
 	}
 
 	zkLock.Lock(fmt.Sprintf("action, %+v", argv))
@@ -50,7 +51,7 @@ options:
 			sec, err := strconv.Atoi(args["<seconds>"].(string))
 			if err != nil {
 				log.Warning(err)
-				return err
+				return errors.Trace(err)
 			}
 			return runGCKeepNSec(sec)
 		}
@@ -72,5 +73,5 @@ func runGCKeepNSec(secs int) error {
 func runRemoveLock() error {
 	log.Info("removing lock...")
 	zkLock.Unlock()
-	return models.ForceRemoveLock(zkConn, productName)
+	return errors.Trace(models.ForceRemoveLock(zkConn, productName))
 }

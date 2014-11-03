@@ -20,6 +20,7 @@ func cmdSlot(argv []string) (err error) {
 	cconfig slot set <slot_id> <group_id> <status>
 	cconfig slot range-set <slot_from> <slot_to> <group_id> <status>
 	cconfig slot migrate <slot_from> <slot_to> <group_id> [--delay=<delay_time_in_ms>]
+	cconfig slot rebalance [--delay=<delay_time_in_ms>]
 
 options:
     TODO
@@ -56,6 +57,17 @@ options:
 			return err
 		}
 		return runSlotMigrate(slotFrom, slotTo, groupId, delay)
+	}
+	if args["rebalance"].(bool) {
+		delay := 0
+		if args["--delay"] != nil {
+			delay, err = strconv.Atoi(args["--delay"].(string))
+			if err != nil {
+				log.Warning(err)
+				return err
+			}
+		}
+		return runRebalance(delay)
 	}
 
 	zkLock.Lock(fmt.Sprintf("slot, %+v", argv))
@@ -176,6 +188,14 @@ func runSlotMigrate(fromSlotId, toSlotId int, newGroupId int, delay int) error {
 		log.Warning(err)
 		return err
 	}
+	return nil
+}
 
+func runRebalance(delay int) error {
+	err := Rebalance(zkConn, delay)
+	if err != nil {
+		log.Warning(err)
+		return err
+	}
 	return nil
 }

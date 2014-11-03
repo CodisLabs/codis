@@ -87,7 +87,7 @@ func GetRedisConfig(addr string, configName string) (string, error) {
 		return "", err
 	}
 	defer c.Close()
-	ret, err := redis.Strings(c.Do("config get " + configName))
+	ret, err := redis.Strings(c.Do("config", "get", configName))
 	if err != nil {
 		return "", err
 	}
