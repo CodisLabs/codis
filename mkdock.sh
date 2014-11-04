@@ -51,11 +51,11 @@ RUN ln -s sample_service/config.ini .
 
 EXPOSE 19000
 EXPOSE 11000
-EXPOSE 8087
+EXPOSE 18087
 
 RUN chown -R codis:codis \${HOMEDIR}
 EOF
 
 docker build --force-rm -t codis/proxy .
 
-# docker run --name "codis-proxy" -h "codis-proxy" -d -p 2022:22 -p 19000:19000 -p 11000:11000 -p 8087:8087 codis/proxy
+# docker run --name "codis-proxy" -h "codis-proxy" -d -p 2022:22 -p 19000:19000 -p 11000:11000 -p 18087:18087 codis/proxy
