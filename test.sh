@@ -4,17 +4,16 @@ echo "this is gonna take a while"
 
 trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
 
-pkill cconfig
+pkill cconfig 1>/dev/null 2>/dev/null
 
 cd test
 
 # stop previous test
-./bin/cconfig action remove-lock
-
-./bin/cconfig proxy offline proxy_1
-./bin/cconfig proxy offline proxy_2
-./bin/cconfig proxy offline proxy_3
-
+./bin/cconfig action remove-lock 1>/dev/null 2>/dev/null
+./bin/cconfig proxy offline proxy_1 1>/dev/null 2>/dev/null
+./bin/cconfig proxy offline proxy_2 1>/dev/null 2>/dev/null
+./bin/cconfig proxy offline proxy_3 1>/dev/null 2>/dev/null
+pwd
 ./bin/cconfig slot init
 
 # rebuild codis
@@ -38,6 +37,9 @@ sleep 2
 > proxy3.log
 
 ./gc.sh &
+
+./bin/cconfig server remove-group 1
+./bin/cconfig server remove-group 2 
 
 ./bin/cconfig server add 1 localhost:6379 master
 ./bin/cconfig server add 2 localhost:6380 master
