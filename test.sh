@@ -45,7 +45,7 @@ sleep 2
 
 ./bin/proxy -c config1.ini -L proxy1.log --addr=0.0.0.0:9000 --http-addr=0.0.0.0:10000 &
 ./bin/proxy -c config2.ini -L proxy2.log --addr=0.0.0.0:9001 --http-addr=0.0.0.0:10001 &
-./bin/proxy -c config3.ini -L proxy3.log --addr=0.0.0.0:9001 --http-addr=0.0.0.0:10001 &
+./bin/proxy -c config3.ini -L proxy3.log --addr=0.0.0.0:9002 --http-addr=0.0.0.0:10001 &
 
 echo "sleep 2s"
 sleep 2
