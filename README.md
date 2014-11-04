@@ -25,6 +25,12 @@ Codis is production-ready and is widely used by Wandoujia.com.
 * cd deploy/sample_service
 * follow instructions in usage.md
 
+## Tutorial
+
+[Chinese](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md)
+
+English (TBD)
+
 ## Performance
 
 TBD
