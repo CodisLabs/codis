@@ -24,7 +24,7 @@ Codis is production-ready and is widely used by Wandoujia.com.
 * go get github.com/wandoulabs/codis
 * cd codis
 * ./bootstrap.sh
-* make
+* make test
 * cd deploy/sample_service
 * follow instructions in usage.md
 

@@ -29,7 +29,7 @@ Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name
 go get github.com/wandoulabs/codis
 cd path/to/codis
 ./bootstrap.sh
-make
+make test
 ```
 
 会在 codis/bin 文件夹生成 cconfig, proxy 两个可执行文件, (另外, bin/assets 文件夹是 cconfig 的 dashboard http 服务需要的前端资源, 需要和 cconfig 放置在同一文件夹下)
