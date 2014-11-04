@@ -31,7 +31,9 @@ make
 会在 codis/bin 文件夹生成 cconfig, proxy 两个可执行文件, (另外, bin/assets 文件夹是 cconfig 的 dashboard http 服务需要的前端资源, 需要和 cconfig 放置在同一文件夹下)
 
 ```
-$ ./cconfig -h                                                                                                                                                                                                                           (master)
+cd deploy/sample_service
+
+$ ../bin/cconfig -h                                                                                                                                                                                                                           (master)
 usage: cconfig  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
 		<command> [<args>...]
 options:
@@ -48,7 +50,7 @@ commands:
 ```
 
 ```
-$ ./proxy -h
+$ ../bin/proxy -h
 
 usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
 
@@ -71,22 +73,22 @@ cconfig 和 proxy 在不加 -c 参数的时候, 默认会读取当前目录下�
 config.ini:
 
 ```
-zk=localhost:2181   <- zookeeper的地址, 多个地址可以这么写: zk=zk://hostname1:2181,hostname2:2181,hostname3:2181,hostname4:2181,hostname5:2181
-product=test        <- 产品名称, 这个集群的名字, 可以认为是命名空间, 不同命名空间的codis没有交集
+zk=localhost:2181   <- zookeeper的地址, 如果是zookeeper集群，可以这么写: zk=zk://hostname1:2181,hostname2:2181,hostname3:2181,hostname4:2181,hostname5:2181
+product=test        <- 产品名称, 这个codis集群的名字, 可以认为是命名空间, 不同命名空间的codis没有交集
 proxy_id=proxy_1    <- proxy会读取, 用于标记proxy的名字, 针对多个proxy的情况, 可以使用不同的config.ini, 只需要更改 proxy_id 即可
 ```
 
 ####流程
 
 
-**1. 初始化 slots** , 执行 `cconfig slot init`
+**1. 初始化 slots** , 执行 `../bin/cconfig slot init`，该命令会在zookeeper上创建slot相关信息
 
 **2. 启动 Codis Redis** , 和编译启动正常的 Redis Server 没什么区别
 
-**3. 添加 Redis Server Group** , 每一个 Server Group 作为一个 Redis 服务器组存在, 只允许有一个 master, 可以有多个 slave, ***group id 仅支持整数***
+**3. 添加 Redis Server Group** , 每一个 Server Group 作为一个 Redis 服务器组存在, 只允许有一个 master, 可以有多个 slave, ***group id 仅支持大于等于1的整数***
 
 ```
-$ ./cconfig server -h                                                                                                                                                                                                                   usage:
+$ ../bin/cconfig server -h                                                                                                                                                                                                                   usage:
 	cconfig server list
 	cconfig server add <group_id> <redis_addr> <role>
 	cconfig server remove <group_id> <redis_addr>
@@ -94,11 +96,19 @@ $ ./cconfig server -h                                                           
 	cconfig server add-group <group_id>
 	cconfig server remove-group <group_id>
 ```
-如: 添加两个 server group, 每个 group 有两个 redis 实例
+如: 添加两个 server group, 每个 group 有两个 redis 实例，group的id分别为1和2，
+redis实例为一主一从。
+
+添加一个group，group的id为1， 并添加一个redis master到该group
 ```
 $ ./cconfig server add 1 localhost:6379 master
+```
+添加一个redis master到该group
+```
 $ ./cconfig server add 1 localhost:6380 slave
-
+```
+类似的，再添加group，group的id为2
+```
 $ ./cconfig server add 2 localhost:6479 master
 $ ./cconfig server add 2 localhost:6479 slave
 ```
@@ -127,7 +137,20 @@ $ ./cconfig slot range-set 512 1023 2 online
 ```
 
  **5. 启动 proxy**
- **6. 启动 dashboard 服务 (可选, 但是建议启动)**
+```
+ ../bin/proxy -c config.ini -L ./log/proxy.log  --cpu=8 --addr=0.0.0.0:19000 --http-addr=0.0.0.0:11000
+```
+ 
+ **6. 启动 dashboard 服务 (可选, 但是建议启动)**  
+
+```
+ ../bin/cconfig -c config.ini -L ./log/dashboard.log dashboard --addr=:8087 --http-log=./log/requests.log
+```
+
+ **7. 打开浏览器 http://localhost:8087/admin **
+ 
+ 现在可以在浏览器里面完成各种操作了， 玩得开心
+  
 
 ###数据迁移
 -----------------------------
