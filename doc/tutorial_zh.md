@@ -26,6 +26,7 @@ Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name
 安装go[参考这里](https://github.com/astaxie/build-web-application-with-golang/blob/master/ebook/01.1.md)，然后参考下的流程
 
 ```
+go get github.com/wandoulabs/codis
 cd path/to/codis
 ./bootstrap.sh
 make
