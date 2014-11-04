@@ -39,6 +39,12 @@ TBD
 ## Architecture
 ![Snapshot1](doc/pictures/architecture.png)
 
+## Snapshots
+![main](doc/pictures/snapshot.png)
+
+
+migrate
+![migrate](doc/pictures/snapshot_migrate.png)
 
 ## Authors
 
