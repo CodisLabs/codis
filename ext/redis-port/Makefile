@@ -15,3 +15,6 @@ test-sync: build
 
 clean:
 	rm -f redis-port
+
+gotest:
+	go test -cover ./...

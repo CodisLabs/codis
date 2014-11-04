@@ -109,15 +109,15 @@ func openSyncConn(target string) (net.Conn, chan int64) {
 }
 
 func restoreRdbEntry(c redis.Conn, e *rdb.Entry) {
-	var ttl uint64
-	if e.Expire != 0 {
-		if now := uint64(time.Now().UnixNano() / int64(time.Millisecond)); now >= e.Expire {
-			ttl = 1
+	var ttlms uint64
+	if e.ExpireAt != 0 {
+		if now := uint64(time.Now().UnixNano() / int64(time.Millisecond)); now >= e.ExpireAt {
+			ttlms = 1
 		} else {
-			ttl = e.Expire - now
+			ttlms = e.ExpireAt - now
 		}
 	}
-	s, err := redis.String(c.Do("slotsrestore", e.Key, ttl, e.Val))
+	s, err := redis.String(c.Do("slotsrestore", e.Key, ttlms, e.ValDump))
 	if err != nil {
 		utils.Panic("restore command error = '%s'", err)
 	}

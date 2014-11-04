@@ -50,21 +50,21 @@ Options
 > specify the slave redis (or target redis)
 
 
-Example
+Examples
 -------
 
 * **DECODE**
 
 ```sh
 $ cat dump.rdb | ./redis-port decode 2>/dev/null
-  db=0 type=string expire=0 key={a|61} value={10000|3130303030}
-  db=0 type=string expire=0 key={b|62} value={hello.world|68656c6c6f20776f726c64}
-  db=0 type=hset expire=0 key={c|63} field={c1|6331} member={100|313030}
-  db=0 type=hset expire=0 key={c|63} field={c2|6332} member={test.string|7465737420737472696e67}
-  db=0 type=list expire=0 key={d|64} element={l2|6c32}
-  db=0 type=list expire=0 key={d|64} element={l1|6c31}
-  db=0 type=zset expire=0 key={e|65} member={e1|6531} score=1.000000
-  db=0 type=zset expire=0 key={e|65} member={e2|6532} score=2.000000
+  db=0 type=string expireat=0 key={a|61} value={10000|3130303030}
+  db=0 type=string expireat=0 key={b|62} value={hello.world|68656c6c6f20776f726c64}
+  db=0 type=hset expireat=0 key={c|63} field={c1|6331} member={100|313030}
+  db=0 type=hset expireat=0 key={c|63} field={c2|6332} member={test.string|7465737420737472696e67}
+  db=0 type=list expireat=0 key={d|64} element={l2|6c32}
+  db=0 type=list expireat=0 key={d|64} element={l1|6c31}
+  db=0 type=zset expireat=0 key={e|65} member={e1|6531} score=1.000000
+  db=0 type=zset expireat=0 key={e|65} member={e2|6532} score=2.000000
   ... ...
 ```
 

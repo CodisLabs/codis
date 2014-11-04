@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -50,12 +51,40 @@ func Caller(skip int) (*StackRecord, bool) {
 }
 
 func Panic(format string, v ...interface{}) {
-	const tab = "        "
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "[panic]: ")
 	fmt.Fprintf(&b, format, v...)
 	fmt.Fprintf(&b, "\n")
-	records, full := Trace(1, 32)
+	fmt.Fprintf(&b, traceString(1, 32))
+	log.Printf("%s", b.String())
+	os.Exit(1)
+}
+
+func TraceErrorf(format string, v ...interface{}) error {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "[error]: ")
+	fmt.Fprintf(&b, format, v...)
+	fmt.Fprintf(&b, "\n")
+	fmt.Fprintf(&b, traceString(1, 32))
+	return errors.New(b.String())
+}
+
+func TraceError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "[error]: ")
+	fmt.Fprintf(&b, "%s", err)
+	fmt.Fprintf(&b, "\n")
+	fmt.Fprintf(&b, traceString(1, 32))
+	return errors.New(b.String())
+}
+
+func traceString(skip, depth int) string {
+	const tab = "        "
+	var b bytes.Buffer
+	records, full := Trace(skip+1, depth)
 	for _, r := range records {
 		fmt.Fprintf(&b, tab)
 		fmt.Fprintf(&b, "%s:%d\n", r.File, r.Line)
@@ -67,6 +96,5 @@ func Panic(format string, v ...interface{}) {
 		fmt.Fprintf(&b, "        ")
 		fmt.Fprintf(&b, "... ...\n")
 	}
-	log.Printf("%s", b.String())
-	os.Exit(1)
+	return b.String()
 }

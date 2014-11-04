@@ -1,43 +1,18 @@
 package rdb
 
-import (
-	"bytes"
-	"encoding/hex"
-	"fmt"
-)
+import "fmt"
 
 import (
 	"github.com/cupcake/rdb"
 	"github.com/cupcake/rdb/nopdecoder"
 )
 
-func Decode(p []byte) (interface{}, error) {
+func DecodeDump(p []byte) (interface{}, error) {
 	d := &decoder{}
 	if err := rdb.DecodeDump(p, 0, nil, 0, d); err != nil {
 		return nil, err
 	}
 	return d.obj, d.err
-}
-
-func HexToString(p []byte) string {
-	var b bytes.Buffer
-	b.WriteByte('{')
-	for _, c := range p {
-		switch {
-		case c >= 'a' && c <= 'z':
-			fallthrough
-		case c >= 'A' && c <= 'Z':
-			fallthrough
-		case c >= '0' && c <= '9':
-			b.WriteByte(c)
-		default:
-			b.WriteByte('.')
-		}
-	}
-	b.WriteByte('|')
-	b.WriteString(hex.EncodeToString(p))
-	b.WriteByte('}')
-	return b.String()
 }
 
 type decoder struct {
