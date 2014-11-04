@@ -140,6 +140,10 @@ $ ./cconfig slot range-set 512 1023 2 online
 ```
  ../bin/proxy -c config.ini -L ./log/proxy.log  --cpu=8 --addr=0.0.0.0:19000 --http-addr=0.0.0.0:11000
 ```
+刚启动的 proxy 默认是处于 offline状态的, 然后设置 proxy 为 online 状态, 只有处于 online 状态的 proxy 才会对外提供服务
+```
+ ../bin/cconfig -c config.ini proxy online <proxy_name>  <---- proxy的id, 如 proxy_1
+```
  
  **6. 启动 dashboard 服务 (可选, 但是建议启动)**  
 
