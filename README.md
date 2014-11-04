@@ -27,7 +27,7 @@ Codis is production-ready and is widely used by Wandoujia.com.
 
 ## Tutorial
 
-[Chinese](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md)
+[中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md)
 
 English (TBD)
 
