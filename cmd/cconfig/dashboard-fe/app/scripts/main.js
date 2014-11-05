@@ -306,6 +306,10 @@ function($scope, $http, $modal, $log, ServerGroupsFactory, ServerGroupFactory) {
 	    });
 	}
 
+  $scope.refresh = function() {
+	  $scope.server_groups = ServerGroupsFactory.query();
+  }
+
 	// query server group
 	$scope.server_groups = ServerGroupsFactory.query();
 }]);
