@@ -52,17 +52,17 @@ func (l *Loader) LoadChecksum() error {
 }
 
 type Entry struct {
-	Db     uint32
-	Key    []byte
-	Val    []byte
-	Expire uint64
+	DB       uint32
+	Key      []byte
+	ValDump  []byte
+	ExpireAt uint64
 }
 
 func (l *Loader) LoadEntry() (entry *Entry, offset int64, err error) {
 	defer func() {
 		offset = l.offset()
 	}()
-	var expire uint64
+	var expireat uint64
 	for {
 		var otype byte
 		if otype, err = l.readByte(); err != nil {
@@ -70,7 +70,7 @@ func (l *Loader) LoadEntry() (entry *Entry, offset int64, err error) {
 		}
 		switch otype {
 		case rdbFlagExpiryMS:
-			if expire, err = l.readUint64(); err != nil {
+			if expireat, err = l.readUint64(); err != nil {
 				return
 			}
 		case rdbFlagExpiry:
@@ -78,7 +78,7 @@ func (l *Loader) LoadEntry() (entry *Entry, offset int64, err error) {
 			if sec, err = l.readUint32(); err != nil {
 				return
 			}
-			expire = uint64(sec) * 1000
+			expireat = uint64(sec) * 1000
 		case rdbFlagSelectDB:
 			if l.dbnum, err = l.readLength(); err != nil {
 				return
@@ -94,16 +94,16 @@ func (l *Loader) LoadEntry() (entry *Entry, offset int64, err error) {
 				return
 			}
 			entry = &Entry{}
-			entry.Db = l.dbnum
+			entry.DB = l.dbnum
 			entry.Key = key
-			entry.Val = CreateDumpPayload(otype, obj)
-			entry.Expire = expire
+			entry.ValDump = createDump(otype, obj)
+			entry.ExpireAt = expireat
 			return
 		}
 	}
 }
 
-func CreateDumpPayload(otype byte, obj []byte) []byte {
+func createDump(otype byte, obj []byte) []byte {
 	var b bytes.Buffer
 	c := digest.New()
 	w := io.MultiWriter(&b, c)

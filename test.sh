@@ -4,17 +4,16 @@ echo "this is gonna take a while"
 
 trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
 
-pkill cconfig
+pkill cconfig 1>/dev/null 2>/dev/null
 
 cd test
 
 # stop previous test
-./bin/cconfig action remove-lock
-
-./bin/cconfig proxy offline proxy_1
-./bin/cconfig proxy offline proxy_2
-./bin/cconfig proxy offline proxy_3
-
+./bin/cconfig action remove-lock 1>/dev/null 2>/dev/null
+./bin/cconfig proxy offline proxy_1 1>/dev/null 2>/dev/null
+./bin/cconfig proxy offline proxy_2 1>/dev/null 2>/dev/null
+./bin/cconfig proxy offline proxy_3 1>/dev/null 2>/dev/null
+pwd
 ./bin/cconfig slot init
 
 # rebuild codis
@@ -39,13 +38,16 @@ sleep 2
 
 ./gc.sh &
 
+./bin/cconfig server remove-group 1
+./bin/cconfig server remove-group 2 
+
 ./bin/cconfig server add 1 localhost:6379 master
 ./bin/cconfig server add 2 localhost:6380 master
 ./bin/cconfig slot range-set 0 1023 1 online
 
 ./bin/proxy -c config1.ini -L proxy1.log --addr=0.0.0.0:9000 --http-addr=0.0.0.0:10000 &
 ./bin/proxy -c config2.ini -L proxy2.log --addr=0.0.0.0:9001 --http-addr=0.0.0.0:10001 &
-./bin/proxy -c config3.ini -L proxy3.log --addr=0.0.0.0:9001 --http-addr=0.0.0.0:10001 &
+./bin/proxy -c config3.ini -L proxy3.log --addr=0.0.0.0:9002 --http-addr=0.0.0.0:10001 &
 
 echo "sleep 2s"
 sleep 2

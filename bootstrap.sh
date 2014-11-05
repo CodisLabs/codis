@@ -3,25 +3,25 @@
 rm bin/*.log
 cd ext/redis-2.8.13 && make && cd -
 
-go get github.com/c4pt0r/cfg
-go get github.com/garyburd/redigo/redis
-go get github.com/juju/errgo
-go get github.com/juju/errors
-go get github.com/juju/loggo
-go get github.com/ngaut/go-zookeeper/zk
-go get github.com/ngaut/gostats
-go get github.com/ngaut/logging
-go get github.com/ngaut/zkhelper
-go get github.com/ngaut/pools
-go get github.com/ngaut/resp
-go get github.com/ngaut/sync2
-go get github.com/codegangsta/martini-contrib/binding
-go get github.com/go-martini/martini
-go get github.com/martini-contrib/cors
-go get github.com/nu7hatch/gouuid
-go get github.com/docopt/docopt-go
-go get github.com/cupcake/rdb
-go get github.com/alicebob/miniredis
+go get -u github.com/c4pt0r/cfg
+go get -u github.com/garyburd/redigo/redis
+go get -u github.com/juju/errgo
+go get -u github.com/juju/errors
+go get -u github.com/juju/loggo
+go get -u github.com/ngaut/go-zookeeper/zk
+go get -u github.com/ngaut/gostats
+go get -u github.com/ngaut/logging
+go get -u github.com/ngaut/zkhelper
+go get -u github.com/ngaut/pools
+go get -u github.com/ngaut/resp
+go get -u github.com/ngaut/sync2
+go get -u github.com/codegangsta/martini-contrib/binding
+go get -u github.com/go-martini/martini
+go get -u github.com/martini-contrib/cors
+go get -u github.com/nu7hatch/gouuid
+go get -u github.com/docopt/docopt-go
+go get -u github.com/cupcake/rdb
+go get -u github.com/alicebob/miniredis
 
 make
 

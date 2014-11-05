@@ -59,8 +59,8 @@ func Sync(ncpu int, from, target string) {
 			c := openRedisConn(target)
 			defer c.Close()
 			for e := range loader.Pipe() {
-				if e.Db != 0 {
-					utils.Panic("dbnum must b 0, but got %d", e.Db)
+				if e.DB != 0 {
+					utils.Panic("dbnum must b 0, but got %d", e.DB)
 				}
 				restoreRdbEntry(c, e)
 				nrestore.Add(1)
