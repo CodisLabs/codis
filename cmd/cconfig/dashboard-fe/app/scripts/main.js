@@ -103,7 +103,11 @@ function($scope, $http, $timeout) {
         $scope.memUsed = (memUsed / (1024.0 * 1024.0)).toFixed(2);
         $scope.keys = keys;
         $scope.product = succData['product'];
-        $scope.ops = succData['ops'];
+        if (succData['ops'] !== undefined && succData['ops'] >= 0) {
+            $scope.ops = succData['ops'];
+        } else {
+            $scope.ops = 0;
+        }
       });
     }
     $scope.refresh();
