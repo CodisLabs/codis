@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd .. || exit $?
+
 docker rm -f codis-proxy
 docker rmi codis/proxy
 
@@ -40,14 +42,14 @@ RUN mkdir -p \${BUILDDIR}
 
 ADD cmd \${BUILDDIR}
 WORKDIR \${BUILDDIR}
-RUN go build -a -o \${HOMEDIR}/bin/cconfig ./cconfig/
-RUN go build -a -o \${HOMEDIR}/bin/proxy ./proxy/
+RUN go build -a -o \${HOMEDIR}/bin/codis-config ./cconfig/
+RUN go build -a -o \${HOMEDIR}/bin/codis-proxy  ./proxy/
 RUN rm -rf \${BUILDDIR}
 ADD cmd/cconfig/assets \${HOMEDIR}/bin/assets
-ADD deploy/sample_service \${HOMEDIR}/sample_service
+ADD sample \${HOMEDIR}/sample
 
 WORKDIR \${HOMEDIR}
-RUN ln -s sample_service/config.ini .
+RUN ln -s sample/config.ini .
 
 EXPOSE 19000
 EXPOSE 11000
@@ -56,6 +58,6 @@ EXPOSE 18087
 RUN chown -R codis:codis \${HOMEDIR}
 EOF
 
-docker build --force-rm -t codis/proxy .
+docker build --force-rm -t codis/proxy . && rm -f Dockerfile
 
 # docker run --name "codis-proxy" -h "codis-proxy" -d -p 2022:22 -p 19000:19000 -p 11000:11000 -p 18087:18087 codis/proxy

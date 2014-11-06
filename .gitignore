@@ -3,6 +3,6 @@
 *.rdb
 nohup.out
 martini_log
-/bin/proxy
-/bin/cconfig
+/bin
 /Dockerfile
+/deploy.tar

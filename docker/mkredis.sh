@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd ../ext || exit $?
+
 docker rmi codis/redis
 
 cat > Dockerfile <<EOF
@@ -31,14 +33,15 @@ ADD redis-2.8.13 \${BUILDDIR}
 WORKDIR \${BUILDDIR}/src
 RUN make distclean
 RUN make -j
-RUN cp redis-server redis-cli \${HOMEDIR}
+RUN cp redis-server \${HOMEDIR}/codis-server
+RUN cp redis-cli    \${HOMEDIR}/
 RUN rm -rf \${BUILDDIR}
-ADD test/conf/6379.conf \${HOMEDIR}/redis.conf
+ADD redis-test/conf/6379.conf \${HOMEDIR}/redis.conf
 EXPOSE 6379
 
 RUN chown -R codis:codis \${HOMEDIR}
 EOF
 
-docker build --force-rm -t codis/redis .
+docker build --force-rm -t codis/redis . && rm -f Dockerfile
 
 # docker run --name "codis-redis" -h "codis-redis" -d -p 6022:22 -p 6079:6379 codis/redis
