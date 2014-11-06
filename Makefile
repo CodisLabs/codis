@@ -15,7 +15,7 @@ test:
 
 
 build:
-	go build -o bin/cconfig ./cmd/cconfig
-	go build -o bin/proxy ./cmd/proxy
+	go build -a -o bin/cconfig ./cmd/cconfig
+	go build -a -o bin/proxy ./cmd/proxy
 	rm -rf bin/assets
 	cp -r ./cmd/cconfig/assets ./bin/

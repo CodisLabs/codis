@@ -178,3 +178,16 @@ $ ./cconfig slot migrate 0 511 2 --delay=10
 迁移的过程对于上层业务来说是安全且透明的, 数据不会丢失,  上层不会中止服务.
 
 注意, 迁移的过程中打断是可以的, 但是如果中断了一个正在迁移某个slot的任务, 下次需要先迁移掉正处于迁移状态的 slot, 否则无法继续 (即迁移程序会检查同一时刻只能有一个 slot 处于迁移状态).
+
+
+####Auto Rebalance (实验)
+
+Codis 支持动态的根据实例内存, 自动对slot进行迁移, 以均衡数据分布.
+
+```
+$./cconfig slot rebalance
+```
+
+要求:
+ * 所有的 slots 都应该处于 online 状态, 即没有迁移任务正在执行
+ * 所有 server group 都必须有 Master
