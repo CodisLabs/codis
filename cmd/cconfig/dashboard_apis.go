@@ -137,17 +137,19 @@ func apiRebalance(param martini.Params) (int, string) {
 		return 500, "rebalancing..."
 	}
 
-	isRebalancing = true
-	defer func() {
-		isRebalancing = false
+	go func() {
+		isRebalancing = true
+		defer func() {
+			isRebalancing = false
+		}()
+
+		conn := CreateZkConn()
+		defer conn.Close()
+
+		if err := Rebalance(conn, 0); err != nil {
+			log.Warning(err.Error())
+		}
 	}()
-
-	conn := CreateZkConn()
-	defer conn.Close()
-
-	if err := Rebalance(conn, 0); err != nil {
-		return 500, err.Error()
-	}
 
 	return jsonRetSucc()
 }
