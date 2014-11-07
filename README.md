@@ -33,7 +33,7 @@ Codis is production-ready and is widely used by Wandoujia.com.
 
 [中文教程](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md)
 
-English (TBD)
+[English (on progress) ](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md)
 
 ## Performance
 
