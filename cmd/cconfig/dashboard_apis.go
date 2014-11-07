@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -123,6 +124,19 @@ func apiDoMigrate(taskForm MigrateTaskForm, param martini.Params) (int, string) 
 }
 
 var isRebalancing bool
+var rebalanceLck = sync.Mutex{}
+
+func changeRebalanceStat(b bool) {
+	rebalanceLck.Lock()
+	defer rebalanceLck.Unlock()
+	isRebalancing = b
+}
+
+func isOnRebalancing() bool {
+	rebalanceLck.Lock()
+	defer rebalanceLck.Unlock()
+	return isRebalancing
+}
 
 func apiRebalanceStatus(param martini.Params) (int, string) {
 	ret := map[string]interface{}{
@@ -133,15 +147,13 @@ func apiRebalanceStatus(param martini.Params) (int, string) {
 }
 
 func apiRebalance(param martini.Params) (int, string) {
-	if isRebalancing == true {
+	if isOnRebalancing() {
 		return 500, "rebalancing..."
 	}
 
 	go func() {
-		isRebalancing = true
-		defer func() {
-			isRebalancing = false
-		}()
+		changeRebalanceStat(true)
+		defer changeRebalanceStat(false)
 
 		conn := CreateZkConn()
 		defer conn.Close()
