@@ -83,7 +83,7 @@ type DeadlineReadWriter interface {
 	SetReadDeadline(t time.Time) error
 }
 
-func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, resp *parser.Resp) (bool, bool, error) {
+func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byte) (bool, bool, error) {
 	var b []byte
 	shouldClose := false
 	switch cmd {
@@ -97,7 +97,6 @@ func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, resp *parser
 	case "AUTH":
 		b = OK_BYTES
 	case "ECHO":
-		keys, _ := resp.Keys()
 		if len(keys) > 0 {
 			var err error
 			b, err = respcoding.Marshal(string(keys[0]))
@@ -218,7 +217,7 @@ func GetOriginError(err *errors.Err) error {
 	return err
 }
 
-func getOpKey(resp *parser.Resp) ([]byte, []byte, error) {
+func getOpKeys(resp *parser.Resp) ([]byte, [][]byte, error) {
 	op, err := resp.Op()
 	if err != nil {
 		return nil, nil, errors.Trace(err)
@@ -228,12 +227,9 @@ func getOpKey(resp *parser.Resp) ([]byte, []byte, error) {
 		return nil, nil, errors.Errorf("error parse op %s", string(op))
 	}
 
-	k, err := resp.Key()
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
+	keys, err := resp.Keys()
 
-	return op, k, nil
+	return op, keys, errors.Trace(err)
 }
 
 func recordResponseTime(c *stats.Counters, d time.Duration) {

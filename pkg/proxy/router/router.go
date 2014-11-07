@@ -163,12 +163,12 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 	return nil
 }
 
-func (s *Server) filter(opstr string, resp *parser.Resp, c *session) (next bool, err error) {
+func (s *Server) filter(opstr string, keys [][]byte, c *session) (next bool, err error) {
 	if !allowOp(opstr) {
 		return false, errors.Trace(fmt.Errorf("%s not allowed", opstr))
 	}
 
-	shouldClose, handled, err := handleSpecCommand(opstr, c, resp)
+	shouldClose, handled, err := handleSpecCommand(opstr, c, keys)
 	if shouldClose { //quit command
 		return false, errors.Trace(io.EOF)
 	}
@@ -180,11 +180,6 @@ func (s *Server) filter(opstr string, resp *parser.Resp, c *session) (next bool,
 	}
 
 	if isMulOp(opstr) {
-		keys, err := resp.Keys()
-		if err != nil {
-			return false, errors.Trace(err)
-		}
-
 		if len(keys) == 1 { //can send to redis directly
 			return true, nil
 		} else {
@@ -201,16 +196,21 @@ func (s *Server) redisTunnel(c *session) error {
 		return errors.Trace(err)
 	}
 
-	op, k, err := getOpKey(resp)
+	op, keys, err := getOpKeys(resp)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
+	if len(keys) == 0 {
+		keys = [][]byte{[]byte("fakeKey")}
+	}
+
 	start := time.Now()
+	k := keys[0]
 
 	opstr := strings.ToUpper(string(op))
-	log.Debugf("op: %s, key:%s", opstr, string(k))
-	next, err := s.filter(opstr, resp, c)
+	log.Debugf("op: %s, %s", opstr, keys[0])
+	next, err := s.filter(opstr, keys, c)
 	if err != nil {
 		return errors.Trace(err)
 	}

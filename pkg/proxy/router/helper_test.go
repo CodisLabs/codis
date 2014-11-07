@@ -179,38 +179,6 @@ func TestGetOrginError(t *testing.T) {
 	}
 }
 
-func TestGetOpKey(t *testing.T) {
-	var input bytes.Buffer
-
-	input.WriteString("$3\r\nfoo\r\n")
-	resp, err := parser.Parse(bufio.NewReader(&input))
-	if err != nil {
-		t.Error(err)
-	}
-
-	op, key, err := getOpKey(resp)
-	if err == nil {
-		t.Error("should be error")
-	}
-
-	input.WriteString(simple_request)
-	resp, err = parser.Parse(bufio.NewReader(&input))
-	if err != nil {
-		t.Error(err)
-	}
-	op, key, err = getOpKey(resp)
-	if err != nil {
-		t.Error(err)
-	}
-	if string(op) != "SET" {
-		t.Error("op not match", string(op))
-	}
-
-	if string(key) != "mykey" {
-		t.Error("key not match", string(key))
-	}
-}
-
 func TestHandleSpecCommand(t *testing.T) {
 	var tbl = map[string]string{
 		"PING":   "+PONG\r\n",
@@ -225,14 +193,14 @@ func TestHandleSpecCommand(t *testing.T) {
 			t.Error(err)
 		}
 
-		_, _, err = getOpKey(resp)
+		_, keys, err := getOpKeys(resp)
 		if err != nil {
 			t.Error(err)
 		}
 
 		result := &bytes.Buffer{}
 		w := &fakeDeadlineReadWriter{w: bufio.NewWriter(result)}
-		_, _, err = handleSpecCommand(k, w, resp)
+		_, _, err = handleSpecCommand(k, w, keys)
 		if err != nil {
 			t.Error(err)
 		}
@@ -252,7 +220,8 @@ func TestHandleSpecCommand(t *testing.T) {
 
 		result := &bytes.Buffer{}
 		w := &fakeDeadlineReadWriter{w: bufio.NewWriter(result)}
-		_, _, err = handleSpecCommand("ECHO", w, resp)
+		keys, _ := resp.Keys()
+		_, _, err = handleSpecCommand("ECHO", w, keys)
 		if err != nil {
 			t.Error(errors.ErrorStack(err))
 		}
@@ -272,7 +241,8 @@ func TestHandleSpecCommand(t *testing.T) {
 
 		result := &bytes.Buffer{}
 		w := &fakeDeadlineReadWriter{w: bufio.NewWriter(result)}
-		shouldClose, _, err := handleSpecCommand("ECHO", w, resp)
+		keys, _ := resp.Keys()
+		shouldClose, _, err := handleSpecCommand("ECHO", w, keys)
 		if !shouldClose {
 			t.Error(errors.ErrorStack(err))
 		}

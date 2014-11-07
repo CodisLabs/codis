@@ -264,8 +264,8 @@ func TestInvalidRedisCmdEcho(t *testing.T) {
 	}
 
 	_, err = c.Do("echo")
-	if err == nil {
-		t.Fatal("should be error")
+	if err != nil {
+		t.Fatal(err)
 	}
 
 }
