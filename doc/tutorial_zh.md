@@ -180,7 +180,7 @@ $ ./codis-config slot migrate 0 511 2 --delay=10
 注意, 迁移的过程中打断是可以的, 但是如果中断了一个正在迁移某个slot的任务, 下次需要先迁移掉正处于迁移状态的 slot, 否则无法继续 (即迁移程序会检查同一时刻只能有一个 slot 处于迁移状态).
 
 
-####Auto Rebalance (实验)
+####Auto Rebalance 
 
 Codis 支持动态的根据实例内存, 自动对slot进行迁移, 以均衡数据分布.
 
