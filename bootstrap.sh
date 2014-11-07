@@ -1,7 +1,6 @@
 #!/bin/sh
 
-rm bin/*.log
-cd ext/redis-2.8.13 && make && cd -
+make clean
 
 go get -u github.com/c4pt0r/cfg
 go get -u github.com/garyburd/redigo/redis
@@ -23,7 +22,5 @@ go get -u github.com/docopt/docopt-go
 go get -u github.com/cupcake/rdb
 go get -u github.com/alicebob/miniredis
 
-make
-
-
-
+make || exit $?
+make gotest

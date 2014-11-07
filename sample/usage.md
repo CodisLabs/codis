@@ -6,7 +6,5 @@
 5. ./start_proxy.sh
 6. ./set_proxy_online.sh
 7. ./start_dashboard.sh
-8. open browser to http://localhost:8087/admin
-
-
+8. open browser to http://localhost:18087/admin
 

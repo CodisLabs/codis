@@ -1,21 +1,28 @@
-.PHONY: all build test clean
+all: build
+	@tar -cf deploy.tar bin sample
 
-all: clean build test
+build: build-proxy build-config build-server
+
+build-proxy:
+	go build -o bin/codis-proxy ./cmd/proxy
+
+build-config:
+	go build -o bin/codis-config ./cmd/cconfig
+	@rm -rf bin/assets && cp -r cmd/cconfig/assets bin/
+
+build-server:
+	@mkdir -p bin
+	make -j4 -C ext/redis-2.8.13/
+	@cp -f ext/redis-2.8.13/src/redis-server bin/codis-server
 
 clean:
-	rm -rf bin/cconfig
-	rm -f *.rdb
-	rm -f bin/*.log
-	rm -f *.out
-	rm -f bin/*.out
-	rm -f *.dump
+	@rm -rf bin
+	@rm -f *.rdb *.out *.log *.dump deploy.tar
+	@rm -f Dockerfile ext/Dockerfile
+	@if [ -d test ]; then cd test && rm -f *.out *.log *.rdb; fi
 
-test:
+distclean: clean
+	@make --no-print-directory --quiet -C ext/redis-2.8.13 clean
+
+gotest:
 	go test ./... -race
-
-
-build:
-	go build -a -o bin/cconfig ./cmd/cconfig
-	go build -a -o bin/proxy ./cmd/proxy
-	rm -rf bin/assets
-	cp -r ./cmd/cconfig/assets ./bin/
