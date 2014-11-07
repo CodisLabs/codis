@@ -4,23 +4,23 @@ Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接
 
 Codis 由四部分组成:
 
-* Codis Proxy  (proxy)
-* Codis Manager (cconfig)
-* Codis Redis
+* Codis Proxy   (codis-proxy)
+* Codis Manager (codis-config)
+* Codis Redis   (codis-server)
 * ZooKeeper
 
-proxy 是客户端连接的 Redis 代理服务, proxy 本身实现了 Redis 协议, 表现得和一个原生的 Redis 没什么区别 (就像 Twemproxy), 对于一个业务来说, 可以部署多个 proxy, proxy 本身是无状态的.
+codis-proxy 是客户端连接的 Redis 代理服务, codis-proxy 本身实现了 Redis 协议, 表现得和一个原生的 Redis 没什么区别 (就像 Twemproxy), 对于一个业务来说, 可以部署多个 codis-proxy, codis-proxy 本身是无状态的.
 
-cconfig 是 Codis 的管理工具, 支持包括, 添加/删除 Redis 节点, 添加/删除 Proxy 节点, 发起数据迁移等操作. cconfig 本身还自带了一个 http server, 会启动一个 dashboard, 用户可以直接在浏览器上观察 Codis 集群的运行状态.
+codis-config 是 Codis 的管理工具, 支持包括, 添加/删除 Redis 节点, 添加/删除 Proxy 节点, 发起数据迁移等操作. codis-config 本身还自带了一个 http server, 会启动一个 dashboard, 用户可以直接在浏览器上观察 Codis 集群的运行状态.
 
-Codis Redis, 是 Codis 项目维护的一个 Redis 分支, 基于 2.8.13 开发, 加入了 slot 的支持和原子的数据迁移指令. Codis 上层的 proxy 和 cconfig 只能和这个版本的 Redis 交互才能正常运行.
+codis-server 是 Codis 项目维护的一个 Redis 分支, 基于 2.8.13 开发, 加入了 slot 的支持和原子的数据迁移指令. Codis 上层的 codis-proxy 和 codis-config 只能和这个版本的 Redis 交互才能正常运行.
 
-Codis 依赖 ZooKeeper 来存放数据路由表和 proxy 节点的元信息, cconfig 发起的命令都会通过 ZooKeeper 同步到各个存活的 proxy.
+Codis 依赖 ZooKeeper 来存放数据路由表和 codis-proxy 节点的元信息, codis-config 发起的命令都会通过 ZooKeeper 同步到各个存活的 codis-proxy.
 
 Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name 的产品, 各项配置都不会冲突.
 
 
-###Build proxy & cconfig
+###Build codis-proxy & codis-config
 ------------------
 
 安装go[参考这里](https://github.com/astaxie/build-web-application-with-golang/blob/master/ebook/01.1.md)，然后参考下的流程
@@ -29,16 +29,16 @@ Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name
 go get github.com/wandoulabs/codis
 cd path/to/codis
 ./bootstrap.sh
-make test
+make gotest
 ```
 
-会在 codis/bin 文件夹生成 cconfig, proxy 两个可执行文件, (另外, bin/assets 文件夹是 cconfig 的 dashboard http 服务需要的前端资源, 需要和 cconfig 放置在同一文件夹下)
+会在 codis/bin 文件夹生成 codis-config, codis-proxy 两个可执行文件, (另外, bin/assets 文件夹是 codis-config 的 dashboard http 服务需要的前端资源, 需要和 codis-config 放置在同一文件夹下)
 
 ```
-cd deploy/sample_service
+cd sample
 
-$ ../bin/cconfig -h                                                                                                                                                                                                                           (master)
-usage: cconfig  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
+$ ../bin/codis-config -h                                                                                                                                                                                                                           (master)
+usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
 		<command> [<args>...]
 options:
    -c	配置文件地址
@@ -54,9 +54,9 @@ commands:
 ```
 
 ```
-$ ../bin/proxy -h
+$ ../bin/codis-proxy -h
 
-usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
+usage: codis-proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
 
 options:
    -c	配置文件地址
@@ -72,7 +72,7 @@ options:
 
 ####配置文件
 
-cconfig 和 proxy 在不加 -c 参数的时候, 默认会读取当前目录下的 config.ini 文件
+codis-config 和 codis-proxy 在不加 -c 参数的时候, 默认会读取当前目录下的 config.ini 文件
 
 config.ini:
 
@@ -85,36 +85,36 @@ proxy_id=proxy_1    <- proxy会读取, 用于标记proxy的名字, 针对多个p
 ####流程
 
 
-**1. 初始化 slots** , 执行 `../bin/cconfig slot init`，该命令会在zookeeper上创建slot相关信息
+**1. 初始化 slots** , 执行 `../bin/codis-config slot init`，该命令会在zookeeper上创建slot相关信息
 
 **2. 启动 Codis Redis** , 和编译启动正常的 Redis Server 没什么区别
 
 **3. 添加 Redis Server Group** , 每一个 Server Group 作为一个 Redis 服务器组存在, 只允许有一个 master, 可以有多个 slave, ***group id 仅支持大于等于1的整数***
 
 ```
-$ ../bin/cconfig server -h                                                                                                                                                                                                                   usage:
-	cconfig server list
-	cconfig server add <group_id> <redis_addr> <role>
-	cconfig server remove <group_id> <redis_addr>
-	cconfig server promote <group_id> <redis_addr>
-	cconfig server add-group <group_id>
-	cconfig server remove-group <group_id>
+$ ../bin/codis-config server -h                                                                                                                                                                                                                   usage:
+	codis-config server list
+	codis-config server add <group_id> <redis_addr> <role>
+	codis-config server remove <group_id> <redis_addr>
+	codis-config server promote <group_id> <redis_addr>
+	codis-config server add-group <group_id>
+	codis-config server remove-group <group_id>
 ```
 如: 添加两个 server group, 每个 group 有两个 redis 实例，group的id分别为1和2，
 redis实例为一主一从。
 
 添加一个group，group的id为1， 并添加一个redis master到该group
 ```
-$ ./cconfig server add 1 localhost:6379 master
+$ ./codis-config server add 1 localhost:6379 master
 ```
 添加一个redis master到该group
 ```
-$ ./cconfig server add 1 localhost:6380 slave
+$ ./codis-config server add 1 localhost:6380 slave
 ```
 类似的，再添加group，group的id为2
 ```
-$ ./cconfig server add 2 localhost:6479 master
-$ ./cconfig server add 2 localhost:6479 slave
+$ ./codis-config server add 2 localhost:6479 master
+$ ./codis-config server add 2 localhost:6479 slave
 ```
 
 **4. 设置 server group 服务的 slot 范围**
@@ -122,13 +122,13 @@ $ ./cconfig server add 2 localhost:6479 slave
    每一个 slot 都会有一个特定的 server group id 来表示这个 slot 的数据由哪个 server group 来提供.
 
 ```
-$ ./cconfig slot -h                                                                                                                                                                                                                     
+$ ./codis-config slot -h                                                                                                                                                                                                                     
 usage:
-	cconfig slot init
-	cconfig slot info <slot_id>
-	cconfig slot set <slot_id> <group_id> <status>
-	cconfig slot range-set <slot_from> <slot_to> <group_id> <status>
-	cconfig slot migrate <slot_from> <slot_to> <group_id> [--delay=<delay_time_in_ms>]
+	codis-config slot init
+	codis-config slot info <slot_id>
+	codis-config slot set <slot_id> <group_id> <status>
+	codis-config slot range-set <slot_from> <slot_to> <group_id> <status>
+	codis-config slot migrate <slot_from> <slot_to> <group_id> [--delay=<delay_time_in_ms>]
 ```
 
 如: 
@@ -136,23 +136,23 @@ usage:
 设置编号为[0, 511]的 slot 由 server group 1 提供服务, 编号 [512, 1023] 的 slot 由 server group 2 提供服务
 
 ```
-$ ./cconfig slot range-set 0 511 1 online
-$ ./cconfig slot range-set 512 1023 2 online
+$ ./codis-config slot range-set 0 511 1 online
+$ ./codis-config slot range-set 512 1023 2 online
 ```
 
- **5. 启动 proxy**
+ **5. 启动 codis-proxy**
 ```
- ../bin/proxy -c config.ini -L ./log/proxy.log  --cpu=8 --addr=0.0.0.0:19000 --http-addr=0.0.0.0:11000
+ ../bin/codis-proxy -c config.ini -L ./log/proxy.log  --cpu=8 --addr=0.0.0.0:19000 --http-addr=0.0.0.0:11000
 ```
-刚启动的 proxy 默认是处于 offline状态的, 然后设置 proxy 为 online 状态, 只有处于 online 状态的 proxy 才会对外提供服务
+刚启动的 codis-proxy 默认是处于 offline状态的, 然后设置 proxy 为 online 状态, 只有处于 online 状态的 proxy 才会对外提供服务
 ```
- ../bin/cconfig -c config.ini proxy online <proxy_name>  <---- proxy的id, 如 proxy_1
+ ../bin/codis-config -c config.ini proxy online <proxy_name>  <---- proxy的id, 如 proxy_1
 ```
  
  **6. 启动 dashboard 服务 (可选, 但是建议启动)**  
 
 ```
- ../bin/cconfig -c config.ini -L ./log/dashboard.log dashboard --addr=:18087 --http-log=./log/requests.log
+ ../bin/codis-config -c config.ini -L ./log/dashboard.log dashboard --addr=:18087 --http-log=./log/requests.log
 ```
 
  **7. 打开浏览器 http://localhost:18087/admin**
@@ -167,12 +167,12 @@ $ ./cconfig slot range-set 512 1023 2 online
 
 数据迁移的最小单位是 key, 我们在 codis redis 中添加了一些指令, 实现基于key的迁移, 如 SLOTSMGRT等 (命令列表),  每次会将特定 slot 一个随机的 key 发送给另外一个 codis redis 实例, 这个命令会确认对方已经接收, 同时删除本地的这个  k-v 键值, 返回这个  slot 的剩余 key 的数量, 整个操作是原子的.
 
-在 cconfig 管理工具中, 每次迁移任务的最小单位是 slot
+在 codis-config 管理工具中, 每次迁移任务的最小单位是 slot
 
 如: 将slot id 为 [0-511] 的slot的数据, 迁移到 server group 2上,  --delay 参数表示每迁移一个 key 后 sleep 的毫秒数, 默认是 0, 用于限速.
 
 ```
-$ ./cconfig slot migrate 0 511 2 --delay=10
+$ ./codis-config slot migrate 0 511 2 --delay=10
 ```
 
 迁移的过程对于上层业务来说是安全且透明的, 数据不会丢失,  上层不会中止服务.
@@ -185,7 +185,7 @@ $ ./cconfig slot migrate 0 511 2 --delay=10
 Codis 支持动态的根据实例内存, 自动对slot进行迁移, 以均衡数据分布.
 
 ```
-$./cconfig slot rebalance
+$./codis-config slot rebalance
 ```
 
 要求:
