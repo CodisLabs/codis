@@ -147,7 +147,7 @@ function($scope, $http, $modal, SlotFactory) {
           alert(failedData.data)
         })
       }
-    });   
+    });
   }
 }]);
 
@@ -177,10 +177,10 @@ function($scope, $http, $modal, MigrateStatusFactory) {
   			MigrateStatusFactory.doMigrate(task, function() {
   				$scope.refresh();
   			}, function(failedData) {
-          alert(failedData.data)          
+          alert(failedData.data)
         })
   		}
-  	});  	
+  	});
   }
 
   $scope.removePendingTask = function(task) {
@@ -236,7 +236,7 @@ function($scope, $http, $modal, $log, ServerGroupsFactory, ServerGroupFactory) {
 		ServerGroupFactory.promote(server, function(succData) {
 			$scope.server_groups = ServerGroupsFactory.query();
 		}, function(failedData) {
-      alert(failedData.data);      
+      alert(failedData.data);
     })
 	}
 
@@ -278,7 +278,7 @@ function($scope, $http, $modal, $log, ServerGroupsFactory, ServerGroupFactory) {
 	    			$scope.server_groups = ServerGroupsFactory.query();
 	    		}, function(failedData) {
             console.log(failedData.data)
-            alert(failedData.data);            
+            alert(failedData.data);
           });
 	    	}
 	    });

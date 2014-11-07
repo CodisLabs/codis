@@ -68,7 +68,6 @@ func apiOverview() (int, string) {
 			info, err := utils.GetRedisStat(instance)
 			if err != nil {
 				log.Error(err)
-				return 500, err.Error()
 			}
 			redisInfos = append(redisInfos, info)
 		}
@@ -119,6 +118,36 @@ func apiDoMigrate(taskForm MigrateTaskForm, param martini.Params) (int, string) 
 	lck.Lock()
 	pendingMigrateTask.PushBack(task)
 	lck.Unlock()
+
+	return jsonRetSucc()
+}
+
+var isRebalancing bool
+
+func apiRebalanceStatus(param martini.Params) (int, string) {
+	ret := map[string]interface{}{
+		"is_rebalancing": isRebalancing,
+	}
+	b, _ := json.MarshalIndent(ret, " ", "  ")
+	return 200, string(b)
+}
+
+func apiRebalance(param martini.Params) (int, string) {
+	if isRebalancing == true {
+		return 500, "rebalancing..."
+	}
+
+	isRebalancing = true
+	defer func() {
+		isRebalancing = false
+	}()
+
+	conn := CreateZkConn()
+	defer conn.Close()
+
+	if err := Rebalance(conn, 0); err != nil {
+		return 500, err.Error()
+	}
 
 	return jsonRetSucc()
 }

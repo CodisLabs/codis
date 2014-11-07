@@ -180,10 +180,13 @@ func runDashboard(addr string, httpLogFile string) {
 	m.Post("/api/server_group/(?P<id>[0-9]+)/promote", binding.Json(models.Server{}), apiPromoteServer)
 
 	m.Get("/api/migrate/status", apiMigrateStatus)
-	m.Post("/api/migrate", binding.Json(MigrateTaskForm{}), apiDoMigrate)
 	m.Get("/api/migrate/tasks", apiGetMigrateTasks)
 	m.Delete("/api/migrate/pending_task/:id/remove", apiRemovePendingMigrateTask)
 	m.Delete("/api/migrate/task/:id/stop", apiStopMigratingTask)
+	m.Post("/api/migrate", binding.Json(MigrateTaskForm{}), apiDoMigrate)
+
+	m.Post("/api/rebalance", apiRebalance)
+	m.Get("/api/rebalance/status", apiRebalanceStatus)
 
 	m.Get("/api/slot/list", apiGetSlots)
 	m.Get("/api/slots", apiGetSlots)
