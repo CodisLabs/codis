@@ -125,7 +125,12 @@ func (r *Resp) Op() ([]byte, error) {
 type funGetKeys func(r *Resp) ([][]byte, error)
 
 func defaultGetKeys(r *Resp) ([][]byte, error) {
-	var keys [][]byte
+	count := len(r.Multi[1:])
+	if count == 0 {
+		return nil, nil
+	}
+
+	keys := make([][]byte, 0, count)
 	for _, v := range r.Multi[1:] {
 		keys = append(keys, v.Bulk)
 	}
@@ -353,6 +358,7 @@ func (r *Resp) Bytes() ([]byte, error) {
 			length = -1
 		}
 
+		buf = make([]byte, 0, 256)
 		buf = append(buf, '*')
 		buf = append(buf, Itoa(length)...)
 		buf = append(buf, NEW_LINE...)
