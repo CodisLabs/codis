@@ -40,6 +40,8 @@ codisControllers.factory('MigrateStatusFactory', ['$resource', function ($resour
         doMigrate : { method:'POST', url:'http://localhost:8086/api/migrate'},
         removePendingTask : {method : 'DELETE', url: 'http://localhost:8086/api/migrate/pending_task/:id/remove', params : { id : '@id'} },
         stopRunningTask : {method : 'DELETE', url: 'http://localhost:8086/api/migrate/task/:id/stop', params : { id : '@id'} },
+        rebalanceStatus : { method:'GET', url: 'http://localhost:8086/api/rebalance/status'},
+        doRebalance: {method:'POST', url: 'http://localhost:8086/api/rebalance'},
     });
 }]);
 
@@ -155,12 +157,13 @@ codisControllers.controller('codisMigrateCtl', ['$scope', '$http', '$modal', 'Mi
 function($scope, $http, $modal, MigrateStatusFactory) {
   $scope.migrate_status = MigrateStatusFactory.query();
   $scope.migrate_tasks = MigrateStatusFactory.tasks();
+  $scope.rebalance_status = MigrateStatusFactory.rebalanceStatus();
 
   $scope.migrate = function() {
   	var modalInstance = $modal.open({
   		templateUrl: 'migrateModal',
   		controller: ['$scope', '$modalInstance', function($scope, $modalInstance) {
-  			$scope.task = {'from': '-1', 'to': '-1', 'new_group': '-1', 'delay': 1};
+  			$scope.task = {'from': '-1', 'to': '-1', 'new_group': '-1', 'delay': 0};
   			$scope.ok = function (task) {
   				$modalInstance.close(task);
   			};
@@ -173,7 +176,6 @@ function($scope, $http, $modal, MigrateStatusFactory) {
 
   	modalInstance.result.then(function (task) {
   		if (task) {
-  			console.log(task);
   			MigrateStatusFactory.doMigrate(task, function() {
   				$scope.refresh();
   			}, function(failedData) {
@@ -181,6 +183,14 @@ function($scope, $http, $modal, MigrateStatusFactory) {
         })
   		}
   	});
+  }
+
+  $scope.rebalance = function() {
+    MigrateStatusFactory.doRebalance(function() {
+      $scope.refresh()
+    }, function (failedData) {
+      alert(failedData.data);
+    })
   }
 
   $scope.removePendingTask = function(task) {
@@ -202,6 +212,7 @@ function($scope, $http, $modal, MigrateStatusFactory) {
   $scope.refresh = function() {
     $scope.migrate_status = MigrateStatusFactory.query();
     $scope.migrate_tasks = MigrateStatusFactory.tasks();
+    $scope.rebalance_status = MigrateStatusFactory.rebalanceStatus();
   }
 }]);
 

@@ -127,6 +127,51 @@ func Slots(zkConn zkhelper.Conn, productName string) ([]Slot, error) {
 	return slots, nil
 }
 
+func NoGroupSlots(zkConn zkhelper.Conn, productName string) ([]Slot, error) {
+	slots, err := Slots(zkConn, productName)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	var ret []Slot
+	for _, slot := range slots {
+		if slot.GroupId == INVALID_ID {
+			ret = append(ret, slot)
+		}
+	}
+	return ret, nil
+}
+
+func SetSlots(zkConn zkhelper.Conn, productName string, slots []Slot, groupId int, status SlotStatus) error {
+	if status != SLOT_STATUS_OFFLINE && status != SLOT_STATUS_ONLINE {
+		return errors.New("invalid status")
+	}
+	for _, s := range slots {
+		s.GroupId = groupId
+		s.State.Status = status
+		data, err := json.Marshal(s)
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		zkPath := GetSlotPath(productName, s.Id)
+		_, err = zkhelper.CreateOrUpdate(zkConn, zkPath, string(data), 0, zkhelper.DefaultFileACLs(), true)
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
+
+	param := SlotMultiSetParam{
+		From:    -1,
+		To:      -1,
+		GroupId: groupId,
+		Status:  status,
+	}
+
+	err := NewAction(zkConn, productName, ACTION_TYPE_MULTI_SLOT_CHANGED, param, "", true)
+	return errors.Trace(err)
+
+}
+
 func SetSlotRange(zkConn zkhelper.Conn, productName string, fromSlot, toSlot, groupId int, status SlotStatus) error {
 	if status != SLOT_STATUS_OFFLINE && status != SLOT_STATUS_ONLINE {
 		return errors.New("invalid status")
