@@ -30,8 +30,9 @@ done
 > config.log
 
 for i in {1,2,3}; do
-    ../bin/codis-config proxy offline proxy_${i} 2>&1 | tee -a config.log
+    ../bin/codis-config proxy offline proxy_${i} 2>&1 >/dev/null
 done
+
 ../bin/codis-config slot init 2>&1 | tee -a config.log
 
 sleep 2
