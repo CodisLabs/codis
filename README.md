@@ -35,6 +35,12 @@ Codis is production-ready and is widely used by Wandoujia.com.
 
 [English (work in progress) ](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md)
 
+## FAQ
+
+[中文](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_zh.md)
+
+English (WIP)
+
 ## Performance
 
 TBD
