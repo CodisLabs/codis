@@ -71,4 +71,4 @@ Thanks:
 
 ## License
 
-Codis is licensed under MIT
+Codis is licensed under MIT， see MIT-LICENSE.txt
