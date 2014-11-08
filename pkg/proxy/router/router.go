@@ -209,7 +209,7 @@ func (s *Server) redisTunnel(c *session) error {
 	k := keys[0]
 
 	opstr := strings.ToUpper(string(op))
-	log.Debugf("op: %s, %s", opstr, keys[0])
+	//log.Debugf("op: %s, %s", opstr, keys[0])
 	next, err := s.filter(opstr, keys, c)
 	if err != nil {
 		return errors.Trace(err)
@@ -568,7 +568,7 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 		lastActionSeq:     -1,
 		startAt:           time.Now(),
 		addr:              addr,
-		concurrentLimiter: utils.NewTokenLimiter(10),
+		concurrentLimiter: utils.NewTokenLimiter(100),
 		moper:             NewMultiOperator("localhost:" + strings.Split(addr, ":")[1]),
 		pools:             cachepool.NewCachePool(),
 	}

@@ -26,14 +26,17 @@ func NewCachePool() *CachePool {
 
 func (cp *CachePool) GetConn(key string) (redispool.PoolConnection, error) {
 	cp.mu.RLock()
-	defer cp.mu.RUnlock()
 
 	pool, ok := cp.pools[key]
 	if !ok {
+		cp.mu.RUnlock()
 		return nil, errors.Errorf("pool %s not exist", key)
 	}
 
-	return pool.pool.Get()
+	c, err := pool.pool.Get()
+
+	cp.mu.RUnlock()
+	return c, err
 }
 
 func (cp *CachePool) ReleaseConn(pc redispool.PoolConnection) {
