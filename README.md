@@ -1,4 +1,4 @@
-#Codis - yet another safe & fast distributed solution for Redis
+#Codis - yet another fast distributed solution for Redis
 
 Codis is a proxy based high performance Redis cluster solution written in Go/C, an alternative to Twemproxy.
 
