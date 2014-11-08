@@ -67,7 +67,7 @@ Slots
 
 Thanks:
 
-* [ivanzhaowy](https://github.com/ivanzhaowy)
+* [@ivanzhaowy](https://github.com/ivanzhaowy)
 
 ## License
 
