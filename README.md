@@ -51,9 +51,9 @@ TBD
 ## Snapshots
 ![main](doc/pictures/snapshot.png)
 
-
-migrate
 ![migrate](doc/pictures/snapshot_migrate.png)
+
+![slots](doc/pictures/slots.png)
 
 ## Authors
 
