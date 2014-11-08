@@ -46,13 +46,18 @@ English (WIP)
 TBD
 
 ## Architecture
+
 ![Snapshot1](doc/pictures/architecture.png)
 
 ## Snapshots
+
+Dashboard
 ![main](doc/pictures/snapshot.png)
 
+Migrate
 ![migrate](doc/pictures/snapshot_migrate.png)
 
+Slots
 ![slots](doc/pictures/slots.png)
 
 ## Authors
