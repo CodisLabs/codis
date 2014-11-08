@@ -1,3 +1,6 @@
+// Copyright 2014 Wandoujia Inc. All Rights Reserved.
+// Licensed under the MIT (MIT-LICENSE.txt) license.
+
 /*
 Package redispool exposes a single RedisConnection object
 with wrapped access to a single redis connection, and a ConnectionPool
