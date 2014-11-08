@@ -9,13 +9,12 @@ Codis is engineered to elastically scale, Easily add or remove redis or proxy in
 Codis is production-ready and is widely used by Wandoujia.com.
 
 ##Features
-
+* Auto rebalance
 * Extremely simple to use 
+* GUI dashboard & admin tools 
 * Supports most of Redis commands, Fully compatible with twemproxy(https://github.com/twitter/twemproxy)
 * Native Redis clients are supported
 * Safe and transparent data migration, Easily add or remove nodes on-demand.
-* Auto rebalance
-* GUI dashboard & admin tools 
 * Command-line interface is also provided
 * RESTful APIs
 
