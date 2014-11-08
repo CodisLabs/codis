@@ -59,8 +59,6 @@ Thanks:
 
 * wangyezhao
 
-## Licence
-
-LICENSE
+## License
 
 Codis is licensed under MIT
