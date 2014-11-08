@@ -107,7 +107,7 @@ redis实例为一主一从。
 ```
 $ ./cconfig server add 1 localhost:6379 master
 ```
-添加一个redis master到该group
+添加一个redis slave到该group
 ```
 $ ./cconfig server add 1 localhost:6380 slave
 ```
