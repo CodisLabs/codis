@@ -61,13 +61,13 @@ Slots
 
 ## Authors
 
-* @goroutine
-* @c4pt0r
-* @spinlock9
+* [@goroutine](https://github.com/ngaut)
+* [@c4pt0r](https://github.com/c4pt0r)
+* [@spinlock9](https://github.com/spinlock)
 
 Thanks:
 
-* wangyezhao
+* [ivanzhaowy](https://github.com/ivanzhaowy)
 
 ## License
 
