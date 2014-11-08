@@ -54,3 +54,13 @@ migrate
 * @goroutine
 * @c4pt0r
 * @spinlock9
+
+Thanks:
+
+* wangyezhao
+
+## Licence
+
+LICENSE
+
+Codis is licensed under MIT
