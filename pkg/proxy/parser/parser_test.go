@@ -48,7 +48,7 @@ func TestParserBulk(t *testing.T) {
 
 	op, err := resp.Op()
 	if !bytes.Equal(op, []byte("LLEN")) {
-		t.Error("get op error")
+		t.Errorf("get op error, got %s, expect LLEN", string(op))
 	}
 
 	key, err := resp.Key()
@@ -138,7 +138,7 @@ func TestParserErrorHandling(t *testing.T) {
 		t.Error("type not match")
 	}
 
-	if len(resp.Error) == 0 {
+	if len(raw2Error(resp)) == 0 {
 		t.Error("parse error message failed")
 	}
 }
