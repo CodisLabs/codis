@@ -204,7 +204,7 @@ func CheckUlimit(min int) {
 
 	n, err := strconv.Atoi(strings.TrimSpace(string(ulimitN)))
 	if err != nil || n < min {
-		log.Fatalf("ulimit too small: %d, should be at least %d", min, n)
+		log.Fatalf("ulimit too small: %d, should be at least %d", n, min)
 	}
 }
 

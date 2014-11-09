@@ -137,7 +137,7 @@ func (self *ServerGroup) Remove(zkConn zkhelper.Conn) error {
 
 	for _, slot := range slots {
 		if slot.GroupId == self.Id {
-			return errors.AlreadyExistsf("group is using by slot %d", slot.Id)
+			return errors.AlreadyExistsf("group %d is using by slot %d", slot.GroupId, slot.Id)
 		}
 	}
 
