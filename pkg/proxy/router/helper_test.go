@@ -198,7 +198,7 @@ func TestHandleSpecCommand(t *testing.T) {
 
 		_, keys, err := getOpKeys(resp)
 		if err != nil {
-			t.Error(err)
+			t.Error(errors.ErrorStack(err))
 		}
 
 		result := &bytes.Buffer{}
@@ -224,6 +224,7 @@ func TestHandleSpecCommand(t *testing.T) {
 		result := &bytes.Buffer{}
 		w := &fakeDeadlineReadWriter{w: bufio.NewWriter(result)}
 		keys, _ := resp.Keys()
+
 		_, _, err = handleSpecCommand("ECHO", w, keys)
 		if err != nil {
 			t.Error(errors.ErrorStack(err))
@@ -231,7 +232,7 @@ func TestHandleSpecCommand(t *testing.T) {
 
 		w.w.Flush()
 		if string(result.Bytes()) != "$4\r\nxxxx\r\n" {
-			t.Error("result not match", result.Bytes())
+			t.Error("result not match", string(result.Bytes()))
 		}
 	}
 

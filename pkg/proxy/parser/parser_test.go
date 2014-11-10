@@ -48,7 +48,7 @@ func TestParserBulk(t *testing.T) {
 
 	op, err := resp.Op()
 	if !bytes.Equal(op, []byte("LLEN")) {
-		t.Error("get op error")
+		t.Errorf("get op error, got %s, expect LLEN", string(op))
 	}
 
 	key, err := resp.Key()
@@ -70,9 +70,13 @@ func TestKeys(t *testing.T) {
 		if err != nil {
 			t.Error(errors.ErrorStack(err))
 		}
-		_, err = resp.Bytes()
+		b, err := resp.Bytes()
 		if err != nil {
 			t.Error(err)
+		}
+
+		if s != string(b) {
+			t.Fatalf("not match, expect %s, got %s", s, string(b))
 		}
 
 		keys, err := resp.Keys()
@@ -98,6 +102,8 @@ func TestParser(t *testing.T) {
 		"+OK\r\n",
 		"-Error message\r\n",
 		"*2\r\n$1\r\n0\r\n*0\r\n",
+		"*3\r\n$4\r\nEVAL\r\n$31\r\nreturn {1,2,{3,'Hello World!'}}\r\n$1\r\n0\r\n",
+		"mget a b c\r\n",
 	}
 
 	for _, s := range table {
@@ -106,7 +112,7 @@ func TestParser(t *testing.T) {
 
 		resp, err := Parse(r)
 		if err != nil {
-			t.Error(err)
+			t.Fatal(errors.ErrorStack(err))
 		}
 
 		_, err = resp.Bytes()
@@ -125,6 +131,48 @@ func TestParser(t *testing.T) {
 	}
 }
 
+func TestEval(t *testing.T) {
+	table := []string{
+		"*3\r\n$4\r\nEVAL\r\n$31\r\nreturn {1,2,{3,'Hello World!'}}\r\n$1\r\n0\r\n",
+	}
+
+	for _, s := range table {
+		buf := bytes.NewBuffer([]byte(s))
+		r := bufio.NewReader(buf)
+
+		resp, err := Parse(r)
+		if err != nil {
+			t.Fatal(errors.ErrorStack(err))
+		}
+		op, err := resp.Op()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if string(op) != "EVAL" {
+			t.Fatalf("op not match, expect %s, got %s", "EVAL", string(op))
+		}
+
+		if len(resp.Multi) != 3 {
+			t.Fatal("argument count not match")
+		}
+
+		keys, err := resp.Keys()
+		if err != nil {
+			t.Fatal(errors.ErrorStack(err))
+		}
+
+		if len(keys) != 1 {
+			t.Fatalf("key count not match, expect %d got %d", 1, len(keys))
+		}
+
+		_, err = resp.Bytes()
+		if err != nil {
+			t.Error(err)
+		}
+	}
+}
+
 func TestParserErrorHandling(t *testing.T) {
 	buf := bytes.NewBuffer([]byte("-Error message\r\n"))
 	r := bufio.NewReader(buf)
@@ -138,7 +186,7 @@ func TestParserErrorHandling(t *testing.T) {
 		t.Error("type not match")
 	}
 
-	if len(resp.Error) == 0 {
+	if len(raw2Error(resp)) == 0 {
 		t.Error("parse error message failed")
 	}
 }

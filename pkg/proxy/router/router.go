@@ -158,8 +158,8 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 
 	if resp.Type == parser.ErrorResp {
 		redisConn.Close()
-		log.Error(string(key), resp.Error, "migrateFrom", shd.migrateFrom.Master())
-		return errors.New(resp.Error)
+		log.Error(string(key), string(resp.Raw), "migrateFrom", shd.migrateFrom.Master())
+		return errors.New(string(resp.Raw))
 	}
 
 	s.counter.Add("Migrate", 1)

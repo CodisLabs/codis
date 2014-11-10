@@ -5,11 +5,13 @@ package parser
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"strconv"
 	"strings"
 
 	"github.com/juju/errors"
+	respcoding "github.com/ngaut/resp"
 )
 
 /*
@@ -31,12 +33,9 @@ const (
 )
 
 type Resp struct {
-	Type    int
-	Error   string
-	Status  string
-	Integer int64  // Support Redis 64bit integer
-	Bulk    []byte // Support Redis Null Bulk Resp
-	Multi   []*Resp
+	Type  int
+	Raw   []byte
+	Multi []*Resp
 }
 
 var (
@@ -109,17 +108,27 @@ func readLine(r *bufio.Reader) ([]byte, error) {
 	if len(line) < 2 || line[len(line)-2] != '\r' { // \r\n
 		return nil, errors.Errorf("invalid redis packet %v, err:%v", line, err)
 	}
-	if len(line) == 2 {
-		return EMPTY_LINE, nil
-	}
 
-	line = line[:len(line)-2] //strip \r\n
 	return line, nil
+}
+
+func raw2Bulk(r *Resp) []byte {
+	return r.Raw[1 : len(r.Raw)-2] //skip type &&  \r\n
+}
+
+func raw2Error(r *Resp) []byte {
+	return r.Raw[1 : len(r.Raw)-2] //skip type &&  \r\n
 }
 
 func (r *Resp) Op() ([]byte, error) {
 	if len(r.Multi) > 0 {
-		return r.Multi[0].Bulk, nil
+		op := raw2Bulk(r.Multi[0])
+		startPos := bytes.IndexByte(op, '\n')
+		if startPos < 0 {
+			return nil, errors.Errorf("invalid resp %+v", r)
+		}
+
+		return op[startPos+1:], nil
 	}
 
 	return nil, errors.Errorf("invalid resp %+v", r)
@@ -135,7 +144,12 @@ func defaultGetKeys(r *Resp) ([][]byte, error) {
 
 	keys := make([][]byte, 0, count)
 	for _, v := range r.Multi[1:] {
-		keys = append(keys, v.Bulk)
+		key := raw2Bulk(v)
+		startPos := bytes.IndexByte(key, '\n')
+		if startPos < 0 {
+			return nil, errors.Errorf("invalid resp %+v", r)
+		}
+		keys = append(keys, key[startPos+1:])
 	}
 
 	return keys, nil
@@ -147,49 +161,35 @@ func Parse(r *bufio.Reader) (*Resp, error) {
 		return nil, errors.Trace(err)
 	}
 
-	if len(line) == 0 {
-		return nil, errors.New("empty NEW_LINE")
-	}
+	resp := &Resp{Raw: line}
 
 	switch line[0] {
 	case '-':
-		return &Resp{
-			Type:  ErrorResp,
-			Error: string(line[1:]),
-		}, nil
+		resp.Type = ErrorResp
+		return resp, nil
 	case '+':
-		return &Resp{
-			Type:   SimpleString,
-			Status: string(line[1:]),
-		}, nil
+		resp.Type = SimpleString
+		return resp, nil
 	case ':':
-		i, err := Btoi(line[1:])
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		return &Resp{
-			Type:    IntegerResp,
-			Integer: int64(i),
-		}, nil
+		resp.Type = IntegerResp
+		return resp, nil
 	case '$':
-		size, err := Btoi(line[1:])
+		resp.Type = BulkResp
+		size, err := Btoi(line[1 : len(line)-2])
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		bulk, err := ReadBulk(r, size)
+		err = ReadBulk(r, size, &resp.Raw)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		return &Resp{
-			Type: BulkResp,
-			Bulk: bulk,
-		}, nil
+		return resp, nil
 	case '*':
-		i, err := Btoi(line[1:])
+		i, err := Btoi(line[1 : len(line)-2]) //strip \r\n
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		rp := &Resp{Type: MultiResp}
+		resp.Type = MultiResp
 		if i >= 0 {
 			multi := make([]*Resp, i)
 			for j := 0; j < i; j++ {
@@ -199,20 +199,32 @@ func Parse(r *bufio.Reader) (*Resp, error) {
 				}
 				multi[j] = rp
 			}
-			rp.Multi = multi
+			resp.Multi = multi
 		}
-		return rp, nil
+		return resp, nil
 	default:
-		if !IsLetter(line[0]) {
+		if !IsLetter(line[0]) { //handle telnet text command
 			return nil, errors.New("redis protocol error, " + string(line))
 		}
-		rp := &Resp{Type: MultiResp}
-		for _, s := range strings.Split(string(line), " ") {
-			if str := strings.TrimSpace(s); len(str) > 0 {
-				rp.Multi = append(rp.Multi, &Resp{Type: BulkResp, Bulk: []byte(s)})
+
+		resp.Type = MultiResp
+		strs := strings.Split(string(line), " ")
+
+		resp.Raw = make([]byte, 0, 20)
+		resp.Raw = append(resp.Raw, '*')
+		resp.Raw = append(resp.Raw, []byte(strconv.Itoa(len(strs)))...)
+		resp.Raw = append(resp.Raw, NEW_LINE...)
+		for i := 0; i < len(strs); i++ { //last element is \r\n
+			if str := strings.TrimSpace(strs[i]); len(str) > 0 {
+				b, err := respcoding.Marshal(str)
+				if err != nil {
+					return nil, errors.New("redis protocol error, " + string(line))
+				}
+
+				resp.Multi = append(resp.Multi, &Resp{Type: BulkResp, Raw: b})
 			}
 		}
-		return rp, nil
+		return resp, nil
 	}
 
 	return nil, errors.New("redis protocol error, " + string(line))
@@ -230,43 +242,47 @@ func IsLetter(c byte) bool {
 	return false
 }
 
-func ReadBulk(r *bufio.Reader, size int) ([]byte, error) {
+func ReadBulk(r *bufio.Reader, size int, raw *[]byte) error {
 	if size < 0 {
-		return nil, nil
+		return nil
 	}
 
 	buf := make([]byte, size)
 	if _, err := io.ReadFull(r, buf); err != nil {
-		return nil, err
+		return err
 	}
+
+	*raw = append(*raw, buf...)
 
 	line, err := readLine(r)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return errors.Trace(err)
 	}
 
-	if len(line) != 0 {
-		return nil, errors.New("should be just 0 " + string(line))
+	*raw = append(*raw, line...)
+
+	if len(line) != 2 {
+		return errors.New("should be just 0 " + string(line))
 	}
 
-	return buf, nil
+	return nil
 }
 
 var thridAsKeyTbl = []string{"ZINTERSTORE", "ZUNIONSTORE", "EVAL", "EVALSHA"}
 
 func thridAsKey(r *Resp) ([][]byte, error) {
-	if len(r.Multi) < 4 {
-		return nil, errors.New("invalid argument, key not found")
+	if len(r.Multi) < 4 { //if EVAL with no key
+		return [][]byte{[]byte("fakeKey")}, nil
 	}
 
-	numKeys, err := Btoi(r.Multi[2].Bulk)
+	numKeys, err := Btoi(raw2Bulk(r.Multi[2]))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
 	var keys [][]byte
 	for _, v := range r.Multi[3:] {
-		keys = append(keys, v.Bulk)
+		keys = append(keys, raw2Bulk(v))
 		if len(keys) == numKeys {
 			break
 		}
@@ -278,7 +294,7 @@ func thridAsKey(r *Resp) ([][]byte, error) {
 func (r *Resp) Keys() ([][]byte, error) {
 	key, err := r.Op()
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 
 	f, ok := keyFun[string(key)]
@@ -299,53 +315,26 @@ func (r *Resp) Key() ([]byte, error) {
 }
 
 func (r *Resp) getBulkBuf() []byte {
-	v := r.Bulk
-	buf := make([]byte, 0, 20+len(v))
-	buf = append(buf, '$')
-	if v == nil {
-		buf = append(buf, []byte("-1")...)
-	} else if len(v) == 0 {
-		buf = append(buf, []byte("0")...)
-		buf = append(buf, NEW_LINE...)
-	} else {
-		buf = append(buf, Itoa(len(v))...)
-		buf = append(buf, NEW_LINE...)
-		buf = append(buf, v...)
-	}
-
-	buf = append(buf, NEW_LINE...)
-	return buf
+	return r.Raw
 }
 
 func (r *Resp) getSimpleStringBuf() []byte {
-	buf := make([]byte, 0, 20+len(r.Status))
-	buf = append(buf, '+')
-	buf = append(buf, r.Status...)
-	buf = append(buf, NEW_LINE...)
-	return buf
+	return r.Raw
 }
 
 func (r *Resp) getErrorBuf() []byte {
-	buf := make([]byte, 0, 20+len(r.Error))
-	buf = append(buf, '-')
-	buf = append(buf, r.Error...)
-	buf = append(buf, NEW_LINE...)
-	return buf
+	return r.Raw
 }
 
 func (r *Resp) getIntegerBuf() []byte {
-	buf := make([]byte, 0, 20+len(NEW_LINE))
-	buf = append(buf, ':')
-	buf = append(buf, Itoa(int(r.Integer))...)
-	buf = append(buf, NEW_LINE...)
-	return buf
+	return r.Raw
 }
 
 func (r *Resp) Bytes() ([]byte, error) {
 	var buf []byte
 	switch r.Type {
 	case NoKey:
-		buf = append(buf, r.Bulk...)
+		buf = append(buf, raw2Bulk(r)...)
 		buf = append(buf, NEW_LINE...)
 	case SimpleString:
 		buf = r.getSimpleStringBuf()
@@ -356,15 +345,8 @@ func (r *Resp) Bytes() ([]byte, error) {
 	case BulkResp:
 		buf = r.getBulkBuf()
 	case MultiResp:
-		length := len(r.Multi)
-		if r.Multi == nil {
-			length = -1
-		}
-
 		buf = make([]byte, 0, 256)
-		buf = append(buf, '*')
-		buf = append(buf, Itoa(length)...)
-		buf = append(buf, NEW_LINE...)
+		buf = append(buf, r.Raw...)
 
 		if len(r.Multi) > 0 {
 			for _, resp := range r.Multi {
