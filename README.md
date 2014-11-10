@@ -30,15 +30,13 @@ Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia
 
 ## Tutorial
 
-[中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md)
-
+[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md)  
 [English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md)
 
 ## FAQ
 
-[中文](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_zh.md)
-
-English (WIP)
+[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_zh.md)  
+[English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_en.md)
 
 ## Performance
 
