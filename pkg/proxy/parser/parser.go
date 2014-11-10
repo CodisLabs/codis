@@ -271,8 +271,8 @@ func ReadBulk(r *bufio.Reader, size int, raw *[]byte) error {
 var thridAsKeyTbl = []string{"ZINTERSTORE", "ZUNIONSTORE", "EVAL", "EVALSHA"}
 
 func thridAsKey(r *Resp) ([][]byte, error) {
-	if len(r.Multi) < 4 {
-		return nil, errors.New("invalid argument, key not found")
+	if len(r.Multi) < 4 { //if EVAL with no key
+		return [][]byte{[]byte("fakeKey")}, nil
 	}
 
 	numKeys, err := Btoi(raw2Bulk(r.Multi[2]))
@@ -294,7 +294,7 @@ func thridAsKey(r *Resp) ([][]byte, error) {
 func (r *Resp) Keys() ([][]byte, error) {
 	key, err := r.Op()
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 
 	f, ok := keyFun[string(key)]
