@@ -4,7 +4,7 @@ Codis is a distributed redis service developed by wandoujia infrasstructure team
 
 ####Can I use Codis directly for my existing services?
 
-That depends.
+That depends.  
 Two cases:  
 1) Twemproxy users:  
 Yes, codis fully support twemproxy commands, further more, using redis-port tool, you can synchronization the data on twemproxy onto your Codis cluster.
