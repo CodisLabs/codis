@@ -249,8 +249,10 @@ func recordResponseTime(c *stats.Counters, d time.Duration) {
 		c.Add("200-1000ms", 1)
 	case d >= 1000 && d < 5000:
 		c.Add("1000-5000ms", 1)
+	case d >= 5000 && d < 10000:
+		c.Add("5000-10000ms", 1)
 	default:
-		c.Add(">=5000ms", 1)
+		c.Add("10000ms+", 1)
 	}
 }
 

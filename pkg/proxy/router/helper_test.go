@@ -51,7 +51,7 @@ func TestIsMulOp(t *testing.T) {
 	}
 }
 
-func TestRecordResponTime(t *testing.T) {
+func TestRecordResponseTime(t *testing.T) {
 	c := stats.NewCounters("test")
 	recordResponseTime(c, 1)
 	recordResponseTime(c, 5)
@@ -60,6 +60,8 @@ func TestRecordResponTime(t *testing.T) {
 	recordResponseTime(c, 200)
 	recordResponseTime(c, 1000)
 	recordResponseTime(c, 5000)
+	recordResponseTime(c, 8000)
+	recordResponseTime(c, 10000)
 	cnts := c.Counts()
 	if cnts["0-5ms"] != 1 {
 		t.Fail()
@@ -76,7 +78,10 @@ func TestRecordResponTime(t *testing.T) {
 	if cnts["1000-5000ms"] != 1 {
 		t.Fail()
 	}
-	if cnts[">=5000ms"] != 1 {
+	if cnts["5000-10000ms"] != 2 {
+		t.Fail()
+	}
+	if cnts["10000ms+"] != 1 {
 		t.Fail()
 	}
 }
