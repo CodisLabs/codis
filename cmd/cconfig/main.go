@@ -218,10 +218,10 @@ func main() {
 	log.Debugf("zk: %s", zkAddr)
 
 	if err := removeOrphanLocks(); err != nil {
-		log.Error(errors.ErrorStack(err))
+		log.Fatal(errors.ErrorStack(err))
 	}
 	if err := registerConfigNode(); err != nil {
-		log.Error(errors.ErrorStack(err))
+		log.Fatal(errors.ErrorStack(err))
 	}
 	defer unRegisterConfigNode()
 
@@ -231,7 +231,6 @@ func main() {
 	go http.ListenAndServe(":10086", nil)
 	err = runCommand(cmd, cmdArgs)
 	if err != nil {
-		log.Error(errors.ErrorStack(err))
-		os.Exit(1)
+		log.Fatal(errors.ErrorStack(err))
 	}
 }
