@@ -67,7 +67,13 @@ function($scope, $http, ProxyStatusFactory) {
     $scope.proxies = ProxyStatusFactory.query();
 
     $scope.setStatus = function (p, status) {
-        var sure = confirm("are u sure?");
+        var text = ""
+        if (status == "online") {
+            text = "Do you want to set " + p.id + " online?";
+        } else {
+            text = "Do you want to mark " + p.id + " offline? the proxy process will exit after you marked it offline"
+        }
+        var sure = confirm(text);
         if (!sure) {
             return
         }
@@ -78,7 +84,6 @@ function($scope, $http, ProxyStatusFactory) {
     }
 
     $scope.refresh = function() {
-        console.log('reload proxy')
         $scope.proxies = ProxyStatusFactory.query();
     }
 
@@ -229,7 +234,7 @@ codisControllers.controller('codisServerGroupMainCtl', ['$scope', '$http', '$mod
 function($scope, $http, $modal, $log, ServerGroupsFactory, ServerGroupFactory) {
 
     $scope.removeServer = function(server) {
-        var sure = confirm("are you sure?");
+        var sure = confirm("are you sure to remove " + server.addr + " from group_" + server.group_id + "?");
         if (!sure) {
             return
         }
@@ -251,7 +256,7 @@ function($scope, $http, $modal, $log, ServerGroupsFactory, ServerGroupFactory) {
     }
 
     $scope.removeServerGroup = function(groupId) {
-        var sure = confirm("are you sure?");
+        var sure = confirm("are you sure to remove group_" + groupId + " ?");
         if (!sure) {
             return
         }
