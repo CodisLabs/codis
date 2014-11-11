@@ -79,7 +79,7 @@ func removeOrphanLocks() error {
 
 	livingCfgNodes, _, err := zkConn.Children(nodeDir)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 
 	// get living nodes
@@ -93,14 +93,14 @@ func removeOrphanLocks() error {
 	for _, lockName := range livingLocks {
 		data, _, err := zkConn.Get(path.Join(lockDir, lockName))
 		if err != nil {
-			return err
+			return errors.Trace(err)
 		}
 
 		// get lock info
 		var d map[string]interface{}
 		err = json.Unmarshal(data, &d)
 		if err != nil {
-			return err
+			return errors.Trace(err)
 		}
 
 		nodeName := fmt.Sprintf("%v-%v", d["hostname"], d["pid"])
@@ -118,7 +118,7 @@ func registerConfigNode() error {
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	pid := os.Getpid()
 
@@ -133,7 +133,7 @@ func registerConfigNode() error {
 	log.Info("living node created:", pathCreated)
 
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 
 	livingNode = pathCreated
@@ -218,10 +218,10 @@ func main() {
 	log.Debugf("zk: %s", zkAddr)
 
 	if err := removeOrphanLocks(); err != nil {
-		log.Error(err)
+		log.Error(errors.ErrorStack(err))
 	}
 	if err := registerConfigNode(); err != nil {
-		log.Error(err)
+		log.Error(errors.ErrorStack(err))
 	}
 	defer unRegisterConfigNode()
 
@@ -231,7 +231,7 @@ func main() {
 	go http.ListenAndServe(":10086", nil)
 	err = runCommand(cmd, cmdArgs)
 	if err != nil {
-		log.Error(err)
+		log.Error(errors.ErrorStack(err))
 		os.Exit(1)
 	}
 }
