@@ -220,21 +220,6 @@ func GetOriginError(err *errors.Err) error {
 	return err
 }
 
-func getOpKeys(resp *parser.Resp) ([]byte, [][]byte, error) {
-	op, err := resp.Op()
-	if err != nil {
-		return nil, nil, errors.Trace(err)
-	}
-
-	if len(op) == 0 || len(op) > 50 {
-		return nil, nil, errors.Errorf("error parse op %s", string(op))
-	}
-
-	keys, err := resp.Keys()
-
-	return op, keys, errors.Trace(err)
-}
-
 func recordResponseTime(c *stats.Counters, d time.Duration) {
 	switch {
 	case d < 5:

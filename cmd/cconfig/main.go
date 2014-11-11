@@ -217,13 +217,14 @@ func main() {
 	log.Debugf("product: %s", productName)
 	log.Debugf("zk: %s", zkAddr)
 
-	if err := removeOrphanLocks(); err != nil {
-		log.Fatal(errors.ErrorStack(err))
-	}
 	if err := registerConfigNode(); err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
 	defer unRegisterConfigNode()
+
+	if err := removeOrphanLocks(); err != nil {
+		log.Fatal(errors.ErrorStack(err))
+	}
 
 	cmd := args["<command>"].(string)
 	cmdArgs := args["<args>"].([]string)

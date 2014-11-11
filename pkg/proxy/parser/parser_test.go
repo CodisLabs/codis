@@ -46,13 +46,12 @@ func TestParserBulk(t *testing.T) {
 			"................", sample)
 	}
 
-	op, err := resp.Op()
+	op, keys, err := resp.GetOpKeys()
 	if !bytes.Equal(op, []byte("LLEN")) {
 		t.Errorf("get op error, got %s, expect LLEN", string(op))
 	}
 
-	key, err := resp.Key()
-	if !bytes.Equal(key, []byte("mylist")) {
+	if !bytes.Equal(keys[0], []byte("mylist")) {
 		t.Error("get key error")
 	}
 }
@@ -79,7 +78,7 @@ func TestKeys(t *testing.T) {
 			t.Fatalf("not match, expect %s, got %s", s, string(b))
 		}
 
-		keys, err := resp.Keys()
+		_, keys, err := resp.GetOpKeys()
 		if err != nil {
 			t.Error(err)
 		}
@@ -144,7 +143,7 @@ func TestEval(t *testing.T) {
 		if err != nil {
 			t.Fatal(errors.ErrorStack(err))
 		}
-		op, err := resp.Op()
+		op, keys, err := resp.GetOpKeys()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -155,11 +154,6 @@ func TestEval(t *testing.T) {
 
 		if len(resp.Multi) != 3 {
 			t.Fatal("argument count not match")
-		}
-
-		keys, err := resp.Keys()
-		if err != nil {
-			t.Fatal(errors.ErrorStack(err))
 		}
 
 		if len(keys) != 1 {

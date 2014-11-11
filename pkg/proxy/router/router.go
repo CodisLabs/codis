@@ -199,7 +199,7 @@ func (s *Server) redisTunnel(c *session) error {
 		return errors.Trace(err)
 	}
 
-	op, keys, err := getOpKeys(resp)
+	op, keys, err := resp.GetOpKeys()
 	if err != nil {
 		return errors.Trace(err)
 	}

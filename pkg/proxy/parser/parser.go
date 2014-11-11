@@ -120,18 +120,28 @@ func raw2Error(r *Resp) []byte {
 	return r.Raw[1 : len(r.Raw)-2] //skip type &&  \r\n
 }
 
-func (r *Resp) Op() ([]byte, error) {
+func (r *Resp) GetOpKeys() (op []byte, keys [][]byte, err error) {
 	if len(r.Multi) > 0 {
-		op := raw2Bulk(r.Multi[0])
+		op = raw2Bulk(r.Multi[0])
 		startPos := bytes.IndexByte(op, '\n')
 		if startPos < 0 {
-			return nil, errors.Errorf("invalid resp %+v", r)
+			return nil, nil, errors.Errorf("invalid resp %+v", r)
 		}
 
-		return op[startPos+1:], nil
+		op = op[startPos+1:]
+		if len(op) == 0 || len(op) > 50 {
+			return nil, nil, errors.Errorf("error parse op %s", string(op))
+		}
 	}
 
-	return nil, errors.Errorf("invalid resp %+v", r)
+	f, ok := keyFun[string(op)]
+	if !ok {
+		keys, err = defaultGetKeys(r)
+		return op, keys, errors.Trace(err)
+	}
+
+	keys, err = f(r)
+	return op, keys, errors.Trace(err)
 }
 
 type funGetKeys func(r *Resp) ([][]byte, error)
@@ -289,29 +299,6 @@ func thridAsKey(r *Resp) ([][]byte, error) {
 	}
 
 	return keys, nil
-}
-
-func (r *Resp) Keys() ([][]byte, error) {
-	key, err := r.Op()
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-
-	f, ok := keyFun[string(key)]
-	if !ok {
-		return defaultGetKeys(r)
-	}
-
-	return f(r)
-}
-
-func (r *Resp) Key() ([]byte, error) {
-	keys, err := r.Keys()
-	if len(keys) > 0 {
-		return keys[0], err
-	}
-
-	return []byte("fakeKey"), nil
 }
 
 func (r *Resp) getBulkBuf() []byte {
