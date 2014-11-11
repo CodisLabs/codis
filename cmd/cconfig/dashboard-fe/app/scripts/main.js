@@ -64,23 +64,23 @@ codisControllers.factory('ServerGroupFactory', ['$resource', function ($resource
 
 codisControllers.controller('codisProxyCtl', ['$scope', '$http', 'ProxyStatusFactory',
 function($scope, $http, ProxyStatusFactory) {
-  $scope.proxies = ProxyStatusFactory.query();
-
-  $scope.setStatus = function (p, status) {
-    var sure = confirm("are u sure?");
-    if (!sure) {
-      return
-    }
-    p.state = status
-    ProxyStatusFactory.setStatus(p, function() {
-      $scope.proxies = ProxyStatusFactory.query();
-    })
-  }
-
-  $scope.refresh = function() {
-    console.log('reload proxy')
     $scope.proxies = ProxyStatusFactory.query();
-  }
+
+    $scope.setStatus = function (p, status) {
+        var sure = confirm("are u sure?");
+        if (!sure) {
+            return
+        }
+        p.state = status
+        ProxyStatusFactory.setStatus(p, function() {
+            $scope.proxies = ProxyStatusFactory.query();
+        })
+    }
+
+    $scope.refresh = function() {
+        console.log('reload proxy')
+        $scope.proxies = ProxyStatusFactory.query();
+    }
 
 }]);
 
@@ -88,243 +88,241 @@ codisControllers.controller('codisOverviewCtl', ['$scope', '$http', '$timeout',
 function($scope, $http, $timeout) {
     $scope.refresh = function() {
         $http.get('http://localhost:8086/api/overview').success(function(succData) {
-        var keys = 0;
-        var memUsed = 0;
-        var redisData = succData["redis_infos"];
-        for (var i in redisData) {
-          var info = redisData[i];
-          for (var k in info) {
-            if (k.indexOf('db') == 0) {
-              keys += parseInt(info[k].match(/keys=(\d+)/)[1]);
+            var keys = 0;
+            var memUsed = 0;
+            var redisData = succData["redis_infos"];
+            for (var i in redisData) {
+                var info = redisData[i];
+                for (var k in info) {
+                    if (k.indexOf('db') == 0) {
+                        keys += parseInt(info[k].match(/keys=(\d+)/)[1]);
+                    }
+                    if (k == 'used_memory') {
+                        memUsed += parseInt(info[k])
+                    }
+                }
             }
-            if (k == 'used_memory') {
-              memUsed += parseInt(info[k])
+            $scope.memUsed = (memUsed / (1024.0 * 1024.0)).toFixed(2);
+            $scope.keys = keys;
+            $scope.product = succData['product'];
+            if (succData['ops'] !== undefined && succData['ops'] >= 0) {
+                $scope.ops = succData['ops'];
+            } else {
+                $scope.ops = 0;
             }
-          }
-        }
-        $scope.memUsed = (memUsed / (1024.0 * 1024.0)).toFixed(2);
-        $scope.keys = keys;
-        $scope.product = succData['product'];
-        if (succData['ops'] !== undefined && succData['ops'] >= 0) {
-            $scope.ops = succData['ops'];
-        } else {
-            $scope.ops = 0;
-        }
-      });
+        });
     }
     $scope.refresh();
 
     (function autoUpdate() {
-      $timeout(autoUpdate, 1000);
-      $scope.refresh();
+        $timeout(autoUpdate, 1000);
+        $scope.refresh();
     }());
 
 }]);
 
 codisControllers.controller('codisSlotCtl', ['$scope', '$http', '$modal', 'SlotFactory',
 function($scope, $http, $modal, SlotFactory) {
-  $scope.rangeSet = function() {
-    var modalInstance = $modal.open({
-      templateUrl: 'slotRangeSetModal',
-      controller: ['$scope', '$modalInstance', function($scope, $modalInstance) {
-        $scope.task = {'from': '-1', 'to': '-1', 'new_group': '-1'};
+    $scope.rangeSet = function() {
+        var modalInstance = $modal.open({
+            templateUrl: 'slotRangeSetModal',
+            controller: ['$scope', '$modalInstance', function($scope, $modalInstance) {
+                $scope.task = {'from': '-1', 'to': '-1', 'new_group': '-1'};
 
-        $scope.ok = function (task) {
-          $modalInstance.close(task);
-        };
+                $scope.ok = function (task) {
+                    $modalInstance.close(task);
+                };
 
-        $scope.cancel = function() {
-          $modalInstance.close(null);
-        }
-      }],
-      size: 'sm',
-    });
+                $scope.cancel = function() {
+                    $modalInstance.close(null);
+                }
+            }],
+            size: 'sm',
+        });
 
-    modalInstance.result.then(function (task) {
-      if (task) {
-        console.log(task);
-        SlotFactory.rangeSet(task, function() {
-          alert("success")
-        }, function(failedData) {
-          alert(failedData.data)
-        })
-      }
-    });
-  }
+        modalInstance.result.then(function (task) {
+            if (task) {
+                console.log(task);
+                SlotFactory.rangeSet(task, function() {
+                    alert("success")
+                }, function(failedData) {
+                    alert(failedData.data)
+                })
+            }
+        });
+    }
 }]);
 
 codisControllers.controller('codisMigrateCtl', ['$scope', '$http', '$modal', 'MigrateStatusFactory',
 function($scope, $http, $modal, MigrateStatusFactory) {
-  $scope.migrate_status = MigrateStatusFactory.query();
-  $scope.migrate_tasks = MigrateStatusFactory.tasks();
-  $scope.rebalance_status = MigrateStatusFactory.rebalanceStatus();
-
-  $scope.migrate = function() {
-  	var modalInstance = $modal.open({
-  		templateUrl: 'migrateModal',
-  		controller: ['$scope', '$modalInstance', function($scope, $modalInstance) {
-  			$scope.task = {'from': '-1', 'to': '-1', 'new_group': '-1', 'delay': 0};
-  			$scope.ok = function (task) {
-  				$modalInstance.close(task);
-  			};
-  			$scope.cancel = function() {
-  				$modalInstance.close(null);
-  			}
-  		}],
-  		size: 'sm',
-  	});
-
-  	modalInstance.result.then(function (task) {
-  		if (task) {
-  			MigrateStatusFactory.doMigrate(task, function() {
-  				$scope.refresh();
-  			}, function(failedData) {
-          alert(failedData.data)
-        })
-  		}
-  	});
-  }
-
-  $scope.rebalance = function() {
-    MigrateStatusFactory.doRebalance(function() {
-      $scope.refresh()
-    }, function (failedData) {
-      alert(failedData.data);
-    })
-  }
-
-  $scope.removePendingTask = function(task) {
-    MigrateStatusFactory.removePendingTask(task, function() {
-      $scope.refresh();
-    }, function (failedData) {
-      alert(failedData.data);
-    });
-  }
-
-  $scope.stopRunningTask = function(task) {
-    MigrateStatusFactory.stopRunningTask(task, function() {
-      $scope.refresh()
-    }, function (failedData) {
-      alert(failedData.data);
-    })
-  }
-
-  $scope.refresh = function() {
     $scope.migrate_status = MigrateStatusFactory.query();
     $scope.migrate_tasks = MigrateStatusFactory.tasks();
     $scope.rebalance_status = MigrateStatusFactory.rebalanceStatus();
-  }
+
+    $scope.migrate = function() {
+        var modalInstance = $modal.open({
+            templateUrl: 'migrateModal',
+            controller: ['$scope', '$modalInstance', function($scope, $modalInstance) {
+                $scope.task = {'from': '-1', 'to': '-1', 'new_group': '-1', 'delay': 0};
+                $scope.ok = function (task) {
+                    $modalInstance.close(task);
+                };
+                $scope.cancel = function() {
+                    $modalInstance.close(null);
+                }
+            }],
+            size: 'sm',
+        });
+
+        modalInstance.result.then(function (task) {
+            if (task) {
+                MigrateStatusFactory.doMigrate(task, function() {
+                    $scope.refresh();
+                }, function(failedData) {
+                    alert(failedData.data)
+                })
+            }
+        });
+    }
+
+    $scope.rebalance = function() {
+        MigrateStatusFactory.doRebalance(function() {
+            $scope.refresh()
+        }, function (failedData) {
+            alert(failedData.data);
+        })
+    }
+
+    $scope.removePendingTask = function(task) {
+        MigrateStatusFactory.removePendingTask(task, function() {
+            $scope.refresh();
+        }, function (failedData) {
+            alert(failedData.data);
+        });
+    }
+
+    $scope.stopRunningTask = function(task) {
+        MigrateStatusFactory.stopRunningTask(task, function() {
+            $scope.refresh()
+        }, function (failedData) {
+            alert(failedData.data);
+        })
+    }
+
+    $scope.refresh = function() {
+        $scope.migrate_status = MigrateStatusFactory.query();
+        $scope.migrate_tasks = MigrateStatusFactory.tasks();
+        $scope.rebalance_status = MigrateStatusFactory.rebalanceStatus();
+    }
 }]);
 
 codisControllers.controller('redisCtl', ['$scope', 'RedisStatusFactory',
 function($scope, RedisStatusFactory) {
-  $scope.serverInfo = RedisStatusFactory.stat($scope.server);
+    $scope.serverInfo = RedisStatusFactory.stat($scope.server);
 }]);
 
 codisControllers.controller('slotInfoCtl', ['$scope', 'RedisStatusFactory', function($scope, RedisStatusFactory){
-  $scope.slotInfo = RedisStatusFactory.slotInfoByGroupId({'slot_id': $scope.slot.id, 'group_id': $scope.slot.state.migrate_status.from })
+    $scope.slotInfo = RedisStatusFactory.slotInfoByGroupId({'slot_id': $scope.slot.id, 'group_id': $scope.slot.state.migrate_status.from })
 }]);
 
 codisControllers.controller('codisServerGroupMainCtl', ['$scope', '$http', '$modal', '$log', 'ServerGroupsFactory', 'ServerGroupFactory',
 function($scope, $http, $modal, $log, ServerGroupsFactory, ServerGroupFactory) {
 
-	$scope.removeServer = function(server) {
-		console.log(server.group_id);
-    var sure = confirm("are you sure?");
-    if (!sure) {
-      return
+    $scope.removeServer = function(server) {
+        var sure = confirm("are you sure?");
+        if (!sure) {
+            return
+        }
+
+        ServerGroupFactory.deleteServer(server, function(succData) {
+            $scope.server_groups = ServerGroupsFactory.query();
+        }, function(failedData) {
+            console.log(failedData.data);
+            alert(failedData.data);
+        })
     }
 
-		ServerGroupFactory.deleteServer(server, function(succData) {
-			$scope.server_groups = ServerGroupsFactory.query();
-		}, function(failedData) {
-      console.log(failedData.data);
-      alert(failedData.data);
-    })
-	}
-
-	$scope.promoteServer = function(server) {
-		ServerGroupFactory.promote(server, function(succData) {
-			$scope.server_groups = ServerGroupsFactory.query();
-		}, function(failedData) {
-      alert(failedData.data);
-    })
-	}
-
-	$scope.removeServerGroup = function(groupId) {
-
-    var sure = confirm("are you sure?");
-    if (!sure) {
-      return
+    $scope.promoteServer = function(server) {
+        ServerGroupFactory.promote(server, function(succData) {
+            $scope.server_groups = ServerGroupsFactory.query();
+        }, function(failedData) {
+            alert(failedData.data);
+        })
     }
 
-		ServerGroupFactory.delete({ id : groupId }, function() {
-			$scope.server_groups = ServerGroupsFactory.query();
-		}, function() {
-			console.log(failedData);
-      alert(failedData.data);
-		});
-	}
+    $scope.removeServerGroup = function(groupId) {
+        var sure = confirm("are you sure?");
+        if (!sure) {
+            return
+        }
 
-	$scope.addServer = function(groupId) {
-
-		var modalInstance = $modal.open({
-	      templateUrl: 'addServerToGroupModal',
-	      controller: ['$scope', '$modalInstance', function($scope, $modalInstance) {
-	      	  $scope.server = {'addr': '', 'type': 'slave', 'group_id': groupId};
-	      	  $scope.ok = function (server) {
-			    $modalInstance.close(server);
-			  };
-			  $scope.cancel = function() {
-			  	$modalInstance.close(null);
-			  }
-	      }],
-	      size: 'sm',
-	    });
-
-	    modalInstance.result.then(function (server) {
-	    	if (server) {
-	    		console.log(server);
-	    		ServerGroupFactory.addServer(server, function(succData){
-	    			$scope.server_groups = ServerGroupsFactory.query();
-	    		}, function(failedData) {
-            console.log(failedData.data)
+        ServerGroupFactory.delete({ id : groupId }, function() {
+            $scope.server_groups = ServerGroupsFactory.query();
+        }, function() {
+            console.log(failedData);
             alert(failedData.data);
-          });
-	    	}
-	    });
-	}
+        });
+    }
 
-	$scope.addServerGroup = function() {
-		var modalInstance = $modal.open({
-	      templateUrl: 'newServerGroupModal',
-	      controller: ['$scope', '$modalInstance', function ($scope, $modalInstance) {
-	      	  $scope.ok = function (group) {
-			    $modalInstance.close(group);
-			  };
-			  $scope.cancel = function() {
-			  	$modalInstance.close(null);
-			  }
-	      }],
-	      size: 'sm',
-	    });
+    $scope.addServer = function(groupId) {
 
-	    modalInstance.result.then(function (group) {
-	    	if (group) {
-	    		ServerGroupsFactory.create(group, function(succData) {
-					$scope.server_groups = ServerGroupsFactory.query();
-	    		}, function(failedData) {
-	    			console.log(failedData);
-            alert(failedData.data);
-	    		})
-	    	}
-	    });
-	}
+        var modalInstance = $modal.open({
+            templateUrl: 'addServerToGroupModal',
+            controller: ['$scope', '$modalInstance', function($scope, $modalInstance) {
+                  $scope.server = {'addr': '', 'type': 'slave', 'group_id': groupId};
+                  $scope.ok = function (server) {
+                      $modalInstance.close(server);
+                  };
+                  $scope.cancel = function() {
+                      $modalInstance.close(null);
+                  }
+            }],
+            size: 'sm',
+        });
 
-  $scope.refresh = function() {
-	  $scope.server_groups = ServerGroupsFactory.query();
-  }
+        modalInstance.result.then(function (server) {
+            if (server) {
+                console.log(server);
+                ServerGroupFactory.addServer(server, function(succData){
+                    $scope.server_groups = ServerGroupsFactory.query();
+                }, function(failedData) {
+                    console.log(failedData.data)
+                    alert(failedData.data);
+                });
+            }
+        });
+    }
 
-	// query server group
-	$scope.server_groups = ServerGroupsFactory.query();
+    $scope.addServerGroup = function() {
+        var modalInstance = $modal.open({
+            templateUrl: 'newServerGroupModal',
+            controller: ['$scope', '$modalInstance', function ($scope, $modalInstance) {
+                  $scope.ok = function (group) {
+                      $modalInstance.close(group);
+                  };
+                  $scope.cancel = function() {
+                      $modalInstance.close(null);
+                  }
+            }],
+            size: 'sm',
+        });
+
+        modalInstance.result.then(function (group) {
+            if (group) {
+                ServerGroupsFactory.create(group, function(succData) {
+                    $scope.server_groups = ServerGroupsFactory.query();
+                }, function(failedData) {
+                    console.log(failedData);
+                    alert(failedData.data);
+                })
+            }
+        });
+    }
+
+    $scope.refresh = function() {
+        $scope.server_groups = ServerGroupsFactory.query();
+    }
+
+    // query server group
+    $scope.server_groups = ServerGroupsFactory.query();
 }]);
