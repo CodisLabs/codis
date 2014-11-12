@@ -67,6 +67,8 @@ Thanks:
 
 * [@ivanzhaowy](https://github.com/ivanzhaowy)
 
+*You are welcome to use Codis in your product, and feel free to let us know~ :) *
+
 ## License
 
 Codis is licensed under MIT， see MIT-LICENSE.txt
