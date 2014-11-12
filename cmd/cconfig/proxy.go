@@ -18,9 +18,6 @@ func cmdProxy(argv []string) (err error) {
 	cconfig proxy list
 	cconfig proxy offline <proxy_name>
 	cconfig proxy online <proxy_name>
-
-options:
-	TODO
 `
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {

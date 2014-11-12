@@ -30,9 +30,9 @@ options:
    -c	set config file
    -L	set output log file, default is stdout
    --log-level=<loglevel>	set log level: info, warn, error, debug [default: info]
-   --cpu=<cpu_num>		blabla
-   --addr=<proxy_listen_addr>		blabla
-   --http-addr=<debug_http_server_addr>		blabla
+   --cpu=<cpu_num>		num of cpu cores that proxy can use
+   --addr=<proxy_listen_addr>		proxy listen address, example: 0.0.0.0:9000
+   --http-addr=<debug_http_server_addr>		debug vars http server
 `
 
 var banner string = `

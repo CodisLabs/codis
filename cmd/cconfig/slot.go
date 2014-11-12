@@ -25,9 +25,6 @@ func cmdSlot(argv []string) (err error) {
 	cconfig slot range-set <slot_from> <slot_to> <group_id> <status>
 	cconfig slot migrate <slot_from> <slot_to> <group_id> [--delay=<delay_time_in_ms>]
 	cconfig slot rebalance [--delay=<delay_time_in_ms>]
-
-options:
-    TODO
 `
 
 	args, err := docopt.Parse(usage, argv, true, "", false)

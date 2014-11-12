@@ -24,9 +24,6 @@ func cmdServer(argv []string) (err error) {
 	cconfig server promote <group_id> <redis_addr>
 	cconfig server add-group <group_id>
 	cconfig server remove-group <group_id>
-
-options:
-	TODO
 `
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {
