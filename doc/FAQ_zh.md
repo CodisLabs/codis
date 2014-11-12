@@ -2,7 +2,7 @@
 
 Codis 是 Wandoujia Infrastructure Team 开发的一个分布式 Redis 服务, 用户可以看成是一个无限内存的 Redis 服务, 有动态扩/缩容的能力. 对偏存储型的业务更实用, 如果你需要 SUBPUB 之类的指令, Codis 是不支持的. 时刻记住 Codis 是一个分布式存储的项目. 对于海量的 key, value不太大( <= 1M ), 随着业务扩展缓存也要随之扩展的业务场景有特效.
 
-###Codis 弹性到什程度？
+###Codis 弹性到什么程度？
 
 codis 支持水平扩容/缩容，扩容可以直使界面的 "Auto Reblance" 按钮，缩容只需要将要下线的实例拥有的slot迁移到其它实例，
 然后在界面上删除下线的group即可
