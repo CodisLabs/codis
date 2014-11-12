@@ -26,13 +26,15 @@ import (
 )
 
 // global objects
-var zkConn zkhelper.Conn
-var zkAddr string
-var productName string
-var configFile string
-var config *cfg.Cfg
-var zkLock zkhelper.ZLocker
-var livingNode string
+var (
+	zkConn      zkhelper.Conn
+	zkAddr      string
+	productName string
+	configFile  string
+	config      *cfg.Cfg
+	zkLock      zkhelper.ZLocker
+	livingNode  string
+)
 
 type Command struct {
 	Run   func(cmd *Command, args []string)
