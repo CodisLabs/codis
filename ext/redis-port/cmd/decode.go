@@ -108,7 +108,7 @@ func Decode(ncpu int, input, output string) {
 					}
 				case rdb.ZSet:
 					for _, x := range obj {
-						mem := toHexString(x.Value)
+						mem := toHexString(x.Member)
 						fmt.Fprintf(&b, "db=%d type=%s expireat=%d key=%s member=%s score=%f\n", e.DB, "zset", e.ExpireAt, key, mem, x.Score)
 					}
 				}

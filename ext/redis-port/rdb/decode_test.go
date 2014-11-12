@@ -204,7 +204,7 @@ func TestDecodeZSet(t *testing.T) {
 	}
 	zset := make(map[string]float64)
 	for _, ent := range val {
-		zset[string(ent.Value)] = ent.Score
+		zset[string(ent.Member)] = ent.Score
 	}
 	if len(zset) != 32 || len(zset) != len(val) {
 		t.Fatalf("len(zset) = %d/%d, expect = 32", len(zset), len(val))

@@ -374,7 +374,7 @@ func TestLoadZSetAndZSetZiplist(t *testing.T) {
 	val1 := obj1.(ZSet)
 	zset1 := make(map[string]float64)
 	for _, ent := range val1 {
-		zset1[string(ent.Value)] = ent.Score
+		zset1[string(ent.Member)] = ent.Score
 	}
 	if len(zset1) != 16 || len(zset1) != len(val1) {
 		t.Fatalf("len(zset1) = %d/%d, expect = 16", len(zset1), len(val1))
@@ -390,7 +390,7 @@ func TestLoadZSetAndZSetZiplist(t *testing.T) {
 	val2 := obj2.(ZSet)
 	zset2 := make(map[string]float64)
 	for _, ent := range val2 {
-		zset2[string(ent.Value)] = ent.Score
+		zset2[string(ent.Member)] = ent.Score
 	}
 	if len(zset2) != 32 || len(zset2) != len(val2) {
 		t.Fatalf("len(zset2) = %d/%d, expect = 32", len(zset2), len(val2))

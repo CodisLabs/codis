@@ -106,8 +106,8 @@ func (d *decoder) Zadd(key []byte, score float64, member []byte) {
 		d.err = fmt.Errorf("invalid object, not a zset")
 	case ZSet:
 		v := struct {
-			Value []byte
-			Score float64
+			Member []byte
+			Score  float64
 		}{
 			member,
 			score,
@@ -123,6 +123,6 @@ type HashMap []struct {
 }
 type Set [][]byte
 type ZSet []struct {
-	Value []byte
-	Score float64
+	Member []byte
+	Score  float64
 }
