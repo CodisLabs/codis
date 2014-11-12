@@ -2,13 +2,18 @@
 
 Codis 是 Wandoujia Infrastructure Team 开发的一个分布式 Redis 服务, 用户可以看成是一个无限内存的 Redis 服务, 有动态扩/缩容的能力. 对偏存储型的业务更实用, 如果你需要 SUBPUB 之类的指令, Codis 是不支持的. 时刻记住 Codis 是一个分布式存储的项目. 对于海量的 key, value不太大( <= 1M ), 随着业务扩展缓存也要随之扩展的业务场景有特效.
 
+###Codis 弹性到什程度？
+
+codis 支持水平扩容/缩容，扩容可以直使界面的 "Auto Reblance" 按钮，缩容只需要将要下线的实例拥有的slot迁移到其它实例，
+然后在界面上删除下线的group即可
+
 
 ###我的服务能直接迁移到 Codis 上吗?
 
 分两种情况: 
  
 1) 原来使用 twemproxy 的用户:
-可以, 使用codis项目内的redis-port工具, 可以实时的同步 twemproxy 底下的 redis 数据到你的 codis 集群上. 搞定了以后, 只需要你修改一下你的代码, 将 twemproxy 的地址改成 codis 的地址就好了. 除此之外, 你什么事情都不用做.
+可以, 使用codis项目内的redis-port工具, 可以实时的同步 twemproxy 底下的 redis 数据到你的 codis 集群上. 搞定了以后, 只需要你修改一下你的配置, 将 twemproxy 的地址改成 codis 的地址就好了. 除此之外, 你什么事情都不用做.
 
 2) 原来使用 Redis 的用户:
 看情况, 如果你使用以下命令:   
