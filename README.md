@@ -44,7 +44,7 @@ TBD
 
 ## Architecture
 
-![Snapshot1](doc/pictures/architecture.png)
+![architecture](doc/pictures/architecture.png)
 
 ## Snapshots
 
