@@ -257,10 +257,16 @@ func LoadConf(configFile string) (*Conf, error) {
 
 	srvConf.productName, _ = conf.ReadString("product", "test")
 	if len(srvConf.productName) == 0 {
-		log.Fatalf("invalid config: %+v", srvConf)
+		log.Fatalf("invalid config: product entry is missing in %s", configFile)
 	}
-	srvConf.zkAddr, _ = conf.ReadString("zk", "localhost:2181")
-	srvConf.proxyId, _ = conf.ReadString("proxy_id", "proxy_1")
+	srvConf.zkAddr, _ = conf.ReadString("zk", "")
+	if len(srvConf.zkAddr) == 0 {
+		log.Fatalf("invalid config: need zk entry is missing in %s", configFile)
+	}
+	srvConf.proxyId, _ = conf.ReadString("proxy_id", "")
+	if len(srvConf.proxyId) == 0 {
+		log.Fatalf("invalid config: need proxy_id entry is missing in %s", configFile)
+	}
 
 	return srvConf, nil
 }

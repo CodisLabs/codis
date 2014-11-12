@@ -55,7 +55,7 @@ func (cp *CachePool) AddPool(key string) error {
 		return nil
 	}
 	pool = &LivePool{
-		pool: redispool.NewConnectionPool("redis conn pool", 20, 120*time.Second),
+		pool: redispool.NewConnectionPool("redis conn pool", 50, 120*time.Second),
 	}
 
 	pool.pool.Open(redispool.ConnectionCreator(key))
