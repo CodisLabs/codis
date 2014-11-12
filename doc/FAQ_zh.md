@@ -66,4 +66,4 @@ CAS 暂时不支持, 但是如果非得支持, 我们可以考虑. Lua 脚本考
 
 ###你们如何保证数据迁移的过程中多个 Proxy 不会读到老的数据 (迁移的原子性) ? 
 
-见, [Codis 数据迁移流程]()
+见, [Codis 数据迁移流程](http://0xffff.me/blog/2014/11/11/codis-de-she-ji-yu-shi-xian-part-2/)
