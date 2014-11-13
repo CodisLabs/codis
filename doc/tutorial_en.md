@@ -1,3 +1,69 @@
+# Codis Tutorial
+
+Codes is a distributed Redis solution, there is no obvious difference between connecting to a Codis proxy and an original Redis server(?), top layer application can connect to Codis as normal standalone Redis, Codis will forward low layer requests. Hot data migration and all things in the shadow are transparent to client. Simply treat Coids as a Redis service with unlimited RAM. 
+
+Codis has four parts:
+* Codis Proxy(proxy)
+* Codis manager(cconfig)
+* Codis Redis
+* ZooKeeper
+
+`codis-proxy` is the proxy service of client connections, `codis-proxy` is a Redis protocol implementation, perform as an original Redis(just like Twemproxy). You can deploy multiple `codis-proxy` for one business, `codis-proxy` is none-stateful.
+
+`codis-config` is the configuration to for Codis, support actions like add/remove Redis node, add/remove Proxy node and start data migaration, etc. `codis-config` has a built-in http server which can start a dashboard for user to monitor the status of Codis cluster in browser.
+
+`codis-server` is a branch of Redis maintain by Codis project, based on 2.8.13, add support for slot and atomic data migration. `codis-proxy` and `codis-config` can only work properly with this specific version of Redis.
+
+Codis depend on ZooKeeper to store data routing table and meta data of `codis-proxy` node, `codis-config` actions will go through ZooKeeper, then synchronize up to alive `codis-proxy`.
+
+Codis support namespace, configs of products with different name  won’t be conflict.
+
+## Build codis-proxy & codis-config
+
+Install Go please check [this document](https://github.com/astaxie/build-web-application-with-golang/blob/master/ebook/01.1.md). Then follow these hints:
+
+```
+go get github.com/wandoulabs/codis
+cd path/to/codis
+./bootstrap.sh
+make gotest
+```
+
+Two executable file `codas-config` and `codis-proxy` should be generated in `codis/bin`(`bin/assets` is the resources for `codis-config` dashboard, should be placed at same directory with `codis-config`).
+
+```
+cd sample
+
+$ ../bin/codis-config -h                                                                                                                                                                                                                           (master)
+usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
+        <command> [<args>...]
+options:
+   -c   配置文件地址
+   -L   日志输出文件地址
+   --log-level=<loglevel>   输出日志级别 (debug < info (default) < warn < error < fatal)
+
+commands:
+    server            redis 服务器组管理
+    slot              slot 管理
+    dashboard         启动 dashboard 服务
+    action            事件管理 (目前只有删除历史事件的日志)
+    proxy             proxy 管理
+```
+
+```
+$ ../bin/codis-proxy -h
+
+usage: codis-proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
+
+options:
+   -c   配置文件地址
+   -L   日志输出文件地址
+   --log-level=<loglevel>   输出日志级别 (debug < info (default) < warn < error < fatal)
+   --cpu=<cpu_num>      proxy占用的 cpu 核数, 默认1, 最好设置为机器的物理cpu数的一半到2/3左右
+   --addr=<proxy_listen_addr>       proxy 的 redis server 监听的地址, 格式 <ip or hostname>:<port>, 如: localhost:9000, :9001
+   --http-addr=<debug_http_server_addr>   proxy 的调试信息启动的http server, 可以访问 http://debug_http_server_addr/debug/vars
+```
+
 ## Deploy
 
 ### Configuration file
