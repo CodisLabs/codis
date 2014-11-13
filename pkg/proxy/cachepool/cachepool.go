@@ -67,14 +67,15 @@ func (cp *CachePool) AddPool(key string) error {
 
 func (cp *CachePool) RemovePool(key string) error {
 	cp.mu.Lock()
-	defer cp.mu.Unlock()
 
 	pool, ok := cp.pools[key]
 	if !ok {
+		cp.mu.Unlock()
 		return errors.Errorf("pool %s not exist", key)
 	}
-
-	pool.pool.Close() //todo:async close
 	delete(cp.pools, key)
+	cp.mu.Unlock()
+
+	go pool.pool.Close()
 	return nil
 }
