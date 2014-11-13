@@ -71,7 +71,7 @@ func (cp *CachePool) RemovePool(key string) error {
 
 	pool, ok := cp.pools[key]
 	if !ok {
-		return errors.Errorf("pool %s already exist", key)
+		return errors.Errorf("pool %s not exist", key)
 	}
 
 	pool.pool.Close() //todo:async close
