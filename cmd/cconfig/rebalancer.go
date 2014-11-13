@@ -64,7 +64,7 @@ func getLivingNodeInfos(zkConn zkhelper.Conn) ([]*NodeInfo, error) {
 	for _, info := range ret {
 		cnt += len(info.CurSlots)
 	}
-	if cnt != 1024 {
+	if cnt != models.DEFAULT_SLOT_NUM {
 		return nil, errors.New("not all slots are online")
 	}
 	return ret, nil
@@ -84,15 +84,15 @@ func getQuotaMap(zkConn zkhelper.Conn) (map[int]int, error) {
 	}
 
 	for _, node := range nodes {
-		quota := int(1024 * node.MaxMemory * 1.0 / totalMem)
+		quota := int(models.DEFAULT_SLOT_NUM * node.MaxMemory * 1.0 / totalMem)
 		ret[node.GroupId] = quota
 		totalQuota += quota
 	}
 
 	// round up
-	if totalQuota < 1024 {
+	if totalQuota < models.DEFAULT_SLOT_NUM {
 		for k, _ := range ret {
-			ret[k] += 1024 - totalQuota
+			ret[k] += models.DEFAULT_SLOT_NUM - totalQuota
 			break
 		}
 	}
