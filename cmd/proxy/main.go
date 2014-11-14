@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
-	"os"
+	"path"
 	"runtime"
 	"strconv"
 
 	"github.com/wandoulabs/codis/pkg/proxy/router"
+	"github.com/wandoulabs/codis/pkg/utils"
 
 	"github.com/docopt/docopt-go"
 	log "github.com/ngaut/logging"
@@ -92,9 +93,10 @@ func main() {
 		httpAddr = args["--http-addr"].(string)
 	}
 
-	wd, _ := os.Getwd()
-	log.Info("wd:", wd)
-	log.CrashLog(wd + ".dump")
+	dumppath := utils.GetExecutorPath()
+
+	log.Info("dump file path:", dumppath)
+	log.CrashLog(path.Join(dumppath, "codis-proxy.dump"))
 
 	router.CheckUlimit(1024)
 	runtime.GOMAXPROCS(cpus)

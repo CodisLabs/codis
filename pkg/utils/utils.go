@@ -6,6 +6,9 @@ package utils
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+
+	log "github.com/ngaut/logging"
 
 	"github.com/ngaut/zkhelper"
 
@@ -36,6 +39,16 @@ func GetZkLock(zkConn zkhelper.Conn, productName string) zkhelper.ZLocker {
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/LOCK", productName)
 	ret := zkhelper.CreateMutex(zkConn, zkPath)
 	return ret
+}
+
+func GetExecutorPath() string {
+	filedirectory := filepath.Dir(os.Args[0])
+	execPath, err := filepath.Abs(filedirectory)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return execPath
 }
 
 type Strings []string
