@@ -38,30 +38,30 @@ $ ../bin/codis-config -h                                                        
 usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
         <command> [<args>...]
 options:
-   -c   配置文件地址
-   -L   日志输出文件地址
-   --log-level=<loglevel>   输出日志级别 (debug < info (default) < warn < error < fatal)
+   -c   config file path, default: ./config.ini
+   -L   log output path, default: stdout
+   --log-level=<loglevel>   (debug < info (default) < warn < error < fatal)
 
 commands:
-    server            redis 服务器组管理
-    slot              slot 管理
-    dashboard         启动 dashboard 服务
-    action            事件管理 (目前只有删除历史事件的日志)
-    proxy             proxy 管理
+    server            redis group management
+    slot              slot management
+    dashboard         start dashboard
+    action            action management
+    proxy             proxy management
 ```
 
 ```
 $ ../bin/codis-proxy -h
 
-usage: codis-proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
+usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
 
 options:
-   -c   配置文件地址
-   -L   日志输出文件地址
-   --log-level=<loglevel>   输出日志级别 (debug < info (default) < warn < error < fatal)
-   --cpu=<cpu_num>      proxy占用的 cpu 核数, 默认1, 最好设置为机器的物理cpu数的一半到2/3左右
-   --addr=<proxy_listen_addr>       proxy 的 redis server 监听的地址, 格式 <ip or hostname>:<port>, 如: localhost:9000, :9001
-   --http-addr=<debug_http_server_addr>   proxy 的调试信息启动的http server, 可以访问 http://debug_http_server_addr/debug/vars
+   -c	set config file
+   -L	set output log file, default is stdout
+   --log-level=<loglevel>	set log level: info, warn, error, debug [default: info]
+   --cpu=<cpu_num>		num of cpu cores that proxy can use
+   --addr=<proxy_listen_addr>		proxy listen address, example: 0.0.0.0:9000
+   --http-addr=<debug_http_server_addr>		debug vars http server
 ```
 
 ## Deploy
