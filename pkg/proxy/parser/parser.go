@@ -86,7 +86,7 @@ func Btoi(b []byte) (int, error) {
 			continue
 		}
 
-		if b[i] >= 0 && b[i] <= '9' {
+		if b[i] >= '0' && b[i] <= '9' {
 			if i > 0 {
 				n *= 10
 			}
