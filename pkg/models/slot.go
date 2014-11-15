@@ -85,10 +85,12 @@ func GetSlot(zkConn zkhelper.Conn, productName string, id int) (*Slot, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	slot := Slot{}
 	if err := json.Unmarshal(data, &slot); err != nil {
 		return nil, err
 	}
+
 	return &slot, nil
 }
 
@@ -98,11 +100,13 @@ func GetMigratingSlots(conn zkhelper.Conn, productName string) ([]Slot, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	for _, slot := range slots {
 		if slot.State.Status == SLOT_STATUS_MIGRATE {
 			migrateSlots = append(migrateSlots, slot)
 		}
 	}
+
 	return migrateSlots, nil
 }
 
@@ -114,7 +118,6 @@ func Slots(zkConn zkhelper.Conn, productName string) ([]Slot, error) {
 	}
 
 	var slots []Slot
-
 	for _, p := range children {
 		data, _, err := zkConn.Get(path.Join(zkPath, p))
 		if err != nil {
@@ -135,6 +138,7 @@ func NoGroupSlots(zkConn zkhelper.Conn, productName string) ([]Slot, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+
 	var ret []Slot
 	for _, slot := range slots {
 		if slot.GroupId == INVALID_ID {
@@ -148,6 +152,7 @@ func SetSlots(zkConn zkhelper.Conn, productName string, slots []Slot, groupId in
 	if status != SLOT_STATUS_OFFLINE && status != SLOT_STATUS_ONLINE {
 		return errors.New("invalid status")
 	}
+
 	for _, s := range slots {
 		s.GroupId = groupId
 		s.State.Status = status
@@ -252,7 +257,7 @@ func (s *Slot) Update(zkConn zkhelper.Conn) error {
 			return errors.Trace(ErrUnknownSlotStatus)
 		}
 	}
-	var err error
+
 	data, err := json.Marshal(s)
 	if err != nil {
 		return errors.Trace(err)
