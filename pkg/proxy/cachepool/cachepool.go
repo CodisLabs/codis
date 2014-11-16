@@ -36,9 +36,9 @@ func (cp *CachePool) GetConn(key string) (redispool.PoolConnection, error) {
 		return nil, errors.Errorf("pool %s not exist", key)
 	}
 
+	cp.mu.RUnlock()
 	c, err := pool.pool.Get()
 
-	cp.mu.RUnlock()
 	return c, err
 }
 
