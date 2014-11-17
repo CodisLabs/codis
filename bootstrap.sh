@@ -2,6 +2,16 @@
 
 make clean
 
+# Test godep install, steal it from LedisDB project :P
+godep path > /dev/null 2>&1
+if [ "$?" = 0 ]; then
+    GOPATH=`godep path`:$GOPATH
+    godep restore
+    make || exit $?
+    make gotest
+    exit 0
+fi
+
 go get -u github.com/c4pt0r/cfg
 go get -u github.com/garyburd/redigo/redis
 go get -u github.com/juju/errgo
