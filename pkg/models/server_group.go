@@ -244,7 +244,7 @@ func (self *ServerGroup) Exists(zkConn zkhelper.Conn) (bool, error) {
 	return b, nil
 }
 
-var ErrNodeExists error = errors.New("node already exists")
+var ErrNodeExists = errors.New("node already exists")
 
 func (self *ServerGroup) AddServer(zkConn zkhelper.Conn, s *Server) error {
 	s.GroupId = self.Id

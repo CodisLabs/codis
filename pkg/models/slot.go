@@ -86,7 +86,7 @@ func GetSlot(zkConn zkhelper.Conn, productName string, id int) (*Slot, error) {
 		return nil, err
 	}
 
-	slot := Slot{}
+	var slot Slot
 	if err := json.Unmarshal(data, &slot); err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func GetSlot(zkConn zkhelper.Conn, productName string, id int) (*Slot, error) {
 }
 
 func GetMigratingSlots(conn zkhelper.Conn, productName string) ([]Slot, error) {
-	var migrateSlots []Slot = make([]Slot, 0)
+	migrateSlots := make([]Slot, 0)
 	slots, err := Slots(conn, productName)
 	if err != nil {
 		return nil, err
