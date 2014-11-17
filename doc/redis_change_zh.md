@@ -58,11 +58,11 @@
 
 	将指定的 key-value 迁移到目标机
 
-+ slotsmgrt**tag**slot
++ slotsmgrttagslot
 
 	随机在某个 slot 下选择一个 key，并将与之有相同 tag 的 key-value 对全部迁移到目标机
 
-+ slotsmgrt**tag**one
++ slotsmgrttagone
 
 	将与指定 key 具有相同 tag 的所有 key-value 对迁移到目标机
 
