@@ -5,7 +5,7 @@ make clean
 # Test godep install, steal it from LedisDB project :P
 godep path > /dev/null 2>&1
 if [ "$?" = 0 ]; then
-    GOPATH=$GOPATH:`godep path`
+    GOPATH=`godep path`:$GOPATH
     godep restore
     make || exit $?
     make gotest
