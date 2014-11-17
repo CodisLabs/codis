@@ -1,0 +1,103 @@
+{
+	"ImportPath": "github.com/wandoulabs/codis",
+	"GoVersion": "go1.3.3",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "github.com/alicebob/miniredis",
+			"Rev": "0eac5c45007759bb535908bccdcbd21734477c54"
+		},
+		{
+			"ImportPath": "github.com/bsm/redeo",
+			"Rev": "f32947adbe7a776bc7e83d05e21f57e5e9ad1811"
+		},
+		{
+			"ImportPath": "github.com/c4pt0r/cfg",
+			"Rev": "1d165f2e3d5daa093b0cc28d303ea38ec53075c9"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/inject",
+			"Comment": "v1.0-rc1-4-g4b81725",
+			"Rev": "4b8172520a03fa190f427bbd284db01b459bfce7"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/martini",
+			"Comment": "v1.0-62-g0667da2",
+			"Rev": "0667da2d9fb42143323bb9d1ae05030fd628a073"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/martini-contrib/binding",
+			"Comment": "v0.1-159-g8ce6181",
+			"Rev": "8ce6181c2609699e4c7cd30994b76a850a9cdadc"
+		},
+		{
+			"ImportPath": "github.com/codegangsta/martini-contrib/render",
+			"Comment": "v0.1-159-g8ce6181",
+			"Rev": "8ce6181c2609699e4c7cd30994b76a850a9cdadc"
+		},
+		{
+			"ImportPath": "github.com/cupcake/rdb",
+			"Rev": "3454dcabd33cb8ea8261ffd6a45f4d836eb504cc"
+		},
+		{
+			"ImportPath": "github.com/docopt/docopt-go",
+			"Comment": "0.6.1-1-gc5dac53",
+			"Rev": "c5dac536301992c0371c6115d998fb62944bfad3"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/internal",
+			"Rev": "c71bbf0bd453e38177e0758a9aadc531d4ec4b52"
+		},
+		{
+			"ImportPath": "github.com/garyburd/redigo/redis",
+			"Rev": "c71bbf0bd453e38177e0758a9aadc531d4ec4b52"
+		},
+		{
+			"ImportPath": "github.com/go-martini/martini",
+			"Comment": "v1.0-62-g0667da2",
+			"Rev": "0667da2d9fb42143323bb9d1ae05030fd628a073"
+		},
+		{
+			"ImportPath": "github.com/juju/errors",
+			"Rev": "8c374326f1293bcedc0d596e9cfe5af838ed0105"
+		},
+		{
+			"ImportPath": "github.com/martini-contrib/cors",
+			"Rev": "553b9208d353a39b0850c02355f478ba020c86d7"
+		},
+		{
+			"ImportPath": "github.com/ngaut/go-zookeeper/zk",
+			"Rev": "4ba0637c18318c5127d9eb27fb83a090b36c1f17"
+		},
+		{
+			"ImportPath": "github.com/ngaut/gostats",
+			"Rev": "faefc939c0359a8930e92767bfa425546a38f69a"
+		},
+		{
+			"ImportPath": "github.com/ngaut/logging",
+			"Rev": "200eea931e87bfb11315242659f1bbc403f24d13"
+		},
+		{
+			"ImportPath": "github.com/ngaut/pools",
+			"Rev": "6352e005618615ffaf1cb1c6622b8e91435751fe"
+		},
+		{
+			"ImportPath": "github.com/ngaut/resp",
+			"Rev": "ff222cdd80bd7c6d1e05539ffe90000288c70678"
+		},
+		{
+			"ImportPath": "github.com/ngaut/sync2",
+			"Rev": "7a24ed77b2efb460c1468b7dc917821c66e80e55"
+		},
+		{
+			"ImportPath": "github.com/ngaut/zkhelper",
+			"Rev": "50ed4f0e625879e2edd01950c70d4d006b1d60ca"
+		},
+		{
+			"ImportPath": "github.com/nu7hatch/gouuid",
+			"Rev": "179d4d0c4d8d407a32af483c2354df1d2c91e6c3"
+		}
+	]
+}
