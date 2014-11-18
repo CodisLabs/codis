@@ -1,7 +1,7 @@
 ### redis 修改部分（增加若干指令） ###
 --------------------------------
 
-######slotsinfo [start] [count]######
+#####slotsinfo [start] [count]#####
 
 + 命令说明：获取 redis 中 slot 的个数以及每个 slot 的大小
 
@@ -32,7 +32,7 @@
 			2) 1) (integer) 29
 		       2) (integer) 1                 
 
-######slotsdel slot1 [slot2 …]######
+#####slotsdel slot1 [slot2 …]#####
 
 + 命令说明：删除 redis 中若干 slot 下的全部 key-value
 
