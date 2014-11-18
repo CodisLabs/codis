@@ -38,9 +38,9 @@ Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia
 [简体中文](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_zh.md)  
 [English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_en.md)
 
-## Performance
+## Performance (Benchmark)
 
-[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/benchmark_zh.md)
+[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/benchmark_zh.md)  
 English (WIP)
 
 ## Architecture
