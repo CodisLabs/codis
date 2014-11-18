@@ -2,6 +2,7 @@
 
 make clean
 
+echo "downloading dependcies, it may take a few miniues..."
 # Test godep install, steal it from LedisDB project :P
 godep path > /dev/null 2>&1
 if [ "$?" = 0 ]; then
