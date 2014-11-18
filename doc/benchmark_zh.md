@@ -122,3 +122,55 @@
     | 1     | 240042    | 62.392       | 32.71   | 1291      | 362       | 512       | 2165      | 42.84 |
     | 2     | 246018    | 121.695      | 33.4    | 1291      | 359       | 509       | 2159      | 21.47 |
     | 4     | 237404    | 251.545      | 32.21   | 1267      | 376       | 496       | 2139      | 19.77 |    
+
+#####脚本#####
+
+```
+#!/bin/bash
+
+NCPU=4
+NPROXY=2
+NTHRD=1
+
+trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
+
+for ((i=1;i<=$NPROXY;i++)); do
+    codis-config proxy offline proxy_${i} 2>&1 >/dev/null
+done
+
+for ((i=1;i<=$NPROXY;i++)); do
+    cat > config${i}.ini <<EOF
+zk=localhost:2181
+product=bench
+proxy_id=proxy_${i}
+EOF
+    let a="${i}+9000"
+    let b="${i}+10000"
+    ../bin/codis-proxy --cpu=$NCPU -c config${i}.ini -L proxy${i}.log --addr=0.0.0.0:${a} --http-addr=0.0.0.0:${b} &
+done
+
+sleep 2
+
+for ((i=1;i<=$NPROXY;i++)); do
+    codis-config proxy online proxy_${i}
+done
+
+sleep 5
+
+echo codis-proxy is ready
+
+for ((i=1;i<=$NPROXY;i++)); do
+    let a="${i}+9000"
+    memtier_benchmark -s 127.0.0.1 -p ${a} \
+         --ratio=1:1 -n 100000 -d 100 -t $NTHRD -c 50 \
+         --pipeline=75 --key-pattern=S:S > bench${a}.log 2>&1 &
+    pids="$pids $!"
+done
+top -b -n 10 > top.log &
+pids="$pids $!"
+wait $pids
+
+echo done
+
+sed -e "s/^M/\n/g" bench*.log -i
+```
