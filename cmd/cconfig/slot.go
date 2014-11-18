@@ -19,7 +19,7 @@ import (
 
 func cmdSlot(argv []string) (err error) {
 	usage := `usage:
-	cconfig slot init
+	cconfig slot init [-f]
 	cconfig slot info <slot_id>
 	cconfig slot set <slot_id> <group_id> <status>
 	cconfig slot range-set <slot_from> <slot_to> <group_id> <status>
@@ -80,7 +80,8 @@ func cmdSlot(argv []string) (err error) {
 	}()
 
 	if args["init"].(bool) {
-		return runSlotInit()
+		force := args["-f"].(bool)
+		return runSlotInit(force)
 	}
 
 	if args["info"].(bool) {
@@ -125,7 +126,17 @@ func cmdSlot(argv []string) (err error) {
 	return nil
 }
 
-func runSlotInit() error {
+func runSlotInit(isForce bool) error {
+	if !isForce {
+		p := models.GetSlotBasePath(productName)
+		exists, _, err := zkConn.Exists(p)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		if exists {
+			return errors.New("slots already exists. use -f flag to force init")
+		}
+	}
 	err := models.InitSlotSet(zkConn, productName, models.DEFAULT_SLOT_NUM)
 	if err != nil {
 		return errors.Trace(err)
