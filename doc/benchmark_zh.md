@@ -146,9 +146,9 @@ zk=localhost:2181
 product=bench
 proxy_id=proxy_${i}
 EOF
-    let a="${i}+9000"
+    let a="${i}+19000"
     let b="${i}+10000"
-    ../bin/codis-proxy --cpu=$NCPU -c config${i}.ini -L proxy${i}.log --addr=0.0.0.0:${a} --http-addr=0.0.0.0:${b} &
+    codis-proxy --cpu=$NCPU -c config${i}.ini -L proxy${i}.log --addr=0.0.0.0:${a} --http-addr=0.0.0.0:${b} &
 done
 
 sleep 2
@@ -162,7 +162,7 @@ sleep 5
 echo codis-proxy is ready
 
 for ((i=1;i<=$NPROXY;i++)); do
-    let a="${i}+9000"
+    let a="${i}+19000"
     memtier_benchmark -s 127.0.0.1 -p ${a} \
          --ratio=1:1 -n 100000 -d 100 -t $NTHRD -c 50 \
          --pipeline=75 --key-pattern=S:S > bench${a}.log 2>&1 &
