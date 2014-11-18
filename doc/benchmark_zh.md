@@ -175,5 +175,5 @@ wait $pids
 
 echo done
 
-sed -e "s/^M/\n/g" bench*.log -i
+sed -e "s/^M/\n/g" bench*.log -i # here ^M should be <Ctrl-V><Ctrl-M> :P
 ```
