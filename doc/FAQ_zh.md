@@ -80,7 +80,7 @@ CAS 暂时不支持, 但是如果非得支持, 我们可以考虑. Lua 脚本考
 + 静态分析 RDB 文件，包括解析以及恢复 RDB 数据到 redis
 + 从 redis 上 dump RDB 文件以及从 redis 和 codis 之间动态同步数据
 
-如果需要迁移现有 redis 数据到 codis，该如何操作？
+#####如果需要迁移现有 redis 数据到 codis，该如何操作？#####
 
 + 先搭建好 codis 集群并让 codis-proxy 正确运行起来
 + 对线上每一个 redis 实例运行一个 redis-port 来向 codis 导入数据，例如：
@@ -101,7 +101,7 @@ CAS 暂时不支持, 但是如果非得支持, 我们可以考虑. Lua 脚本考
 
 	- 旧 redis 下线时，会导致 reids-port 链接断开，于是自动退出
 		
-redis-port 是如何在线迁移数据的？
+#####redis-port 是如何在线迁移数据的？#####
 
 + redis-port 本质是以 slave 的形式挂载到现有 redis 服务上去的
 
