@@ -106,7 +106,7 @@ CAS 暂时不支持, 但是如果非得支持, 我们可以考虑. Lua 脚本考
 + redis-port 本质是以 slave 的形式挂载到现有 redis 服务上去的
 
 	1. redis 会生成 RDB DUMP 文件给作为 slave 的 redis-port
-	2. redis-port 分析 RDB 文件，并拆分成 key-value 对，通过 [slotsrestore](https://github.com/wandoulabs/codis/blob/master/doc/redis_change_zh.md) 指令发给 codis
+	2. redis-port 分析 RDB 文件，并拆分成 key-value 对，通过 [slotsrestore](https://github.com/wandoulabs/codis/blob/master/doc/redis_change_zh.md#slotsrestore-key1-ttl1-val1-key2-ttl2-val2-) 指令发给 codis
 	3. 迁移过程中发生的修改，redis 会将这些指令在 RDB DUMP 发送完成后，再发给 redis-port，而 redis-port 收到这些指令后不作处理，而直接转发给 Codis
 	
 + redis-port 处理还是很快的，参考：
