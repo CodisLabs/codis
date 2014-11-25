@@ -20,7 +20,7 @@ Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia
 
 ## Build and Install
 
-* Install go
+* Install go & ZooKeeper
 * go get github.com/wandoulabs/codis
 * cd codis
 * ./bootstrap.sh
