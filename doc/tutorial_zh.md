@@ -37,7 +37,7 @@ make gotest
 ```
 cd sample
 
-$ ../bin/codis-config -h                                                                                                                                                                                                                           (master)
+$ /path/to/codis/bin/codis-config -h                                                                                                                                                                                                                           (master)
 usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
 		<command> [<args>...]
 options:
@@ -54,7 +54,7 @@ commands:
 ```
 
 ```
-$ ../bin/codis-proxy -h
+$  /path/to/codis/bin/codis-proxy -h
 
 usage: codis-proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
 
@@ -85,14 +85,14 @@ proxy_id=proxy_1    <- proxy会读取, 用于标记proxy的名字, 针对多个p
 ####流程
 
 
-**1. 初始化 slots** , 执行 `../bin/codis-config slot init`，该命令会在zookeeper上创建slot相关信息
+**1. 初始化 slots** , 执行 ` /path/to/codis/bin/codis-config slot init`，该命令会在zookeeper上创建slot相关信息
 
 **2. 启动 Codis Redis** , 和编译启动正常的 Redis Server 没什么区别
 
 **3. 添加 Redis Server Group** , 每一个 Server Group 作为一个 Redis 服务器组存在, 只允许有一个 master, 可以有多个 slave, ***group id 仅支持大于等于1的整数***
 
 ```
-$ ../bin/codis-config server -h                                                                                                                                                                                                                   usage:
+$  /path/to/codis/bin/codis-config server -h                                                                                                                                                                                                                   usage:
 	codis-config server list
 	codis-config server add <group_id> <redis_addr> <role>
 	codis-config server remove <group_id> <redis_addr>
@@ -105,16 +105,16 @@ redis实例为一主一从。
 
 添加一个group，group的id为1， 并添加一个redis master到该group
 ```
-$ ./codis-config server add 1 localhost:6379 master
+$  /path/to/codis/bin/codis-config server add 1 localhost:6379 master
 ```
 添加一个redis slave到该group
 ```
-$ ./codis-config server add 1 localhost:6380 slave
+$  /path/to/codis/bin/codis-config server add 1 localhost:6380 slave
 ```
 类似的，再添加group，group的id为2
 ```
-$ ./codis-config server add 2 localhost:6479 master
-$ ./codis-config server add 2 localhost:6479 slave
+$  /path/to/codis/bin/codis-config server add 2 localhost:6479 master
+$  /path/to/codis/bin/codis-config server add 2 localhost:6479 slave
 ```
 
 **4. 设置 server group 服务的 slot 范围**
@@ -122,7 +122,7 @@ $ ./codis-config server add 2 localhost:6479 slave
    每一个 slot 都会有一个特定的 server group id 来表示这个 slot 的数据由哪个 server group 来提供.
 
 ```
-$ ./codis-config slot -h                                                                                                                                                                                                                     
+$  /path/to/codis/bin/codis-config slot -h                                                                                                                                                                                                                     
 usage:
 	codis-config slot init
 	codis-config slot info <slot_id>
@@ -136,23 +136,23 @@ usage:
 设置编号为[0, 511]的 slot 由 server group 1 提供服务, 编号 [512, 1023] 的 slot 由 server group 2 提供服务
 
 ```
-$ ./codis-config slot range-set 0 511 1 online
-$ ./codis-config slot range-set 512 1023 2 online
+$  /path/to/codis/bin/codis-config slot range-set 0 511 1 online
+$  /path/to/codis/bin/codis-config slot range-set 512 1023 2 online
 ```
 
  **5. 启动 codis-proxy**
 ```
- ../bin/codis-proxy -c config.ini -L ./log/proxy.log  --cpu=8 --addr=0.0.0.0:19000 --http-addr=0.0.0.0:11000
+  /path/to/codis/bin/codis-proxy -c config.ini -L ./log/proxy.log  --cpu=8 --addr=0.0.0.0:19000 --http-addr=0.0.0.0:11000
 ```
 刚启动的 codis-proxy 默认是处于 offline状态的, 然后设置 proxy 为 online 状态, 只有处于 online 状态的 proxy 才会对外提供服务
 ```
- ../bin/codis-config -c config.ini proxy online <proxy_name>  <---- proxy的id, 如 proxy_1
+  /path/to/codis/bin/codis-config -c config.ini proxy online <proxy_name>  <---- proxy的id, 如 proxy_1
 ```
  
  **6. 启动 dashboard 服务 (可选, 但是建议启动)**  
 
 ```
- ../bin/codis-config -c config.ini -L ./log/dashboard.log dashboard --addr=:18087 --http-log=./log/requests.log
+  /path/to/codis/bin/codis-config -c config.ini -L ./log/dashboard.log dashboard --addr=:18087 --http-log=./log/requests.log
 ```
 
  **7. 打开浏览器 http://localhost:18087/admin**
