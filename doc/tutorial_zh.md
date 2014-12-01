@@ -105,16 +105,16 @@ redis实例为一主一从。
 
 添加一个group，group的id为1， 并添加一个redis master到该group
 ```
-$ ./codis-config server add 1 localhost:6379 master
+$ ../bin/codis-config server add 1 localhost:6379 master
 ```
 添加一个redis slave到该group
 ```
-$ ./codis-config server add 1 localhost:6380 slave
+$ ../bin/codis-config server add 1 localhost:6380 slave
 ```
 类似的，再添加group，group的id为2
 ```
-$ ./codis-config server add 2 localhost:6479 master
-$ ./codis-config server add 2 localhost:6479 slave
+$ ../bin/codis-config server add 2 localhost:6479 master
+$ ../bin/codis-config server add 2 localhost:6479 slave
 ```
 
 **4. 设置 server group 服务的 slot 范围**
@@ -122,7 +122,7 @@ $ ./codis-config server add 2 localhost:6479 slave
    每一个 slot 都会有一个特定的 server group id 来表示这个 slot 的数据由哪个 server group 来提供.
 
 ```
-$ ./codis-config slot -h                                                                                                                                                                                                                     
+$ ../bin/codis-config slot -h                                                                                                                                                                                                                     
 usage:
 	codis-config slot init
 	codis-config slot info <slot_id>
@@ -136,8 +136,8 @@ usage:
 设置编号为[0, 511]的 slot 由 server group 1 提供服务, 编号 [512, 1023] 的 slot 由 server group 2 提供服务
 
 ```
-$ ./codis-config slot range-set 0 511 1 online
-$ ./codis-config slot range-set 512 1023 2 online
+$ ../bin/codis-config slot range-set 0 511 1 online
+$ ../bin/codis-config slot range-set 512 1023 2 online
 ```
 
  **5. 启动 codis-proxy**
@@ -172,7 +172,7 @@ $ ./codis-config slot range-set 512 1023 2 online
 如: 将slot id 为 [0-511] 的slot的数据, 迁移到 server group 2上,  --delay 参数表示每迁移一个 key 后 sleep 的毫秒数, 默认是 0, 用于限速.
 
 ```
-$ ./codis-config slot migrate 0 511 2 --delay=10
+$ ../bin/codis-config slot migrate 0 511 2 --delay=10
 ```
 
 迁移的过程对于上层业务来说是安全且透明的, 数据不会丢失,  上层不会中止服务.
@@ -185,7 +185,7 @@ $ ./codis-config slot migrate 0 511 2 --delay=10
 Codis 支持动态的根据实例内存, 自动对slot进行迁移, 以均衡数据分布.
 
 ```
-$./codis-config slot rebalance
+$ ../bin/codis-config slot rebalance
 ```
 
 要求:
