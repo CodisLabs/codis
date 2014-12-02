@@ -32,6 +32,7 @@ THE SOFTWARE.
     <scm>
         <connection>scm:git:ssh://github.com:wandoulabs/codis.git</connection>
         <developerConnection>scm:git:ssh://github.com:wandoulabs/codis.git</developerConnection>
+        <url>ssh://github.com:wandoulabs/codis.git</url>
         <tag>HEAD</tag>
     </scm>
     <properties>
@@ -187,6 +188,13 @@ THE SOFTWARE.
             </plugin>
         </plugins>
     </build>
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>http://opensource.org/licenses/MIT</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
     <developers>
         <developer>
             <id>apache9</id>
