@@ -43,6 +43,10 @@ Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia
 [简体中文](https://github.com/wandoulabs/codis/blob/master/doc/benchmark_zh.md)  
 English (WIP)
 
+## For Java users who want to support HA
+
+[Jodis \(HA Codis Connection Pool based on Jedis\)] (https://github.com/wandoulabs/codis/blob/master/ext/jodis/README.md)
+
 ## Architecture
 
 ![architecture](doc/pictures/architecture.png)
