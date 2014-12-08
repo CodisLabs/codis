@@ -24,7 +24,6 @@
  */
 package com.wandoulabs.jodis;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +37,6 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache.StartMode;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheEvent;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
-import org.apache.curator.retry.BoundedExponentialBackoffRetry;
 import org.apache.log4j.Logger;
 
 import redis.clients.jedis.Jedis;
@@ -62,7 +60,7 @@ import com.google.common.io.Closeables;
  * @see https://github.com/xetorthio/jedis
  * @see http://curator.apache.org/
  */
-public class RoundRobinJedisPool implements Closeable {
+public class RoundRobinJedisPool implements JedisResourcePool {
 
     private static final Logger LOG = Logger.getLogger(RoundRobinJedisPool.class);
 
@@ -133,9 +131,8 @@ public class RoundRobinJedisPool implements Closeable {
                 .connectString(zkAddr)
                 .sessionTimeoutMs(zkSessionTimeoutMs)
                 .retryPolicy(
-                        new BoundedExponentialBackoffRetry(CURATOR_RETRY_BASE_SLEEP_MS,
-                                CURATOR_RETRY_MAX_SLEEP_MS, Integer.MAX_VALUE)).build(), true,
-                zkPath, poolConfig);
+                        new BoundedExponentialBackoffRetryUntilElapsed(CURATOR_RETRY_BASE_SLEEP_MS,
+                                CURATOR_RETRY_MAX_SLEEP_MS, -1L)).build(), true, zkPath, poolConfig);
     }
 
     /**
@@ -221,14 +218,7 @@ public class RoundRobinJedisPool implements Closeable {
         }
     }
 
-    /**
-     * Get a jedis instance from pool.
-     * <p>
-     * We do not have a returnResource method, just close the jedis instance
-     * returned directly.
-     * 
-     * @return
-     */
+    @Override
     public Jedis getResource() {
         ImmutableList<PooledObject> pools = this.pools;
         if (pools.isEmpty()) {
@@ -247,7 +237,9 @@ public class RoundRobinJedisPool implements Closeable {
     public void close() {
         try {
             Closeables.close(watcher, true);
-        } catch (IOException e) {}
+        } catch (IOException e) {
+            LOG.fatal("IOException should not have been thrown", e);
+        }
         if (closeCurator) {
             curatorClient.close();
         }
