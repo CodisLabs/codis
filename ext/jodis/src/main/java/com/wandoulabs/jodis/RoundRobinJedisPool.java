@@ -132,8 +132,7 @@ public class RoundRobinJedisPool implements JedisResourcePool {
                 .sessionTimeoutMs(zkSessionTimeoutMs)
                 .retryPolicy(
                         new BoundedExponentialBackoffRetryUntilElapsed(CURATOR_RETRY_BASE_SLEEP_MS,
-                                CURATOR_RETRY_MAX_SLEEP_MS, -1L)).build(), true,
-                zkPath, poolConfig);
+                                CURATOR_RETRY_MAX_SLEEP_MS, -1L)).build(), true, zkPath, poolConfig);
     }
 
     /**
@@ -238,7 +237,9 @@ public class RoundRobinJedisPool implements JedisResourcePool {
     public void close() {
         try {
             Closeables.close(watcher, true);
-        } catch (IOException e) {}
+        } catch (IOException e) {
+            LOG.fatal("IOException should not have been thrown", e);
+        }
         if (closeCurator) {
             curatorClient.close();
         }
