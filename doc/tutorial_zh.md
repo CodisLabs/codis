@@ -87,7 +87,7 @@ proxy_id=proxy_1    <- proxy会读取, 用于标记proxy的名字, 针对多个p
 
 **1. 初始化 slots** , 执行 `../bin/codis-config slot init`，该命令会在zookeeper上创建slot相关信息
 
-**2. 启动 Codis Redis** , 和编译启动正常的 Redis Server 没什么区别
+**2. 启动 Codis Redis** , 和官方的Redis Server参数一样
 
 **3. 添加 Redis Server Group** , 每一个 Server Group 作为一个 Redis 服务器组存在, 只允许有一个 master, 可以有多个 slave, ***group id 仅支持大于等于1的整数***
 
