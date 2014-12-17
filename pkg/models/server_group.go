@@ -74,12 +74,29 @@ func NewServerGroup(productName string, id int) *ServerGroup {
 	}
 }
 
+func GroupExists(zkConn zkhelper.Conn, productName string, groupId int) (bool, error) {
+	zkPath := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d", productName, groupId)
+	exists, _, err := zkConn.Exists(zkPath)
+	if err != nil {
+		return false, errors.Trace(err)
+	}
+	return exists, nil
+}
+
 func GetGroup(zkConn zkhelper.Conn, productName string, groupId int) (*ServerGroup, error) {
+	exists, err := GroupExists(zkConn, productName, groupId)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	if !exists {
+		return nil, errors.NotFoundf("group %d", groupId)
+	}
+
 	group := &ServerGroup{
 		ProductName: productName,
 		Id:          groupId,
 	}
-	var err error
+
 	group.Servers, err = group.GetServers(zkConn)
 	if err != nil {
 		return nil, errors.Trace(err)
