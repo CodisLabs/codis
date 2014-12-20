@@ -368,11 +368,12 @@ func (s *Server) getProxyInfo() models.ProxyInfo {
 
 func (s *Server) getActionObject(seq int, target interface{}) {
 	act := &models.Action{Target: target}
-	log.Infof("%+v", act)
 	err := s.top.GetActionWithSeqObject(int64(seq), act)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
+
+	log.Infof("%+v", act)
 }
 
 func (s *Server) checkAndDoTopoChange(seq int) (needResponse bool) {
