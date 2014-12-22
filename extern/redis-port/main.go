@@ -4,8 +4,8 @@
 package main
 
 import (
-	"github.com/wandoulabs/codis/ext/redis-port/args"
-	"github.com/wandoulabs/codis/ext/redis-port/cmd"
+	"github.com/wandoulabs/codis/extern/redis-port/args"
+	"github.com/wandoulabs/codis/extern/redis-port/cmd"
 )
 
 func main() {

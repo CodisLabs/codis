@@ -75,7 +75,7 @@ CAS 暂时不支持, 但是如果非得支持, 我们可以考虑. Lua 脚本考
 
 ###现有redis集群上有上T的数据，如何迁移到Codis上来？
 
-为了提高 Codis 推广和部署上的效率，我们为数据迁移提供了一个叫做 [redis-port](https://github.com/wandoulabs/codis/tree/master/ext/redis-port) 的命令行工具，它能够：
+为了提高 Codis 推广和部署上的效率，我们为数据迁移提供了一个叫做 [redis-port](https://github.com/wandoulabs/codis/tree/master/extern/redis-port) 的命令行工具，它能够：
 
 + 静态分析 RDB 文件，包括解析以及恢复 RDB 数据到 redis
 + 从 redis 上 dump RDB 文件以及从 redis 和 codis 之间动态同步数据

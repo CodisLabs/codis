@@ -45,7 +45,7 @@ English (WIP)
 
 ## For Java users who want to support HA
 
-[Jodis \(HA Codis Connection Pool based on Jedis\)] (https://github.com/wandoulabs/codis/tree/master/ext/jodis)
+[Jodis \(HA Codis Connection Pool based on Jedis\)] (https://github.com/wandoulabs/codis/tree/master/extern/jodis)
 
 ## Architecture
 

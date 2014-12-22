@@ -12,17 +12,17 @@ build-config:
 
 build-server:
 	@mkdir -p bin
-	make -j4 -C ext/redis-2.8.13/
-	@cp -f ext/redis-2.8.13/src/redis-server bin/codis-server
+	make -j4 -C extern/redis-2.8.13/
+	@cp -f extern/redis-2.8.13/src/redis-server bin/codis-server
 
 clean:
 	@rm -rf bin
 	@rm -f *.rdb *.out *.log *.dump deploy.tar
-	@rm -f Dockerfile ext/Dockerfile
+	@rm -f Dockerfile extern/Dockerfile
 	@if [ -d test ]; then cd test && rm -f *.out *.log *.rdb; fi
 
 distclean: clean
-	@make --no-print-directory --quiet -C ext/redis-2.8.13 clean
+	@make --no-print-directory --quiet -C extern/redis-2.8.13 clean
 
 gotest:
 	go test ./... -race

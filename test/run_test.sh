@@ -21,7 +21,7 @@ pkill -9 codis-server
 # restart codis-server
 
 for p in {6379,6380,6479,6480}; do
-    nohup ../bin/codis-server ../ext/redis-test/conf/${p}.conf &>nohup_${p}.out &
+    nohup ../bin/codis-server ../extern/redis-test/conf/${p}.conf &>nohup_${p}.out &
 done
 
 ########################################
@@ -93,7 +93,7 @@ run_migration 2>&1 | tee migration.log &
 sleep 2
 
 run_test() {
-    cd ../ext/redis-test
+    cd ../extern/redis-test
     for ((i=0;i<3;i++)); do
         ./run_test.sh
     done

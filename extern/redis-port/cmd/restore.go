@@ -10,7 +10,7 @@ import (
 )
 
 import (
-	"github.com/wandoulabs/codis/ext/redis-port/utils"
+	"github.com/wandoulabs/codis/extern/redis-port/utils"
 )
 
 func Restore(ncpu int, input, target string) {

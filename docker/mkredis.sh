@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ../ext || exit $?
+cd ../extern || exit $?
 
 docker rmi codis/redis
 

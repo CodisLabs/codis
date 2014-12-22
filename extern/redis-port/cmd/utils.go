@@ -14,8 +14,8 @@ import (
 
 import (
 	"github.com/garyburd/redigo/redis"
-	"github.com/wandoulabs/codis/ext/redis-port/rdb"
-	"github.com/wandoulabs/codis/ext/redis-port/utils"
+	"github.com/wandoulabs/codis/extern/redis-port/rdb"
+	"github.com/wandoulabs/codis/extern/redis-port/utils"
 )
 
 type AtomicInt64 int64
