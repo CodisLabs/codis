@@ -4,7 +4,7 @@ Codis 是 Wandoujia Infrastructure Team 开发的一个分布式 Redis 服务, �
 
 ###Codis 弹性到什么程度？
 
-codis 支持水平扩容/缩容，扩容可以直使界面的 "Auto Reblance" 按钮，缩容只需要将要下线的实例拥有的slot迁移到其它实例，
+codis 支持水平扩容/缩容，扩容可以直使界面的 "Auto Rebalance" 按钮，缩容只需要将要下线的实例拥有的slot迁移到其它实例，
 然后在界面上删除下线的group即可
 
 
