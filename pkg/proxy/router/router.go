@@ -573,7 +573,7 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 		startAt:           time.Now(),
 		addr:              addr,
 		concurrentLimiter: utils.NewTokenLimiter(100),
-		moper:             NewMultiOperator("localhost:" + strings.Split(addr, ":")[1]),
+		moper:             NewMultiOperator(addr),
 		pools:             cachepool.NewCachePool(),
 	}
 
