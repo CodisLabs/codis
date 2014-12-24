@@ -352,7 +352,7 @@ responsible for creating instances of the `redisReply` can be customized by
 setting the `fn` field on the `redisReader` struct. This should be done
 immediately after creating the `redisReader`.
 
-For example, [hiredis-rb](https://github.com/pietern/hiredis-rb/blob/master/extern/hiredis_ext/reader.c)
+For example, [hiredis-rb](https://github.com/pietern/hiredis-rb/blob/master/ext/hiredis_ext/reader.c)
 uses customized reply object functions to create Ruby objects.
 
 ### Reader max buffer
