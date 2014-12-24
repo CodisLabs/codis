@@ -23,7 +23,7 @@ Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name
 ###Build codis-proxy & codis-config
 ------------------
 
-安装go[参考这里](https://github.com/astaxie/build-web-application-with-golang/blob/master/ebook/01.1.md)，建议使用Go源码安装，然后参考下的流程
+安装go[参考这里](https://golang.org/doc/install)，建议使用Go源码安装，然后参考下的流程
 
 ```
 go get github.com/wandoulabs/codis
