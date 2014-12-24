@@ -76,6 +76,8 @@ public class RoundRobinJedisPool implements JedisResourcePool {
 
     private static final int CURATOR_RETRY_MAX_SLEEP_MS = 30 * 1000;
 
+    private static final int JEDIS_POOL_TIMEOUT_UNSET = -1;
+
     private static final ImmutableSet<PathChildrenCacheEvent.Type> RESET_TYPES = Sets
             .immutableEnumSet(PathChildrenCacheEvent.Type.CHILD_ADDED,
                     PathChildrenCacheEvent.Type.CHILD_UPDATED,
@@ -105,6 +107,31 @@ public class RoundRobinJedisPool implements JedisResourcePool {
 
     private final JedisPoolConfig poolConfig;
 
+    private final int timeout;
+
+    /**
+     * Create a RoundRobinJedisPool with default timeout.
+     * <p>
+     * We create a CuratorFramework with infinite retry number. If you do not
+     * like the behavior, use the other constructor that allow you pass a
+     * CuratorFramework created by yourself.
+     * 
+     * @param zkAddr
+     *            ZooKeeper connect string. e.g., "zk1:2181"
+     * @param zkSessionTimeoutMs
+     *            ZooKeeper session timeout in ms
+     * @param zkPath
+     *            the codis proxy dir on ZooKeeper. e.g.,
+     *            "/zk/codis/db_xxx/proxy"
+     * @param poolConfig
+     *            same as JedisPool
+     * @see #RoundRobinJedisPool(String, int, String, JedisPoolConfig, int)
+     */
+    public RoundRobinJedisPool(String zkAddr, int zkSessionTimeoutMs, String zkPath,
+            JedisPoolConfig poolConfig) {
+        this(zkAddr, zkSessionTimeoutMs, zkPath, poolConfig, JEDIS_POOL_TIMEOUT_UNSET);
+    }
+
     /**
      * Create a RoundRobinJedisPool.
      * <p>
@@ -121,18 +148,39 @@ public class RoundRobinJedisPool implements JedisResourcePool {
      *            "/zk/codis/db_xxx/proxy"
      * @param poolConfig
      *            same as JedisPool
+     * @param timeout
+     *            timeout of JedisPool
      * @see #RoundRobinJedisPool(CuratorFramework, boolean, String,
-     *      JedisPoolConfig)
+     *      JedisPoolConfig, int)
      */
     public RoundRobinJedisPool(String zkAddr, int zkSessionTimeoutMs, String zkPath,
-            JedisPoolConfig poolConfig) {
+            JedisPoolConfig poolConfig, int timeout) {
         this(CuratorFrameworkFactory
                 .builder()
                 .connectString(zkAddr)
                 .sessionTimeoutMs(zkSessionTimeoutMs)
                 .retryPolicy(
                         new BoundedExponentialBackoffRetryUntilElapsed(CURATOR_RETRY_BASE_SLEEP_MS,
-                                CURATOR_RETRY_MAX_SLEEP_MS, -1L)).build(), true, zkPath, poolConfig);
+                                CURATOR_RETRY_MAX_SLEEP_MS, -1L)).build(), true, zkPath,
+                poolConfig, timeout);
+    }
+
+    /**
+     * Create a RoundRobinJedisPool with default timeout.
+     * 
+     * @param curatorClient
+     *            We will start it if it has not started yet.
+     * @param closeCurator
+     *            Whether to close the curatorClient passed in when close.
+     * @param zkPath
+     *            the codis proxy dir on ZooKeeper. e.g.
+     *            "/zk/codis/db_xxx/proxy"
+     * @param poolConfig
+     *            same as JedisPool
+     */
+    public RoundRobinJedisPool(CuratorFramework curatorClient, boolean closeCurator, String zkPath,
+            JedisPoolConfig poolConfig) {
+        this(curatorClient, closeCurator, zkPath, poolConfig, JEDIS_POOL_TIMEOUT_UNSET);
     }
 
     /**
@@ -147,10 +195,13 @@ public class RoundRobinJedisPool implements JedisResourcePool {
      *            "/zk/codis/db_xxx/proxy"
      * @param poolConfig
      *            same as JedisPool
+     * @param timeout
+     *            timeout of JedisPool
      */
     public RoundRobinJedisPool(CuratorFramework curatorClient, boolean closeCurator, String zkPath,
-            JedisPoolConfig poolConfig) {
+            JedisPoolConfig poolConfig, int timeout) {
         this.poolConfig = poolConfig;
+        this.timeout = timeout;
         this.curatorClient = curatorClient;
         this.closeCurator = closeCurator;
         watcher = new PathChildrenCache(curatorClient, zkPath, true);
@@ -203,8 +254,14 @@ public class RoundRobinJedisPool implements JedisResourcePool {
                 if (pool == null) {
                     LOG.info("Add new proxy: " + addr);
                     String[] hostAndPort = addr.split(":");
-                    pool = new PooledObject(addr, new JedisPool(poolConfig, hostAndPort[0],
-                            Integer.parseInt(hostAndPort[1])));
+                    String host = hostAndPort[0];
+                    int port = Integer.parseInt(hostAndPort[1]);
+                    if (timeout == JEDIS_POOL_TIMEOUT_UNSET) {
+                        pool = new PooledObject(addr, new JedisPool(poolConfig, host, port));
+                    } else {
+                        pool = new PooledObject(addr,
+                                new JedisPool(poolConfig, host, port, timeout));
+                    }
                 }
                 builder.add(pool);
             } catch (Exception e) {
