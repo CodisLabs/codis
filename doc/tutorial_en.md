@@ -182,6 +182,6 @@ $../bin/codis-config slot rebalance
 ```
 
 Requirements:
-
-* All slots’ status should be `online`, namely no transportation task is running. 
-* All server groups must have a master. 
+ * all codis-server must set maxmemory.
+ * All slots’ status should be `online`, namely no transportation task is running. 
+ * All server groups must have a master. 
