@@ -153,6 +153,14 @@ func SetSlots(zkConn zkhelper.Conn, productName string, slots []Slot, groupId in
 		return errors.New("invalid status")
 	}
 
+	ok, err := GroupExists(zkConn, productName, groupId)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if !ok {
+		return errors.NotFoundf("group %d", groupId)
+	}
+
 	for _, s := range slots {
 		s.GroupId = groupId
 		s.State.Status = status
@@ -175,7 +183,7 @@ func SetSlots(zkConn zkhelper.Conn, productName string, slots []Slot, groupId in
 		Status:  status,
 	}
 
-	err := NewAction(zkConn, productName, ACTION_TYPE_MULTI_SLOT_CHANGED, param, "", true)
+	err = NewAction(zkConn, productName, ACTION_TYPE_MULTI_SLOT_CHANGED, param, "", true)
 	return errors.Trace(err)
 
 }
@@ -183,6 +191,14 @@ func SetSlots(zkConn zkhelper.Conn, productName string, slots []Slot, groupId in
 func SetSlotRange(zkConn zkhelper.Conn, productName string, fromSlot, toSlot, groupId int, status SlotStatus) error {
 	if status != SLOT_STATUS_OFFLINE && status != SLOT_STATUS_ONLINE {
 		return errors.New("invalid status")
+	}
+
+	ok, err := GroupExists(zkConn, productName, groupId)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if !ok {
+		return errors.NotFoundf("group %d", groupId)
 	}
 
 	for i := fromSlot; i <= toSlot; i++ {
@@ -210,7 +226,7 @@ func SetSlotRange(zkConn zkhelper.Conn, productName string, fromSlot, toSlot, gr
 		GroupId: groupId,
 		Status:  status,
 	}
-	err := NewAction(zkConn, productName, ACTION_TYPE_MULTI_SLOT_CHANGED, param, "", true)
+	err = NewAction(zkConn, productName, ACTION_TYPE_MULTI_SLOT_CHANGED, param, "", true)
 	return errors.Trace(err)
 }
 
