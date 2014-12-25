@@ -77,9 +77,13 @@ function($scope, $http, ProxyStatusFactory) {
         if (!sure) {
             return
         }
+
         p.state = status
         ProxyStatusFactory.setStatus(p, function() {
-            $scope.proxies = ProxyStatusFactory.query();
+          $scope.proxies = ProxyStatusFactory.query();
+        },function(failedData) {
+          p.state = "offline"
+          alert(failedData.data)
         })
     }
 
@@ -264,7 +268,6 @@ function($scope, $http, $modal, $log, ServerGroupsFactory, ServerGroupFactory) {
         ServerGroupFactory.delete({ id : groupId }, function() {
             $scope.server_groups = ServerGroupsFactory.query();
         }, function() {
-            console.log(failedData);
             alert(failedData.data);
         });
     }
@@ -287,11 +290,9 @@ function($scope, $http, $modal, $log, ServerGroupsFactory, ServerGroupFactory) {
 
         modalInstance.result.then(function (server) {
             if (server) {
-                console.log(server);
                 ServerGroupFactory.addServer(server, function(succData){
                     $scope.server_groups = ServerGroupsFactory.query();
                 }, function(failedData) {
-                    console.log(failedData.data)
                     alert(failedData.data);
                 });
             }
@@ -317,7 +318,6 @@ function($scope, $http, $modal, $log, ServerGroupsFactory, ServerGroupFactory) {
                 ServerGroupsFactory.create(group, function(succData) {
                     $scope.server_groups = ServerGroupsFactory.query();
                 }, function(failedData) {
-                    console.log(failedData);
                     alert(failedData.data);
                 })
             }

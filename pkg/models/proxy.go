@@ -129,6 +129,22 @@ func SetProxyStatus(zkConn zkhelper.Conn, productName string, proxyName string, 
 		return errors.Errorf("%v, %s", ErrUnknownProxyStatus, status)
 	}
 
+	// check slot status before setting proxy online
+	if status == PROXY_STATE_ONLINE {
+		slots, err := Slots(zkConn, productName)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		for _, slot := range slots {
+			if slot.State.Status != SLOT_STATUS_ONLINE {
+				return errors.Errorf("slot %v is not online", slot)
+			}
+			if slot.GroupId == INVALID_ID {
+				return errors.Errorf("slot %v has invalid group id", slot)
+			}
+		}
+	}
+
 	p.State = status
 	b, _ := json.Marshal(p)
 
