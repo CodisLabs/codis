@@ -189,5 +189,6 @@ $ ../bin/codis-config slot rebalance
 ```
 
 要求:
+ * 所有的codis-server都必须设置了maxmemory参数
  * 所有的 slots 都应该处于 online 状态, 即没有迁移任务正在执行
  * 所有 server group 都必须有 Master
