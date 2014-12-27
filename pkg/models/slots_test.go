@@ -36,6 +36,20 @@ func TestSlots(t *testing.T) {
 		t.Error("init slots error")
 	}
 
+	g := NewServerGroup(productName, 1)
+	g.Create(fakeZkConn)
+
+	// test create new group
+	_, err = ServerGroups(fakeZkConn, productName)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ok, err := g.Exists(fakeZkConn)
+	if !ok || err != nil {
+		t.Error("create group error")
+	}
+
 	err = SetSlotRange(fakeZkConn, productName, 0, 1023, 1, SLOT_STATUS_ONLINE)
 	if err != nil {
 		t.Error(err)
