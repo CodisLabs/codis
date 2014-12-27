@@ -8,6 +8,9 @@ Codis is engineered to elastically scale, Easily add or remove redis or proxy in
 
 Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia.com).
 
+[![Build Status](https://travis-ci.org/wandoulabs/codis.svg)](https://travis-ci.org/wandoulabs/codis)
+
+
 ##Features
 * Auto rebalance
 * Extremely simple to use 
