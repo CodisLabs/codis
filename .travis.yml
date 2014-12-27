@@ -1,0 +1,19 @@
+language: go
+
+go:
+    - 1.3
+    - tip
+
+install: go get -d -v ./... && go build -v ./... && make
+
+before_script:
+    - echo "before script"
+
+script: 
+    - ./bootstrap.sh
+    - make gotest
+
+
+branches:
+  only:
+  - master

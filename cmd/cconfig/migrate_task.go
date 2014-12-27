@@ -108,6 +108,7 @@ func RunMigrateTask(task *MigrateTask) error {
 				return errors.Trace(err)
 			}
 			if !exists {
+				log.Errorf("src group %d not exist when migrate from %d to %d", from, from, to)
 				return errors.NotFoundf("group %d", from)
 			}
 			exists, err = models.GroupExists(conn, productName, to)
