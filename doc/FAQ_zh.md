@@ -49,11 +49,11 @@ Codis 是会把 KEYS 指令屏蔽的, 即使你在使用 raw Redis, 我也不太
 
 ###Codis 支持 CAS 吗? 支持 Lua 脚本吗?
 
-CAS 暂时不支持, 但是如果非得支持, 我们可以考虑. Lua 脚本考虑到分布式环境下的一致性问题, 暂不支持.
+CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合TAG使用. 
 
 ###Codis的性能如何?
 
-8 core Xeon 2.10GHz, 多线程的 benchmark, 单 proxy 的 qps 是 12w. 而且 proxy 是可以动态水平扩展的, 理论上的性能瓶颈应该是百万级别的.
+8 core Xeon 2.10GHz, 多线程的 benchmark, 单 proxy 的 ops 是 12w. 而且 proxy 是可以动态水平扩展的, 理论上的性能瓶颈应该是百万级别的.
 由于 Codis 能很好的利用多核, 虽然在单核上的速度没有 Twemproxy 快, 但是并发数一上来, 你会发现单 Twemproxy 仅仅能吃满一个 CPU, 而 Codis 能尽可能的跑满 CPU. 所以在高并发/多线程客户端的场景下, Codis 的性能是不一定比单 Twemproxy 差, 见 benchmark. 但是 Codis 提供的最大价值是弹性扩缩容的能力, 不是吗 :) ?
 
 ###我的数据在 Codis 上是安全的吗?
