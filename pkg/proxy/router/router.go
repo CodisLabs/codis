@@ -15,20 +15,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandoulabs/codis/pkg/utils"
-
 	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
 
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/redispool"
 
-	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
-
 	"github.com/juju/errors"
 	stats "github.com/ngaut/gostats"
 	log "github.com/ngaut/logging"
+	"github.com/ngaut/tokenlimiter"
 )
 
 type Slot struct {
@@ -51,7 +49,7 @@ type Server struct {
 	pi                models.ProxyInfo
 	startAt           time.Time
 	addr              string
-	concurrentLimiter *utils.TokenLimiter
+	concurrentLimiter *tokenlimiter.TokenLimiter
 
 	moper *MultiOperator
 	pools *cachepool.CachePool
@@ -572,7 +570,7 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 		lastActionSeq:     -1,
 		startAt:           time.Now(),
 		addr:              addr,
-		concurrentLimiter: utils.NewTokenLimiter(100),
+		concurrentLimiter: tokenlimiter.NewTokenLimiter(100),
 		moper:             NewMultiOperator(addr),
 		pools:             cachepool.NewCachePool(),
 	}
