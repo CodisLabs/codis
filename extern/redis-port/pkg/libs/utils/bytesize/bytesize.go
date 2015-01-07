@@ -4,7 +4,6 @@
 package bytesize
 
 import (
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -59,7 +58,6 @@ func Parse(s string) (int64, error) {
 	}
 
 	text := string(subs[1])
-	fmt.Println(text)
 	if digitsRegexp.Match(subs[1]) {
 		n, err := strconv.ParseInt(text, 10, 64)
 		if err != nil {
