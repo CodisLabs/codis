@@ -248,7 +248,7 @@ func Pipe() (*PipeReader, *PipeWriter) {
 }
 
 func PipeWithSize(buffSize int) (*PipeReader, *PipeWriter) {
-	return PipeWithFile(0, buffSize, nil)
+	return PipeWithFile(buffSize, FileSizeAlign, nil)
 }
 
 func PipeWithFile(buffSize, fileSize int, f *os.File) (*PipeReader, *PipeWriter) {
