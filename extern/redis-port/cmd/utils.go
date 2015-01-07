@@ -1,53 +1,31 @@
 // Copyright 2014 Wandoujia Inc. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package cmd
+package main
 
 import (
+	"bufio"
+	"io"
 	"net"
 	"os"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
+
+	redigo "github.com/garyburd/redigo/redis"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/rdb"
 )
 
-import (
-	"github.com/garyburd/redigo/redis"
-	"github.com/wandoulabs/codis/extern/redis-port/rdb"
-	"github.com/wandoulabs/codis/extern/redis-port/utils"
-)
-
-type AtomicInt64 int64
-
-func (a *AtomicInt64) Get() int64 {
-	return atomic.LoadInt64((*int64)(a))
-}
-
-func (a *AtomicInt64) Set(v int64) {
-	atomic.StoreInt64((*int64)(a), v)
-}
-
-func (a *AtomicInt64) Reset() int64 {
-	return atomic.SwapInt64((*int64)(a), 0)
-}
-
-func (a *AtomicInt64) Add(v int64) int64 {
-	return atomic.AddInt64((*int64)(a), v)
-}
-
-func (a *AtomicInt64) Sub(v int64) int64 {
-	return a.Add(-v)
-}
-
-func openRedisConn(target string) redis.Conn {
-	return redis.NewConn(openNetConn(target), 0, 0)
+func openRedisConn(target string) redigo.Conn {
+	return redigo.NewConn(openNetConn(target), 0, 0)
 }
 
 func openNetConn(target string) net.Conn {
 	c, err := net.Dial("tcp", target)
 	if err != nil {
-		utils.Panic("cannot connect to '%s', error = '%s'", target, err)
+		utils.ErrorPanic(err, "cannot connect to '%s'", target)
 	}
 	return c
 }
@@ -55,10 +33,10 @@ func openNetConn(target string) net.Conn {
 func openReadFile(name string) (f *os.File, nsize int64) {
 	var err error
 	if f, err = os.Open(name); err != nil {
-		utils.Panic("cannot open file-reader '%s', error = '%s'", name, err)
+		utils.ErrorPanic(err, "cannot open file-reader '%s'", name)
 	}
 	if fi, err := f.Stat(); err != nil {
-		utils.Panic("cannot stat file-reader '%s', error = '%s'", name, err)
+		utils.ErrorPanic(err, "cannot stat file-reader '%s'", name)
 	} else {
 		nsize = fi.Size()
 	}
@@ -68,19 +46,15 @@ func openReadFile(name string) (f *os.File, nsize int64) {
 func openWriteFile(name string) *os.File {
 	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {
-		utils.Panic("cannot open file-writer '%s', error = %s", name, err)
+		utils.ErrorPanic(err, "cannot open file-writer '%s'", name)
 	}
 	return f
 }
 
 func openSyncConn(target string) (net.Conn, chan int64) {
 	c := openNetConn(target)
-	for cmd := []byte("sync\r\n"); len(cmd) != 0; {
-		n, err := c.Write(cmd)
-		if err != nil {
-			utils.Panic("write sync command error = %s", err)
-		}
-		cmd = cmd[n:]
+	if _, err := ioutils.WriteFull(c, []byte("sync\r\n")); err != nil {
+		utils.ErrorPanic(err, "write sync command failed")
 	}
 	size := make(chan int64)
 	go func() {
@@ -88,7 +62,7 @@ func openSyncConn(target string) (net.Conn, chan int64) {
 		for {
 			b := []byte{0}
 			if _, err := c.Read(b); err != nil {
-				utils.Panic("read sync response = '%s', error = %s", rsp, err)
+				utils.ErrorPanic(err, "read sync response = '%s'", rsp)
 			}
 			if len(rsp) == 0 && b[0] == '\n' {
 				size <- 0
@@ -104,27 +78,89 @@ func openSyncConn(target string) (net.Conn, chan int64) {
 		}
 		n, err := strconv.Atoi(rsp[1 : len(rsp)-2])
 		if err != nil || n <= 0 {
-			utils.Panic("invalid sync response = '%s', error = %s, n = %d", rsp, err, n)
+			utils.ErrorPanic(err, "invalid sync response = '%s', n = %d", rsp, n)
 		}
 		size <- int64(n)
 	}()
 	return c, size
 }
 
-func restoreRdbEntry(c redis.Conn, e *rdb.Entry) {
+func selectDB(c redigo.Conn, db uint32) {
+	s, err := redigo.String(c.Do("select", db))
+	if err != nil {
+		utils.ErrorPanic(err, "select command error")
+	}
+	if s != "OK" {
+		utils.Panic("select command response = '%s', should be 'OK'", s)
+	}
+}
+
+func restoreRdbEntry(c redigo.Conn, e *rdb.Entry) {
 	var ttlms uint64
 	if e.ExpireAt != 0 {
-		if now := uint64(time.Now().UnixNano() / int64(time.Millisecond)); now >= e.ExpireAt {
+		now := uint64(time.Now().Add(args.shift).UnixNano())
+		now /= uint64(time.Millisecond)
+		if now >= e.ExpireAt {
 			ttlms = 1
 		} else {
 			ttlms = e.ExpireAt - now
 		}
 	}
-	s, err := redis.String(c.Do("slotsrestore", e.Key, ttlms, e.ValDump))
+	s, err := redigo.String(c.Do("slotsrestore", e.Key, ttlms, e.ValDump))
 	if err != nil {
-		utils.Panic("restore command error = '%s'", err)
+		utils.ErrorPanic(err, "restore command error")
 	}
 	if s != "OK" {
 		utils.Panic("restore command response = '%s', should be 'OK'", s)
 	}
+}
+
+func iocopy(r io.Reader, w io.Writer, p []byte, max int) int {
+	if max <= 0 || len(p) == 0 {
+		utils.Panic("invalid max = %d, len(p) = %d", max, len(p))
+	}
+	if len(p) > max {
+		p = p[:max]
+	}
+	if n, err := r.Read(p); err != nil {
+		utils.ErrorPanic(err, "read error")
+	} else {
+		p = p[:n]
+	}
+	if _, err := ioutils.WriteFull(w, p); err != nil {
+		utils.ErrorPanic(err, "write full error")
+	}
+	return len(p)
+}
+
+func flushWriter(w *bufio.Writer) {
+	if err := w.Flush(); err != nil {
+		utils.ErrorPanic(err, "flush error")
+	}
+}
+
+func newRDBLoader(reader *bufio.Reader, size int) chan *rdb.Entry {
+	pipe := make(chan *rdb.Entry, size)
+	go func() {
+		defer close(pipe)
+		l := rdb.NewLoader(reader)
+		if err := l.LoadHeader(); err != nil {
+			utils.ErrorPanic(err, "parse rdb header error")
+		}
+		for {
+			if entry, err := l.LoadEntry(); err != nil {
+				utils.ErrorPanic(err, "parse rdb entry error")
+			} else {
+				if entry != nil {
+					pipe <- entry
+				} else {
+					if err := l.LoadChecksum(); err != nil {
+						utils.ErrorPanic(err, "parse rdb checksum error")
+					}
+					return
+				}
+			}
+		}
+	}()
+	return pipe
 }

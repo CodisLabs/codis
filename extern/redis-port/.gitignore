@@ -1,6 +1,6 @@
-/redis-port
 *.rdb
 *.swp
 *.log
 *.tmp
 *.out
+/bin/*

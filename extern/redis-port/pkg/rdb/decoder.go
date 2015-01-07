@@ -3,17 +3,18 @@
 
 package rdb
 
-import "fmt"
-
 import (
+	"bytes"
+
 	"github.com/cupcake/rdb"
 	"github.com/cupcake/rdb/nopdecoder"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
 )
 
 func DecodeDump(p []byte) (interface{}, error) {
 	d := &decoder{}
 	if err := rdb.DecodeDump(p, 0, nil, 0, d); err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 	return d.obj, d.err
 }
@@ -29,7 +30,7 @@ func (d *decoder) initObject(obj interface{}) {
 		return
 	}
 	if d.obj != nil {
-		d.err = fmt.Errorf("invalid object, init again")
+		d.err = errors.New("invalid object, init again")
 	} else {
 		d.obj = obj
 	}
@@ -40,7 +41,7 @@ func (d *decoder) Set(key, value []byte, expiry int64) {
 }
 
 func (d *decoder) StartHash(key []byte, length, expiry int64) {
-	d.initObject(HashMap(nil))
+	d.initObject(Hash(nil))
 }
 
 func (d *decoder) Hset(key, field, value []byte) {
@@ -49,14 +50,9 @@ func (d *decoder) Hset(key, field, value []byte) {
 	}
 	switch h := d.obj.(type) {
 	default:
-		d.err = fmt.Errorf("invalid object, not a hashmap")
-	case HashMap:
-		v := struct {
-			Field, Value []byte
-		}{
-			field,
-			value,
-		}
+		d.err = errors.New("invalid object, not a hashmap")
+	case Hash:
+		v := &HashElement{Field: field, Value: value}
 		d.obj = append(h, v)
 	}
 }
@@ -71,7 +67,7 @@ func (d *decoder) Sadd(key, member []byte) {
 	}
 	switch s := d.obj.(type) {
 	default:
-		d.err = fmt.Errorf("invalid object, not a set")
+		d.err = errors.New("invalid object, not a set")
 	case Set:
 		d.obj = append(s, member)
 	}
@@ -87,7 +83,7 @@ func (d *decoder) Rpush(key, value []byte) {
 	}
 	switch l := d.obj.(type) {
 	default:
-		d.err = fmt.Errorf("invalid object, not a list")
+		d.err = errors.New("invalid object, not a list")
 	case List:
 		d.obj = append(l, value)
 	}
@@ -103,26 +99,58 @@ func (d *decoder) Zadd(key []byte, score float64, member []byte) {
 	}
 	switch z := d.obj.(type) {
 	default:
-		d.err = fmt.Errorf("invalid object, not a zset")
+		d.err = errors.New("invalid object, not a zset")
 	case ZSet:
-		v := struct {
-			Member []byte
-			Score  float64
-		}{
-			member,
-			score,
-		}
+		v := &ZSetElement{Member: member, Score: score}
 		d.obj = append(z, v)
 	}
 }
 
 type String []byte
 type List [][]byte
-type HashMap []struct {
+type Hash []*HashElement
+type ZSet []*ZSetElement
+type Set [][]byte
+
+type HashElement struct {
 	Field, Value []byte
 }
-type Set [][]byte
-type ZSet []struct {
+
+type ZSetElement struct {
 	Member []byte
 	Score  float64
+}
+
+func (hash Hash) Len() int {
+	return len(hash)
+}
+
+func (hash Hash) Swap(i, j int) {
+	hash[i], hash[j] = hash[j], hash[i]
+}
+
+type HSortByField struct{ Hash }
+
+func (by HSortByField) Less(i, j int) bool {
+	return bytes.Compare(by.Hash[i].Field, by.Hash[j].Field) < 0
+}
+
+func (zset ZSet) Len() int {
+	return len(zset)
+}
+
+func (zset ZSet) Swap(i, j int) {
+	zset[i], zset[j] = zset[j], zset[i]
+}
+
+type ZSortByMember struct{ ZSet }
+
+func (by ZSortByMember) Less(i, j int) bool {
+	return bytes.Compare(by.ZSet[i].Member, by.ZSet[j].Member) < 0
+}
+
+type ZSortByScore struct{ ZSet }
+
+func (by ZSortByScore) Less(i, j int) bool {
+	return by.ZSet[i].Score < by.ZSet[j].Score
 }

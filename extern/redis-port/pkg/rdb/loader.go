@@ -6,20 +6,18 @@ package rdb
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"hash"
 	"io"
 	"strconv"
-)
 
-import (
-	"github.com/wandoulabs/codis/extern/redis-port/rdb/digest"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/rdb/digest"
 )
 
 type Loader struct {
 	*rdbReader
-	crc   hash.Hash64
-	dbnum uint32
+	crc hash.Hash64
+	db  uint32
 }
 
 func NewLoader(r io.Reader) *Loader {
@@ -35,11 +33,12 @@ func (l *Loader) LoadHeader() error {
 		return err
 	}
 	if !bytes.Equal(header[:5], []byte("REDIS")) {
-		return fmt.Errorf("verify magic string, invalid file format")
+		return errors.New("verify magic string, invalid file format")
 	}
-	version, _ := strconv.ParseInt(string(header[5:]), 10, 64)
-	if version <= 0 || version > Version {
-		return fmt.Errorf("verify version, invalid RDB version number %d", version)
+	if version, err := strconv.ParseInt(string(header[5:]), 10, 64); err != nil {
+		return errors.Trace(err)
+	} else if version <= 0 || version > Version {
+		return errors.Errorf("verify version, invalid RDB version number %d", version)
 	}
 	return nil
 }
@@ -49,7 +48,7 @@ func (l *Loader) LoadChecksum() error {
 	if crc2, err := l.readUint64(); err != nil {
 		return err
 	} else if crc1 != crc2 {
-		return fmt.Errorf("checksum validation failed")
+		return errors.New("checksum validation failed")
 	}
 	return nil
 }
@@ -61,10 +60,7 @@ type Entry struct {
 	ExpireAt uint64
 }
 
-func (l *Loader) LoadEntry() (entry *Entry, offset int64, err error) {
-	defer func() {
-		offset = l.offset()
-	}()
+func (l *Loader) LoadEntry() (entry *Entry, err error) {
 	var expireat uint64
 	for {
 		var otype byte
@@ -83,7 +79,7 @@ func (l *Loader) LoadEntry() (entry *Entry, offset int64, err error) {
 			}
 			expireat = uint64(sec) * 1000
 		case rdbFlagSelectDB:
-			if l.dbnum, err = l.readLength(); err != nil {
+			if l.db, err = l.readLength(); err != nil {
 				return
 			}
 		case rdbFlagEOF:
@@ -97,16 +93,16 @@ func (l *Loader) LoadEntry() (entry *Entry, offset int64, err error) {
 				return
 			}
 			entry = &Entry{}
-			entry.DB = l.dbnum
+			entry.DB = l.db
 			entry.Key = key
-			entry.ValDump = createDump(otype, obj)
+			entry.ValDump = createValDump(otype, obj)
 			entry.ExpireAt = expireat
 			return
 		}
 	}
 }
 
-func createDump(otype byte, obj []byte) []byte {
+func createValDump(otype byte, obj []byte) []byte {
 	var b bytes.Buffer
 	c := digest.New()
 	w := io.MultiWriter(&b, c)

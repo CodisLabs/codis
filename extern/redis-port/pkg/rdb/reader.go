@@ -6,10 +6,12 @@ package rdb
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"math"
 	"strconv"
+
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
 )
 
 const (
@@ -71,7 +73,7 @@ func newRdbReader(r io.Reader) *rdbReader {
 func (r *rdbReader) Read(p []byte) (int, error) {
 	n, err := r.raw.Read(p)
 	r.nread += int64(n)
-	return n, err
+	return n, errors.Trace(err)
 }
 
 func (r *rdbReader) offset() int64 {
@@ -83,7 +85,7 @@ func (r *rdbReader) readObject(otype byte) ([]byte, error) {
 	r = newRdbReader(io.TeeReader(r, &b))
 	switch otype {
 	default:
-		return nil, fmt.Errorf("unknown object-type %02x", otype)
+		return nil, errors.Errorf("unknown object-type %02x", otype)
 	case rdbTypeHashZipmap:
 		fallthrough
 	case rdbTypeListZiplist:
@@ -148,7 +150,7 @@ func (r *rdbReader) readString() ([]byte, error) {
 	}
 	switch t := uint8(length); t {
 	default:
-		return nil, fmt.Errorf("invalid encoded-string %02x", t)
+		return nil, errors.Errorf("invalid encoded-string %02x", t)
 	case rdbEncInt8:
 		i, err := r.readInt8()
 		return []byte(strconv.FormatInt(int64(i), 10)), err
@@ -168,10 +170,8 @@ func (r *rdbReader) readString() ([]byte, error) {
 		}
 		if in, err := r.readBytes(int(inlen)); err != nil {
 			return nil, err
-		} else if out, err := lzfDecompress(in, int(outlen)); err != nil {
-			return nil, err
 		} else {
-			return out, nil
+			return lzfDecompress(in, int(outlen))
 		}
 	}
 }
@@ -198,7 +198,7 @@ func (r *rdbReader) readEncodedLength() (length uint32, encoded bool, err error)
 func (r *rdbReader) readLength() (uint32, error) {
 	length, encoded, err := r.readEncodedLength()
 	if err == nil && encoded {
-		err = fmt.Errorf("encoded-length")
+		err = errors.New("encoded-length")
 	}
 	return length, err
 }
@@ -219,29 +219,26 @@ func (r *rdbReader) readFloat() (float64, error) {
 		if b, err := r.readBytes(int(u)); err != nil {
 			return 0, err
 		} else {
-			return strconv.ParseFloat(string(b), 64)
+			v, err := strconv.ParseFloat(string(b), 64)
+			return v, errors.Trace(err)
 		}
 	}
 }
 
 func (r *rdbReader) readByte() (byte, error) {
 	b := r.buf[:1]
-	_, err := io.ReadFull(r, b)
+	_, err := ioutils.ReadFull(r, b)
 	return b[0], err
 }
 
 func (r *rdbReader) readFull(p []byte) error {
-	_, err := io.ReadFull(r, p)
+	_, err := ioutils.ReadFull(r, p)
 	return err
 }
 
 func (r *rdbReader) readBytes(n int) ([]byte, error) {
 	p := make([]byte, n)
-	if err := r.readFull(p); err != nil {
-		return nil, err
-	} else {
-		return p, nil
-	}
+	return p, r.readFull(p)
 }
 
 func (r *rdbReader) readUint8() (uint8, error) {
@@ -301,7 +298,7 @@ func (r *rdbReader) readInt32BigEndian() (int32, error) {
 func lzfDecompress(in []byte, outlen int) (out []byte, err error) {
 	defer func() {
 		if x := recover(); x != nil {
-			err = fmt.Errorf("decompress exception: %v", x)
+			err = errors.Errorf("decompress exception: %v", x)
 		}
 	}()
 	out = make([]byte, outlen)
@@ -331,7 +328,7 @@ func lzfDecompress(in []byte, outlen int) (out []byte, err error) {
 		}
 	}
 	if o != outlen {
-		return nil, fmt.Errorf("decompress length is %d != expected %d", o, outlen)
+		return nil, errors.Errorf("decompress length is %d != expected %d", o, outlen)
 	}
 	return out, nil
 }

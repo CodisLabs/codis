@@ -1,121 +1,220 @@
 // Copyright 2014 Wandoujia Inc. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package cmd
+package main
 
 import (
 	"bufio"
 	"bytes"
-	"encoding/hex"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
-	"sync"
+	"os"
+	"time"
+
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/iocount"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/rdb"
 )
 
-import (
-	"github.com/wandoulabs/codis/extern/redis-port/rdb"
-	"github.com/wandoulabs/codis/extern/redis-port/utils"
-)
+type cmdDecode struct {
+	nread, nsave, nobjs atomic2.AtomicInt64
+}
 
-func Decode(ncpu int, input, output string) {
+func (cmd *cmdDecode) Main() {
+	ncpu, input, output := args.ncpu, args.input, args.output
+	if len(input) == 0 {
+		input = "/dev/stdin"
+	}
+	if len(output) == 0 {
+		output = "/dev/stdout"
+	}
+
 	log.Printf("[ncpu=%d] decode from '%s' to '%s'\n", ncpu, input, output)
 
-	fin, nsize := openReadFile(input)
-	defer fin.Close()
+	var readin io.ReadCloser
+	var nsize int64
+	if input != "/dev/stdin" {
+		readin, nsize = openReadFile(input)
+		defer readin.Close()
+	} else {
+		readin, nsize = os.Stdin, 0
+	}
 
-	fout := openWriteFile(output)
-	defer fout.Close()
+	var saveto io.WriteCloser
+	if output != "/dev/stdout" {
+		saveto = openWriteFile(output)
+		defer saveto.Close()
+	} else {
+		saveto = os.Stdout
+	}
 
-	var nread, nwrite AtomicInt64
-	var wg sync.WaitGroup
+	reader := bufio.NewReaderSize(iocount.NewReaderWithCounter(readin, &cmd.nread), ReaderBufferSize)
+	writer := bufio.NewWriterSize(iocount.NewWriterWithCounter(saveto, &cmd.nsave), WriterBufferSize)
 
-	onTick := func() {
-		r, w := nread.Get(), nwrite.Get()
+	ipipe := newRDBLoader(reader, ncpu*32)
+	opipe := make(chan string, cap(ipipe))
+
+	go func() {
+		defer close(opipe)
+		group := make(chan int)
+		for i := 0; i < ncpu; i++ {
+			go func() {
+				defer func() {
+					group <- 0
+				}()
+				cmd.decoderMain(ipipe, opipe)
+			}()
+		}
+		for i := 0; i < ncpu; i++ {
+			<-group
+		}
+	}()
+
+	wait := make(chan struct{})
+	go func() {
+		defer close(wait)
+		for s := range opipe {
+			if _, err := writer.WriteString(s); err != nil {
+				utils.ErrorPanic(err, "write string failed")
+			}
+			flushWriter(writer)
+		}
+	}()
+
+	for done := false; !done; {
+		select {
+		case <-wait:
+			done = true
+		case <-time.After(time.Second):
+		}
+		n, w, o := cmd.nread.Get(), cmd.nsave.Get(), cmd.nobjs.Get()
 		if nsize != 0 {
-			p := 100 * r / nsize
-			log.Printf("total = %d  - %3d%%, read=%-14d write=%-14d\n", nsize, p, r, w)
+			p := 100 * n / nsize
+			log.Printf("total = %d - %12d [%3d%%]  write=%-12d objs=%d\n", nsize, n, p, w, o)
 		} else {
-			log.Printf("total = unknown  -  read=%-14d write=%-14d\n", r, w)
+			log.Printf("total = %12d  write=%-12d objs=%d\n", n, w, o)
 		}
 	}
-	onClose := func() {
-		onTick()
-		log.Printf("done\n")
-	}
-	ticker := NewClockTicker(&wg, onTick, onClose)
+	log.Println("done")
+}
 
-	loader := NewRdbLoader(&wg, ncpu*32, bufio.NewReaderSize(fin, 1024*1024*32), &nread)
-	writer := NewBufWriter(&wg, ncpu*32, bufio.NewWriterSize(fout, 128*1024), &nwrite)
-
-	for i, count := 0, AtomicInt64(ncpu); i < ncpu; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer func() {
-				if count.Sub(1) == 0 {
-					writer.Close()
-					ticker.Close()
-				}
-			}()
-			toHexString := func(p []byte) string {
-				var b bytes.Buffer
-				b.WriteByte('{')
-				for _, c := range p {
-					switch {
-					case c >= 'a' && c <= 'z':
-						fallthrough
-					case c >= 'A' && c <= 'Z':
-						fallthrough
-					case c >= '0' && c <= '9':
-						b.WriteByte(c)
-					default:
-						b.WriteByte('.')
-					}
-				}
-				b.WriteByte('|')
-				b.WriteString(hex.EncodeToString(p))
-				b.WriteByte('}')
-				return b.String()
+func (cmd *cmdDecode) decoderMain(ipipe <-chan *rdb.Entry, opipe chan<- string) {
+	toText := func(p []byte) string {
+		var b bytes.Buffer
+		for _, c := range p {
+			switch {
+			case c >= '#' && c <= '~':
+				b.WriteByte(c)
+			default:
+				b.WriteByte('.')
 			}
-			for e := range loader.Pipe() {
-				o, err := rdb.DecodeDump(e.ValDump)
-				if err != nil {
-					utils.Panic("decode error = '%s'", err)
-				}
-				var b bytes.Buffer
-				key := toHexString(e.Key)
-				switch obj := o.(type) {
-				default:
-					utils.Panic("unknown object %v", o)
-				case rdb.String:
-					val := toHexString(obj)
-					fmt.Fprintf(&b, "db=%d type=%s expireat=%d key=%s value=%s\n", e.DB, "string", e.ExpireAt, key, val)
-				case rdb.List:
-					for _, x := range obj {
-						ele := toHexString(x)
-						fmt.Fprintf(&b, "db=%d type=%s expireat=%d key=%s element=%s\n", e.DB, "list", e.ExpireAt, key, ele)
-					}
-				case rdb.HashMap:
-					for _, x := range obj {
-						fld := toHexString(x.Field)
-						mem := toHexString(x.Value)
-						fmt.Fprintf(&b, "db=%d type=%s expireat=%d key=%s field=%s member=%s\n", e.DB, "hset", e.ExpireAt, key, fld, mem)
-					}
-				case rdb.Set:
-					for _, x := range obj {
-						mem := toHexString(x)
-						fmt.Fprintf(&b, "db=%d type=%s expireat=%d key=%s member=%s\n", e.DB, "set", e.ExpireAt, key, mem)
-					}
-				case rdb.ZSet:
-					for _, x := range obj {
-						mem := toHexString(x.Member)
-						fmt.Fprintf(&b, "db=%d type=%s expireat=%d key=%s member=%s score=%f\n", e.DB, "zset", e.ExpireAt, key, mem, x.Score)
-					}
-				}
-				writer.Append(b.String())
-			}
-		}()
+		}
+		return b.String()
 	}
-
-	wg.Wait()
+	toBase64 := func(p []byte) string {
+		return base64.StdEncoding.EncodeToString(p)
+	}
+	toJson := func(o interface{}) string {
+		b, err := json.Marshal(o)
+		if err != nil {
+			utils.ErrorPanic(err, "encode to json failed")
+		}
+		return string(b)
+	}
+	for e := range ipipe {
+		o, err := rdb.DecodeDump(e.ValDump)
+		if err != nil {
+			utils.ErrorPanic(err, "decode failed")
+		}
+		var b bytes.Buffer
+		switch obj := o.(type) {
+		default:
+			utils.Panic("unknown object %v", o)
+		case rdb.String:
+			o := &struct {
+				DB       uint32 `json:"db"`
+				Type     string `json:"type"`
+				ExpireAt uint64 `json:"expireat"`
+				Key      string `json:"key"`
+				Key64    string `json:"key64"`
+				Value64  string `json:"value64"`
+			}{
+				e.DB, "string", e.ExpireAt, toText(e.Key), toBase64(e.Key),
+				toBase64(obj),
+			}
+			fmt.Fprintf(&b, "%s\n", toJson(o))
+		case rdb.List:
+			for i, ele := range obj {
+				o := &struct {
+					DB       uint32 `json:"db"`
+					Type     string `json:"type"`
+					ExpireAt uint64 `json:"expireat"`
+					Key      string `json:"key"`
+					Key64    string `json:"key64"`
+					Index    int    `json:"index"`
+					Value64  string `json:"value64"`
+				}{
+					e.DB, "list", e.ExpireAt, toText(e.Key), toBase64(e.Key),
+					i, toBase64(ele),
+				}
+				fmt.Fprintf(&b, "%s\n", toJson(o))
+			}
+		case rdb.Hash:
+			for _, ele := range obj {
+				o := &struct {
+					DB       uint32 `json:"db"`
+					Type     string `json:"type"`
+					ExpireAt uint64 `json:"expireat"`
+					Key      string `json:"key"`
+					Key64    string `json:"key64"`
+					Field    string `json:"field"`
+					Field64  string `json:"field64"`
+					Value64  string `json:"value64"`
+				}{
+					e.DB, "hash", e.ExpireAt, toText(e.Key), toBase64(e.Key),
+					toText(ele.Field), toBase64(ele.Field), toBase64(ele.Value),
+				}
+				fmt.Fprintf(&b, "%s\n", toJson(o))
+			}
+		case rdb.Set:
+			for _, mem := range obj {
+				o := &struct {
+					DB       uint32 `json:"db"`
+					Type     string `json:"type"`
+					ExpireAt uint64 `json:"expireat"`
+					Key      string `json:"key"`
+					Key64    string `json:"key64"`
+					Member   string `json:"member"`
+					Member64 string `json:"member64"`
+				}{
+					e.DB, "set", e.ExpireAt, toText(e.Key), toBase64(e.Key),
+					toText(mem), toBase64(mem),
+				}
+				fmt.Fprintf(&b, "%s\n", toJson(o))
+			}
+		case rdb.ZSet:
+			for _, ele := range obj {
+				o := &struct {
+					DB       uint32  `json:"db"`
+					Type     string  `json:"type"`
+					ExpireAt uint64  `json:"expireat"`
+					Key      string  `json:"key"`
+					Key64    string  `json:"key64"`
+					Member   string  `json:"member"`
+					Member64 string  `json:"member64"`
+					Score    float64 `json:"score"`
+				}{
+					e.DB, "zset", e.ExpireAt, toText(e.Key), toBase64(e.Key),
+					toText(ele.Member), toBase64(ele.Member), ele.Score,
+				}
+				fmt.Fprintf(&b, "%s\n", toJson(o))
+			}
+		}
+		cmd.nobjs.Incr()
+		opipe <- b.String()
+	}
 }

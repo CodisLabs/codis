@@ -7,59 +7,43 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/tests"
 )
 
-func DecodeHexRDB(t *testing.T, s string, n int) map[string]*Entry {
+func DecodeHexRdb(t *testing.T, s string, n int) map[string]*Entry {
 	p, err := hex.DecodeString(strings.NewReplacer("\t", "", "\r", "", "\n", "", " ", "").Replace(s))
-	if err != nil {
-		t.Fatalf("decode hex string error = '%s'", err)
-	}
+	tests.AssertNoError(t, err)
 	r := bytes.NewReader(p)
 	l := NewLoader(r)
-	if err := l.LoadHeader(); err != nil {
-		t.Fatalf("load rdb file header error = '%s'", err)
-	}
+	tests.AssertNoError(t, l.LoadHeader())
 	entries := make(map[string]*Entry)
+	var i int = 0
 	for {
-		if e, _, err := l.LoadEntry(); err != nil {
-			t.Fatalf("load entry error = '%s'", err)
-		} else if e == nil {
+		e, err := l.LoadEntry()
+		tests.AssertNoError(t, err)
+		if e == nil {
 			break
-		} else {
-			if e.DB != 0 {
-				t.Fatalf("load entry.db = %d, must be 0", e.DB)
-			}
-			key := string(e.Key)
-			if entries[key] != nil {
-				t.Fatalf("load entry.key = '%s', already exists", key)
-			}
-			entries[key] = e
 		}
+		tests.Assert(t, e.DB == 0)
+		entries[string(e.Key)] = e
+		i++
 	}
-	if err := l.LoadChecksum(); err != nil {
-		t.Fatalf("load rdb file checksum error = '%s'", err)
-	}
-	if r.Len() != 0 {
-		t.Fatalf("too many bytes in hex rdb")
-	}
-	if len(entries) != n {
-		t.Fatalf("decode len(entries) = %d, expect = %d", len(entries), n)
-	}
+	tests.AssertNoError(t, l.LoadChecksum())
+	tests.Assert(t, r.Len() == 0)
+	tests.Assert(t, len(entries) == i && i == n)
 	return entries
 }
 
 func getobj(t *testing.T, entries map[string]*Entry, key string) (*Entry, interface{}) {
 	e := entries[key]
-	if e == nil {
-		t.Fatalf("key = '%s' not exists", key)
-	}
+	tests.Assert(t, e != nil)
 	val, err := DecodeDump(e.ValDump)
-	if err != nil {
-		t.Fatalf("key = '%s', decode dump error = '%s'", key, err)
-	}
+	tests.AssertNoError(t, err)
 	return e, val
 }
 
@@ -83,14 +67,12 @@ func TestLoadIntString(t *testing.T) {
 		37c2ffffff7fffe49d9f131fb5c3b5
 	`
 	values := []int{1, 255, 256, 65535, 65536, 2147483647, 2147483648, 4294967295, 4294967296, -2147483648}
-	entries := DecodeHexRDB(t, s, len(values))
+	entries := DecodeHexRdb(t, s, len(values))
 	for _, value := range values {
 		key := fmt.Sprintf("string_%d", value)
 		_, obj := getobj(t, entries, key)
 		val := obj.(String)
-		if bytes.Compare([]byte(val), []byte(strconv.Itoa(value))) != 0 {
-			t.Fatalf("key = '%s', string = '%v', expect = %d", key, val, value)
-		}
+		tests.Assert(t, bytes.Equal([]byte(val), []byte(strconv.Itoa(value))))
 	}
 }
 
@@ -110,17 +92,13 @@ func TestLoadStringTTL(t *testing.T) {
 		5f74746c730b737472696e675f74746c73ffd15acd935a3fe949
 	`
 	expireat := uint64(1500000000000)
-	entries := DecodeHexRDB(t, s, 2)
+	entries := DecodeHexRdb(t, s, 2)
 	keys := []string{"string_ttls", "string_ttlms"}
 	for _, key := range keys {
 		e, obj := getobj(t, entries, key)
 		val := obj.(String)
-		if bytes.Compare([]byte(val), []byte(key)) != 0 {
-			t.Fatalf("key = '%s', string = '%v', expect = %s", key, val, key)
-		}
-		if e.ExpireAt != expireat {
-			t.Fatalf("key = '%s', expireat = '%d', expect = %d", e.ExpireAt, expireat)
-		}
+		tests.Assert(t, bytes.Equal([]byte(val), []byte(key)))
+		tests.Assert(t, e.ExpireAt == expireat)
 	}
 }
 
@@ -162,7 +140,7 @@ func TestLoadLongString(t *testing.T) {
 		ff01e0ff01e0ff01e0ff01e0ff01e0ff01e0ff01e0ff01e0ff01e0ff01e0ff01
 		e0ff01e0ff01e0ff01e0ff01e03201013031ffdfdb02bd6d5da5e6
 	`
-	entries := DecodeHexRDB(t, s, 1)
+	entries := DecodeHexRdb(t, s, 1)
 	_, obj := getobj(t, entries, "string_long")
 	val := []byte(obj.(String))
 	for i := 0; i < (1 << 15); i++ {
@@ -170,9 +148,7 @@ func TestLoadLongString(t *testing.T) {
 		if i%2 != 0 {
 			c = '1'
 		}
-		if val[i] != c {
-			t.Fatalf("string[%d] = '%v', expect = %d", i, val[i], c)
-		}
+		tests.Assert(t, val[i] == c)
 	}
 }
 
@@ -191,20 +167,16 @@ func TestLoadListZipmap(t *testing.T) {
 		0306000200f102f202e0ff03e1ff07e1ff07e1d90701f2ffff6a1c2d51c02301
 		16
 	`
-	entries := DecodeHexRDB(t, s, 1)
+	entries := DecodeHexRdb(t, s, 1)
 	_, obj := getobj(t, entries, "list_lzf")
 	val := obj.(List)
-	if len(val) != 512 {
-		t.Fatalf("len(list) = %d, expect = 512", len(val))
-	}
+	tests.Assert(t, len(val) == 512)
 	for i := 0; i < 256; i++ {
 		var s string = "0"
 		if i%2 != 0 {
 			s = "1"
 		}
-		if string(val[i]) != s {
-			t.Fatalf("list[%d] = '%v', expect = '%s'", i, val[i], s)
-		}
+		tests.Assert(t, string(val[i]) == s)
 	}
 }
 
@@ -222,16 +194,12 @@ func TestLoadList(t *testing.T) {
 		c007c008c009c00ac00bc00cc00dc00ec00fc010c011c012c013c014c015c016
 		c017c018c019c01ac01bc01cc01dc01ec01fff756ea1fa90adefe3
 	`
-	entries := DecodeHexRDB(t, s, 1)
+	entries := DecodeHexRdb(t, s, 1)
 	_, obj := getobj(t, entries, "list")
 	val := obj.(List)
-	if len(val) != 32 {
-		t.Fatalf("len(list) = %d, expect = 32", len(val))
-	}
+	tests.Assert(t, len(val) == 32)
 	for i := 0; i < 32; i++ {
-		if string(val[i]) != strconv.Itoa(i) {
-			t.Fatalf("list[%d] = '%v', expect = %d", i, val[i], i)
-		}
+		tests.Assert(t, string(val[i]) == strconv.Itoa(i))
 	}
 }
 
@@ -254,7 +222,7 @@ func TestLoadSetAndSetIntset(t *testing.T) {
 		0000000100020003000400050006000700080009000a000b000c000d000e000f
 		00ff3a0a9697324d19c3
 	`
-	entries := DecodeHexRDB(t, s, 2)
+	entries := DecodeHexRdb(t, s, 2)
 
 	_, obj1 := getobj(t, entries, "set1")
 	val1 := obj1.(Set)
@@ -262,13 +230,11 @@ func TestLoadSetAndSetIntset(t *testing.T) {
 	for _, mem := range val1 {
 		set1[string(mem)] = true
 	}
-	if len(set1) != 16 || len(val1) != len(set1) {
-		t.Fatalf("len(set1) = %d/%d, expect = 16", len(set1), len(val1))
-	}
+	tests.Assert(t, len(set1) == 16)
+	tests.Assert(t, len(set1) == len(val1))
 	for i := 0; i < 16; i++ {
-		if _, ok := set1[strconv.Itoa(i)]; !ok {
-			t.Fatalf("set1 missing %d", i)
-		}
+		_, ok := set1[strconv.Itoa(i)]
+		tests.Assert(t, ok)
 	}
 
 	_, obj2 := getobj(t, entries, "set2")
@@ -277,13 +243,11 @@ func TestLoadSetAndSetIntset(t *testing.T) {
 	for _, mem := range val2 {
 		set2[string(mem)] = true
 	}
-	if len(set2) != 32 || len(val2) != len(set2) {
-		t.Fatalf("len(set2) = %d/%d, expect = 32", len(set2), len(val2))
-	}
+	tests.Assert(t, len(set2) == 32)
+	tests.Assert(t, len(set2) == len(val2))
 	for i := 0; i < 32; i++ {
-		if _, ok := set2[strconv.Itoa(i)]; !ok {
-			t.Fatalf("set2 missing %d", i)
-		}
+		_, ok := set2[strconv.Itoa(i)]
+		tests.Assert(t, ok)
 	}
 }
 
@@ -309,38 +273,32 @@ func TestLoadHashAndHashZiplist(t *testing.T) {
 		02f702f802f802f902f902fa02fa02fb02fb02fc02fc02fd02fd02fe0d03fe0d
 		03fe0e03fe0e03fe0f03fe0fffffa423d3036c15e534
 	`
-	entries := DecodeHexRDB(t, s, 2)
+	entries := DecodeHexRdb(t, s, 2)
 
 	_, obj1 := getobj(t, entries, "hash1")
-	val1 := obj1.(HashMap)
+	val1 := obj1.(Hash)
 	hash1 := make(map[string]string)
 	for _, ent := range val1 {
 		hash1[string(ent.Field)] = string(ent.Value)
 	}
-	if len(hash1) != 16 || len(val1) != len(hash1) {
-		t.Fatalf("len(hash1) = %d/%d, expect = 16", len(hash1), len(val1))
-	}
+	tests.Assert(t, len(hash1) == 16)
+	tests.Assert(t, len(hash1) == len(val1))
 	for i := 0; i < 16; i++ {
 		s := strconv.Itoa(i)
-		if hash1[s] != s {
-			t.Fatalf("hash1[%s] is error", s)
-		}
+		tests.Assert(t, hash1[s] == s)
 	}
 
 	_, obj2 := getobj(t, entries, "hash2")
-	val2 := obj2.(HashMap)
+	val2 := obj2.(Hash)
 	hash2 := make(map[string]string)
 	for _, ent := range val2 {
 		hash2[string(ent.Field)] = string(ent.Value)
 	}
-	if len(hash2) != 32 || len(val2) != len(hash2) {
-		t.Fatalf("len(hash2) = %d/%d, expect = 32", len(hash2), len(val2))
-	}
+	tests.Assert(t, len(hash2) == 32)
+	tests.Assert(t, len(hash2) == len(val2))
 	for i := -16; i < 16; i++ {
 		s := strconv.Itoa(i)
-		if hash2[s] != s {
-			t.Fatalf("hash2[%s] is error", s)
-		}
+		tests.Assert(t, hash2[s] == s)
 	}
 }
 
@@ -368,7 +326,7 @@ func TestLoadZSetAndZSetZiplist(t *testing.T) {
 		02fa02fa02fb02fb02fc02fc02fd02fd02fe0d03fe0d03fe0e03fe0e03fe0f03
 		fe0fffff2addedbf4f5a8f93
 	`
-	entries := DecodeHexRDB(t, s, 2)
+	entries := DecodeHexRdb(t, s, 2)
 
 	_, obj1 := getobj(t, entries, "zset1")
 	val1 := obj1.(ZSet)
@@ -376,14 +334,13 @@ func TestLoadZSetAndZSetZiplist(t *testing.T) {
 	for _, ent := range val1 {
 		zset1[string(ent.Member)] = ent.Score
 	}
-	if len(zset1) != 16 || len(zset1) != len(val1) {
-		t.Fatalf("len(zset1) = %d/%d, expect = 16", len(zset1), len(val1))
-	}
+	tests.Assert(t, len(zset1) == 16)
+	tests.Assert(t, len(zset1) == len(val1))
 	for i := 0; i < 16; i++ {
 		s := strconv.Itoa(i)
-		if score, ok := zset1[s]; !ok || score != float64(i) {
-			t.Fatalf("zset1[%s] is error", s)
-		}
+		score, ok := zset1[s]
+		tests.Assert(t, ok)
+		tests.Assert(t, math.Abs(score-float64(i)) < 1e-10)
 	}
 
 	_, obj2 := getobj(t, entries, "zset2")
@@ -392,13 +349,12 @@ func TestLoadZSetAndZSetZiplist(t *testing.T) {
 	for _, ent := range val2 {
 		zset2[string(ent.Member)] = ent.Score
 	}
-	if len(zset2) != 32 || len(zset2) != len(val2) {
-		t.Fatalf("len(zset2) = %d/%d, expect = 32", len(zset2), len(val2))
-	}
+	tests.Assert(t, len(zset2) == 32)
+	tests.Assert(t, len(zset2) == len(val2))
 	for i := 0; i < 32; i++ {
 		s := strconv.Itoa(i)
-		if score, ok := zset2[s]; !ok || score != -float64(i) {
-			t.Fatalf("zset2[%s] is error", s)
-		}
+		score, ok := zset2[s]
+		tests.Assert(t, ok)
+		tests.Assert(t, math.Abs(score+float64(i)) < 1e-10)
 	}
 }

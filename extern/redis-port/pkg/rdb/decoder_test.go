@@ -6,23 +6,21 @@ package rdb
 import (
 	"bytes"
 	"encoding/hex"
+	"math"
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/tests"
 )
 
-func hexStringToObject(t *testing.T, s string) (obj interface{}) {
+func hexStringToObject(t *testing.T, s string) interface{} {
+	var obj interface{}
 	p, err := hex.DecodeString(strings.NewReplacer("\t", "", "\r", "", "\n", "", " ", "").Replace(s))
-	if err != nil {
-		t.Fatalf("decode hex string error = '%s'", err)
-	}
+	tests.AssertNoError(t, err)
 	obj, err = DecodeDump(p)
-	if err != nil {
-		t.Fatalf("decode dump error = '%s'", err)
-	}
-	if obj == nil {
-		t.Fatalf("decode object is nil")
-	}
+	tests.AssertNoError(t, err)
+	tests.Assert(t, obj != nil)
 	return obj
 }
 
@@ -44,9 +42,7 @@ done
 func TestDecodeString(t *testing.T) {
 	docheck := func(hexs string, expect string) {
 		val := hexStringToObject(t, hexs).(String)
-		if bytes.Compare([]byte(val), []byte(expect)) != 0 {
-			t.Fatalf("string = '%v', expect = '%s'", hexs, val, expect)
-		}
+		tests.Assert(t, bytes.Equal([]byte(val), []byte(expect)))
 	}
 	docheck("00c0010600b0958f3624542d6f", "1")
 	docheck("00c1ff0006004a42131348a52fa4", "255")
@@ -81,13 +77,9 @@ func TestDecodeListZipmap(t *testing.T) {
 		ff060052f7f617938b332a
 	`
 	val := hexStringToObject(t, s).(List)
-	if len(val) != 32 {
-		t.Fatalf("len(list) = %d, expect = 32", len(val))
-	}
+	tests.Assert(t, len(val) == 32)
 	for i := 0; i < len(val); i++ {
-		if string(val[i]) != strconv.Itoa(i) {
-			t.Fatalf("list[%d] = '%v', expect = %d", i, val[i], i)
-		}
+		tests.Assert(t, string(val[i]) == strconv.Itoa(i))
 	}
 }
 
@@ -105,13 +97,9 @@ func TestDecodeList(t *testing.T) {
 		c01f0600e87781cbebc997f5
 	`
 	val := hexStringToObject(t, s).(List)
-	if len(val) != 32 {
-		t.Fatalf("len(list) = %d, expect = 32)", len(val))
-	}
+	tests.Assert(t, len(val) == 32)
 	for i := 0; i < len(val); i++ {
-		if string(val[i]) != strconv.Itoa(i) {
-			t.Fatalf("list[%d] = '%v', expect = %d", i, val[i], i)
-		}
+		tests.Assert(t, string(val[i]) == strconv.Itoa(i))
 	}
 }
 
@@ -129,20 +117,15 @@ func TestDecodeSet(t *testing.T) {
 		c00506007bd0a89270890016
 	`
 	val := hexStringToObject(t, s).(Set)
-	if len(val) != 32 {
-		t.Fatalf("len(set) = %d, expect = 32", len(val))
-	}
+	tests.Assert(t, len(val) == 32)
 	set := make(map[string]bool)
 	for _, mem := range val {
 		set[string(mem)] = true
 	}
-	if len(set) != 32 || len(val) != len(set) {
-		t.Fatalf("len(set) = %d/%d, expect = 32", len(set), len(val))
-	}
+	tests.Assert(t, len(val) == len(set))
 	for i := 0; i < 32; i++ {
-		if _, ok := set[strconv.Itoa(i)]; !ok {
-			t.Fatalf("set missing %d", i)
-		}
+		_, ok := set[strconv.Itoa(i)]
+		tests.Assert(t, ok)
 	}
 }
 
@@ -162,22 +145,16 @@ func TestDecodeHash(t *testing.T) {
 		c1e100c01fc1c103c00ec1c400c003c009c00ac064c015c1b901c010c10001c0
 		0bc079c018c14002c011c12101c00cc19000c005c019060072320e870e10799d
 	`
-	val := hexStringToObject(t, s).(HashMap)
-	if len(val) != 32 {
-		t.Fatalf("len(hash) = %d, expect = 32", len(val))
-	}
+	val := hexStringToObject(t, s).(Hash)
+	tests.Assert(t, len(val) == 32)
 	hash := make(map[string]string)
 	for _, ent := range val {
 		hash[string(ent.Field)] = string(ent.Value)
 	}
-	if len(hash) != 32 || len(val) != len(hash) {
-		t.Fatalf("len(hash) = %d/%d, expect = 32", len(hash), len(val))
-	}
+	tests.Assert(t, len(val) == len(hash))
 	for i := 0; i < 32; i++ {
 		s := strconv.Itoa(i)
-		if hash[s] != strconv.Itoa(i*i) {
-			t.Fatalf("hash[%s] is error", s)
-		}
+		tests.Assert(t, hash[s] == strconv.Itoa(i*i))
 	}
 }
 
@@ -199,20 +176,16 @@ func TestDecodeZSet(t *testing.T) {
 		16
 	`
 	val := hexStringToObject(t, s).(ZSet)
-	if len(val) != 32 {
-		t.Fatalf("len(zset) = %d, expect = 32", len(val))
-	}
+	tests.Assert(t, len(val) == 32)
 	zset := make(map[string]float64)
 	for _, ent := range val {
 		zset[string(ent.Member)] = ent.Score
 	}
-	if len(zset) != 32 || len(zset) != len(val) {
-		t.Fatalf("len(zset) = %d/%d, expect = 32", len(zset), len(val))
-	}
+	tests.Assert(t, len(val) == len(zset))
 	for i := 0; i < 32; i++ {
 		s := strconv.Itoa(i)
-		if score, ok := zset[s]; !ok || score != -float64(i) {
-			t.Fatalf("zset[%s] is error", s)
-		}
+		score, ok := zset[s]
+		tests.Assert(t, ok)
+		tests.Assert(t, math.Abs(score+float64(i)) < 1e-10)
 	}
 }
