@@ -40,9 +40,9 @@ func main() {
 	usage := `
 Usage:
 	redis-port decode   [--ncpu=N]  [--input=INPUT]  [--output=OUTPUT]
-	redis-port restore  [--ncpu=N]  [--input=INPUT]   --target=TARGET  [--extra] [--faketime=FAKETIME] [--assertdb=DB] [--filterdb=DB]
+	redis-port restore  [--ncpu=N]  [--input=INPUT]   --target=TARGET  [--extra] [--faketime=FAKETIME] [--filterdb=DB]
 	redis-port dump     [--ncpu=N]   --from=MASTER   [--output=OUTPUT] [--extra]
-	redis-port sync     [--ncpu=N]   --from=MASTER    --target=TARGET  [--sockfile=FILE [--filesize=SIZE]] [--assertdb=DB] [--filterdb=DB]
+	redis-port sync     [--ncpu=N]   --from=MASTER    --target=TARGET  [--sockfile=FILE [--filesize=SIZE]] [--filterdb=DB]
 
 Options:
 	-n N, --ncpu=N                    Set runtime.GOMAXPROCS to N.
@@ -54,7 +54,6 @@ Options:
 	--sockfile=FILE                   Use FILE to as socket buffer, default is disabled.
 	--filesize=SIZE                   Set FILE size, default value is 1gb.
 	-e, --extra                       Set ture to send/receive following redis commands, default is false.
-	--assertdb=DB                     Assert db = DB, default is 0.
 	--filterdb=DB                     Filter db = DB, default is *.
 `
 	d, err := docopt.Parse(usage, nil, true, "", false)
@@ -111,38 +110,7 @@ Options:
 		}
 	}
 
-	const maxdb int64 = 1024
-
-	assertDB := func(db int64) {
-		if db != 0 {
-			utils.Panic("got db = %d, expect = 0", db)
-		}
-	}
-	if s, ok := d["--assertdb"].(string); ok && s != "" {
-		if s != "*" {
-			n, err := strconv.ParseInt(s, 10, 64)
-			if err != nil {
-				utils.ErrorPanic(err, "parse --assertdb failed")
-			}
-			if n < 0 || n > maxdb {
-				utils.Panic("parse --assertdb = %d, only accpet [0,%d]", n, maxdb)
-			}
-			assertDB = func(db int64) {
-				if db != n {
-					utils.Panic("got db = %d, expect = %d", db, n)
-				}
-			}
-		} else {
-			assertDB = func(db int64) {
-				if db < 0 || db > maxdb {
-					utils.Panic("got db = %d, only accept [0,%d]", db, maxdb)
-				}
-			}
-		}
-	}
-
 	acceptDB = func(db int64) bool {
-		assertDB(db)
 		return true
 	}
 	if s, ok := d["--filterdb"].(string); ok && s != "" {
@@ -151,11 +119,11 @@ Options:
 			if err != nil {
 				utils.ErrorPanic(err, "parse --filterdb failed")
 			}
-			if n < 0 || n > maxdb {
-				utils.Panic("parse --filterdb = %d, only accpet [0,%d]", n, maxdb)
+			const max int64 = 1024
+			if n < 0 || n > max {
+				utils.Panic("parse --filterdb = %d, only accpet [0,%d]", n, max)
 			}
 			acceptDB = func(db int64) bool {
-				assertDB(db)
 				return db == n
 			}
 		}

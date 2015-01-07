@@ -24,7 +24,7 @@ redis-port dump     [--ncpu=N]   --from=MASTER   [--output=OUTPUT] [--extra]
 * **SYNC** data from master to slave
 
 ```sh
-redis-port sync     [--ncpu=N]   --from=MASTER    --target=TARGET  [--sockfile=FILE [--filesize=SIZE]] [--assertdb=DB] [--filterdb=DB]
+redis-port sync     [--ncpu=N]   --from=MASTER    --target=TARGET  [--sockfile=FILE [--filesize=SIZE]] [--filterdb=DB]
 ```
 
 Options
@@ -52,10 +52,6 @@ Options
 + -e, --extra
 
 > dump or restore following redis backlog commands
-
-+ --assertdb=DB
-
-> panic if db != DB, default value is 0, can be set to '*' to match any db number in [0,1024)
 
 + --filterdb=DB
 
