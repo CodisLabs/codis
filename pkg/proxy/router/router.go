@@ -229,6 +229,7 @@ check_state:
 	s.mu.RLock()
 	if s.slots[i] == nil {
 		s.mu.RUnlock()
+		s.concurrentLimiter.Put(token)
 		return errors.Errorf("should never happend, slot %d is empty", i)
 	}
 	//wait for state change, should be soon
