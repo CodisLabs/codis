@@ -228,7 +228,7 @@ func (s *Server) redisTunnel(c *session) error {
 check_state:
 	s.mu.RLock()
 	if s.slots[i] == nil {
-		s.mu.Unlock()
+		s.mu.RUnlock()
 		return errors.Errorf("should never happend, slot %d is empty", i)
 	}
 	//wait for state change, should be soon
