@@ -41,7 +41,6 @@ func (pc *PooledConn) Recycle() {
 //requre read to use bufio
 func (pc *PooledConn) Read(p []byte) (int, error) {
 	panic("not allowed")
-	return pc.r.Read(p)
 }
 
 func (pc *PooledConn) Write(p []byte) (int, error) {
