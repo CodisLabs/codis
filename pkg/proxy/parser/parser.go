@@ -236,8 +236,6 @@ func Parse(r *bufio.Reader) (*Resp, error) {
 		}
 		return resp, nil
 	}
-
-	return nil, errors.New("redis protocol error, " + string(line))
 }
 
 func IsLetter(c byte) bool {
