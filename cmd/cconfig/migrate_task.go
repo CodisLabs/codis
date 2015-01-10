@@ -43,7 +43,7 @@ type MigrateTaskForm struct {
 type MigrateTask struct {
 	MigrateTaskForm
 
-	stopChan chan struct{} `json:"-"`
+	stopChan chan struct{}
 }
 
 func findPendingMigrateTask(id string) *MigrateTask {
