@@ -244,8 +244,8 @@ check_state:
 		s.mu.RUnlock()
 		sec := time.Since(start).Seconds()
 		if sec > 2 {
-			log.Warningf("op: %s, key:%s, on: %s, too long %d", opstr,
-				string(k), s.slots[i].dst.Master(), int(sec))
+			log.Warningf("op: %s, key:%s, on: %s, too long %d seconds, client: %s", opstr,
+				string(k), s.slots[i].dst.Master(), int(sec), c.RemoteAddr().String())
 		}
 		recordResponseTime(s.counter, time.Duration(sec)*1000)
 		s.concurrentLimiter.Put(token)
