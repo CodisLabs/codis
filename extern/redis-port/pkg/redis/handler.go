@@ -97,8 +97,8 @@ func ParseArgs(resp Resp) (cmd string, args [][]byte, err error) {
 	for i, resp := range array {
 		if o, ok := resp.(*BulkBytes); !ok {
 			return "", nil, errors.Errorf("args[%d], expect bulkbytes, but got '%s'", i, resp.Type())
-		} else if len(o.Value) == 0 {
-			return "", nil, errors.Errorf("args[%d] is nil or empty", i)
+		} else if i == 0 && len(o.Value) == 0 {
+			return "", nil, errors.New("command is empty")
 		} else {
 			slices = append(slices, o.Value)
 		}
