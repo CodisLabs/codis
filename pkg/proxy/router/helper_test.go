@@ -136,7 +136,7 @@ func TestForward(t *testing.T) {
 		t.Error(err)
 	}
 
-	_, clientErr := forward(client, redis, resp)
+	_, clientErr := forward(client, redis, resp, 5)
 	if clientErr != nil {
 		t.Error(clientErr)
 	}
@@ -208,7 +208,7 @@ func TestHandleSpecCommand(t *testing.T) {
 
 		result := &bytes.Buffer{}
 		w := &fakeDeadlineReadWriter{w: bufio.NewWriter(result)}
-		_, _, err = handleSpecCommand(k, w, keys)
+		_, _, err = handleSpecCommand(k, w, keys, 5)
 		if err != nil {
 			t.Error(err)
 		}
@@ -230,7 +230,7 @@ func TestHandleSpecCommand(t *testing.T) {
 		w := &fakeDeadlineReadWriter{w: bufio.NewWriter(result)}
 		_, keys, _ := resp.GetOpKeys()
 
-		_, _, err = handleSpecCommand("ECHO", w, keys)
+		_, _, err = handleSpecCommand("ECHO", w, keys, 5)
 		if err != nil {
 			t.Error(errors.ErrorStack(err))
 		}
@@ -251,7 +251,7 @@ func TestHandleSpecCommand(t *testing.T) {
 		result := &bytes.Buffer{}
 		w := &fakeDeadlineReadWriter{w: bufio.NewWriter(result)}
 		_, keys, _ := resp.GetOpKeys()
-		shouldClose, _, err := handleSpecCommand("ECHO", w, keys)
+		shouldClose, _, err := handleSpecCommand("ECHO", w, keys, 5)
 		if !shouldClose {
 			t.Error(errors.ErrorStack(err))
 		}
@@ -261,7 +261,7 @@ func TestHandleSpecCommand(t *testing.T) {
 	{
 		result := &bytes.Buffer{}
 		w := &fakeDeadlineReadWriter{w: bufio.NewWriter(result)}
-		_, handled, err := handleSpecCommand("get", w, nil)
+		_, handled, err := handleSpecCommand("get", w, nil, 5)
 		if handled {
 			t.Error(errors.ErrorStack(err))
 		}

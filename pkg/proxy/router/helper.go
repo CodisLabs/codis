@@ -86,7 +86,7 @@ type DeadlineReadWriter interface {
 	SetReadDeadline(t time.Time) error
 }
 
-func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byte) (bool, bool, error) {
+func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byte, timeout int) (bool, bool, error) {
 	var b []byte
 	shouldClose := false
 	switch cmd {
@@ -112,7 +112,7 @@ func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byt
 	}
 
 	if len(b) > 0 {
-		clientWriter.SetWriteDeadline(time.Now().Add(5 * time.Second))
+		clientWriter.SetWriteDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
 		_, err := clientWriter.Write(b)
 		if err != nil {
 			return shouldClose, true, errors.Errorf("%s, cmd:%s", err.Error(), cmd)
@@ -160,9 +160,9 @@ type BufioDeadlineReadWriter interface {
 	BufioReader() *bufio.Reader
 }
 
-func forward(c DeadlineReadWriter, redisConn BufioDeadlineReadWriter, resp *parser.Resp) (redisErr error, clientErr error) {
+func forward(c DeadlineReadWriter, redisConn BufioDeadlineReadWriter, resp *parser.Resp, timeout int) (redisErr error, clientErr error) {
 	redisReader := redisConn.BufioReader()
-	if err := redisConn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err := redisConn.SetWriteDeadline(time.Now().Add(time.Duration(timeout) * time.Second)); err != nil {
 		return errors.Trace(err), errors.Trace(err)
 	}
 
@@ -170,11 +170,11 @@ func forward(c DeadlineReadWriter, redisConn BufioDeadlineReadWriter, resp *pars
 		return errors.Trace(err), errors.Trace(err)
 	}
 
-	if err := redisConn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err := redisConn.SetReadDeadline(time.Now().Add(time.Duration(timeout) * time.Second)); err != nil {
 		return errors.Trace(err), errors.Trace(err)
 	}
 
-	if err := c.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	if err := c.SetWriteDeadline(time.Now().Add(time.Duration(timeout) * time.Second)); err != nil {
 		return nil, errors.Trace(err)
 	}
 
@@ -246,6 +246,7 @@ type Conf struct {
 	productName string
 	zkAddr      string
 	f           topology.ZkFactory
+	net_timeout int //seconds
 }
 
 func LoadConf(configFile string) (*Conf, error) {
@@ -267,6 +268,8 @@ func LoadConf(configFile string) (*Conf, error) {
 	if len(srvConf.proxyId) == 0 {
 		log.Fatalf("invalid config: need proxy_id entry is missing in %s", configFile)
 	}
+
+	srvConf.net_timeout, _ = conf.ReadInt("net_timeout", 5)
 
 	return srvConf, nil
 }
