@@ -105,7 +105,6 @@ func GetGroup(zkConn zkhelper.Conn, productName string, groupId int) (*ServerGro
 }
 
 func ServerGroups(zkConn zkhelper.Conn, productName string) ([]ServerGroup, error) {
-	//ret := make(map[int][]*Server)
 	var ret []ServerGroup
 	root := fmt.Sprintf("/zk/codis/db_%s/servers", productName)
 	groups, _, err := zkConn.Children(root)
