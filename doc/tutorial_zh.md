@@ -194,6 +194,6 @@ $ ../bin/codis-config slot rebalance
  * 所有 server group 都必须有 Master
  * 
 
-####如实现redis的主从自动切换
+####如实现codis-server的主从自动切换
 
 codis-ha是一个通过codis开放的api实现自动切换主从的例子。[具体用法](https://github.com/ngaut/codis-ha)
