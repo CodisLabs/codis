@@ -45,7 +45,7 @@ type Command struct {
 	Ctx   interface{}
 }
 
-var usage = `usage: cconfig  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
+var usage = `usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
 		<command> [<args>...]
 options:
    -c	set config file
@@ -167,7 +167,7 @@ func runCommand(cmd string, args []string) (err error) {
 	case "slot":
 		return cmdSlot(argv)
 	}
-	return fmt.Errorf("%s is not a valid command. See 'cconfig -h'", cmd)
+	return fmt.Errorf("%s is not a valid command. See 'codis-config -h'", cmd)
 }
 
 func main() {

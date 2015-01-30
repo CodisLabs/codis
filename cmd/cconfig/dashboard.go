@@ -25,7 +25,7 @@ import (
 )
 
 func cmdDashboard(argv []string) (err error) {
-	usage := `usage: cconfig dashboard [--addr=<address>] [--http-log=<log_file>]
+	usage := `usage: codis-config dashboard [--addr=<address>] [--http-log=<log_file>]
 
 options:
 	--addr	listen ip:port, e.g. localhost:12345, :8086, [default: :8086]
