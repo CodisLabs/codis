@@ -192,3 +192,8 @@ $ ../bin/codis-config slot rebalance
  * 所有的codis-server都必须设置了maxmemory参数
  * 所有的 slots 都应该处于 online 状态, 即没有迁移任务正在执行
  * 所有 server group 都必须有 Master
+ * 
+
+####如实现redis的主从自动切换
+
+codis-ha是一个通过codis开放的api实现自动切换主从的例子。[具体用法](https://github.com/ngaut/codis-ha)
