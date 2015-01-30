@@ -18,12 +18,12 @@ import (
 
 func cmdServer(argv []string) (err error) {
 	usage := `usage:
-	cconfig server list
-	cconfig server add <group_id> <redis_addr> <role>
-	cconfig server remove <group_id> <redis_addr>
-	cconfig server promote <group_id> <redis_addr>
-	cconfig server add-group <group_id>
-	cconfig server remove-group <group_id>
+	codis-config server list
+	codis-config server add <group_id> <redis_addr> <role>
+	codis-config server remove <group_id> <redis_addr>
+	codis-config server promote <group_id> <redis_addr>
+	codis-config server add-group <group_id>
+	codis-config server remove-group <group_id>
 `
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {

@@ -15,9 +15,9 @@ import (
 
 func cmdProxy(argv []string) (err error) {
 	usage := `usage:
-	cconfig proxy list
-	cconfig proxy offline <proxy_name>
-	cconfig proxy online <proxy_name>
+	codis-config proxy list
+	codis-config proxy offline <proxy_name>
+	codis-config proxy online <proxy_name>
 `
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {

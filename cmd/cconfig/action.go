@@ -15,7 +15,7 @@ import (
 )
 
 func cmdAction(argv []string) (err error) {
-	usage := `usage: cconfig action (gc [-n <num> | -s <seconds>] | remove-lock)
+	usage := `usage: codis-config action (gc [-n <num> | -s <seconds>] | remove-lock)
 
 options:
 	gc:

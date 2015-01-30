@@ -19,12 +19,12 @@ import (
 
 func cmdSlot(argv []string) (err error) {
 	usage := `usage:
-	cconfig slot init [-f]
-	cconfig slot info <slot_id>
-	cconfig slot set <slot_id> <group_id> <status>
-	cconfig slot range-set <slot_from> <slot_to> <group_id> <status>
-	cconfig slot migrate <slot_from> <slot_to> <group_id> [--delay=<delay_time_in_ms>]
-	cconfig slot rebalance [--delay=<delay_time_in_ms>]
+	codis-config slot init [-f]
+	codis-config slot info <slot_id>
+	codis-config slot set <slot_id> <group_id> <status>
+	codis-config slot range-set <slot_from> <slot_to> <group_id> <status>
+	codis-config slot migrate <slot_from> <slot_to> <group_id> [--delay=<delay_time_in_ms>]
+	codis-config slot rebalance [--delay=<delay_time_in_ms>]
 `
 
 	args, err := docopt.Parse(usage, argv, true, "", false)
