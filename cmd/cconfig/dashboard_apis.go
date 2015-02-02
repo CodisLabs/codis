@@ -61,11 +61,11 @@ func apiOverview() (int, string) {
 		}
 	}
 
-	var info map[string]interface{} = make(map[string]interface{})
+	info := make(map[string]interface{})
 	info["product"] = productName
 	info["ops"] = proxiesSpeed
 
-	var redisInfos []map[string]string = make([]map[string]string, 0)
+	redisInfos := make([]map[string]string, 0)
 
 	if len(instances) > 0 {
 		for _, instance := range instances {

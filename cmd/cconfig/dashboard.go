@@ -125,7 +125,7 @@ func getAllProxyDebugVars() map[string]map[string]interface{} {
 func getProxySpeedChan() <-chan int64 {
 	c := make(chan int64)
 	go func(c chan int64) {
-		var lastCnt int64 = 0
+		var lastCnt int64
 		for {
 			cnt := getAllProxyOps()
 			if lastCnt > 0 {
