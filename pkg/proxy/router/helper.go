@@ -246,7 +246,7 @@ type Conf struct {
 	productName string
 	zkAddr      string
 	f           topology.ZkFactory
-	net_timeout int //seconds
+	netTimeout  int //seconds
 }
 
 func LoadConf(configFile string) (*Conf, error) {
@@ -269,7 +269,7 @@ func LoadConf(configFile string) (*Conf, error) {
 		log.Fatalf("invalid config: need proxy_id entry is missing in %s", configFile)
 	}
 
-	srvConf.net_timeout, _ = conf.ReadInt("net_timeout", 5)
+	srvConf.netTimeout, _ = conf.ReadInt("net_timeout", 5)
 
 	return srvConf, nil
 }

@@ -54,9 +54,9 @@ type Server struct {
 	moper *MultiOperator
 	pools *cachepool.CachePool
 	//counter
-	counter     *stats.Counters
-	OnSuicide   OnSuicideFun
-	net_timeout int //seconds
+	counter    *stats.Counters
+	OnSuicide  OnSuicideFun
+	netTimeout int //seconds
 }
 
 func (s *Server) clearSlot(i int) {
@@ -171,7 +171,7 @@ func (s *Server) filter(opstr string, keys [][]byte, c *session) (next bool, err
 		return false, errors.Trace(fmt.Errorf("%s not allowed", opstr))
 	}
 
-	shouldClose, handled, err := handleSpecCommand(opstr, c, keys, s.net_timeout)
+	shouldClose, handled, err := handleSpecCommand(opstr, c, keys, s.netTimeout)
 	if shouldClose { //quit command
 		return false, errors.Trace(io.EOF)
 	}
@@ -262,7 +262,7 @@ check_state:
 		return errors.Trace(err)
 	}
 
-	redisErr, clientErr := forward(c, redisConn.(*redispool.PooledConn), resp, s.net_timeout)
+	redisErr, clientErr := forward(c, redisConn.(*redispool.PooledConn), resp, s.netTimeout)
 	if redisErr != nil {
 		redisConn.Close()
 	}
@@ -569,7 +569,7 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	s := &Server{
 		evtbus:            make(chan interface{}, 100),
 		top:               topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
-		net_timeout:       conf.net_timeout,
+		netTimeout:        conf.netTimeout,
 		counter:           stats.NewCounters("router"),
 		lastActionSeq:     -1,
 		startAt:           time.Now(),
