@@ -38,7 +38,7 @@ type Slot struct {
 
 type OnSuicideFun func() error
 
-//change field not allowed whitout Lock()
+//change field is not allowed without Lock
 type Server struct {
 	mu     sync.RWMutex
 	slots  [models.DEFAULT_SLOT_NUM]*Slot
