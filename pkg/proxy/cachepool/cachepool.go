@@ -7,13 +7,62 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandoulabs/codis/pkg/proxy/redispool"
-
+	"container/list"
 	"github.com/juju/errors"
+	"github.com/wandoulabs/codis/pkg/proxy/redispool"
 )
 
+type SimpleConnectionPool struct {
+	createTs time.Time
+	sync.Mutex
+	fact  redispool.CreateConnectionFunc
+	conns *list.List
+}
+
+func NewSimpleConnectionPool() *SimpleConnectionPool {
+	return &SimpleConnectionPool{
+		createTs: time.Now(),
+	}
+}
+
+func (s *SimpleConnectionPool) Put(conn redispool.PoolConnection) {
+	s.Lock()
+	defer s.Unlock()
+	if conn != nil {
+		s.conns.PushBack(conn)
+	}
+}
+
+func (s *SimpleConnectionPool) Get() (redispool.PoolConnection, error) {
+	s.Lock()
+	defer s.Unlock()
+	if s.conns.Len() == 0 {
+		c, err := s.fact(s)
+		return c, err
+	}
+
+	e := s.conns.Front()
+	s.conns.Remove(e)
+	return e.Value.(redispool.PoolConnection), nil
+}
+
+func (s *SimpleConnectionPool) Open(fact redispool.CreateConnectionFunc) {
+	s.Lock()
+	defer s.Unlock()
+	s.fact = fact
+	s.conns = list.New()
+}
+
+func (s *SimpleConnectionPool) Close() {
+	s.Lock()
+	defer s.Unlock()
+	for e := s.conns.Front(); e != nil; e = e.Next() {
+		e.Value.(redispool.PoolConnection).Close()
+	}
+}
+
 type LivePool struct {
-	pool *redispool.ConnectionPool
+	pool redispool.IPool
 }
 
 type CachePool struct {
@@ -55,7 +104,8 @@ func (cp *CachePool) AddPool(key string) error {
 		return nil
 	}
 	pool = &LivePool{
-		pool: redispool.NewConnectionPool("redis conn pool", 50, 120*time.Second),
+		//pool: redispool.NewConnectionPool("redis conn pool", 50, 120*time.Second),
+		pool: NewSimpleConnectionPool(),
 	}
 
 	pool.pool.Open(redispool.ConnectionCreator(key))
