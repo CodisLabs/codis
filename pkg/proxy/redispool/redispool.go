@@ -29,7 +29,7 @@ type PoolConnection interface {
 
 // CreateConnectionFunc is the factory method to create new connections
 // within the passed ConnectionPool.
-type CreateConnectionFunc func(*ConnectionPool) (connection PoolConnection, err error)
+type CreateConnectionFunc func(pool IPool) (connection PoolConnection, err error)
 
 // ConnectionPool re-exposes ResourcePool as a pool of PoolConnection objects
 type ConnectionPool struct {
