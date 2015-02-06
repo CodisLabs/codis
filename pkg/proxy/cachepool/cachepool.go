@@ -26,23 +26,26 @@ func NewSimpleConnectionPool() *SimpleConnectionPool {
 }
 
 func (s *SimpleConnectionPool) Put(conn redispool.PoolConnection) {
-	s.Lock()
-	defer s.Unlock()
 	if conn != nil {
+		s.Lock()
 		s.conns.PushBack(conn)
+		s.Unlock()
 	}
+
 }
 
 func (s *SimpleConnectionPool) Get() (redispool.PoolConnection, error) {
 	s.Lock()
-	defer s.Unlock()
 	if s.conns.Len() == 0 {
 		c, err := s.fact(s)
+		s.Unlock()
 		return c, err
 	}
 
 	e := s.conns.Front()
 	s.conns.Remove(e)
+
+	s.Unlock()
 	return e.Value.(redispool.PoolConnection), nil
 }
 
