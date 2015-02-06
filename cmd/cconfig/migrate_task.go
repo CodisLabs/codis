@@ -171,14 +171,13 @@ func preMigrateCheck(t *MigrateTask) (bool, error) {
 	slots, err := models.GetMigratingSlots(conn, productName)
 
 	if err != nil {
-		return false, err
+		return false, errors.Trace(err)
 	}
 	// check if there is migrating slot
-	if len(slots) == 0 {
-		return true, nil
-	} else if len(slots) > 1 {
+	if len(slots) > 1 {
 		return false, errors.New("more than one slots are migrating, unknown error")
-	} else if len(slots) == 1 {
+	}
+	if len(slots) == 1 {
 		slot := slots[0]
 		if t.NewGroupId != slot.State.MigrateStatus.To || t.FromSlot != slot.Id || t.ToSlot != slot.Id {
 			return false, errors.Errorf("there is a migrating slot %+v, finish it first", slot)

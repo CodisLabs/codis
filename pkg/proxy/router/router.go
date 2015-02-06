@@ -561,6 +561,11 @@ func (s *Server) RegisterAndWait() {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
+	_, err = s.top.CreateProxyFenceNode(&s.pi)
+	if err != nil {
+		log.Fatal(errors.ErrorStack(err))
+	}
+
 	s.waitOnline()
 }
 
