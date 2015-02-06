@@ -95,6 +95,10 @@ func (top *Topology) CreateProxyInfo(pi *models.ProxyInfo) (string, error) {
 	return models.CreateProxyInfo(top.zkConn, top.ProductName, pi)
 }
 
+func (top *Topology) CreateProxyFenceNode(pi* models.ProxyInfo) (string, error) {
+	return models.CreateProxyFenceNode(top.zkConn, top.ProductName, pi)
+}
+
 func (top *Topology) GetProxyInfo(proxyName string) (*models.ProxyInfo, error) {
 	return models.GetProxyInfo(top.zkConn, top.ProductName, proxyName)
 }
@@ -108,6 +112,9 @@ func (top *Topology) SetProxyStatus(proxyName string, status string) error {
 }
 
 func (top *Topology) Close(proxyName string) {
+	// delete fence znode
+	zkhelper.DeleteRecursive(top.zkConn, path.Join(models.GetProxyFencePath(top.ProductName), proxyName), -1)
+	// delete ephemeral znode
 	zkhelper.DeleteRecursive(top.zkConn, path.Join(models.GetProxyPath(top.ProductName), proxyName), -1)
 	top.zkConn.Close()
 }

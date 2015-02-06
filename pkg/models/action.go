@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"bytes"
 
 	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -239,7 +240,25 @@ func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, 
 	if err != nil {
 		return errors.Trace(err)
 	}
-
+	if needConfirm {
+		// do fencing here, make sure 'offline' proxies are really offline
+		// now we only check whether the proxy lists are match
+		fenceProxies, err := GetFenceProxyMap(zkConn, productName)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		for _, proxy := range proxies {
+			delete(fenceProxies, proxy.Addr)
+		}
+		if len(fenceProxies) > 0 {
+			errMsg := bytes.NewBufferString("Some proxies may not stop cleanly:")
+			for k,_ := range fenceProxies {
+				errMsg.WriteString(" ")
+				errMsg.WriteString(k)
+			}
+			return errors.New(errMsg.String())
+		}
+	}
 	for _, p := range proxies {
 		action.Receivers = append(action.Receivers, p.Id)
 	}
