@@ -226,12 +226,12 @@ func (s *Server) redisTunnel(c *session) error {
 
 	i := mapKey2Slot(k)
 	token := s.concurrentLimiter.Get()
+	defer s.concurrentLimiter.Put(token)
 
 check_state:
 	s.mu.RLock()
 	if s.slots[i] == nil {
 		s.mu.RUnlock()
-		s.concurrentLimiter.Put(token)
 		return errors.Errorf("should never happend, slot %d is empty", i)
 	}
 	//wait for state change, should be soon
@@ -249,25 +249,41 @@ check_state:
 				string(k), s.slots[i].dst.Master(), int(sec), c.RemoteAddr().String())
 		}
 		recordResponseTime(s.counter, time.Duration(sec)*1000)
-		s.concurrentLimiter.Put(token)
 	}()
 
 	if err := s.handleMigrateState(i, k); err != nil {
 		return errors.Trace(err)
 	}
 
-	//get redis connection
-	redisConn, err := s.pools.GetConn(s.slots[i].dst.Master())
-	if err != nil {
-		return errors.Trace(err)
+	//todo: use pipeline
+	c.pipelineSeq++
+
+	pr := &PipelineRequest{
+		slot:  i,
+		op:    op,
+		keys:  keys,
+		seq:   c.pipelineSeq,
+		backQ: c.backQ,
 	}
 
-	redisErr, clientErr := forward(c, redisConn.(*redispool.PooledConn), resp, s.netTimeout)
-	if redisErr != nil {
-		redisConn.Close()
-	}
-	s.pools.ReleaseConn(redisConn)
-	return errors.Trace(clientErr)
+	s.evtbus <- pr
+	return nil
+
+	/*
+
+		//get redis connection
+		redisConn, err := s.pools.GetConn(s.slots[i].dst.Master())
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		redisErr, clientErr := forward(c, redisConn.(*redispool.PooledConn), resp, s.netTimeout)
+		if redisErr != nil {
+			redisConn.Close()
+		}
+		s.pools.ReleaseConn(redisConn)
+		return errors.Trace(clientErr)
+	*/
 }
 
 func (s *Server) handleConn(c net.Conn) {
@@ -275,10 +291,14 @@ func (s *Server) handleConn(c net.Conn) {
 
 	s.counter.Add("connections", 1)
 	client := &session{
-		Conn:     c,
-		r:        bufio.NewReader(c),
-		CreateAt: time.Now(),
+		Conn:            c,
+		r:               bufio.NewReader(c),
+		CreateAt:        time.Now(),
+		backQ:           make(chan *PipelineResponse, 10),
+		unsentResponses: make(map[int64]*PipelineResponse),
 	}
+
+	go client.WritingLoop()
 
 	var err error
 
@@ -513,6 +533,8 @@ func (s *Server) handleTopoEvent() {
 			log.Infof("got event %s, %v", s.pi.Id, e)
 			s.processAction(e)
 		}
+
+		//todo:handle SLOT_STATUS_PRE_MIGRATE
 	}
 }
 
