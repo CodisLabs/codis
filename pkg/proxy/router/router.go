@@ -6,6 +6,8 @@ package router
 import (
 	"bufio"
 	"fmt"
+	"github.com/ngaut/go-zookeeper/zk"
+	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
 	"io"
 	"net"
 	"os"
@@ -15,12 +17,12 @@ import (
 	"sync"
 	"time"
 
-	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
-
+	"container/list"
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
+	"github.com/wandoulabs/codis/pkg/proxy/redisconn"
 	"github.com/wandoulabs/codis/pkg/proxy/redispool"
 
 	"github.com/juju/errors"
@@ -57,6 +59,128 @@ type Server struct {
 	counter    *stats.Counters
 	OnSuicide  OnSuicideFun
 	netTimeout int //seconds
+
+	//pipeline connection
+	pipeConns map[string]*taskRunner //master->taskrunner
+}
+
+type taskRunner struct {
+	evtbus    chan interface{}
+	in        chan interface{} //*PipelineRequest
+	out       chan *parser.Resp
+	redisAddr string
+	tasks     *list.List
+	c         *redisconn.Conn
+}
+
+func (tr *taskRunner) readloop() {
+	for {
+		resp, err := parser.Parse(tr.c.BufioReader())
+		if err != nil {
+			return
+		}
+
+		tr.out <- resp
+	}
+}
+
+func (tr *taskRunner) dowrite(r *PipelineRequest, flush bool) error {
+	b, err := r.req.Bytes()
+	if err != nil {
+		log.Warning(err)
+		return err
+	}
+
+	_, err = tr.c.Write(b)
+	if err != nil {
+		log.Warning(err)
+		return err
+	}
+
+	if flush {
+		return tr.c.Flush()
+	}
+
+	return nil
+}
+
+func (tr *taskRunner) handleTask(r *PipelineRequest, flush bool) {
+	log.Debugf("handleTask:%v", r)
+	if r == nil && flush { //just flush
+		tr.c.Flush()
+		return
+	}
+
+	err := tr.dowrite(r, flush)
+	if err != nil {
+		//todo: how to handle this error
+		//notify all request, close client connection ?
+		log.Error(err)
+		return
+	}
+
+	tr.tasks.PushBack(r)
+}
+
+func (tr *taskRunner) writeloop() {
+	var bufCnt int64
+	var closed bool
+	var wgClose *sync.WaitGroup
+	for {
+		if closed && tr.tasks.Len() == 0 {
+			wgClose.Done()
+			return
+		}
+
+		select {
+		case t := <-tr.in:
+			switch t.(type) {
+			case *PipelineRequest:
+				r := t.(*PipelineRequest)
+				var flush bool
+				bufCnt++
+				if len(tr.in) == 0 { //force flush
+					bufCnt = 0
+					flush = true
+				}
+
+				tr.handleTask(r, flush)
+			case *sync.WaitGroup:
+				if bufCnt > 0 {
+					bufCnt = 0
+					tr.handleTask(nil, true)
+				}
+				closed = true
+			}
+		case resp := <-tr.out:
+			e := tr.tasks.Front()
+			req := e.Value.(*PipelineRequest)
+			log.Debug("finish", req)
+			req.backQ <- &PipelineResponse{ctx: req, resp: resp, err: nil}
+			tr.tasks.Remove(e)
+		}
+	}
+}
+
+func NewTaskRunner(addr string) (*taskRunner, error) {
+	tr := &taskRunner{
+		in:        make(chan interface{}, 100),
+		out:       make(chan *parser.Resp, 100),
+		redisAddr: addr,
+		tasks:     list.New(),
+	}
+
+	c, err := redisconn.NewConnection(addr, true)
+	if err != nil {
+		return nil, err
+	}
+
+	tr.c = c
+
+	go tr.writeloop()
+	go tr.readloop()
+
+	return tr, nil
 }
 
 func (s *Server) clearSlot(i int) {
@@ -110,6 +234,15 @@ func (s *Server) fillSlot(i int, force bool) {
 	}
 
 	s.slots[i] = slot
+	dst := slot.dst.Master()
+	if _, ok := s.pipeConns[dst]; !ok {
+		tr, err := NewTaskRunner(dst)
+		if err != nil {
+			log.Error(dst)
+		}
+		s.pipeConns[dst] = tr
+	}
+
 	s.counter.Add("FillSlot", 1)
 }
 
@@ -255,35 +388,20 @@ check_state:
 		return errors.Trace(err)
 	}
 
-	//todo: use pipeline
+	//pipeline
 	c.pipelineSeq++
 
 	pr := &PipelineRequest{
-		slot:  i,
-		op:    op,
-		keys:  keys,
-		seq:   c.pipelineSeq,
-		backQ: c.backQ,
+		slotIdx: i,
+		op:      op,
+		keys:    keys,
+		seq:     c.pipelineSeq,
+		backQ:   c.backQ,
+		req:     resp,
 	}
 
 	s.evtbus <- pr
 	return nil
-
-	/*
-
-		//get redis connection
-		redisConn, err := s.pools.GetConn(s.slots[i].dst.Master())
-		if err != nil {
-			return errors.Trace(err)
-		}
-
-		redisErr, clientErr := forward(c, redisConn.(*redispool.PooledConn), resp, s.netTimeout)
-		if redisErr != nil {
-			redisConn.Close()
-		}
-		s.pools.ReleaseConn(redisConn)
-		return errors.Trace(clientErr)
-	*/
 }
 
 func (s *Server) handleConn(c net.Conn) {
@@ -293,8 +411,9 @@ func (s *Server) handleConn(c net.Conn) {
 	client := &session{
 		Conn:            c,
 		r:               bufio.NewReader(c),
+		w:               bufio.NewWriter(c),
 		CreateAt:        time.Now(),
-		backQ:           make(chan *PipelineResponse, 10),
+		backQ:           make(chan *PipelineResponse, 100),
 		unsentResponses: make(map[int64]*PipelineResponse),
 	}
 
@@ -527,13 +646,17 @@ func (s *Server) processAction(e interface{}) {
 }
 
 func (s *Server) handleTopoEvent() {
-	for {
-		select {
-		case e := <-s.evtbus:
+	for e := range s.evtbus {
+		switch e.(type) {
+		case *PipelineRequest:
+			r := e.(*PipelineRequest)
+			log.Debugf("got event %v, seq:%v", string(r.op), r.seq)
+			s.pipeConns[s.slots[r.slotIdx].dst.Master()].in <- e
+		case zk.Event:
 			log.Infof("got event %s, %v", s.pi.Id, e)
 			s.processAction(e)
-		}
 
+		}
 		//todo:handle SLOT_STATUS_PRE_MIGRATE
 	}
 }
@@ -604,6 +727,7 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 		concurrentLimiter: tokenlimiter.NewTokenLimiter(100),
 		moper:             NewMultiOperator(addr),
 		pools:             cachepool.NewCachePool(),
+		pipeConns:         make(map[string]*taskRunner),
 	}
 
 	s.mu.Lock()
