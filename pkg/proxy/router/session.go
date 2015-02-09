@@ -5,6 +5,7 @@ package router
 
 import (
 	"bufio"
+	"fmt"
 	"github.com/juju/errors"
 	log "github.com/ngaut/logging"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
@@ -26,11 +27,16 @@ type session struct {
 }
 
 type PipelineRequest struct {
-	slot  int
-	op    []byte
-	keys  [][]byte
-	seq   int64
-	backQ chan *PipelineResponse
+	slotIdx int
+	op      []byte
+	keys    [][]byte
+	seq     int64
+	backQ   chan *PipelineResponse
+	req     *parser.Resp
+}
+
+func (pr *PipelineRequest) String() string {
+	return fmt.Sprintf("op:%s, seq:%d, slot:%d", string(pr.op), pr.seq, pr.slotIdx)
 }
 
 type PipelineResponse struct {
@@ -49,35 +55,39 @@ func (s *session) writeResp(resp *PipelineResponse) error {
 		return errors.Trace(err)
 	}
 
-	s.lastUnsentResponseSeq++
 	return nil
 }
 
 func (s *session) handleResponse(resp *PipelineResponse) error {
-	if resp.ctx.seq != s.lastUnsentResponseSeq {
-		s.unsentResponses[resp.ctx.seq] = resp
-		return nil
+	log.Debug("session handleResponse ", resp.ctx, s.lastUnsentResponseSeq)
+	s.unsentResponses[resp.ctx.seq] = resp
 
-	}
-
-	if err := s.writeResp(resp); err != nil {
-		return errors.Trace(err)
-	}
+	var flush bool
 
 	for { //are there any more continues responses
-		if resp, ok := s.unsentResponses[s.lastUnsentResponseSeq]; ok {
-			if err := s.writeResp(resp); err != nil {
-				return errors.Trace(err)
-			}
+		resp, ok := s.unsentResponses[s.lastUnsentResponseSeq]
+		if !ok {
+			break
 		}
+
+		log.Debugf("write %+v", resp.ctx.seq)
+		if err := s.writeResp(resp); err != nil {
+			return errors.Trace(err)
+		}
+		delete(s.unsentResponses, s.lastUnsentResponseSeq)
+		s.lastUnsentResponseSeq++
+		flush = true
 	}
 
-	s.w.Flush()
+	if flush {
+		s.w.Flush()
+	}
 
 	return nil
 }
 
 func (s *session) WritingLoop() {
+	s.lastUnsentResponseSeq = 1
 	for {
 		select {
 		case resp := <-s.backQ:
