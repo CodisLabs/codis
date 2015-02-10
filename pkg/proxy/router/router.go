@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"bytes"
 	"container/list"
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
@@ -299,31 +300,39 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 	return nil
 }
 
-func (s *Server) filter(opstr string, keys [][]byte, c *session) (next bool, err error) {
+func (s *Server) filter(opstr string, keys [][]byte, c *session) (rawresp []byte, next bool, err error) {
 	if !allowOp(opstr) {
-		return false, errors.Trace(fmt.Errorf("%s not allowed", opstr))
+		return nil, false, errors.Trace(fmt.Errorf("%s not allowed", opstr))
 	}
 
-	shouldClose, handled, err := handleSpecCommand(opstr, c, keys, s.netTimeout)
+	buf, shouldClose, handled, err := handleSpecCommand(opstr, c, keys, s.netTimeout)
 	if shouldClose { //quit command
-		return false, errors.Trace(io.EOF)
+		return nil, false, errors.Trace(io.EOF)
 	}
 	if err != nil {
-		return false, errors.Trace(err)
+		return nil, false, errors.Trace(err)
 	}
+
 	if handled {
-		return false, nil
+		return buf, false, nil
 	}
 
-	if isMulOp(opstr) {
-		if len(keys) == 1 { //can send to redis directly
-			return true, nil
-		} else {
-			return false, s.moper.handleMultiOp(opstr, keys, c)
-		}
+	return nil, true, nil
+}
+
+func (s *Server) sendBack(c *session, op []byte, keys [][]byte, resp *parser.Resp, result []byte) {
+	c.pipelineSeq++
+	pr := &PipelineRequest{
+		op:    op,
+		keys:  keys,
+		seq:   c.pipelineSeq,
+		backQ: c.backQ,
+		req:   resp,
 	}
 
-	return true, nil
+	resp, err := parser.Parse(bufio.NewReader(bytes.NewReader(result)))
+	//just send to backQ
+	c.backQ <- &PipelineResponse{ctx: pr, err: err, resp: resp}
 }
 
 func (s *Server) redisTunnel(c *session) error {
@@ -346,15 +355,29 @@ func (s *Server) redisTunnel(c *session) error {
 
 	opstr := strings.ToUpper(string(op))
 	//log.Debugf("op: %s, %s", opstr, keys[0])
-	next, err := s.filter(opstr, keys, c)
-	if err != nil {
+	buf, next, err := s.filter(opstr, keys, c)
+	if err != nil { //notify flush first ?
 		return errors.Trace(err)
 	}
 
 	s.counter.Add(opstr, 1)
 	s.counter.Add("ops", 1)
 	if !next {
+		s.sendBack(c, op, keys, resp, buf)
 		return nil
+	}
+
+	if isMulOp(opstr) {
+		if len(keys) > 1 { //can send to redis directly
+			var result []byte
+			err := s.moper.handleMultiOp(opstr, keys, &result)
+			if err != nil {
+				return errors.Trace(err)
+			}
+
+			s.sendBack(c, op, keys, resp, result)
+			return nil
+		}
 	}
 
 	i := mapKey2Slot(k)
@@ -390,6 +413,8 @@ check_state:
 
 	//pipeline
 	c.pipelineSeq++
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
 
 	pr := &PipelineRequest{
 		slotIdx: i,
@@ -398,9 +423,11 @@ check_state:
 		seq:     c.pipelineSeq,
 		backQ:   c.backQ,
 		req:     resp,
+		wg:      wg,
 	}
 
 	s.evtbus <- pr
+	wg.Wait()
 	return nil
 }
 
@@ -409,12 +436,11 @@ func (s *Server) handleConn(c net.Conn) {
 
 	s.counter.Add("connections", 1)
 	client := &session{
-		Conn:            c,
-		r:               bufio.NewReader(c),
-		w:               bufio.NewWriter(c),
-		CreateAt:        time.Now(),
-		backQ:           make(chan *PipelineResponse, 100),
-		unsentResponses: make(map[int64]*PipelineResponse),
+		Conn:     c,
+		r:        bufio.NewReader(c),
+		w:        bufio.NewWriter(c),
+		CreateAt: time.Now(),
+		backQ:    make(chan *PipelineResponse, 100),
 	}
 
 	go client.WritingLoop()
@@ -439,6 +465,7 @@ func (s *Server) handleConn(c net.Conn) {
 	for {
 		err = s.redisTunnel(client)
 		if err != nil {
+			close(client.backQ)
 			return
 		}
 		client.Ops++
@@ -708,7 +735,7 @@ func (s *Server) RegisterAndWait() {
 
 	_, err = s.top.CreateProxyFenceNode(&s.pi)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.Warning(errors.ErrorStack(err))
 	}
 
 	s.waitOnline()
