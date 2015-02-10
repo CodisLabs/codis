@@ -10,6 +10,7 @@ import (
 	log "github.com/ngaut/logging"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -22,8 +23,8 @@ type session struct {
 	Ops                   int64
 	pipelineSeq           int64
 	backQ                 chan *PipelineResponse
-	unsentResponses       map[int64]*PipelineResponse
 	lastUnsentResponseSeq int64
+	closed                bool
 }
 
 type PipelineRequest struct {
@@ -33,6 +34,7 @@ type PipelineRequest struct {
 	seq     int64
 	backQ   chan *PipelineResponse
 	req     *parser.Resp
+	wg      *sync.WaitGroup
 }
 
 func (pr *PipelineRequest) String() string {
@@ -51,49 +53,61 @@ func (s *session) writeResp(resp *PipelineResponse) error {
 		return errors.Trace(err)
 	}
 	_, err = s.Write(buf)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	return nil
+	return errors.Trace(err)
 }
 
-func (s *session) handleResponse(resp *PipelineResponse) error {
-	log.Debug("session handleResponse ", resp.ctx, s.lastUnsentResponseSeq)
-	s.unsentResponses[resp.ctx.seq] = resp
+func (s *session) handleResponse(resp *PipelineResponse) (flush bool, err error) {
+	log.Debug("session handleResponse ", resp.ctx, "lastUnsentResponseSeq", s.lastUnsentResponseSeq)
 
-	var flush bool
+	if resp.ctx.seq != s.lastUnsentResponseSeq {
+		log.Fatal("should never happend")
+	}
 
-	for { //are there any more continues responses
-		resp, ok := s.unsentResponses[s.lastUnsentResponseSeq]
-		if !ok {
-			break
-		}
+	s.lastUnsentResponseSeq++
+	if resp.ctx.wg != nil {
+		resp.ctx.wg.Done()
+	}
 
-		log.Debugf("write %+v", resp.ctx.seq)
+	if resp.err != nil {
+		return true, resp.err
+	}
+
+	if !s.closed {
 		if err := s.writeResp(resp); err != nil {
-			return errors.Trace(err)
+			return false, errors.Trace(err)
 		}
-		delete(s.unsentResponses, s.lastUnsentResponseSeq)
-		s.lastUnsentResponseSeq++
+
 		flush = true
 	}
 
-	if flush {
-		s.w.Flush()
-	}
-
-	return nil
+	return
 }
 
 func (s *session) WritingLoop() {
 	s.lastUnsentResponseSeq = 1
 	for {
 		select {
-		case resp := <-s.backQ:
-			err := s.handleResponse(resp)
+		case resp, ok := <-s.backQ:
+			if !ok {
+				return
+			}
+
+			flush, err := s.handleResponse(resp)
 			if err != nil {
-				log.Warning(s.RemoteAddr(), errors.ErrorStack(err))
+				log.Warning(s.RemoteAddr(), resp.ctx, errors.ErrorStack(err))
+				s.Conn.Close()
+				s.closed = true
+				continue
+			}
+
+			if flush && len(s.backQ) == 0 {
+				err := s.w.Flush()
+				if err != nil {
+					log.Warning(s.RemoteAddr(), resp.ctx, errors.ErrorStack(err))
+					s.Conn.Close()
+					s.closed = true
+					continue
+				}
 			}
 		}
 	}
@@ -101,7 +115,7 @@ func (s *session) WritingLoop() {
 
 //make sure all read using bufio.Reader
 func (s *session) Read(p []byte) (int, error) {
-	return 0, errors.New("not implemented")
+	panic("not implemented")
 }
 
 //write without bufio

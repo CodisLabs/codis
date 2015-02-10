@@ -86,7 +86,7 @@ type DeadlineReadWriter interface {
 	SetReadDeadline(t time.Time) error
 }
 
-func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byte, timeout int) (bool, bool, error) {
+func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byte, timeout int) ([]byte, bool, bool, error) {
 	var b []byte
 	shouldClose := false
 	switch cmd {
@@ -104,24 +104,18 @@ func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byt
 			var err error
 			b, err = respcoding.Marshal(string(keys[0]))
 			if err != nil {
-				return true, false, errors.Trace(err)
+				return nil, true, false, errors.Trace(err)
 			}
 		} else {
-			return true, false, nil
+			return nil, true, false, nil
 		}
 	}
 
 	if len(b) > 0 {
-		clientWriter.SetWriteDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
-		_, err := clientWriter.Write(b)
-		if err != nil {
-			return shouldClose, true, errors.Errorf("%s, cmd:%s", err.Error(), cmd)
-		}
-
-		return shouldClose, true, nil
+		return b, shouldClose, true, nil
 	}
 
-	return shouldClose, false, nil
+	return b, shouldClose, false, nil
 }
 
 func write2Client(redisReader *bufio.Reader, clientWriter io.Writer) (redisErr error, clientErr error) {
