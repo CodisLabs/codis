@@ -12,8 +12,4 @@ before_script:
 script: 
     - ./bootstrap.sh
     - make gotest
-
-
-branches:
-  only:
-  - master
+    
