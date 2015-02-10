@@ -171,7 +171,7 @@ func NewTaskRunner(addr string) (*taskRunner, error) {
 		tasks:     list.New(),
 	}
 
-	c, err := redisconn.NewConnection(addr, true)
+	c, err := redisconn.NewConnection(addr)
 	if err != nil {
 		return nil, err
 	}
