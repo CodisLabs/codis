@@ -135,6 +135,7 @@ func (oper *MultiOperator) msetResults(mop *MulOp) ([]byte, error) {
 	conn := oper.pool.Get()
 	defer conn.Close()
 	for i := 0; i < len(mop.keys); i += 2 {
+		log.Info(string(mop.keys[i]), string(mop.keys[i+1]))
 		_, err := conn.Do("set", mop.keys[i], mop.keys[i+1]) //change mset to set
 		if err != nil {
 			return nil, errors.Trace(err)

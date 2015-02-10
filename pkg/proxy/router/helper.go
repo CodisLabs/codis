@@ -86,7 +86,7 @@ type DeadlineReadWriter interface {
 	SetReadDeadline(t time.Time) error
 }
 
-func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byte, timeout int) ([]byte, bool, bool, error) {
+func handleSpecCommand(cmd string, keys [][]byte, timeout int) ([]byte, bool, bool, error) {
 	var b []byte
 	shouldClose := false
 	switch cmd {
