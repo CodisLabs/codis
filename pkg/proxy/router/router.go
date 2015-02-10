@@ -305,9 +305,9 @@ func (s *Server) filter(opstr string, keys [][]byte, c *session) (rawresp []byte
 		return nil, false, errors.Trace(fmt.Errorf("%s not allowed", opstr))
 	}
 
-	buf, shouldClose, handled, err := handleSpecCommand(opstr, c, keys, s.netTimeout)
+	buf, shouldClose, handled, err := handleSpecCommand(opstr, keys, s.netTimeout)
 	if shouldClose { //quit command
-		return nil, false, errors.Trace(io.EOF)
+		return buf, false, errors.Trace(io.EOF)
 	}
 	if err != nil {
 		return nil, false, errors.Trace(err)
@@ -356,7 +356,10 @@ func (s *Server) redisTunnel(c *session) error {
 	opstr := strings.ToUpper(string(op))
 	//log.Debugf("op: %s, %s", opstr, keys[0])
 	buf, next, err := s.filter(opstr, keys, c)
-	if err != nil { //notify flush first ?
+	if err != nil {
+		if len(buf) > 0 { //quit command
+			s.sendBack(c, op, keys, resp, buf)
+		}
 		return errors.Trace(err)
 	}
 
@@ -435,12 +438,15 @@ func (s *Server) handleConn(c net.Conn) {
 	log.Info("new connection", c.RemoteAddr())
 
 	s.counter.Add("connections", 1)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
 	client := &session{
-		Conn:     c,
-		r:        bufio.NewReader(c),
-		w:        bufio.NewWriter(c),
-		CreateAt: time.Now(),
-		backQ:    make(chan *PipelineResponse, 100),
+		Conn:        c,
+		r:           bufio.NewReader(c),
+		w:           bufio.NewWriter(c),
+		CreateAt:    time.Now(),
+		backQ:       make(chan *PipelineResponse, 100),
+		closeSingal: wg,
 	}
 
 	go client.WritingLoop()
@@ -448,6 +454,8 @@ func (s *Server) handleConn(c net.Conn) {
 	var err error
 
 	defer func() {
+		wg.Wait()
+		c.Close()
 		if err != nil { //todo: fix this ugly error check
 			if GetOriginError(err.(*errors.Err)).Error() != io.EOF.Error() {
 				log.Warningf("close connection %v, %+v, %v", c.RemoteAddr(), client, errors.ErrorStack(err))
@@ -458,7 +466,6 @@ func (s *Server) handleConn(c net.Conn) {
 			log.Infof("close connection %v, %+v", c.RemoteAddr(), client)
 		}
 
-		c.Close()
 		s.counter.Add("connections", -1)
 	}()
 

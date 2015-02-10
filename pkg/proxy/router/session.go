@@ -25,6 +25,7 @@ type session struct {
 	backQ                 chan *PipelineResponse
 	lastUnsentResponseSeq int64
 	closed                bool
+	closeSingal           *sync.WaitGroup
 }
 
 type PipelineRequest struct {
@@ -83,20 +84,25 @@ func (s *session) handleResponse(resp *PipelineResponse) (flush bool, err error)
 	return
 }
 
+func (s *session) Close() {
+	s.Conn.Close()
+	s.closed = true
+}
+
 func (s *session) WritingLoop() {
 	s.lastUnsentResponseSeq = 1
 	for {
 		select {
 		case resp, ok := <-s.backQ:
 			if !ok {
+				s.closeSingal.Done()
 				return
 			}
 
 			flush, err := s.handleResponse(resp)
 			if err != nil {
 				log.Warning(s.RemoteAddr(), resp.ctx, errors.ErrorStack(err))
-				s.Conn.Close()
-				s.closed = true
+				s.Close()
 				continue
 			}
 
@@ -104,8 +110,7 @@ func (s *session) WritingLoop() {
 				err := s.w.Flush()
 				if err != nil {
 					log.Warning(s.RemoteAddr(), resp.ctx, errors.ErrorStack(err))
-					s.Conn.Close()
-					s.closed = true
+					s.Close()
 					continue
 				}
 			}

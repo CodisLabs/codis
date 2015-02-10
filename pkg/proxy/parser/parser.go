@@ -115,7 +115,7 @@ func readLine(r *bufio.Reader) ([]byte, error) {
 func raw2Bulk(r *Resp) []byte {
 	if r.Type == BulkResp {
 		if r.Raw[1] == '0' { //  $0\r\n\r\n
-			return r.Raw[1 : len(r.Raw)-4]
+			return nil //empty key
 		}
 
 		if r.Raw[1] == '-' { //   $-1\r\n
