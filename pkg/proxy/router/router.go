@@ -18,12 +18,10 @@ import (
 	"time"
 
 	"bytes"
-	"container/list"
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
-	"github.com/wandoulabs/codis/pkg/proxy/redisconn"
 	"github.com/wandoulabs/codis/pkg/proxy/redispool"
 
 	"github.com/juju/errors"
@@ -63,125 +61,6 @@ type Server struct {
 
 	//pipeline connection
 	pipeConns map[string]*taskRunner //master->taskrunner
-}
-
-type taskRunner struct {
-	evtbus    chan interface{}
-	in        chan interface{} //*PipelineRequest
-	out       chan *parser.Resp
-	redisAddr string
-	tasks     *list.List
-	c         *redisconn.Conn
-}
-
-func (tr *taskRunner) readloop() {
-	for {
-		resp, err := parser.Parse(tr.c.BufioReader())
-		if err != nil {
-			return
-		}
-
-		tr.out <- resp
-	}
-}
-
-func (tr *taskRunner) dowrite(r *PipelineRequest, flush bool) error {
-	b, err := r.req.Bytes()
-	if err != nil {
-		log.Warning(err)
-		return err
-	}
-
-	_, err = tr.c.Write(b)
-	if err != nil {
-		log.Warning(err)
-		return err
-	}
-
-	if flush {
-		return tr.c.Flush()
-	}
-
-	return nil
-}
-
-func (tr *taskRunner) handleTask(r *PipelineRequest, flush bool) {
-	log.Debugf("handleTask:%v", r)
-	if r == nil && flush { //just flush
-		tr.c.Flush()
-		return
-	}
-
-	err := tr.dowrite(r, flush)
-	if err != nil {
-		//todo: how to handle this error
-		//notify all request, close client connection ?
-		log.Error(err)
-		return
-	}
-
-	tr.tasks.PushBack(r)
-}
-
-func (tr *taskRunner) writeloop() {
-	var bufCnt int64
-	var closed bool
-	var wgClose *sync.WaitGroup
-	for {
-		if closed && tr.tasks.Len() == 0 {
-			wgClose.Done()
-			return
-		}
-
-		select {
-		case t := <-tr.in:
-			switch t.(type) {
-			case *PipelineRequest:
-				r := t.(*PipelineRequest)
-				var flush bool
-				bufCnt++
-				if len(tr.in) == 0 { //force flush
-					bufCnt = 0
-					flush = true
-				}
-
-				tr.handleTask(r, flush)
-			case *sync.WaitGroup:
-				if bufCnt > 0 {
-					bufCnt = 0
-					tr.handleTask(nil, true)
-				}
-				closed = true
-			}
-		case resp := <-tr.out:
-			e := tr.tasks.Front()
-			req := e.Value.(*PipelineRequest)
-			log.Debug("finish", req)
-			req.backQ <- &PipelineResponse{ctx: req, resp: resp, err: nil}
-			tr.tasks.Remove(e)
-		}
-	}
-}
-
-func NewTaskRunner(addr string) (*taskRunner, error) {
-	tr := &taskRunner{
-		in:        make(chan interface{}, 100),
-		out:       make(chan *parser.Resp, 100),
-		redisAddr: addr,
-		tasks:     list.New(),
-	}
-
-	c, err := redisconn.NewConnection(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	tr.c = c
-
-	go tr.writeloop()
-	go tr.readloop()
-
-	return tr, nil
 }
 
 func (s *Server) clearSlot(i int) {
@@ -239,9 +118,10 @@ func (s *Server) fillSlot(i int, force bool) {
 	if _, ok := s.pipeConns[dst]; !ok {
 		tr, err := NewTaskRunner(dst)
 		if err != nil {
-			log.Error(dst)
+			log.Error(dst) //todo: how to handle this error?
+		} else {
+			s.pipeConns[dst] = tr
 		}
-		s.pipeConns[dst] = tr
 	}
 
 	s.counter.Add("FillSlot", 1)
