@@ -9,9 +9,19 @@ import (
 	"os"
 	"sync"
 
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/bytesize"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils/bytesize"
 )
+
+type buffer interface {
+	read(b []byte) (int, error)
+	write(b []byte) (int, error)
+	rclose() error
+	wclose() error
+
+	buffered() int
+	available() int
+}
 
 type pipe struct {
 	rl sync.Mutex
@@ -24,31 +34,7 @@ type pipe struct {
 	rerr error
 	werr error
 
-	buff struct {
-		p    []byte
-		size uint64
-		rpos uint64
-		wpos uint64
-	}
-	file struct {
-		f    *os.File
-		size uint64
-		rpos uint64
-		wpos uint64
-	}
-}
-
-func newPipe(buffSize, fileSize uint64, f *os.File) (*PipeReader, *PipeWriter) {
-	p := &pipe{}
-	p.rwait = sync.NewCond(&p.mu)
-	p.wwait = sync.NewCond(&p.mu)
-	p.buff.p = make([]byte, buffSize)
-	p.buff.size = buffSize
-	p.file.f = f
-	p.file.size = fileSize
-	r := &PipeReader{p}
-	w := &PipeWriter{p}
-	return r, w
+	store buffer
 }
 
 func roffset(blen int, size, rpos, wpos uint64) (maxlen, offset uint64) {
@@ -75,87 +61,26 @@ func woffset(blen int, size, rpos, wpos uint64) (maxlen, offset uint64) {
 	return
 }
 
-func (p *pipe) readFromFile(b []byte) (int, error) {
-	if len(b) == 0 || p.file.f == nil {
-		return 0, nil
-	}
-	maxlen, offset := roffset(len(b), p.file.size, p.file.rpos, p.file.wpos)
-	if maxlen == 0 {
-		return 0, nil
-	}
+const (
+	BuffSizeAlign = bytesize.KB * 4
+	FileSizeAlign = bytesize.MB * 4
+)
 
-	n, err := p.file.f.ReadAt(b[:maxlen], int64(offset))
-	p.file.rpos += uint64(n)
-	if p.file.rpos == p.file.wpos {
-		p.file.rpos = 0
-		p.file.wpos = 0
-		if err == nil {
-			err = p.file.f.Truncate(0)
-		}
+func align(size, unit int) int {
+	if size < unit {
+		return unit
 	}
-	return n, errors.Trace(err)
+	return (size + unit - 1) / unit * unit
 }
 
-func (p *pipe) writeToFile(b []byte) (int, error) {
-	if len(b) == 0 || p.file.f == nil {
-		return 0, nil
-	}
-	maxlen, offset := woffset(len(b), p.file.size, p.file.rpos, p.file.wpos)
-	if maxlen == 0 {
-		return 0, nil
-	}
-
-	n, err := p.file.f.WriteAt(b[:maxlen], int64(offset))
-	p.file.wpos += uint64(n)
-	return n, errors.Trace(err)
-}
-
-func (p *pipe) read(b []byte) (int, error) {
-	if len(b) == 0 {
-		return 0, nil
-	}
-	if p.buff.wpos == 0 {
-		if len(b) > len(p.buff.p) {
-			return p.readFromFile(b)
-		} else {
-			n, err := p.readFromFile(p.buff.p)
-			p.buff.wpos += uint64(n)
-			if err != nil || n == 0 {
-				return 0, err
-			}
-		}
-	}
-
-	maxlen, offset := roffset(len(b), p.buff.size, p.buff.rpos, p.buff.wpos)
-	if maxlen == 0 {
-		return 0, nil
-	}
-
-	n := copy(b, p.buff.p[offset:offset+maxlen])
-	p.buff.rpos += uint64(n)
-	if p.buff.rpos == p.buff.wpos {
-		p.buff.rpos = 0
-		p.buff.wpos = 0
-	}
-	return n, nil
-}
-
-func (p *pipe) write(b []byte) (int, error) {
-	if len(b) == 0 {
-		return 0, nil
-	}
-	if p.file.wpos != 0 {
-		return p.writeToFile(b)
-	}
-
-	maxlen, offset := woffset(len(b), p.buff.size, p.buff.rpos, p.buff.wpos)
-	if maxlen == 0 {
-		return p.writeToFile(b)
-	}
-
-	n := copy(p.buff.p[offset:offset+maxlen], b)
-	p.buff.wpos += uint64(n)
-	return n, nil
+func newPipe(store buffer) (Reader, Writer) {
+	p := &pipe{}
+	p.rwait = sync.NewCond(&p.mu)
+	p.wwait = sync.NewCond(&p.mu)
+	p.store = store
+	r := &reader{p}
+	w := &writer{p}
+	return r, w
 }
 
 func (p *pipe) Read(b []byte) (int, error) {
@@ -169,7 +94,7 @@ func (p *pipe) Read(b []byte) (int, error) {
 		if p.rerr != nil {
 			return 0, errors.Trace(io.ErrClosedPipe)
 		}
-		n, err := p.read(b)
+		n, err := p.store.read(b)
 		if err != nil || n != 0 {
 			p.wwait.Signal()
 			return n, err
@@ -195,7 +120,7 @@ func (p *pipe) Write(b []byte) (int, error) {
 		if p.rerr != nil || len(b) == 0 {
 			return 0, p.rerr
 		}
-		n, err := p.write(b)
+		n, err := p.store.write(b)
 		if err != nil || n != 0 {
 			p.rwait.Signal()
 			return n, err
@@ -204,57 +129,74 @@ func (p *pipe) Write(b []byte) (int, error) {
 	}
 }
 
-func (p *pipe) rclose(err error) error {
+func (p *pipe) RClose(err error) error {
 	if err == nil {
 		err = errors.Trace(io.ErrClosedPipe)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.rerr = err
+	if p.rerr == nil {
+		p.rerr = err
+	}
 	p.rwait.Signal()
 	p.wwait.Signal()
-	if p.file.f != nil {
-		return errors.Trace(p.file.f.Close())
-	}
-	return nil
+	return p.store.rclose()
 }
 
-func (p *pipe) wclose(err error) error {
+func (p *pipe) WClose(err error) error {
 	if err == nil {
 		err = errors.Trace(io.EOF)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.werr = err
+	if p.werr == nil {
+		p.werr = err
+	}
 	p.rwait.Signal()
 	p.wwait.Signal()
-	return nil
+	return p.store.wclose()
 }
 
-const (
-	BuffSizeAlign = bytesize.KB * 4
-	FileSizeAlign = bytesize.MB * 4
-)
-
-func align(size, unit int) int {
-	if size < unit {
-		return unit
+func (p *pipe) Buffered() (int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.rerr != nil {
+		return 0, p.rerr
 	}
-	return (size + unit - 1) / unit * unit
+	n := p.store.buffered()
+	if p.werr != nil && n == 0 {
+		return 0, p.werr
+	}
+	return n, nil
 }
 
-func Pipe() (*PipeReader, *PipeWriter) {
-	return PipeWithSize(BuffSizeAlign)
+func (p *pipe) Available() (int, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.werr != nil {
+		return 0, p.werr
+	}
+	if p.rerr != nil {
+		return 0, p.rerr
+	}
+	n := p.store.available()
+	return n, nil
 }
 
-func PipeWithSize(buffSize int) (*PipeReader, *PipeWriter) {
-	return PipeWithFile(buffSize, FileSizeAlign, nil)
+func Pipe() (Reader, Writer) {
+	return newPipe(newMemBuffer(0))
 }
 
-func PipeWithFile(buffSize, fileSize int, f *os.File) (*PipeReader, *PipeWriter) {
-	buffSize = align(buffSize, BuffSizeAlign)
-	fileSize = align(fileSize, FileSizeAlign)
-	return newPipe(uint64(buffSize), uint64(fileSize), f)
+func PipeSize(buffSize int) (Reader, Writer) {
+	return newPipe(newMemBuffer(buffSize))
+}
+
+func PipeFile(buffSize, fileSize int, f *os.File) (Reader, Writer) {
+	if f == nil {
+		return newPipe(newMemBuffer(buffSize))
+	} else {
+		return newPipe(newRFileBuffer(buffSize, fileSize, f))
+	}
 }
 
 func OpenFile(fileName string, exclusive bool) (*os.File, error) {

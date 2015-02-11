@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 )
 
 const (
@@ -31,12 +32,11 @@ var (
 )
 
 func Parse(s string) (int64, error) {
-	b := []byte(s)
-	if !BytesizeRegexp.Match(b) {
+	if !BytesizeRegexp.MatchString(s) {
 		return 0, errors.Trace(ErrBadBytesize)
 	}
 
-	subs := BytesizeRegexp.FindSubmatch(b)
+	subs := BytesizeRegexp.FindStringSubmatch(s)
 	if len(subs) != 3 {
 		return 0, errors.Trace(ErrBadBytesize)
 	}
@@ -51,14 +51,16 @@ func Parse(s string) (int64, error) {
 		size = MB
 	case "GB", "G":
 		size = GB
+	case "TB", "T":
+		size = TB
 	case "PB", "P":
 		size = PB
 	default:
 		return 0, errors.Trace(ErrBadBytesizeUnit)
 	}
 
-	text := string(subs[1])
-	if digitsRegexp.Match(subs[1]) {
+	text := subs[1]
+	if digitsRegexp.MatchString(text) {
 		n, err := strconv.ParseInt(text, 10, 64)
 		if err != nil {
 			return 0, errors.Trace(ErrBadBytesize)
@@ -72,4 +74,12 @@ func Parse(s string) (int64, error) {
 		size = int64(float64(size) * n)
 	}
 	return size, nil
+}
+
+func MustParse(s string) int64 {
+	v, err := Parse(s)
+	if err != nil {
+		log.PanicError(err, "parse bytesize failed")
+	}
+	return v
 }

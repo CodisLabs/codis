@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/tests"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/testing/assert"
 )
 
 func TestDecodeInvalidRequests(t *testing.T) {
@@ -37,24 +37,23 @@ func TestDecodeInvalidRequests(t *testing.T) {
 	}
 	for _, s := range test {
 		_, err := DecodeFromBytes([]byte(s))
-		tests.Assert(t, err != nil)
+		assert.Must(t, err != nil)
 	}
 }
 
 func TestDecodeBulkBytes(t *testing.T) {
 	test := "*2\r\n$4\r\nLLEN\r\n$6\r\nmylist\r\n"
 	resp, err := DecodeFromBytes([]byte(test))
-	tests.AssertNoError(t, err)
+	assert.ErrorIsNil(t, err)
 	x, ok := resp.(*Array)
-	tests.Assert(t, ok)
-	tests.Assert(t, len(x.Value) == 2)
-	var s1, s2 *BulkBytes
-	s1, ok = x.Value[0].(*BulkBytes)
-	tests.Assert(t, ok)
-	tests.Assert(t, bytes.Equal(s1.Value, []byte("LLEN")))
-	s2, ok = x.Value[1].(*BulkBytes)
-	tests.Assert(t, ok)
-	tests.Assert(t, bytes.Equal(s2.Value, []byte("mylist")))
+	assert.Must(t, ok)
+	assert.Must(t, len(x.Value) == 2)
+	s1, ok := x.Value[0].(*BulkBytes)
+	assert.Must(t, ok)
+	assert.Must(t, bytes.Equal(s1.Value, []byte("LLEN")))
+	s2, ok := x.Value[1].(*BulkBytes)
+	assert.Must(t, ok)
+	assert.Must(t, bytes.Equal(s2.Value, []byte("mylist")))
 }
 
 func TestDecoder(t *testing.T) {
@@ -73,6 +72,6 @@ func TestDecoder(t *testing.T) {
 	}
 	for _, s := range test {
 		_, err := DecodeFromBytes([]byte(s))
-		tests.AssertNoError(t, err)
+		assert.ErrorIsNil(t, err)
 	}
 }

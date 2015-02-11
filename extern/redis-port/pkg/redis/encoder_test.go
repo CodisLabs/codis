@@ -8,8 +8,16 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/tests"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/testing/assert"
 )
+
+func TestItos(t *testing.T) {
+	for i := 0; i < len(imap)*2; i++ {
+		n, p := -i, i
+		assert.Must(t, strconv.Itoa(n) == itos(int64(n)))
+		assert.Must(t, strconv.Itoa(p) == itos(int64(p)))
+	}
+}
 
 func TestEncodeString(t *testing.T) {
 	resp := &String{"OK"}
@@ -55,6 +63,6 @@ func TestEncodeArray(t *testing.T) {
 
 func testEncodeAndCheck(t *testing.T, resp Resp, expect []byte) {
 	b, err := EncodeToBytes(resp)
-	tests.AssertNoError(t, err)
-	tests.Assert(t, bytes.Equal(b, expect))
+	assert.ErrorIsNil(t, err)
+	assert.Must(t, bytes.Equal(b, expect))
 }

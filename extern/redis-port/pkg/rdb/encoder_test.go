@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/iocount"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/tests"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/testing/assert"
 )
 
 func toString(text string) String {
@@ -22,18 +22,17 @@ func toString(text string) String {
 
 func checkString(t *testing.T, o interface{}, text string) {
 	x, ok := o.(String)
-	tests.Assert(t, ok)
-	tests.Assert(t, string(x) == text)
+	assert.Must(t, ok)
+	assert.Must(t, string(x) == text)
 }
 
 func TestEncodeString(t *testing.T) {
 	docheck := func(text string) {
-		var obj interface{}
 		p, err := EncodeDump(toString(text))
-		tests.AssertNoError(t, err)
-		obj, err = DecodeDump(p)
-		tests.AssertNoError(t, err)
-		checkString(t, obj, text)
+		assert.ErrorIsNil(t, err)
+		o, err := DecodeDump(p)
+		assert.ErrorIsNil(t, err)
+		checkString(t, o, text)
 	}
 	docheck("hello world!!")
 	docheck("2147483648")
@@ -56,21 +55,20 @@ func toList(list ...string) List {
 
 func checkList(t *testing.T, o interface{}, list []string) {
 	x, ok := o.(List)
-	tests.Assert(t, ok)
-	tests.Assert(t, len(x) == len(list))
+	assert.Must(t, ok)
+	assert.Must(t, len(x) == len(list))
 	for i, e := range x {
-		tests.Assert(t, string(e) == list[i])
+		assert.Must(t, string(e) == list[i])
 	}
 }
 
 func TestEncodeList(t *testing.T) {
 	docheck := func(list ...string) {
-		var obj interface{}
 		p, err := EncodeDump(toList(list...))
-		tests.AssertNoError(t, err)
-		obj, err = DecodeDump(p)
-		tests.AssertNoError(t, err)
-		checkList(t, obj, list)
+		assert.ErrorIsNil(t, err)
+		o, err := DecodeDump(p)
+		assert.ErrorIsNil(t, err)
+		checkList(t, o, list)
 	}
 	docheck("")
 	docheck("", "a", "b", "c", "d", "e")
@@ -91,21 +89,20 @@ func toHash(m map[string]string) Hash {
 
 func checkHash(t *testing.T, o interface{}, m map[string]string) {
 	x, ok := o.(Hash)
-	tests.Assert(t, ok)
-	tests.Assert(t, len(x) == len(m))
+	assert.Must(t, ok)
+	assert.Must(t, len(x) == len(m))
 	for _, e := range x {
-		tests.Assert(t, m[string(e.Field)] == string(e.Value))
+		assert.Must(t, m[string(e.Field)] == string(e.Value))
 	}
 }
 
 func TestEncodeHash(t *testing.T) {
 	docheck := func(m map[string]string) {
-		var obj interface{}
 		p, err := EncodeDump(toHash(m))
-		tests.AssertNoError(t, err)
-		obj, err = DecodeDump(p)
-		tests.AssertNoError(t, err)
-		checkHash(t, obj, m)
+		assert.ErrorIsNil(t, err)
+		o, err := DecodeDump(p)
+		assert.ErrorIsNil(t, err)
+		checkHash(t, o, m)
 	}
 	docheck(map[string]string{"": ""})
 	docheck(map[string]string{"": "", "a": "", "b": "a", "c": "b", "d": "c"})
@@ -126,31 +123,30 @@ func toZSet(m map[string]float64) ZSet {
 
 func checkZSet(t *testing.T, o interface{}, m map[string]float64) {
 	x, ok := o.(ZSet)
-	tests.Assert(t, ok)
-	tests.Assert(t, len(x) == len(m))
+	assert.Must(t, ok)
+	assert.Must(t, len(x) == len(m))
 	for _, e := range x {
 		v := m[string(e.Member)]
 		switch {
 		case math.IsInf(v, 1):
-			tests.Assert(t, math.IsInf(e.Score, 1))
+			assert.Must(t, math.IsInf(e.Score, 1))
 		case math.IsInf(v, -1):
-			tests.Assert(t, math.IsInf(e.Score, -1))
+			assert.Must(t, math.IsInf(e.Score, -1))
 		case math.IsNaN(v):
-			tests.Assert(t, math.IsNaN(e.Score))
+			assert.Must(t, math.IsNaN(e.Score))
 		default:
-			tests.Assert(t, math.Abs(e.Score-v) < 1e-10)
+			assert.Must(t, math.Abs(e.Score-v) < 1e-10)
 		}
 	}
 }
 
 func TestEncodeZSet(t *testing.T) {
 	docheck := func(m map[string]float64) {
-		var obj interface{}
 		p, err := EncodeDump(toZSet(m))
-		tests.AssertNoError(t, err)
-		obj, err = DecodeDump(p)
-		tests.AssertNoError(t, err)
-		checkZSet(t, obj, m)
+		assert.ErrorIsNil(t, err)
+		o, err := DecodeDump(p)
+		assert.ErrorIsNil(t, err)
+		checkZSet(t, o, m)
 	}
 	docheck(map[string]float64{"": 0})
 	zset := make(map[string]float64)
@@ -174,21 +170,20 @@ func toSet(set ...string) Set {
 
 func checkSet(t *testing.T, o interface{}, set []string) {
 	x, ok := o.(Set)
-	tests.Assert(t, ok)
-	tests.Assert(t, len(x) == len(set))
+	assert.Must(t, ok)
+	assert.Must(t, len(x) == len(set))
 	for i, e := range x {
-		tests.Assert(t, string(e) == set[i])
+		assert.Must(t, string(e) == set[i])
 	}
 }
 
 func TestEncodeSet(t *testing.T) {
 	docheck := func(set ...string) {
-		var obj interface{}
 		p, err := EncodeDump(toSet(set...))
-		tests.AssertNoError(t, err)
-		obj, err = DecodeDump(p)
-		tests.AssertNoError(t, err)
-		checkSet(t, obj, set)
+		assert.ErrorIsNil(t, err)
+		o, err := DecodeDump(p)
+		assert.ErrorIsNil(t, err)
+		checkSet(t, o, set)
 	}
 	docheck("")
 	docheck("", "a", "b", "c")
@@ -209,7 +204,7 @@ func TestEncodeRdb(t *testing.T) {
 	}, 128)
 	var b bytes.Buffer
 	enc := NewEncoder(&b)
-	tests.AssertNoError(t, enc.EncodeHeader())
+	assert.ErrorIsNil(t, enc.EncodeHeader())
 	for i := 0; i < len(objs); i++ {
 		db := uint32(i + 32)
 		expireat := uint64(i)
@@ -221,7 +216,7 @@ func TestEncodeRdb(t *testing.T) {
 			s := strconv.Itoa(i)
 			obj = s
 			typ = "string"
-			tests.AssertNoError(t, enc.EncodeObject(db, key, expireat, toString(s)))
+			assert.ErrorIsNil(t, enc.EncodeObject(db, key, expireat, toString(s)))
 		case 1:
 			list := []string{}
 			for j := 0; j < 32; j++ {
@@ -229,7 +224,7 @@ func TestEncodeRdb(t *testing.T) {
 			}
 			obj = list
 			typ = "list"
-			tests.AssertNoError(t, enc.EncodeObject(db, key, expireat, toList(list...)))
+			assert.ErrorIsNil(t, enc.EncodeObject(db, key, expireat, toList(list...)))
 		case 2:
 			hash := make(map[string]string)
 			for j := 0; j < 32; j++ {
@@ -237,7 +232,7 @@ func TestEncodeRdb(t *testing.T) {
 			}
 			obj = hash
 			typ = "hash"
-			tests.AssertNoError(t, enc.EncodeObject(db, key, expireat, toHash(hash)))
+			assert.ErrorIsNil(t, enc.EncodeObject(db, key, expireat, toHash(hash)))
 		case 3:
 			zset := make(map[string]float64)
 			for j := 0; j < 32; j++ {
@@ -245,7 +240,7 @@ func TestEncodeRdb(t *testing.T) {
 			}
 			obj = zset
 			typ = "zset"
-			tests.AssertNoError(t, enc.EncodeObject(db, key, expireat, toZSet(zset)))
+			assert.ErrorIsNil(t, enc.EncodeObject(db, key, expireat, toZSet(zset)))
 		case 4:
 			set := []string{}
 			for j := 0; j < 32; j++ {
@@ -253,7 +248,7 @@ func TestEncodeRdb(t *testing.T) {
 			}
 			obj = set
 			typ = "set"
-			tests.AssertNoError(t, enc.EncodeObject(db, key, expireat, toSet(set...)))
+			assert.ErrorIsNil(t, enc.EncodeObject(db, key, expireat, toSet(set...)))
 		}
 		objs[i].db = db
 		objs[i].expireat = expireat
@@ -261,39 +256,38 @@ func TestEncodeRdb(t *testing.T) {
 		objs[i].obj = obj
 		objs[i].typ = typ
 	}
-	tests.AssertNoError(t, enc.EncodeFooter())
+	assert.ErrorIsNil(t, enc.EncodeFooter())
 	rdb := b.Bytes()
-	var c atomic2.AtomicInt64
-	l := NewLoader(iocount.NewReaderWithCounter(bytes.NewReader(rdb), &c))
-	tests.AssertNoError(t, l.LoadHeader())
+	var c counter.Int64
+	l := NewLoader(ioutils.NewCountReader(bytes.NewReader(rdb), &c))
+	assert.ErrorIsNil(t, l.Header())
 	var i int = 0
 	for {
-		e, err := l.LoadEntry()
-		tests.AssertNoError(t, err)
+		e, err := l.NextBinEntry()
+		assert.ErrorIsNil(t, err)
 		if e == nil {
 			break
 		}
-		tests.Assert(t, objs[i].db == e.DB)
-		tests.Assert(t, objs[i].expireat == e.ExpireAt)
-		tests.Assert(t, bytes.Equal(objs[i].key, e.Key))
-		var obj interface{}
-		obj, err = DecodeDump(e.ValDump)
-		tests.AssertNoError(t, err)
+		assert.Must(t, objs[i].db == e.DB)
+		assert.Must(t, objs[i].expireat == e.ExpireAt)
+		assert.Must(t, bytes.Equal(objs[i].key, e.Key))
+		o, err := DecodeDump(e.Value)
+		assert.ErrorIsNil(t, err)
 		switch objs[i].typ {
 		case "string":
-			checkString(t, obj, objs[i].obj.(string))
+			checkString(t, o, objs[i].obj.(string))
 		case "list":
-			checkList(t, obj, objs[i].obj.([]string))
+			checkList(t, o, objs[i].obj.([]string))
 		case "hash":
-			checkHash(t, obj, objs[i].obj.(map[string]string))
+			checkHash(t, o, objs[i].obj.(map[string]string))
 		case "zset":
-			checkZSet(t, obj, objs[i].obj.(map[string]float64))
+			checkZSet(t, o, objs[i].obj.(map[string]float64))
 		case "set":
-			checkSet(t, obj, objs[i].obj.([]string))
+			checkSet(t, o, objs[i].obj.([]string))
 		}
 		i++
 	}
-	tests.Assert(t, i == len(objs))
-	tests.AssertNoError(t, l.LoadChecksum())
-	tests.Assert(t, c.Get() == int64(len(rdb)))
+	assert.Must(t, i == len(objs))
+	assert.ErrorIsNil(t, l.Footer())
+	assert.Must(t, c.Get() == int64(len(rdb)))
 }

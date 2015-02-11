@@ -80,12 +80,12 @@ func (r *rdbReader) offset() int64 {
 	return r.nread
 }
 
-func (r *rdbReader) readObject(otype byte) ([]byte, error) {
+func (r *rdbReader) readObjectValue(t byte) ([]byte, error) {
 	var b bytes.Buffer
 	r = newRdbReader(io.TeeReader(r, &b))
-	switch otype {
+	switch t {
 	default:
-		return nil, errors.Errorf("unknown object-type %02x", otype)
+		return nil, errors.Errorf("unknown object-type %02x", t)
 	case rdbTypeHashZipmap:
 		fallthrough
 	case rdbTypeListZiplist:
@@ -177,8 +177,8 @@ func (r *rdbReader) readString() ([]byte, error) {
 }
 
 func (r *rdbReader) readEncodedLength() (length uint32, encoded bool, err error) {
-	var u uint8
-	if u, err = r.readUint8(); err != nil {
+	u, err := r.readUint8()
+	if err != nil {
 		return
 	}
 	length = uint32(u & 0x3f)

@@ -10,14 +10,15 @@ import (
 	"time"
 
 	"github.com/docopt/docopt-go"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils/bytesize"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/bytesize"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 )
 
 var args struct {
-	ncpu   int
-	input  string
-	output string
+	input    string
+	output   string
+	parallel int
 
 	from   string
 	target string
@@ -34,18 +35,37 @@ const (
 	WriterBufferSize = bytesize.MB * 8
 )
 
-var acceptDB func(db int64) bool
+func parseInt(s string, min, max int) (int, error) {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+	if n >= min && n <= max {
+		return n, nil
+	}
+	return 0, errors.Errorf("out of range [%d,%d], got %d", min, max, n)
+}
+
+const (
+	MinDB = 0
+	MaxDB = 1023
+)
+
+var acceptDB = func(db uint32) bool {
+	return db >= MinDB && db <= MaxDB
+}
 
 func main() {
 	usage := `
 Usage:
-	redis-port decode   [--ncpu=N]  [--input=INPUT]  [--output=OUTPUT]
-	redis-port restore  [--ncpu=N]  [--input=INPUT]   --target=TARGET  [--extra] [--faketime=FAKETIME] [--filterdb=DB]
-	redis-port dump     [--ncpu=N]   --from=MASTER   [--output=OUTPUT] [--extra]
-	redis-port sync     [--ncpu=N]   --from=MASTER    --target=TARGET  [--sockfile=FILE [--filesize=SIZE]] [--filterdb=DB]
+	redis-port decode   [--ncpu=N]  [--parallel=M]  [--input=INPUT]  [--output=OUTPUT]
+	redis-port restore  [--ncpu=N]  [--parallel=M]  [--input=INPUT]   --target=TARGET  [--extra]     [--faketime=FAKETIME] [--filterdb=DB]
+	redis-port dump     [--ncpu=N]  [--parallel=M]   --from=MASTER   [--output=OUTPUT] [--extra]
+	redis-port sync     [--ncpu=N]  [--parallel=M]   --from=MASTER    --target=TARGET  [--sockfile=FILE [--filesize=SIZE]] [--filterdb=DB]
 
 Options:
 	-n N, --ncpu=N                    Set runtime.GOMAXPROCS to N.
+	-p M, --parallel=M                Set the number of parallel routines to M.
 	-i INPUT, --input=INPUT           Set input file, default is stdin ('/dev/stdin').
 	-o OUTPUT, --output=OUTPUT        Set output file, default is stdout ('/dev/stdout').
 	-f MASTER, --from=MASTER          Set host:port of master redis.
@@ -58,24 +78,30 @@ Options:
 `
 	d, err := docopt.Parse(usage, nil, true, "", false)
 	if err != nil {
-		utils.ErrorPanic(err, "parse arguments failed")
+		log.PanicError(err, "parse arguments failed")
 	}
-	args.ncpu = runtime.GOMAXPROCS(0)
 
-	if s, ok := d["--ncpu"].(string); ok && len(s) != 0 {
-		max := runtime.NumCPU()
-		n, err := strconv.ParseInt(s, 10, 64)
+	if s, ok := d["--ncpu"].(string); ok && s != "" {
+		n, err := parseInt(s, 1, 1024)
 		if err != nil {
-			utils.ErrorPanic(err, "parse --ncpu failed")
+			log.PanicErrorf(err, "parse --ncpu failed")
 		}
-		if n <= 0 || n > int64(max) {
-			utils.Panic("parse --ncpu = %d, only accept [1,%d]", n, max)
-		}
-		args.ncpu = int(n)
-		runtime.GOMAXPROCS(args.ncpu)
+		runtime.GOMAXPROCS(n)
 	}
-	if args.ncpu == 0 {
-		args.ncpu = runtime.GOMAXPROCS(0)
+	ncpu := runtime.GOMAXPROCS(0)
+
+	if s, ok := d["--parallel"].(string); ok && s != "" {
+		n, err := parseInt(s, 1, 1024)
+		if err != nil {
+			log.PanicErrorf(err, "parse --parallel failed")
+		}
+		args.parallel = n
+	}
+	if ncpu > args.parallel {
+		args.parallel = ncpu
+	}
+	if args.parallel == 0 {
+		args.parallel = 4
 	}
 
 	args.input, _ = d["--input"].(string)
@@ -92,58 +118,52 @@ Options:
 		case '-', '+':
 			d, err := time.ParseDuration(strings.ToLower(s))
 			if err != nil {
-				utils.ErrorPanic(err, "parse --faketime failed")
+				log.PanicError(err, "parse --faketime failed")
 			}
 			args.shift = d
 		case '@':
 			n, err := strconv.ParseInt(s[1:], 10, 64)
 			if err != nil {
-				utils.ErrorPanic(err, "parse --faketime failed")
+				log.PanicError(err, "parse --faketime failed")
 			}
 			args.shift = time.Duration(n*int64(time.Millisecond) - time.Now().UnixNano())
 		default:
 			t, err := time.Parse("2006-01-02 15:04:05", s)
 			if err != nil {
-				utils.ErrorPanic(err, "parse --faketime failed")
+				log.PanicError(err, "parse --faketime failed")
 			}
 			args.shift = time.Duration(t.UnixNano() - time.Now().UnixNano())
 		}
 	}
 
-	acceptDB = func(db int64) bool {
-		return true
-	}
-	if s, ok := d["--filterdb"].(string); ok && s != "" {
-		if s != "*" {
-			n, err := strconv.ParseInt(s, 10, 64)
-			if err != nil {
-				utils.ErrorPanic(err, "parse --filterdb failed")
-			}
-			const max int64 = 1024
-			if n < 0 || n > max {
-				utils.Panic("parse --filterdb = %d, only accpet [0,%d]", n, max)
-			}
-			acceptDB = func(db int64) bool {
-				return db == n
-			}
+	if s, ok := d["--filterdb"].(string); ok && s != "" && s != "*" {
+		n, err := parseInt(s, MinDB, MaxDB)
+		if err != nil {
+			log.PanicError(err, "parse --filterdb failed")
+		}
+		u := uint32(n)
+		acceptDB = func(db uint32) bool {
+			return db == u
 		}
 	}
 
 	if s, ok := d["--filesize"].(string); ok && s != "" {
 		if len(args.sockfile) == 0 {
-			utils.Panic("please specify --sockfile first")
+			log.Panic("please specify --sockfile first")
 		}
 		n, err := bytesize.Parse(s)
 		if err != nil {
-			utils.ErrorPanic(err, "parse --filesize failed")
+			log.PanicError(err, "parse --filesize failed")
 		}
 		if n <= 0 {
-			utils.Panic("parse --filesize = %d, invalid number", n)
+			log.Panicf("parse --filesize = %d, invalid number", n)
 		}
 		args.filesize = n
 	} else {
 		args.filesize = bytesize.GB
 	}
+
+	log.Infof("set ncpu = %d, parallel = %d\n", ncpu, args.parallel)
 
 	switch {
 	case d["decode"].(bool):

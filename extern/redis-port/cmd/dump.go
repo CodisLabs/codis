@@ -6,30 +6,29 @@ package main
 import (
 	"bufio"
 	"io"
-	"log"
 	"net"
 	"os"
 	"time"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/iocount"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 )
 
 type cmdDump struct {
-	ndump atomic2.AtomicInt64
+	ndump counter.Int64
 }
 
 func (cmd *cmdDump) Main() {
-	ncpu, from, output := args.ncpu, args.from, args.output
+	from, output := args.from, args.output
 	if len(from) == 0 {
-		utils.Panic("invalid argument: from")
+		log.Panic("invalid argument: from")
 	}
 	if len(output) == 0 {
 		output = "/dev/stdout"
 	}
 
-	log.Printf("[ncpu=%d] dump from '%s' to '%s'\n", ncpu, from, output)
+	log.Infof("dump from '%s' to '%s'\n", from, output)
 
 	var dumpto io.WriteCloser
 	if output != "/dev/stdout" {
@@ -42,10 +41,10 @@ func (cmd *cmdDump) Main() {
 	master, nsize := cmd.SendCmd(from)
 	defer master.Close()
 
-	log.Printf("rdb file = %d\n", nsize)
+	log.Infof("rdb file = %d\n", nsize)
 
 	reader := bufio.NewReaderSize(master, ReaderBufferSize)
-	writer := bufio.NewWriterSize(iocount.NewWriterWithCounter(dumpto, &cmd.ndump), WriterBufferSize)
+	writer := bufio.NewWriterSize(ioutils.NewCountWriter(dumpto, &cmd.ndump), WriterBufferSize)
 
 	cmd.DumpRDBFile(reader, writer, nsize)
 
@@ -58,22 +57,22 @@ func (cmd *cmdDump) Main() {
 
 func (cmd *cmdDump) SendCmd(master string) (net.Conn, int64) {
 	c, wait := openSyncConn(master)
-	var nsize int64
-	for nsize == 0 {
+	for {
 		select {
-		case nsize = <-wait:
+		case nsize := <-wait:
 			if nsize == 0 {
-				log.Println("+")
+				log.Info("+")
+			} else {
+				return c, nsize
 			}
 		case <-time.After(time.Second):
-			log.Println("-")
+			log.Info("-")
 		}
 	}
-	return c, nsize
 }
 
 func (cmd *cmdDump) DumpRDBFile(reader *bufio.Reader, writer *bufio.Writer, nsize int64) {
-	var nread atomic2.AtomicInt64
+	var nread counter.Int64
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
@@ -93,9 +92,9 @@ func (cmd *cmdDump) DumpRDBFile(reader *bufio.Reader, writer *bufio.Writer, nsiz
 		}
 		n := nread.Get()
 		p := 100 * n / nsize
-		log.Printf("total = %d - %12d [%3d%%]\n", nsize, n, p)
+		log.Infof("total = %d - %12d [%3d%%]\n", nsize, n, p)
 	}
-	log.Println("dump: rdb done")
+	log.Info("dump: rdb done")
 }
 
 func (cmd *cmdDump) DumpCommand(reader *bufio.Reader, writer *bufio.Writer) {
@@ -109,6 +108,6 @@ func (cmd *cmdDump) DumpCommand(reader *bufio.Reader, writer *bufio.Writer) {
 
 	for {
 		time.Sleep(time.Second)
-		log.Printf("dump: size = %d\n", cmd.ndump.Get())
+		log.Infof("dump: size = %d\n", cmd.ndump.Get())
 	}
 }

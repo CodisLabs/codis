@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/tests"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/testing/assert"
 )
 
 type testHandler struct {
@@ -31,16 +31,16 @@ func (h *testHandler) Set(arg0 interface{}, args [][]byte) (Resp, error) {
 }
 
 func testmapcount(t *testing.T, m1, m2 map[string]int) {
-	tests.Assert(t, len(m1) == len(m2))
+	assert.Must(t, len(m1) == len(m2))
 	for k, _ := range m1 {
-		tests.Assert(t, m1[k] == m2[k])
+		assert.Must(t, m1[k] == m2[k])
 	}
 }
 
 func TestHandlerFunc(t *testing.T) {
 	h := &testHandler{make(map[string]int)}
 	s, err := NewServer(h)
-	tests.AssertNoError(t, err)
+	assert.ErrorIsNil(t, err)
 	key1, key2, key3, key4 := "key1", "key2", "key3", "key4"
 	s.t["get"](nil)
 	testmapcount(t, h.c, map[string]int{})
@@ -59,11 +59,10 @@ func TestHandlerFunc(t *testing.T) {
 func TestServerServe(t *testing.T) {
 	h := &testHandler{make(map[string]int)}
 	s, err := NewServer(h)
-	tests.AssertNoError(t, err)
-	var resp Resp
-	resp, err = Decode(bufio.NewReader(bytes.NewReader([]byte("*2\r\n$3\r\nset\r\n$3\r\nfoo\r\n"))))
-	tests.AssertNoError(t, err)
+	assert.ErrorIsNil(t, err)
+	resp, err := Decode(bufio.NewReader(bytes.NewReader([]byte("*2\r\n$3\r\nset\r\n$3\r\nfoo\r\n"))))
+	assert.ErrorIsNil(t, err)
 	_, err = s.Dispatch(nil, resp)
-	tests.AssertNoError(t, err)
+	assert.ErrorIsNil(t, err)
 	testmapcount(t, h.c, map[string]int{"foo": 1})
 }

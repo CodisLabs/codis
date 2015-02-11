@@ -27,7 +27,7 @@ func NewLoader(r io.Reader) *Loader {
 	return l
 }
 
-func (l *Loader) LoadHeader() error {
+func (l *Loader) Header() error {
 	header := make([]byte, 9)
 	if err := l.readFull(header); err != nil {
 		return err
@@ -43,7 +43,7 @@ func (l *Loader) LoadHeader() error {
 	return nil
 }
 
-func (l *Loader) LoadChecksum() error {
+func (l *Loader) Footer() error {
 	crc1 := l.crc.Sum64()
 	if crc2, err := l.readUint64(); err != nil {
 		return err
@@ -53,61 +53,97 @@ func (l *Loader) LoadChecksum() error {
 	return nil
 }
 
-type Entry struct {
+type BinEntry struct {
 	DB       uint32
 	Key      []byte
-	ValDump  []byte
+	Value    []byte
 	ExpireAt uint64
 }
 
-func (l *Loader) LoadEntry() (entry *Entry, err error) {
-	var expireat uint64
+func (e *BinEntry) ObjEntry() (*ObjEntry, error) {
+	x, err := DecodeDump(e.Value)
+	if err != nil {
+		return nil, err
+	}
+	return &ObjEntry{
+		DB:       e.DB,
+		Key:      e.Key,
+		Value:    x,
+		ExpireAt: e.ExpireAt,
+	}, nil
+}
+
+type ObjEntry struct {
+	DB       uint32
+	Key      []byte
+	Value    interface{}
+	ExpireAt uint64
+}
+
+func (e *ObjEntry) BinEntry() (*BinEntry, error) {
+	p, err := EncodeDump(e.Value)
+	if err != nil {
+		return nil, err
+	}
+	return &BinEntry{
+		DB:       e.DB,
+		Key:      e.Key,
+		Value:    p,
+		ExpireAt: e.ExpireAt,
+	}, nil
+}
+
+func (l *Loader) NextBinEntry() (*BinEntry, error) {
+	var entry = &BinEntry{}
 	for {
-		var otype byte
-		if otype, err = l.readByte(); err != nil {
-			return
+		t, err := l.readByte()
+		if err != nil {
+			return nil, err
 		}
-		switch otype {
+		switch t {
 		case rdbFlagExpiryMS:
-			if expireat, err = l.readUint64(); err != nil {
-				return
+			ttlms, err := l.readUint64()
+			if err != nil {
+				return nil, err
 			}
+			entry.ExpireAt = ttlms
 		case rdbFlagExpiry:
-			var sec uint32
-			if sec, err = l.readUint32(); err != nil {
-				return
+			ttls, err := l.readUint32()
+			if err != nil {
+				return nil, err
 			}
-			expireat = uint64(sec) * 1000
+			entry.ExpireAt = uint64(ttls) * 1000
 		case rdbFlagSelectDB:
-			if l.db, err = l.readLength(); err != nil {
-				return
+			dbnum, err := l.readLength()
+			if err != nil {
+				return nil, err
 			}
+			l.db = dbnum
 		case rdbFlagEOF:
-			return
+			return nil, nil
 		default:
-			var key, obj []byte
-			if key, err = l.readString(); err != nil {
-				return
+			key, err := l.readString()
+			if err != nil {
+				return nil, err
 			}
-			if obj, err = l.readObject(otype); err != nil {
-				return
+			val, err := l.readObjectValue(t)
+			if err != nil {
+				return nil, err
 			}
-			entry = &Entry{}
 			entry.DB = l.db
 			entry.Key = key
-			entry.ValDump = createValDump(otype, obj)
-			entry.ExpireAt = expireat
-			return
+			entry.Value = createValueDump(t, val)
+			return entry, nil
 		}
 	}
 }
 
-func createValDump(otype byte, obj []byte) []byte {
+func createValueDump(t byte, val []byte) []byte {
 	var b bytes.Buffer
 	c := digest.New()
 	w := io.MultiWriter(&b, c)
-	w.Write([]byte{otype})
-	w.Write(obj)
+	w.Write([]byte{t})
+	w.Write(val)
 	binary.Write(w, binary.LittleEndian, uint16(Version))
 	binary.Write(w, binary.LittleEndian, c.Sum64())
 	return b.Bytes()

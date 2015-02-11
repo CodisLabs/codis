@@ -10,7 +10,7 @@ import (
 
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 )
 
 type decoder struct {
@@ -25,7 +25,7 @@ func Decode(r *bufio.Reader) (Resp, error) {
 func MustDecode(r *bufio.Reader) Resp {
 	resp, err := Decode(r)
 	if err != nil {
-		utils.ErrorPanic(err, "decode redis resp failed")
+		log.PanicError(err, "decode redis resp failed")
 	}
 	return resp
 }
@@ -38,7 +38,7 @@ func DecodeFromBytes(p []byte) (Resp, error) {
 func MustDecodeFromBytes(p []byte) Resp {
 	resp, err := DecodeFromBytes(p)
 	if err != nil {
-		utils.ErrorPanic(err, "decode redis resp from bytes failed")
+		log.PanicError(err, "decode redis resp from bytes failed")
 	}
 	return resp
 }

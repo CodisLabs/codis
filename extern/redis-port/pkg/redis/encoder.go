@@ -4,71 +4,67 @@
 package redis
 
 import (
+	"bufio"
 	"bytes"
-	"io"
 	"strconv"
 
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 )
 
 type encoder struct {
-	w io.Writer
+	w *bufio.Writer
 }
 
 var (
-	crlf []byte
-	inil []byte
-	imap [][]byte
+	imap []string
 )
 
 func init() {
-	crlf = []byte("\r\n")
-	inil = []byte(strconv.Itoa(-1))
-	imap = make([][]byte, 1024*512)
+	imap = make([]string, 1024*512+1024)
 	for i := 0; i < len(imap); i++ {
-		imap[i] = []byte(strconv.Itoa(i))
+		imap[i] = strconv.Itoa(i - 1024)
 	}
 }
 
-func itobytes(i int64) []byte {
-	if i == -1 {
-		return inil
-	} else if i >= 0 && i < int64(len(imap)) {
-		return imap[i]
+func itos(i int64) string {
+	if n := i + 1024; n >= 0 && n < int64(len(imap)) {
+		return imap[n]
 	} else {
-		return []byte(strconv.FormatInt(i, 10))
+		return strconv.FormatInt(i, 10)
 	}
 }
 
-func Encode(w io.Writer, r Resp) error {
+func Encode(w *bufio.Writer, r Resp) error {
 	e := &encoder{w}
-	return e.encodeResp(r)
+	if err := e.encodeResp(r); err != nil {
+		return err
+	}
+	return errors.Trace(w.Flush())
 }
 
-func MustEncode(w io.Writer, r Resp) {
+func MustEncode(w *bufio.Writer, r Resp) {
 	if err := Encode(w, r); err != nil {
-		utils.ErrorPanic(err, "encode redis resp failed")
+		log.PanicError(err, "encode redis resp failed")
 	}
 }
 
 func EncodeToBytes(r Resp) ([]byte, error) {
 	var b bytes.Buffer
-	err := Encode(&b, r)
+	err := Encode(bufio.NewWriter(&b), r)
 	return b.Bytes(), err
 }
 
 func EncodeToString(r Resp) (string, error) {
 	var b bytes.Buffer
-	err := Encode(&b, r)
+	err := Encode(bufio.NewWriter(&b), r)
 	return b.String(), err
 }
 
 func MustEncodeToBytes(r Resp) []byte {
 	b, err := EncodeToBytes(r)
 	if err != nil {
-		utils.ErrorPanic(err, "encode redis resp to bytes failed")
+		log.PanicError(err, "encode redis resp to bytes failed")
 	}
 	return b
 }
@@ -81,12 +77,12 @@ func (e *encoder) encodeResp(r Resp) error {
 		if err := e.encodeType(TypeString); err != nil {
 			return err
 		}
-		return e.encodeString([]byte(x.Value))
+		return e.encodeText(x.Value)
 	case *Error:
 		if err := e.encodeType(TypeError); err != nil {
 			return err
 		}
-		return e.encodeString([]byte(x.Value))
+		return e.encodeText(x.Value)
 	case *Int:
 		if err := e.encodeType(TypeInt); err != nil {
 			return err
@@ -106,22 +102,21 @@ func (e *encoder) encodeResp(r Resp) error {
 }
 
 func (e *encoder) encodeType(t RespType) error {
-	_, err := e.w.Write([]byte{byte(t)})
-	return errors.Trace(err)
+	return errors.Trace(e.w.WriteByte(byte(t)))
 }
 
-func (e *encoder) encodeString(b []byte) error {
-	if _, err := ioutils.WriteFull(e.w, b); err != nil {
-		return err
+func (e *encoder) encodeText(s string) error {
+	if _, err := e.w.WriteString(s); err != nil {
+		return errors.Trace(err)
 	}
-	if _, err := ioutils.WriteFull(e.w, crlf); err != nil {
-		return err
+	if _, err := e.w.WriteString("\r\n"); err != nil {
+		return errors.Trace(err)
 	}
 	return nil
 }
 
 func (e *encoder) encodeInt(v int64) error {
-	return e.encodeString(itobytes(v))
+	return e.encodeText(itos(v))
 }
 
 func (e *encoder) encodeBulkBytes(b []byte) error {
@@ -131,8 +126,11 @@ func (e *encoder) encodeBulkBytes(b []byte) error {
 		if err := e.encodeInt(int64(len(b))); err != nil {
 			return err
 		}
-		if err := e.encodeString(b); err != nil {
-			return err
+		if _, err := e.w.Write(b); err != nil {
+			return errors.Trace(err)
+		}
+		if _, err := e.w.WriteString("\r\n"); err != nil {
+			return errors.Trace(err)
 		}
 		return nil
 	}

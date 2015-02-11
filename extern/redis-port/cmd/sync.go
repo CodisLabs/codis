@@ -7,40 +7,38 @@ import (
 	"bufio"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/iocount"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/pipe"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/redis"
 )
 
 type cmdSync struct {
-	nread, nrecv, nobjs atomic2.AtomicInt64
+	nread, nrecv, nobjs counter.Int64
 }
 
 func (cmd *cmdSync) Main() {
-	ncpu, from, target := args.ncpu, args.from, args.target
+	from, target := args.from, args.target
 	if len(from) == 0 {
-		utils.Panic("invalid argument: from")
+		log.Panic("invalid argument: from")
 	}
 	if len(target) == 0 {
-		utils.Panic("invalid argument: target")
+		log.Panic("invalid argument: target")
 	}
 
-	log.Printf("[ncpu=%d] sync from '%s' to '%s'\n", ncpu, from, target)
+	log.Infof("sync from '%s' to '%s'\n", from, target)
 
 	var sockfile *os.File
 	if len(args.sockfile) != 0 {
 		f, err := pipe.OpenFile(args.sockfile, false)
 		if err != nil {
-			utils.ErrorPanic(err, "open sockbuff file failed")
+			log.PanicError(err, "open sockbuff file failed")
 		}
 		sockfile = f
 	}
@@ -48,11 +46,11 @@ func (cmd *cmdSync) Main() {
 	master, nsize := cmd.SendCmd(from)
 	defer master.Close()
 
-	log.Printf("rdb file = %d\n", nsize)
+	log.Infof("rdb file = %d\n", nsize)
 
 	var input io.Reader
 	if sockfile != nil {
-		r, w := pipe.PipeWithFile(ReaderBufferSize, int(args.filesize), sockfile)
+		r, w := pipe.PipeFile(ReaderBufferSize, int(args.filesize), sockfile)
 		defer r.Close()
 		go func() {
 			defer w.Close()
@@ -66,35 +64,35 @@ func (cmd *cmdSync) Main() {
 		input = master
 	}
 
-	reader := bufio.NewReaderSize(iocount.NewReaderWithCounter(input, &cmd.nread), ReaderBufferSize)
+	reader := bufio.NewReaderSize(ioutils.NewCountReader(input, &cmd.nread), ReaderBufferSize)
 
-	cmd.SyncRDBFile(reader, target, nsize, ncpu)
+	cmd.SyncRDBFile(reader, target, nsize)
 	cmd.SyncCommand(reader, target)
 }
 
 func (cmd *cmdSync) SendCmd(master string) (net.Conn, int64) {
 	c, wait := openSyncConn(master)
-	var nsize int64
-	for nsize == 0 {
+	for {
 		select {
-		case nsize = <-wait:
+		case nsize := <-wait:
 			if nsize == 0 {
-				log.Println("+")
+				log.Info("+")
+			} else {
+				return c, nsize
 			}
 		case <-time.After(time.Second):
-			log.Println("-")
+			log.Info("-")
 		}
 	}
-	return c, nsize
 }
 
-func (cmd *cmdSync) SyncRDBFile(reader *bufio.Reader, slave string, nsize int64, ncpu int) {
-	pipe := newRDBLoader(reader, ncpu*32)
+func (cmd *cmdSync) SyncRDBFile(reader *bufio.Reader, slave string, nsize int64) {
+	pipe := newRDBLoader(reader, args.parallel*32)
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)
-		group := make(chan int)
-		for i := 0; i < ncpu; i++ {
+		group := make(chan int, args.parallel)
+		for i := 0; i < cap(group); i++ {
 			go func() {
 				defer func() {
 					group <- 0
@@ -103,7 +101,7 @@ func (cmd *cmdSync) SyncRDBFile(reader *bufio.Reader, slave string, nsize int64,
 				defer c.Close()
 				var lastdb uint32 = 0
 				for e := range pipe {
-					if !acceptDB(int64(e.DB)) {
+					if !acceptDB(e.DB) {
 						continue
 					}
 					if e.DB != lastdb {
@@ -115,7 +113,7 @@ func (cmd *cmdSync) SyncRDBFile(reader *bufio.Reader, slave string, nsize int64,
 				}
 			}()
 		}
-		for i := 0; i < ncpu; i++ {
+		for i := 0; i < cap(group); i++ {
 			<-group
 		}
 	}()
@@ -128,13 +126,13 @@ func (cmd *cmdSync) SyncRDBFile(reader *bufio.Reader, slave string, nsize int64,
 		}
 		n, o := cmd.nread.Get(), cmd.nobjs.Get()
 		p := 100 * n / nsize
-		log.Printf("total=%d - %12d [%3d%%]  objs=%d\n", nsize, n, p, o)
+		log.Infof("total=%d - %12d [%3d%%]  objs=%d\n", nsize, n, p, o)
 	}
-	log.Println("sync rdb done")
+	log.Info("sync rdb done")
 }
 
 func (cmd *cmdSync) SyncCommand(reader *bufio.Reader, slave string) {
-	var forward, nbypass atomic2.AtomicInt64
+	var forward, nbypass counter.Int64
 	c := openNetConn(slave)
 	defer c.Close()
 
@@ -164,18 +162,18 @@ func (cmd *cmdSync) SyncCommand(reader *bufio.Reader, slave string) {
 		for {
 			resp := redis.MustDecode(reader)
 			if cmd, args, err := redis.ParseArgs(resp); err != nil {
-				utils.ErrorPanic(err, "parse command arguments failed")
+				log.PanicError(err, "parse command arguments failed")
 			} else if cmd != "ping" {
 				if cmd == "select" {
 					if len(args) != 1 {
-						utils.Panic("select command len(args) = %d", len(args))
+						log.Panicf("select command len(args) = %d", len(args))
 					}
 					s := string(args[0])
-					n, err := strconv.ParseInt(s, 10, 64)
+					n, err := parseInt(s, MinDB, MaxDB)
 					if err != nil {
-						utils.ErrorPanic(err, "parse db = '%s' failed", s)
+						log.PanicErrorf(err, "parse db = %s failed", s)
 					}
-					bypass = !acceptDB(n)
+					bypass = !acceptDB(uint32(n))
 				}
 				if bypass {
 					nbypass.Incr()
@@ -195,6 +193,6 @@ func (cmd *cmdSync) SyncCommand(reader *bufio.Reader, slave string) {
 		cmd.nread.Snapshot()
 		cmd.nrecv.Snapshot()
 		time.Sleep(time.Second)
-		log.Printf("sync: +forward=%-6d  +bypass=%-6d  +read=%-9d  +recv=%-9d\n", forward.Delta(), nbypass.Delta(), cmd.nread.Delta(), cmd.nrecv.Delta())
+		log.Infof("sync: +forward=%-6d  +bypass=%-6d  +read=%-9d  +recv=%-9d\n", forward.Delta(), nbypass.Delta(), cmd.nread.Delta(), cmd.nrecv.Delta())
 	}
 }

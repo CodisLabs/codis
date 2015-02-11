@@ -11,21 +11,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/bytesize"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/tests"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils/bytesize"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/testing/assert"
 )
 
-func openPipe(t *testing.T, fileName string) (*PipeReader, *PipeWriter) {
+func openPipe(t *testing.T, fileName string) (Reader, Writer) {
 	buffSize := bytesize.KB * 8
 	fileSize := bytesize.MB * 32
 	if fileName == "" {
-		return PipeWithSize(buffSize)
+		return PipeSize(buffSize)
 	} else {
 		f, err := OpenFile(fileName, false)
-		tests.AssertNoError(t, err)
-		return PipeWithFile(buffSize, fileSize, f)
+		assert.ErrorIsNil(t, err)
+		return PipeFile(buffSize, fileSize, f)
 	}
 }
 
@@ -36,16 +36,16 @@ func testPipe1(t *testing.T, fileName string) {
 
 	go func(data []byte) {
 		_, err := ioutils.WriteFull(w, data)
-		tests.AssertNoError(t, err)
-		tests.AssertNoError(t, w.Close())
+		assert.ErrorIsNil(t, err)
+		assert.ErrorIsNil(t, w.Close())
 	}([]byte(s))
 
 	buf := make([]byte, 64)
 	n, err := ioutils.ReadFull(r, buf)
-	tests.Assert(t, errors.Equal(err, io.EOF))
-	tests.Assert(t, n == len(s))
-	tests.Assert(t, string(buf[:n]) == s)
-	tests.AssertNoError(t, r.Close())
+	assert.Must(t, errors.Equal(err, io.EOF))
+	assert.Must(t, n == len(s))
+	assert.Must(t, string(buf[:n]) == s)
+	assert.ErrorIsNil(t, r.Close())
 }
 
 func TestPipe1(t *testing.T) {
@@ -63,25 +63,25 @@ func testPipe2(t *testing.T, fileName string) {
 		for i := 0; i < c; i++ {
 			m := fmt.Sprintf("[%d]%s ", i, s)
 			_, err := ioutils.WriteFull(w, []byte(m))
-			tests.AssertNoError(t, err)
+			assert.ErrorIsNil(t, err)
 		}
-		tests.AssertNoError(t, w.Close())
+		assert.ErrorIsNil(t, w.Close())
 	}()
 
 	time.Sleep(time.Millisecond * 100)
 
 	buf := make([]byte, len(s)*c*2)
 	n, err := ioutils.ReadFull(r, buf)
-	tests.Assert(t, errors.Equal(err, io.EOF))
+	assert.Must(t, errors.Equal(err, io.EOF))
 	buf = buf[:n]
 	for i := 0; i < c; i++ {
 		m := fmt.Sprintf("[%d]%s ", i, s)
-		tests.Assert(t, len(buf) >= len(m))
-		tests.Assert(t, string(buf[:len(m)]) == m)
+		assert.Must(t, len(buf) >= len(m))
+		assert.Must(t, string(buf[:len(m)]) == m)
 		buf = buf[len(m):]
 	}
-	tests.Assert(t, len(buf) == 0)
-	tests.AssertNoError(t, r.Close())
+	assert.Must(t, len(buf) == 0)
+	assert.ErrorIsNil(t, r.Close())
 }
 
 func TestPipe2(t *testing.T) {
@@ -103,10 +103,10 @@ func testPipe3(t *testing.T, fileName string) {
 			if errors.Equal(err, io.EOF) {
 				break
 			}
-			tests.AssertNoError(t, err)
+			assert.ErrorIsNil(t, err)
 			c <- n
 		}
-		tests.AssertNoError(t, r.Close())
+		assert.ErrorIsNil(t, r.Close())
 		c <- 0
 	}()
 
@@ -114,10 +114,10 @@ func testPipe3(t *testing.T, fileName string) {
 		buf := make([]byte, size)
 		for i := 1; i < size; i++ {
 			n, err := ioutils.WriteFull(w, buf[:i])
-			tests.AssertNoError(t, err)
-			tests.Assert(t, n == i)
+			assert.ErrorIsNil(t, err)
+			assert.Must(t, n == i)
 		}
-		tests.AssertNoError(t, w.Close())
+		assert.ErrorIsNil(t, w.Close())
 	}()
 
 	sum := 0
@@ -131,7 +131,7 @@ func testPipe3(t *testing.T, fileName string) {
 		}
 		sum -= n
 	}
-	tests.Assert(t, sum == 0)
+	assert.Must(t, sum == 0)
 }
 
 func TestPipe3(t *testing.T) {
@@ -142,7 +142,7 @@ func TestPipe3(t *testing.T) {
 func testPipe4(t *testing.T, fileName string) {
 	r, w := openPipe(t, fileName)
 
-	key := []byte("wandoujia aes128")
+	key := []byte("spinlock aes-128")
 
 	block := aes.BlockSize
 	count := 1024 * 1024 * 128 / block
@@ -150,7 +150,7 @@ func testPipe4(t *testing.T, fileName string) {
 	go func() {
 		buf := make([]byte, count*block)
 		m, err := aes.NewCipher(key)
-		tests.AssertNoError(t, err)
+		assert.ErrorIsNil(t, err)
 		for i := 0; i < len(buf); i++ {
 			buf[i] = byte(i)
 		}
@@ -158,27 +158,28 @@ func testPipe4(t *testing.T, fileName string) {
 		e := cipher.NewCBCEncrypter(m, make([]byte, block))
 		e.CryptBlocks(buf, buf)
 
-		_, err = ioutils.WriteFull(w, buf)
-		tests.AssertNoError(t, err)
-		tests.AssertNoError(t, w.Close())
+		n, err := ioutils.WriteFull(w, buf)
+		assert.ErrorIsNil(t, err)
+		assert.ErrorIsNil(t, w.Close())
+		assert.Must(t, n == len(buf))
 	}()
 
 	buf := make([]byte, count*block)
 	m, err := aes.NewCipher(key)
-	tests.AssertNoError(t, err)
+	assert.ErrorIsNil(t, err)
 
 	_, err = ioutils.ReadFull(r, buf)
-	tests.AssertNoError(t, err)
+	assert.ErrorIsNil(t, err)
 
 	e := cipher.NewCBCDecrypter(m, make([]byte, block))
 	e.CryptBlocks(buf, buf)
 
 	for i := 0; i < len(buf); i++ {
-		tests.Assert(t, buf[i] == byte(i))
+		assert.Must(t, buf[i] == byte(i))
 	}
 	_, err = ioutils.ReadFull(r, buf)
-	tests.Assert(t, errors.Equal(err, io.EOF))
-	tests.AssertNoError(t, r.Close())
+	assert.Must(t, errors.Equal(err, io.EOF))
+	assert.ErrorIsNil(t, r.Close())
 }
 
 func TestPipe4(t *testing.T) {
@@ -205,7 +206,7 @@ var pipeTests = []pipeTest{
 	{false, io.ErrShortWrite, true},
 }
 
-func delayClose(t *testing.T, closer PipeCloser, c chan int, u pipeTest) {
+func delayClose(t *testing.T, closer Closer, c chan int, u pipeTest) {
 	time.Sleep(time.Millisecond * 100)
 	var err error
 	if u.witherr {
@@ -213,7 +214,7 @@ func delayClose(t *testing.T, closer PipeCloser, c chan int, u pipeTest) {
 	} else {
 		err = closer.Close()
 	}
-	tests.AssertNoError(t, err)
+	assert.ErrorIsNil(t, err)
 	c <- 0
 }
 
@@ -236,9 +237,9 @@ func TestPipeReadClose(t *testing.T) {
 		if expect == nil {
 			expect = io.EOF
 		}
-		tests.Assert(t, errors.Equal(err, expect))
-		tests.Assert(t, n == 0)
-		tests.AssertNoError(t, r.Close())
+		assert.Must(t, errors.Equal(err, expect))
+		assert.Must(t, n == 0)
+		assert.ErrorIsNil(t, r.Close())
 	}
 }
 
@@ -251,9 +252,9 @@ func TestPipeReadClose2(t *testing.T) {
 	n, err := r.Read(make([]byte, 64))
 	<-c
 
-	tests.Assert(t, errors.Equal(err, io.ErrClosedPipe))
-	tests.Assert(t, n == 0)
-	tests.AssertNoError(t, w.Close())
+	assert.Must(t, errors.Equal(err, io.ErrClosedPipe))
+	assert.Must(t, n == 0)
+	assert.ErrorIsNil(t, w.Close())
 }
 
 func TestPipeWriteClose(t *testing.T) {
@@ -273,9 +274,9 @@ func TestPipeWriteClose(t *testing.T) {
 		if expect == nil {
 			expect = io.ErrClosedPipe
 		}
-		tests.Assert(t, errors.Equal(err, expect))
-		tests.Assert(t, n == 0)
-		tests.AssertNoError(t, w.Close())
+		assert.Must(t, errors.Equal(err, expect))
+		assert.Must(t, n == 0)
+		assert.ErrorIsNil(t, w.Close())
 	}
 }
 
@@ -284,15 +285,15 @@ func TestWriteEmpty(t *testing.T) {
 
 	go func() {
 		_, err := w.Write([]byte{})
-		tests.AssertNoError(t, err)
-		tests.AssertNoError(t, w.Close())
+		assert.ErrorIsNil(t, err)
+		assert.ErrorIsNil(t, w.Close())
 	}()
 
 	buf := make([]byte, 4096)
 	n, err := ioutils.ReadFull(r, buf)
-	tests.Assert(t, errors.Equal(err, io.EOF))
-	tests.Assert(t, n == 0)
-	tests.AssertNoError(t, r.Close())
+	assert.Must(t, errors.Equal(err, io.EOF))
+	assert.Must(t, n == 0)
+	assert.ErrorIsNil(t, r.Close())
 }
 
 func TestWriteNil(t *testing.T) {
@@ -300,15 +301,15 @@ func TestWriteNil(t *testing.T) {
 
 	go func() {
 		_, err := w.Write(nil)
-		tests.AssertNoError(t, err)
-		tests.AssertNoError(t, w.Close())
+		assert.ErrorIsNil(t, err)
+		assert.ErrorIsNil(t, w.Close())
 	}()
 
 	buf := make([]byte, 4096)
 	n, err := ioutils.ReadFull(r, buf)
-	tests.Assert(t, errors.Equal(err, io.EOF))
-	tests.Assert(t, n == 0)
-	tests.AssertNoError(t, r.Close())
+	assert.Must(t, errors.Equal(err, io.EOF))
+	assert.Must(t, n == 0)
+	assert.ErrorIsNil(t, r.Close())
 }
 
 func TestWriteAfterWriterClose(t *testing.T) {
@@ -320,18 +321,18 @@ func TestWriteAfterWriterClose(t *testing.T) {
 
 	go func() {
 		_, err := ioutils.WriteFull(w, []byte(s))
-		tests.AssertNoError(t, err)
-		tests.AssertNoError(t, w.Close())
+		assert.ErrorIsNil(t, err)
+		assert.ErrorIsNil(t, w.Close())
 		_, err = w.Write([]byte("world"))
 		errs <- err
 	}()
 
 	buf := make([]byte, 4096)
 	n, err := ioutils.ReadFull(r, buf)
-	tests.Assert(t, errors.Equal(err, io.EOF))
-	tests.Assert(t, string(buf[:n]) == s)
+	assert.Must(t, errors.Equal(err, io.EOF))
+	assert.Must(t, string(buf[:n]) == s)
 
 	err = <-errs
-	tests.Assert(t, errors.Equal(err, io.ErrClosedPipe))
-	tests.AssertNoError(t, r.Close())
+	assert.Must(t, errors.Equal(err, io.ErrClosedPipe))
+	assert.ErrorIsNil(t, r.Close())
 }

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/utils"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 )
 
 type HandlerFunc func(arg0 interface{}, args ...[]byte) (Resp, error)
@@ -41,7 +41,7 @@ func NewHandlerTable(o interface{}) (map[string]HandlerFunc, error) {
 func MustHandlerTable(o interface{}) map[string]HandlerFunc {
 	t, err := NewHandlerTable(o)
 	if err != nil {
-		utils.ErrorPanic(err, "create redis handler map failed")
+		log.PanicError(err, "create redis handler map failed")
 	}
 	return t
 }

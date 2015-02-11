@@ -21,6 +21,9 @@ type Record struct {
 }
 
 func (r *Record) String() string {
+	if r == nil {
+		return "[nil-record]"
+	}
 	return fmt.Sprintf("%s:%d %s", r.File, r.Line, r.Name)
 }
 
@@ -38,22 +41,20 @@ func (s Stack) StringWithIndent(indent int) string {
 	var b bytes.Buffer
 	for i, r := range s {
 		for j := 0; j < indent; j++ {
-			fmt.Fprintf(&b, tab)
+			fmt.Fprint(&b, tab)
 		}
 		fmt.Fprintf(&b, "%-3d %s:%d\n", len(s)-i-1, r.File, r.Line)
 		for j := 0; j < indent; j++ {
-			fmt.Fprintf(&b, tab)
+			fmt.Fprint(&b, tab)
 		}
-		fmt.Fprintf(&b, tab)
-		fmt.Fprintf(&b, tab)
-		fmt.Fprintf(&b, "%s\n", r.Name)
+		fmt.Fprint(&b, tab, tab)
+		fmt.Fprint(&b, r.Name, "\n")
 	}
 	if len(s) != 0 {
 		for j := 0; j < indent; j++ {
-			fmt.Fprintf(&b, tab)
+			fmt.Fprint(&b, tab)
 		}
-		fmt.Fprintf(&b, tab)
-		fmt.Fprintf(&b, "... ...\n")
+		fmt.Fprint(&b, tab, "... ...\n")
 	}
 	return b.String()
 }
@@ -61,8 +62,8 @@ func (s Stack) StringWithIndent(indent int) string {
 func TraceN(skip, depth int) Stack {
 	s := make([]*Record, 0, depth)
 	for i := 0; i < depth; i++ {
-		r, ok := Caller(skip + i + 1)
-		if !ok {
+		r := Caller(skip + i + 1)
+		if r == nil {
 			break
 		}
 		s = append(s, r)
@@ -70,18 +71,18 @@ func TraceN(skip, depth int) Stack {
 	return s
 }
 
-func Caller(skip int) (*Record, bool) {
+func Caller(skip int) *Record {
 	pc, file, line, ok := runtime.Caller(skip + 1)
 	if !ok {
-		return nil, false
+		return nil
 	}
 	fn := runtime.FuncForPC(pc)
 	if fn == nil || strings.HasPrefix(fn.Name(), "runtime.") {
-		return nil, false
+		return nil
 	}
 	return &Record{
 		Name: fn.Name(),
 		File: file,
 		Line: line,
-	}, true
+	}
 }

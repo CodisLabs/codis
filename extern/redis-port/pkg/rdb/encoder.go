@@ -11,7 +11,7 @@ import (
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
 )
 
-type rdbObject interface {
+type objectEncoder interface {
 	encodeType(enc *rdb.Encoder) error
 	encodeValue(enc *rdb.Encoder) error
 }
@@ -103,7 +103,7 @@ func (o Set) encodeValue(enc *rdb.Encoder) error {
 }
 
 func EncodeDump(obj interface{}) ([]byte, error) {
-	o, ok := obj.(rdbObject)
+	o, ok := obj.(objectEncoder)
 	if !ok {
 		return nil, errors.New("unsupported object type")
 	}
@@ -142,7 +142,7 @@ func (e *Encoder) EncodeFooter() error {
 }
 
 func (e *Encoder) EncodeObject(db uint32, key []byte, expireat uint64, obj interface{}) error {
-	o, ok := obj.(rdbObject)
+	o, ok := obj.(objectEncoder)
 	if !ok {
 		return errors.New("unsupported object type")
 	}

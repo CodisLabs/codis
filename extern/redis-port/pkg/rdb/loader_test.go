@@ -12,39 +12,39 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/tests"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/testing/assert"
 )
 
-func DecodeHexRdb(t *testing.T, s string, n int) map[string]*Entry {
+func DecodeHexRdb(t *testing.T, s string, n int) map[string]*BinEntry {
 	p, err := hex.DecodeString(strings.NewReplacer("\t", "", "\r", "", "\n", "", " ", "").Replace(s))
-	tests.AssertNoError(t, err)
+	assert.ErrorIsNil(t, err)
 	r := bytes.NewReader(p)
 	l := NewLoader(r)
-	tests.AssertNoError(t, l.LoadHeader())
-	entries := make(map[string]*Entry)
+	assert.ErrorIsNil(t, l.Header())
+	entries := make(map[string]*BinEntry)
 	var i int = 0
 	for {
-		e, err := l.LoadEntry()
-		tests.AssertNoError(t, err)
+		e, err := l.NextBinEntry()
+		assert.ErrorIsNil(t, err)
 		if e == nil {
 			break
 		}
-		tests.Assert(t, e.DB == 0)
+		assert.Must(t, e.DB == 0)
 		entries[string(e.Key)] = e
 		i++
 	}
-	tests.AssertNoError(t, l.LoadChecksum())
-	tests.Assert(t, r.Len() == 0)
-	tests.Assert(t, len(entries) == i && i == n)
+	assert.ErrorIsNil(t, l.Footer())
+	assert.Must(t, r.Len() == 0)
+	assert.Must(t, len(entries) == i && i == n)
 	return entries
 }
 
-func getobj(t *testing.T, entries map[string]*Entry, key string) (*Entry, interface{}) {
+func getobj(t *testing.T, entries map[string]*BinEntry, key string) (*BinEntry, interface{}) {
 	e := entries[key]
-	tests.Assert(t, e != nil)
-	val, err := DecodeDump(e.ValDump)
-	tests.AssertNoError(t, err)
-	return e, val
+	assert.Must(t, e != nil)
+	o, err := DecodeDump(e.Value)
+	assert.ErrorIsNil(t, err)
+	return e, o
 }
 
 /*
@@ -72,7 +72,7 @@ func TestLoadIntString(t *testing.T) {
 		key := fmt.Sprintf("string_%d", value)
 		_, obj := getobj(t, entries, key)
 		val := obj.(String)
-		tests.Assert(t, bytes.Equal([]byte(val), []byte(strconv.Itoa(value))))
+		assert.Must(t, bytes.Equal([]byte(val), []byte(strconv.Itoa(value))))
 	}
 }
 
@@ -97,8 +97,8 @@ func TestLoadStringTTL(t *testing.T) {
 	for _, key := range keys {
 		e, obj := getobj(t, entries, key)
 		val := obj.(String)
-		tests.Assert(t, bytes.Equal([]byte(val), []byte(key)))
-		tests.Assert(t, e.ExpireAt == expireat)
+		assert.Must(t, bytes.Equal([]byte(val), []byte(key)))
+		assert.Must(t, e.ExpireAt == expireat)
 	}
 }
 
@@ -148,7 +148,7 @@ func TestLoadLongString(t *testing.T) {
 		if i%2 != 0 {
 			c = '1'
 		}
-		tests.Assert(t, val[i] == c)
+		assert.Must(t, val[i] == c)
 	}
 }
 
@@ -170,13 +170,13 @@ func TestLoadListZipmap(t *testing.T) {
 	entries := DecodeHexRdb(t, s, 1)
 	_, obj := getobj(t, entries, "list_lzf")
 	val := obj.(List)
-	tests.Assert(t, len(val) == 512)
+	assert.Must(t, len(val) == 512)
 	for i := 0; i < 256; i++ {
 		var s string = "0"
 		if i%2 != 0 {
 			s = "1"
 		}
-		tests.Assert(t, string(val[i]) == s)
+		assert.Must(t, string(val[i]) == s)
 	}
 }
 
@@ -197,9 +197,9 @@ func TestLoadList(t *testing.T) {
 	entries := DecodeHexRdb(t, s, 1)
 	_, obj := getobj(t, entries, "list")
 	val := obj.(List)
-	tests.Assert(t, len(val) == 32)
+	assert.Must(t, len(val) == 32)
 	for i := 0; i < 32; i++ {
-		tests.Assert(t, string(val[i]) == strconv.Itoa(i))
+		assert.Must(t, string(val[i]) == strconv.Itoa(i))
 	}
 }
 
@@ -230,11 +230,11 @@ func TestLoadSetAndSetIntset(t *testing.T) {
 	for _, mem := range val1 {
 		set1[string(mem)] = true
 	}
-	tests.Assert(t, len(set1) == 16)
-	tests.Assert(t, len(set1) == len(val1))
+	assert.Must(t, len(set1) == 16)
+	assert.Must(t, len(set1) == len(val1))
 	for i := 0; i < 16; i++ {
 		_, ok := set1[strconv.Itoa(i)]
-		tests.Assert(t, ok)
+		assert.Must(t, ok)
 	}
 
 	_, obj2 := getobj(t, entries, "set2")
@@ -243,11 +243,11 @@ func TestLoadSetAndSetIntset(t *testing.T) {
 	for _, mem := range val2 {
 		set2[string(mem)] = true
 	}
-	tests.Assert(t, len(set2) == 32)
-	tests.Assert(t, len(set2) == len(val2))
+	assert.Must(t, len(set2) == 32)
+	assert.Must(t, len(set2) == len(val2))
 	for i := 0; i < 32; i++ {
 		_, ok := set2[strconv.Itoa(i)]
-		tests.Assert(t, ok)
+		assert.Must(t, ok)
 	}
 }
 
@@ -281,11 +281,11 @@ func TestLoadHashAndHashZiplist(t *testing.T) {
 	for _, ent := range val1 {
 		hash1[string(ent.Field)] = string(ent.Value)
 	}
-	tests.Assert(t, len(hash1) == 16)
-	tests.Assert(t, len(hash1) == len(val1))
+	assert.Must(t, len(hash1) == 16)
+	assert.Must(t, len(hash1) == len(val1))
 	for i := 0; i < 16; i++ {
 		s := strconv.Itoa(i)
-		tests.Assert(t, hash1[s] == s)
+		assert.Must(t, hash1[s] == s)
 	}
 
 	_, obj2 := getobj(t, entries, "hash2")
@@ -294,11 +294,11 @@ func TestLoadHashAndHashZiplist(t *testing.T) {
 	for _, ent := range val2 {
 		hash2[string(ent.Field)] = string(ent.Value)
 	}
-	tests.Assert(t, len(hash2) == 32)
-	tests.Assert(t, len(hash2) == len(val2))
+	assert.Must(t, len(hash2) == 32)
+	assert.Must(t, len(hash2) == len(val2))
 	for i := -16; i < 16; i++ {
 		s := strconv.Itoa(i)
-		tests.Assert(t, hash2[s] == s)
+		assert.Must(t, hash2[s] == s)
 	}
 }
 
@@ -334,13 +334,13 @@ func TestLoadZSetAndZSetZiplist(t *testing.T) {
 	for _, ent := range val1 {
 		zset1[string(ent.Member)] = ent.Score
 	}
-	tests.Assert(t, len(zset1) == 16)
-	tests.Assert(t, len(zset1) == len(val1))
+	assert.Must(t, len(zset1) == 16)
+	assert.Must(t, len(zset1) == len(val1))
 	for i := 0; i < 16; i++ {
 		s := strconv.Itoa(i)
 		score, ok := zset1[s]
-		tests.Assert(t, ok)
-		tests.Assert(t, math.Abs(score-float64(i)) < 1e-10)
+		assert.Must(t, ok)
+		assert.Must(t, math.Abs(score-float64(i)) < 1e-10)
 	}
 
 	_, obj2 := getobj(t, entries, "zset2")
@@ -349,12 +349,12 @@ func TestLoadZSetAndZSetZiplist(t *testing.T) {
 	for _, ent := range val2 {
 		zset2[string(ent.Member)] = ent.Score
 	}
-	tests.Assert(t, len(zset2) == 32)
-	tests.Assert(t, len(zset2) == len(val2))
+	assert.Must(t, len(zset2) == 32)
+	assert.Must(t, len(zset2) == len(val2))
 	for i := 0; i < 32; i++ {
 		s := strconv.Itoa(i)
 		score, ok := zset2[s]
-		tests.Assert(t, ok)
-		tests.Assert(t, math.Abs(score+float64(i)) < 1e-10)
+		assert.Must(t, ok)
+		assert.Must(t, math.Abs(score+float64(i)) < 1e-10)
 	}
 }

@@ -17,6 +17,13 @@ func NewServer(o interface{}) (*Server, error) {
 	return &Server{t}, nil
 }
 
+func NewServerWithTable(t HandlerTable) (*Server, error) {
+	if t == nil {
+		return nil, errors.New("handler table is nil")
+	}
+	return &Server{t}, nil
+}
+
 func MustServer(o interface{}) *Server {
 	return &Server{MustHandlerTable(o)}
 }
