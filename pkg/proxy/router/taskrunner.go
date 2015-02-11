@@ -6,7 +6,6 @@ import (
 	log "github.com/ngaut/logging"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/redisconn"
-	"io"
 	"sync"
 	"time"
 )
@@ -14,7 +13,7 @@ import (
 type taskRunner struct {
 	evtbus     chan interface{}
 	in         chan interface{} //*PipelineRequest
-	out        chan *parser.Resp
+	out        chan interface{}
 	redisAddr  string
 	tasks      *list.List
 	c          *redisconn.Conn
@@ -26,7 +25,7 @@ func (tr *taskRunner) readloop() {
 	for {
 		resp, err := parser.Parse(tr.c.BufioReader())
 		if err != nil {
-			tr.out <- nil
+			tr.out <- err
 			return
 		}
 
@@ -119,18 +118,21 @@ func (tr *taskRunner) processTask(t interface{}) error {
 	return nil
 }
 
-func (tr *taskRunner) handleResponse(resp *parser.Resp) error {
-	if resp == nil { //read error
-		return io.EOF
+func (tr *taskRunner) handleResponse(e interface{}) error {
+	switch e.(type) {
+	case error:
+		return e.(error)
+	case *parser.Resp:
+		resp := e.(*parser.Resp)
+		e := tr.tasks.Front()
+		req := e.Value.(*PipelineRequest)
+		log.Debug("finish", req)
+		req.backQ <- &PipelineResponse{ctx: req, resp: resp, err: nil}
+		tr.tasks.Remove(e)
+		return nil
 	}
 
-	e := tr.tasks.Front()
-	req := e.Value.(*PipelineRequest)
-	log.Debug("finish", req)
-	req.backQ <- &PipelineResponse{ctx: req, resp: resp, err: nil}
-	tr.tasks.Remove(e)
 	return nil
-
 }
 
 func (tr *taskRunner) writeloop() {
@@ -162,7 +164,7 @@ func (tr *taskRunner) writeloop() {
 func NewTaskRunner(addr string, netTimeout int) (*taskRunner, error) {
 	tr := &taskRunner{
 		in:         make(chan interface{}, 100),
-		out:        make(chan *parser.Resp, 100),
+		out:        make(chan interface{}, 100),
 		redisAddr:  addr,
 		tasks:      list.New(),
 		netTimeout: netTimeout,
