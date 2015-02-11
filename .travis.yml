@@ -4,7 +4,7 @@ go:
     - 1.3
     - tip
 
-install: go get -d -v ./... && go build -v ./... && make
+install: go get -d -v ./... 
 
 before_script:
     - echo "before script"
