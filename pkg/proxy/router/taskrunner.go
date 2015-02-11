@@ -2,25 +2,31 @@ package router
 
 import (
 	"container/list"
+	"github.com/juju/errors"
 	log "github.com/ngaut/logging"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/redisconn"
+	"io"
 	"sync"
+	"time"
 )
 
 type taskRunner struct {
-	evtbus    chan interface{}
-	in        chan interface{} //*PipelineRequest
-	out       chan *parser.Resp
-	redisAddr string
-	tasks     *list.List
-	c         *redisconn.Conn
+	evtbus     chan interface{}
+	in         chan interface{} //*PipelineRequest
+	out        chan *parser.Resp
+	redisAddr  string
+	tasks      *list.List
+	c          *redisconn.Conn
+	netTimeout int //second
+	closed     bool
 }
 
 func (tr *taskRunner) readloop() {
 	for {
 		resp, err := parser.Parse(tr.c.BufioReader())
 		if err != nil {
+			tr.out <- nil
 			return
 		}
 
@@ -31,18 +37,16 @@ func (tr *taskRunner) readloop() {
 func (tr *taskRunner) dowrite(r *PipelineRequest, flush bool) error {
 	b, err := r.req.Bytes()
 	if err != nil {
-		log.Warning(err)
-		return err
+		return errors.Trace(err)
 	}
 
 	_, err = tr.c.Write(b)
 	if err != nil {
-		log.Warning(err)
-		return err
+		return errors.Trace(err)
 	}
 
 	if flush {
-		return tr.c.Flush()
+		return errors.Trace(tr.c.Flush())
 	}
 
 	return nil
@@ -56,74 +60,115 @@ func (tr *taskRunner) handleTask(r *PipelineRequest, flush bool) error {
 	log.Debugf("handleTask:%v", r)
 	tr.tasks.PushBack(r)
 
-	err := tr.dowrite(r, flush)
+	return errors.Trace(tr.dowrite(r, flush))
+}
+
+func (tr *taskRunner) cleanupQueueTasks() {
+	for {
+		select {
+		case t := <-tr.in:
+			tr.processTask(t)
+		default:
+			return
+		}
+	}
+}
+
+func (tr *taskRunner) tryRecover(err error) error {
+	log.Warning(errors.ErrorStack(err))
+	//clean up all task
+	for e := tr.tasks.Front(); e != nil; {
+		req := e.Value.(*PipelineRequest)
+		log.Info("clean up", req)
+		req.backQ <- &PipelineResponse{ctx: req, resp: nil, err: err}
+		next := e.Next()
+		tr.tasks.Remove(e)
+		e = next
+	}
+	//try to recover
+	c, err := redisconn.NewConnection(tr.redisAddr, tr.netTimeout)
 	if err != nil {
-		//todo: how to handle this error
-		//notify all request, close client connection ?
-		log.Error(err)
+		tr.cleanupQueueTasks() //do not block dispatcher
+		log.Warning(err)
+		time.Sleep(1 * time.Second)
+		return err
+	}
+
+	tr.c = c
+	go tr.readloop()
+
+	return nil
+}
+
+func (tr *taskRunner) processTask(t interface{}) error {
+	switch t.(type) {
+	case *PipelineRequest:
+		r := t.(*PipelineRequest)
+		var flush bool
+		if len(tr.in) == 0 { //force flush
+			flush = true
+		}
+
+		return tr.handleTask(r, flush)
+	case *sync.WaitGroup: //close
+		err := tr.handleTask(nil, true) //flush
+		tr.closed = true
 		return err
 	}
 
 	return nil
 }
 
+func (tr *taskRunner) handleResponse(resp *parser.Resp) error {
+	if resp == nil { //read error
+		return io.EOF
+	}
+
+	e := tr.tasks.Front()
+	req := e.Value.(*PipelineRequest)
+	log.Debug("finish", req)
+	req.backQ <- &PipelineResponse{ctx: req, resp: resp, err: nil}
+	tr.tasks.Remove(e)
+	return nil
+
+}
+
 func (tr *taskRunner) writeloop() {
-	var bufCnt int64
-	var closed bool
 	var err error
 	var wgClose *sync.WaitGroup
 	for {
-		if closed && tr.tasks.Len() == 0 {
+		if tr.closed && tr.tasks.Len() == 0 {
 			wgClose.Done()
 			return
 		}
 
 		if err != nil { //clean up
-			for e := tr.tasks.Front(); e != nil; e = e.Next() {
-				req := e.Value.(*PipelineRequest)
-				log.Info("clean up", req)
-				req.backQ <- &PipelineResponse{ctx: req, resp: nil, err: err}
-				next := e.Next()
-				tr.tasks.Remove(e)
-				e = next
+			err = tr.tryRecover(err)
+			if err != nil {
+				//todo: clean tasks in tr.in
+				continue
 			}
 		}
 
 		select {
 		case t := <-tr.in:
-			switch t.(type) {
-			case *PipelineRequest:
-				r := t.(*PipelineRequest)
-				var flush bool
-				bufCnt++
-				if len(tr.in) == 0 { //force flush
-					flush = true
-				}
-
-				err = tr.handleTask(r, flush)
-			case *sync.WaitGroup: //close
-				err = tr.handleTask(nil, true) //flush
-				closed = true
-			}
+			err = tr.processTask(t)
 		case resp := <-tr.out:
-			e := tr.tasks.Front()
-			req := e.Value.(*PipelineRequest)
-			log.Debug("finish", req)
-			req.backQ <- &PipelineResponse{ctx: req, resp: resp, err: nil}
-			tr.tasks.Remove(e)
+			err = tr.handleResponse(resp)
 		}
 	}
 }
 
-func NewTaskRunner(addr string) (*taskRunner, error) {
+func NewTaskRunner(addr string, netTimeout int) (*taskRunner, error) {
 	tr := &taskRunner{
-		in:        make(chan interface{}, 100),
-		out:       make(chan *parser.Resp, 100),
-		redisAddr: addr,
-		tasks:     list.New(),
+		in:         make(chan interface{}, 100),
+		out:        make(chan *parser.Resp, 100),
+		redisAddr:  addr,
+		tasks:      list.New(),
+		netTimeout: netTimeout,
 	}
 
-	c, err := redisconn.NewConnection(addr)
+	c, err := redisconn.NewConnection(addr, netTimeout)
 	if err != nil {
 		return nil, err
 	}

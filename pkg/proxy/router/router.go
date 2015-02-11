@@ -116,7 +116,7 @@ func (s *Server) fillSlot(i int, force bool) {
 	s.slots[i] = slot
 	dst := slot.dst.Master()
 	if _, ok := s.pipeConns[dst]; !ok {
-		tr, err := NewTaskRunner(dst)
+		tr, err := NewTaskRunner(dst, s.netTimeout)
 		if err != nil {
 			log.Error(dst) //todo: how to handle this error?
 		} else {
