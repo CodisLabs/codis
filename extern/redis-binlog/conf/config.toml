@@ -1,0 +1,53 @@
+# This is a TOML document. Boom.
+
+dbtype = "rocksdb"
+dbpath = "testdb-rocksdb"
+
+[service]
+
+listen_address = "0.0.0.0:6380"
+dump_filepath = "dump.rdb"
+conn_timeout = 900
+
+sync_filepath = "sync.pipe"
+sync_filesize = 34359738368
+sync_memory_buffer = 8388608
+
+[leveldb]
+
+block_size = 65536
+cache_size = 4294967296
+write_buffer_size = 67108864
+bloom_filter_size = 24
+max_open_files = 4096
+
+
+[rocksdb]
+
+block_size = 65536
+cache_size = 4294967296
+write_buffer_size = 67108864
+max_open_files = 4096
+num_levels = 5
+
+bloom_filter_size = 24
+background_threads = 8
+high_priority_background_threads = 2
+max_background_compactions = 6
+max_background_flushes = 2
+
+max_write_buffer_number = 4
+min_write_buffer_number_to_merge = 1
+level0_filenum_compaction_trigger = 8
+level0_slowdown_writes_trigger = 16
+level0_stop_writes_trigger = 64
+target_file_size_base = 67108864
+target_file_size_multiplier = 2
+max_bytes_for_level_base = 536870912
+max_bytes_for_level_multiplier = 8
+
+disable_auto_compations = false
+disable_data_sync = false
+use_fsync = false
+snapshot_fillcache = true
+allow_os_buffer = true
