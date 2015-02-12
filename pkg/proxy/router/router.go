@@ -75,6 +75,21 @@ func (s *Server) clearSlot(i int) {
 	}
 }
 
+func (s *Server) stopTaskRunners() {
+	wg := &sync.WaitGroup{}
+	log.Warning("taskrunner count", len(s.pipeConns))
+	wg.Add(len(s.pipeConns))
+	for _, tr := range s.pipeConns {
+		tr.in <- wg
+	}
+	wg.Wait()
+
+	//remove all
+	for k, _ := range s.pipeConns {
+		delete(s.pipeConns, k)
+	}
+}
+
 //use it in lock
 func (s *Server) fillSlot(i int, force bool) {
 	if !validSlot(i) {
@@ -114,17 +129,28 @@ func (s *Server) fillSlot(i int, force bool) {
 	}
 
 	s.slots[i] = slot
+	s.counter.Add("FillSlot", 1)
+}
+
+func (s *Server) createTaskRunner(slot *Slot) error {
 	dst := slot.dst.Master()
 	if _, ok := s.pipeConns[dst]; !ok {
 		tr, err := NewTaskRunner(dst, s.netTimeout)
 		if err != nil {
 			log.Error(dst) //todo: how to handle this error?
+			return err
 		} else {
 			s.pipeConns[dst] = tr
 		}
 	}
 
-	s.counter.Add("FillSlot", 1)
+	return nil
+}
+
+func (s *Server) createTaskRunners() {
+	for _, slotNo := range s.slots {
+		s.createTaskRunner(slotNo)
+	}
 }
 
 func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
@@ -280,19 +306,23 @@ check_state:
 		goto check_state
 	}
 
+	dst := s.slots[i].dst.Master()
+
 	defer func() {
-		s.mu.RUnlock()
 		sec := time.Since(start).Seconds()
 		if sec > 2 {
 			log.Warningf("op: %s, key:%s, on: %s, too long %d seconds, client: %s", opstr,
-				string(k), s.slots[i].dst.Master(), int(sec), c.RemoteAddr().String())
+				string(k), dst, int(sec), c.RemoteAddr().String())
 		}
 		recordResponseTime(s.counter, time.Duration(sec)*1000)
 	}()
 
 	if err := s.handleMigrateState(i, k); err != nil {
+		s.mu.RUnlock()
 		return errors.Trace(err)
 	}
+
+	s.mu.RUnlock()
 
 	//pipeline
 	c.pipelineSeq++
@@ -440,6 +470,8 @@ func (s *Server) checkAndDoTopoChange(seq int) (needResponse bool) {
 		return false
 	}
 
+	s.stopTaskRunners()
+
 	switch act.Type {
 	case models.ACTION_TYPE_SLOT_MIGRATE, models.ACTION_TYPE_SLOT_CHANGED,
 		models.ACTION_TYPE_SLOT_PREMIGRATE:
@@ -459,6 +491,8 @@ func (s *Server) checkAndDoTopoChange(seq int) (needResponse bool) {
 	default:
 		log.Fatalf("unknown action %+v", act)
 	}
+
+	s.createTaskRunners()
 
 	return true
 }
@@ -565,13 +599,19 @@ func (s *Server) handleTopoEvent() {
 		case *PipelineRequest:
 			r := e.(*PipelineRequest)
 			log.Debugf("got event %v, seq:%v", string(r.op), r.seq)
-			s.pipeConns[s.slots[r.slotIdx].dst.Master()].in <- e
+			tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
+			if !ok {
+				//try recreate taskrunner
+				if err := s.createTaskRunner(s.slots[r.slotIdx]); err != nil {
+					r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
+					continue
+				}
+			}
+			tr.in <- e
 		case zk.Event:
 			log.Infof("got event %s, %v", s.pi.Id, e)
 			s.processAction(e)
-
 		}
-		//todo:handle SLOT_STATUS_PRE_MIGRATE
 	}
 }
 

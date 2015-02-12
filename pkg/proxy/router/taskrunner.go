@@ -19,6 +19,7 @@ type taskRunner struct {
 	c          *redisconn.Conn
 	netTimeout int //second
 	closed     bool
+	wgClose    *sync.WaitGroup
 }
 
 func (tr *taskRunner) readloop() {
@@ -73,9 +74,7 @@ func (tr *taskRunner) cleanupQueueTasks() {
 	}
 }
 
-func (tr *taskRunner) tryRecover(err error) error {
-	log.Warning(errors.ErrorStack(err))
-	//clean up all task
+func (tr *taskRunner) cleanupOutgoingTasks(err error) {
 	for e := tr.tasks.Front(); e != nil; {
 		req := e.Value.(*PipelineRequest)
 		log.Info("clean up", req)
@@ -84,6 +83,11 @@ func (tr *taskRunner) tryRecover(err error) error {
 		tr.tasks.Remove(e)
 		e = next
 	}
+}
+
+func (tr *taskRunner) tryRecover(err error) error {
+	log.Warning(errors.ErrorStack(err))
+	tr.cleanupOutgoingTasks(err)
 	//try to recover
 	c, err := redisconn.NewConnection(tr.redisAddr, tr.netTimeout)
 	if err != nil {
@@ -99,6 +103,20 @@ func (tr *taskRunner) tryRecover(err error) error {
 	return nil
 }
 
+func (tr *taskRunner) getOutgoingResponse() {
+	for {
+		if tr.tasks.Len() == 0 {
+			return
+		}
+
+		resp := <-tr.out
+		err := tr.handleResponse(resp)
+		if err != nil {
+			tr.cleanupOutgoingTasks(err)
+		}
+	}
+}
+
 func (tr *taskRunner) processTask(t interface{}) error {
 	switch t.(type) {
 	case *PipelineRequest:
@@ -109,9 +127,12 @@ func (tr *taskRunner) processTask(t interface{}) error {
 		}
 
 		return tr.handleTask(r, flush)
-	case *sync.WaitGroup: //close
+	case *sync.WaitGroup: //close taskrunner
 		err := tr.handleTask(nil, true) //flush
+		//get all response for out going request
+		tr.getOutgoingResponse()
 		tr.closed = true
+		tr.wgClose = t.(*sync.WaitGroup)
 		return err
 	}
 
@@ -137,10 +158,11 @@ func (tr *taskRunner) handleResponse(e interface{}) error {
 
 func (tr *taskRunner) writeloop() {
 	var err error
-	var wgClose *sync.WaitGroup
 	for {
 		if tr.closed && tr.tasks.Len() == 0 {
-			wgClose.Done()
+			log.Warning("exit taskrunner", tr.redisAddr)
+			tr.wgClose.Done()
+			tr.c.Close()
 			return
 		}
 
