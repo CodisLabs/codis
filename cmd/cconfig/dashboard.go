@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ngaut/zkhelper"
@@ -151,9 +152,14 @@ func runDashboard(addr string, httpLogFile string) {
 	defer f.Close()
 	m.Map(stdlog.New(f, "[martini]", stdlog.LstdFlags))
 
-	m.Use(martini.Static("assets/statics"))
+	binRoot, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	m.Use(martini.Static(filepath.Join(binRoot, "assets/statics")))
 	m.Use(render.Renderer(render.Options{
-		Directory:  "assets/template",
+		Directory:  filepath.Join(binRoot, "assets/template"),
 		Extensions: []string{".tmpl", ".html"},
 		Charset:    "UTF-8",
 		IndentJSON: true,
