@@ -147,7 +147,6 @@ func (tr *taskRunner) writeloop() {
 		if err != nil { //clean up
 			err = tr.tryRecover(err)
 			if err != nil {
-				//todo: clean tasks in tr.in
 				continue
 			}
 		}
@@ -163,8 +162,8 @@ func (tr *taskRunner) writeloop() {
 
 func NewTaskRunner(addr string, netTimeout int) (*taskRunner, error) {
 	tr := &taskRunner{
-		in:         make(chan interface{}, 100),
-		out:        make(chan interface{}, 100),
+		in:         make(chan interface{}, 1000),
+		out:        make(chan interface{}, 1000),
 		redisAddr:  addr,
 		tasks:      list.New(),
 		netTimeout: netTimeout,

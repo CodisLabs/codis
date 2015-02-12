@@ -325,7 +325,7 @@ func (s *Server) handleConn(c net.Conn) {
 		r:           bufio.NewReader(c),
 		w:           bufio.NewWriter(c),
 		CreateAt:    time.Now(),
-		backQ:       make(chan *PipelineResponse, 100),
+		backQ:       make(chan *PipelineResponse, 1000),
 		closeSingal: wg,
 	}
 
@@ -631,14 +631,14 @@ func (s *Server) RegisterAndWait() {
 func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	log.Infof("%+v", conf)
 	s := &Server{
-		evtbus:            make(chan interface{}, 100),
+		evtbus:            make(chan interface{}, 1000),
 		top:               topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
 		netTimeout:        conf.netTimeout,
 		counter:           stats.NewCounters("router"),
 		lastActionSeq:     -1,
 		startAt:           time.Now(),
 		addr:              addr,
-		concurrentLimiter: tokenlimiter.NewTokenLimiter(100),
+		concurrentLimiter: tokenlimiter.NewTokenLimiter(1000),
 		moper:             NewMultiOperator(addr),
 		pools:             cachepool.NewCachePool(),
 		pipeConns:         make(map[string]*taskRunner),
