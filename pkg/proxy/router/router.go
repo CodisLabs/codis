@@ -6,8 +6,6 @@ package router
 import (
 	"bufio"
 	"fmt"
-	"github.com/ngaut/go-zookeeper/zk"
-	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
 	"io"
 	"net"
 	"os"
@@ -17,7 +15,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ngaut/go-zookeeper/zk"
+	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
+
 	"bytes"
+
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
@@ -606,6 +608,8 @@ func (s *Server) handleTopoEvent() {
 					r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
 					continue
 				}
+
+				tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
 			}
 			tr.in <- e
 		case zk.Event:
