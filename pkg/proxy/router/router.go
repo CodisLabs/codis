@@ -441,7 +441,7 @@ func (s *Server) getActionObject(seq int, target interface{}) {
 
 func (s *Server) checkAndDoTopoChange(seq int) (needResponse bool) {
 	act, err := s.top.GetActionWithSeq(int64(seq))
-	if err != nil {
+	if err != nil { //todo: error is not "not exist"
 		log.Fatal(errors.ErrorStack(err), "action seq", seq)
 	}
 
