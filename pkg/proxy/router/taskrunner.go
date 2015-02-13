@@ -2,12 +2,13 @@ package router
 
 import (
 	"container/list"
+	"sync"
+	"time"
+
 	"github.com/juju/errors"
 	log "github.com/ngaut/logging"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/redisconn"
-	"sync"
-	"time"
 )
 
 type taskRunner struct {

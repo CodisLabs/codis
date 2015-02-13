@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ngaut/go-zookeeper/zk"
 	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
 
 	"bytes"
@@ -25,6 +24,8 @@ import (
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/redispool"
+
+	"container/list"
 
 	"github.com/juju/errors"
 	stats "github.com/ngaut/gostats"
@@ -43,10 +44,10 @@ type OnSuicideFun func() error
 
 //change field is not allowed without Lock
 type Server struct {
-	mu     sync.RWMutex
 	slots  [models.DEFAULT_SLOT_NUM]*Slot
 	top    *topo.Topology
 	evtbus chan interface{}
+	reqCh  chan *PipelineRequest
 
 	lastActionSeq     int
 	pi                models.ProxyInfo
@@ -54,15 +55,14 @@ type Server struct {
 	addr              string
 	concurrentLimiter *tokenlimiter.TokenLimiter
 
-	moper *MultiOperator
-	pools *cachepool.CachePool
-	//counter
-	counter    *stats.Counters
-	OnSuicide  OnSuicideFun
-	netTimeout int //seconds
+	moper       *MultiOperator
+	pools       *cachepool.CachePool
+	counter     *stats.Counters
+	OnSuicide   OnSuicideFun
+	netTimeout  int //seconds
+	bufferedReq *list.List
 
-	//pipeline connection
-	pipeConns map[string]*taskRunner //master->taskrunner
+	pipeConns map[string]*taskRunner //redis->taskrunner
 }
 
 func (s *Server) clearSlot(i int) {
@@ -295,36 +295,14 @@ func (s *Server) redisTunnel(c *session) error {
 	token := s.concurrentLimiter.Get()
 	defer s.concurrentLimiter.Put(token)
 
-check_state:
-	s.mu.RLock()
-	if s.slots[i] == nil {
-		s.mu.RUnlock()
-		return errors.Errorf("should never happend, slot %d is empty", i)
-	}
-	//wait for state change, should be soon
-	if s.slots[i].slotInfo.State.Status == models.SLOT_STATUS_PRE_MIGRATE {
-		s.mu.RUnlock()
-		time.Sleep(10 * time.Millisecond)
-		goto check_state
-	}
-
-	dst := s.slots[i].dst.Master()
-
 	defer func() {
 		sec := time.Since(start).Seconds()
 		if sec > 2 {
-			log.Warningf("op: %s, key:%s, on: %s, too long %d seconds, client: %s", opstr,
-				string(k), dst, int(sec), c.RemoteAddr().String())
+			log.Warningf("op: %s, key:%s, too long %d seconds, client: %s", opstr,
+				string(k), int(sec), c.RemoteAddr().String())
 		}
 		recordResponseTime(s.counter, time.Duration(sec)*1000)
 	}()
-
-	if err := s.handleMigrateState(i, k); err != nil {
-		s.mu.RUnlock()
-		return errors.Trace(err)
-	}
-
-	s.mu.RUnlock()
 
 	//pipeline
 	c.pipelineSeq++
@@ -366,7 +344,7 @@ func (s *Server) handleConn(c net.Conn) {
 	var err error
 
 	defer func() {
-		wg.Wait()
+		wg.Wait() //wait for writer goroutine
 		c.Close()
 		if err != nil { //todo: fix this ugly error check
 			if GetOriginError(err.(*errors.Err)).Error() != io.EOF.Error() {
@@ -446,8 +424,7 @@ func (s *Server) responseAction(seq int64) {
 }
 
 func (s *Server) getProxyInfo() models.ProxyInfo {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	//todo:send request to evtbus, and get response
 	var pi = s.pi
 	return pi
 }
@@ -524,9 +501,6 @@ func (s *Server) handleProxyCommand() {
 
 func (s *Server) processAction(e interface{}) {
 	start := time.Now()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if time.Since(start).Seconds() > 10 {
 		log.Warning("take too long to get lock")
 	}
@@ -595,24 +569,41 @@ func (s *Server) processAction(e interface{}) {
 	s.lastActionSeq = seqs[len(seqs)-1]
 }
 
-func (s *Server) handleTopoEvent() {
-	for e := range s.evtbus {
-		switch e.(type) {
-		case *PipelineRequest:
-			r := e.(*PipelineRequest)
-			log.Debugf("got event %v, seq:%v", string(r.op), r.seq)
-			tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
-			if !ok {
-				//try recreate taskrunner
-				if err := s.createTaskRunner(s.slots[r.slotIdx]); err != nil {
-					r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
-					continue
-				}
+func (s *Server) dispatch(r *PipelineRequest) {
+	s.handleMigrateState(r.slotIdx, r.keys[0])
+	tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
+	if !ok {
+		//try recreate taskrunner
+		if err := s.createTaskRunner(s.slots[r.slotIdx]); err != nil {
+			r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
+			return
+		}
 
-				tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
+		tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
+	}
+	tr.in <- r
+
+}
+
+func (s *Server) handleTopoEvent() {
+	for {
+		select {
+		case r := <-s.reqCh:
+			log.Debugf("got event %v, seq:%v", string(r.op), r.seq)
+			if s.slots[r.slotIdx].slotInfo.State.Status == models.SLOT_STATUS_PRE_MIGRATE {
+				s.bufferedReq.PushBack(r)
+				continue
 			}
-			tr.in <- e
-		case zk.Event:
+
+			for e := s.bufferedReq.Front(); e != nil; {
+				next := e.Next()
+				s.dispatch(e.Value.(*PipelineRequest))
+				s.bufferedReq.Remove(e)
+				e = next
+			}
+
+			s.dispatch(r)
+		case e := <-s.evtbus:
 			log.Infof("got event %s, %v", s.pi.Id, e)
 			s.processAction(e)
 		}
@@ -620,9 +611,6 @@ func (s *Server) handleTopoEvent() {
 }
 
 func (s *Server) waitOnline() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	for {
 		pi, err := s.top.GetProxyInfo(s.pi.Id)
 		if err != nil {
@@ -675,7 +663,7 @@ func (s *Server) RegisterAndWait() {
 func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	log.Infof("%+v", conf)
 	s := &Server{
-		evtbus:            make(chan interface{}, 1000),
+		evtbus:            make(chan interface{}, 100),
 		top:               topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
 		netTimeout:        conf.netTimeout,
 		counter:           stats.NewCounters("router"),
@@ -684,11 +672,12 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 		addr:              addr,
 		concurrentLimiter: tokenlimiter.NewTokenLimiter(1000),
 		moper:             NewMultiOperator(addr),
+		reqCh:             make(chan *PipelineRequest, 1000),
 		pools:             cachepool.NewCachePool(),
 		pipeConns:         make(map[string]*taskRunner),
+		bufferedReq:       list.New(),
 	}
 
-	s.mu.Lock()
 	s.pi.Id = conf.proxyId
 	s.pi.State = models.PROXY_STATE_OFFLINE
 	hname, err := os.Hostname()
@@ -698,7 +687,6 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	s.pi.Addr = hname + ":" + strings.Split(addr, ":")[1]
 	s.pi.DebugVarAddr = hname + ":" + strings.Split(debugVarAddr, ":")[1]
 	log.Infof("proxy_info:%+v", s.pi)
-	s.mu.Unlock()
 	//todo:fill more field
 
 	stats.Publish("evtbus", stats.StringFunc(func() string {
