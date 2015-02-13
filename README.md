@@ -1,6 +1,7 @@
 #Codis - yet another fast distributed solution for Redis
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/wandoulabs/codis?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Build Status](https://travis-ci.org/wandoulabs/codis.svg)](https://travis-ci.org/wandoulabs/codis)
 
 Codis is a proxy based high performance Redis cluster solution written in Go/C, an alternative to Twemproxy.
 
@@ -10,7 +11,7 @@ Codis is engineered to elastically scale, Easily add or remove redis or proxy in
 
 Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia.com).
 
-[![Build Status](https://travis-ci.org/wandoulabs/codis.svg)](https://travis-ci.org/wandoulabs/codis)
+
 
 
 ##Features
