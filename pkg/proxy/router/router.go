@@ -319,7 +319,7 @@ func (s *Server) redisTunnel(c *session) error {
 		wg:      wg,
 	}
 
-	s.evtbus <- pr
+	s.reqCh <- pr
 	wg.Wait()
 	return nil
 }
