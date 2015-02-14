@@ -16,9 +16,9 @@ cp -rf rocksdb/include/rocksdb ${BUILD}
 cp -f rocksdb/librocksdb.a ${BUILD}
 
 cd ./levigo
-CGO_CFLAGS="-I${BUILD}" CGO_LDFLAGS="-L${BUILD} -lstdc++ -lleveldb -lsnappy" go install ./
+CGO_CFLAGS="-I${BUILD}" CGO_LDFLAGS="-L${BUILD} -lleveldb -lsnappy -lstdc++" go install ./
 cd .. || exit 1
 
 cd ./gorocks
-CGO_CFLAGS="-I${BUILD}" CGO_LDFLAGS="-L${BUILD} -lstdc++ -lrocksdb -lsnappy -llz4 -lbz2 -lz -lm" go install ./
+CGO_CFLAGS="-I${BUILD}" CGO_LDFLAGS="-L${BUILD} -lrocksdb -lsnappy -llz4 -lbz2 -lz -lm -lstdc++" go install ./
 cd .. || exit 1
