@@ -13,6 +13,7 @@ if [ "$?" = 0 ]; then
     exit 0
 fi
 
+go get -u github.com/bsm/redeo
 go get -u github.com/c4pt0r/cfg
 go get -u github.com/garyburd/redigo/redis
 go get -u github.com/juju/errgo
