@@ -332,12 +332,20 @@ func TestRedisRestart(t *testing.T) {
 	redis1.Restart()
 	redis2.Restart()
 	time.Sleep(3 * time.Second)
-
+	//proxy should closed our connection
 	_, err = c.Do("SET", "key1", "value1")
+	if err == nil {
+		t.Error("should be error")
+	}
+
+	//now, proxy should recovered from connection error
+	c, err = redis.Dial("tcp", "localhost:19000")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = c.Do("SET", "key2", "value2")
+	defer c.Close()
+
+	_, err = c.Do("SET", "key1", "value1")
 	if err != nil {
 		t.Fatal(err)
 	}
