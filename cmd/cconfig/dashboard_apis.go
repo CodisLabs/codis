@@ -16,7 +16,9 @@ import (
 	"github.com/go-martini/martini"
 	"github.com/nu7hatch/gouuid"
 
+	"github.com/ngaut/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
+	"github.com/ngaut/zkhelper"
 )
 
 type RangeSetTask struct {
@@ -46,8 +48,7 @@ func apiOverview() (int, string) {
 
 	// get all server groups
 	groups, err := models.ServerGroups(conn, productName)
-	if err != nil {
-		log.Warning("get server groups error, maybe there is no any server groups? err:", err)
+	if err != nil && !zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 		return 500, err.Error()
 	}
 
@@ -226,8 +227,7 @@ func apiMigrateStatus() (int, string) {
 	defer conn.Close()
 
 	migrateSlots, err := models.GetMigratingSlots(conn, productName)
-	if err != nil {
-		log.Warning("get slots info error, maybe init slots first? err: ", err)
+	if err != nil && !zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 		return 500, err.Error()
 	}
 
@@ -455,6 +455,10 @@ func apiSetProxyStatus(proxy models.ProxyInfo, param martini.Params) (int, strin
 	defer conn.Close()
 	err := models.SetProxyStatus(conn, productName, proxy.Id, proxy.State)
 	if err != nil {
+		// if this proxy is not online, just return success
+		if proxy.State == models.PROXY_STATE_MARK_OFFLINE && zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
+			return jsonRetSucc()
+		}
 		log.Warning(err)
 		return 500, err.Error()
 	}
