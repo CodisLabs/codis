@@ -339,8 +339,7 @@ func (s *Server) OnGroupChange(groupId int) {
 
 func (s *Server) registerSignal() {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	signal.Notify(c, syscall.SIGTERM)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
 		log.Info("ctrl-c or SIGTERM found, mark offline server")
