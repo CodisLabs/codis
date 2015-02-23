@@ -9,10 +9,12 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/signal"
 	"path"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
@@ -398,6 +400,16 @@ func (s *Server) OnGroupChange(groupId int) {
 	}
 }
 
+func (s *Server) registerSignal() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		log.Info("ctrl-c or SIGTERM found, mark offline server")
+		s.handleMarkOffline()
+	}()
+}
+
 func (s *Server) Run() {
 	log.Info("listening on", s.addr)
 	listener, err := net.Listen("tcp", s.addr)
@@ -657,6 +669,7 @@ func (s *Server) RegisterAndWait() {
 		log.Warning(errors.ErrorStack(err))
 	}
 
+	s.registerSignal()
 	s.waitOnline()
 }
 
