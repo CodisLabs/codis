@@ -235,6 +235,10 @@ func recordResponseTime(c *stats.Counters, d time.Duration) {
 	}
 }
 
+type killEvent struct {
+	done chan error
+}
+
 type Conf struct {
 	proxyId     string
 	productName string

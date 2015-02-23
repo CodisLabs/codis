@@ -402,11 +402,13 @@ func (s *Server) OnGroupChange(groupId int) {
 
 func (s *Server) registerSignal() {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, os.Kill)
 	go func() {
 		<-c
 		log.Info("ctrl-c or SIGTERM found, mark offline server")
-		s.handleMarkOffline()
+		done := make(chan error)
+		s.evtbus <- &killEvent{done: done}
+		<-done
 	}()
 }
 
@@ -617,7 +619,13 @@ func (s *Server) handleTopoEvent() {
 			s.dispatch(r)
 		case e := <-s.evtbus:
 			log.Infof("got event %s, %v", s.pi.Id, e)
-			s.processAction(e)
+			switch e.(type) {
+			case *killEvent:
+				s.handleMarkOffline()
+				e.(*killEvent).done <- nil
+			default:
+				s.processAction(e)
+			}
 		}
 	}
 }
@@ -643,6 +651,16 @@ func (s *Server) waitOnline() {
 			}
 
 			return
+		}
+
+		select {
+		case e := <-s.evtbus:
+			switch e.(type) {
+			case *killEvent:
+				s.handleMarkOffline()
+				e.(*killEvent).done <- nil
+			default: //otherwise ignore it
+			}
 		}
 
 		println("wait to be online ", s.pi.Id)
