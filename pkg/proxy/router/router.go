@@ -659,8 +659,8 @@ func (s *Server) waitOnline() {
 			case *killEvent:
 				s.handleMarkOffline()
 				e.(*killEvent).done <- nil
-			default: //otherwise ignore it
 			}
+		default: //otherwise ignore it
 		}
 
 		println("wait to be online ", s.pi.Id)
