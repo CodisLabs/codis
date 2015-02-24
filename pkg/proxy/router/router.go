@@ -292,8 +292,7 @@ func (s *Server) handleConn(c net.Conn) {
 
 	var err error
 	defer func() {
-		client.closeSignal.Wait() //wait for writer goroutine
-		client.Close()
+		client.closeSignal.Wait() //waiting for writer goroutine
 
 		if err != nil { //todo: fix this ugly error check
 			if GetOriginError(err.(*errors.Err)).Error() != io.EOF.Error() {

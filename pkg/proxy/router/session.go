@@ -70,7 +70,7 @@ func (s *session) handleResponse(resp *PipelineResponse) (flush bool, err error)
 		resp.ctx.wg.Done()
 	}
 
-	if resp.err != nil {
+	if resp.err != nil { //notify close client connection
 		return true, resp.err
 	}
 
@@ -97,20 +97,21 @@ func (s *session) WritingLoop() {
 		case resp, ok := <-s.backQ:
 			if !ok {
 				s.closeSignal.Done()
+				s.Close()
 				return
 			}
 
 			flush, err := s.handleResponse(resp)
 			if err != nil {
 				log.Warning(s.RemoteAddr(), resp.ctx, errors.ErrorStack(err))
-				s.Close()
+				s.Close() //notify reader to exit
 				continue
 			}
 
 			if flush && len(s.backQ) == 0 {
 				err := s.w.Flush()
 				if err != nil {
-					s.Close()
+					s.Close() //notify reader to exit
 					log.Warning(s.RemoteAddr(), resp.ctx, errors.ErrorStack(err))
 					continue
 				}
