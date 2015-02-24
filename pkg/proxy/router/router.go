@@ -44,7 +44,6 @@ type Slot struct {
 
 type OnSuicideFun func() error
 
-//change field is not allowed without Lock
 type Server struct {
 	slots  [models.DEFAULT_SLOT_NUM]*Slot
 	top    *topo.Topology
@@ -94,7 +93,6 @@ func (s *Server) stopTaskRunners() {
 	}
 }
 
-//use it in lock
 func (s *Server) fillSlot(i int, force bool) {
 	if !validSlot(i) {
 		return
@@ -514,11 +512,6 @@ func (s *Server) handleProxyCommand() {
 }
 
 func (s *Server) processAction(e interface{}) {
-	start := time.Now()
-	if time.Since(start).Seconds() > 10 {
-		log.Warning("take too long to get lock")
-	}
-
 	actPath := GetEventPath(e)
 	if strings.Index(actPath, models.GetProxyPath(s.top.ProductName)) == 0 {
 		//proxy event, should be order for me to suicide
@@ -692,7 +685,7 @@ func (s *Server) RegisterAndWait() {
 }
 
 func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
-	log.Infof("%+v", conf)
+	log.Infof("start with configuration: %+v", conf)
 	s := &Server{
 		evtbus:            make(chan interface{}, 100),
 		top:               topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
