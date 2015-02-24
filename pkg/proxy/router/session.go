@@ -6,12 +6,13 @@ package router
 import (
 	"bufio"
 	"fmt"
-	"github.com/juju/errors"
-	log "github.com/ngaut/logging"
-	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/juju/errors"
+	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/codis/pkg/proxy/parser"
 )
 
 type session struct {
@@ -25,7 +26,7 @@ type session struct {
 	backQ                 chan *PipelineResponse
 	lastUnsentResponseSeq int64
 	closed                bool
-	closeSingal           *sync.WaitGroup
+	closeSignal           *sync.WaitGroup
 }
 
 type PipelineRequest struct {
@@ -95,7 +96,7 @@ func (s *session) WritingLoop() {
 		select {
 		case resp, ok := <-s.backQ:
 			if !ok {
-				s.closeSingal.Done()
+				s.closeSignal.Done()
 				return
 			}
 
@@ -109,8 +110,8 @@ func (s *session) WritingLoop() {
 			if flush && len(s.backQ) == 0 {
 				err := s.w.Flush()
 				if err != nil {
-					log.Warning(s.RemoteAddr(), resp.ctx, errors.ErrorStack(err))
 					s.Close()
+					log.Warning(s.RemoteAddr(), resp.ctx, errors.ErrorStack(err))
 					continue
 				}
 			}

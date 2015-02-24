@@ -5,7 +5,6 @@ package router
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -34,15 +33,6 @@ import (
 	log "github.com/ngaut/logging"
 	"github.com/ngaut/tokenlimiter"
 )
-
-type Slot struct {
-	slotInfo    *models.Slot
-	groupInfo   *models.ServerGroup
-	dst         *group.Group
-	migrateFrom *group.Group
-}
-
-type OnSuicideFun func() error
 
 type Server struct {
 	slots  [models.DEFAULT_SLOT_NUM]*Slot
@@ -208,26 +198,6 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 	return nil
 }
 
-func (s *Server) filter(opstr string, keys [][]byte, c *session) (rawresp []byte, next bool, err error) {
-	if !allowOp(opstr) {
-		return nil, false, errors.Trace(fmt.Errorf("%s not allowed", opstr))
-	}
-
-	buf, shouldClose, handled, err := handleSpecCommand(opstr, keys, s.netTimeout)
-	if shouldClose { //quit command
-		return buf, false, errors.Trace(io.EOF)
-	}
-	if err != nil {
-		return nil, false, errors.Trace(err)
-	}
-
-	if handled {
-		return buf, false, nil
-	}
-
-	return nil, true, nil
-}
-
 func (s *Server) sendBack(c *session, op []byte, keys [][]byte, resp *parser.Resp, result []byte) {
 	c.pipelineSeq++
 	pr := &PipelineRequest{
@@ -244,26 +214,14 @@ func (s *Server) sendBack(c *session, op []byte, keys [][]byte, resp *parser.Res
 }
 
 func (s *Server) redisTunnel(c *session) error {
-	resp, err := parser.Parse(c.r) // read client request
+	resp, op, keys, err := getRespOpKeys(c)
 	if err != nil {
 		return errors.Trace(err)
 	}
-
-	op, keys, err := resp.GetOpKeys()
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	if len(keys) == 0 {
-		keys = [][]byte{[]byte("fakeKey")}
-	}
-
-	start := time.Now()
 	k := keys[0]
 
 	opstr := strings.ToUpper(string(op))
-	//log.Debugf("op: %s, %s", opstr, keys[0])
-	buf, next, err := s.filter(opstr, keys, c)
+	buf, next, err := filter(opstr, keys, c, s.netTimeout)
 	if err != nil {
 		if len(buf) > 0 { //quit command
 			s.sendBack(c, op, keys, resp, buf)
@@ -295,15 +253,6 @@ func (s *Server) redisTunnel(c *session) error {
 	token := s.concurrentLimiter.Get()
 	defer s.concurrentLimiter.Put(token)
 
-	defer func() {
-		sec := time.Since(start).Seconds()
-		if sec > 2 {
-			log.Warningf("op: %s, key:%s, too long %d seconds, client: %s", opstr,
-				string(k), int(sec), c.RemoteAddr().String())
-		}
-		recordResponseTime(s.counter, time.Duration(sec)*1000)
-	}()
-
 	//pipeline
 	c.pipelineSeq++
 	wg := &sync.WaitGroup{}
@@ -321,6 +270,7 @@ func (s *Server) redisTunnel(c *session) error {
 
 	s.reqCh <- pr
 	wg.Wait()
+
 	return nil
 }
 
@@ -328,24 +278,23 @@ func (s *Server) handleConn(c net.Conn) {
 	log.Info("new connection", c.RemoteAddr())
 
 	s.counter.Add("connections", 1)
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
 	client := &session{
 		Conn:        c,
 		r:           bufio.NewReader(c),
 		w:           bufio.NewWriter(c),
 		CreateAt:    time.Now(),
 		backQ:       make(chan *PipelineResponse, 1000),
-		closeSingal: wg,
+		closeSignal: &sync.WaitGroup{},
 	}
+	client.closeSignal.Add(1)
 
 	go client.WritingLoop()
 
 	var err error
-
 	defer func() {
-		wg.Wait() //wait for writer goroutine
-		c.Close()
+		client.closeSignal.Wait() //wait for writer goroutine
+		client.Close()
+
 		if err != nil { //todo: fix this ugly error check
 			if GetOriginError(err.(*errors.Err)).Error() != io.EOF.Error() {
 				log.Warningf("close connection %v, %+v, %v", c.RemoteAddr(), client, errors.ErrorStack(err))

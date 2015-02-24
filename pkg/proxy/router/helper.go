@@ -5,6 +5,7 @@ package router
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os/exec"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils"
 
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
 
@@ -186,6 +188,44 @@ func StringsContain(s []string, key string) bool {
 	return false
 }
 
+func getRespOpKeys(c *session) (*parser.Resp, []byte, [][]byte, error) {
+	resp, err := parser.Parse(c.r) // read client request
+	if err != nil {
+		return nil, nil, nil, errors.Trace(err)
+	}
+
+	op, keys, err := resp.GetOpKeys()
+	if err != nil {
+		return nil, nil, nil, errors.Trace(err)
+	}
+
+	if len(keys) == 0 {
+		keys = [][]byte{[]byte("fakeKey")}
+	}
+
+	return resp, op, keys, nil
+}
+
+func filter(opstr string, keys [][]byte, c *session, timeoutSec int) (rawresp []byte, next bool, err error) {
+	if !allowOp(opstr) {
+		return nil, false, errors.Trace(fmt.Errorf("%s not allowed", opstr))
+	}
+
+	buf, shouldClose, handled, err := handleSpecCommand(opstr, keys, timeoutSec)
+	if shouldClose { //quit command
+		return buf, false, errors.Trace(io.EOF)
+	}
+	if err != nil {
+		return nil, false, errors.Trace(err)
+	}
+
+	if handled {
+		return buf, false, nil
+	}
+
+	return nil, true, nil
+}
+
 func GetEventPath(evt interface{}) string {
 	return evt.(topo.Event).Path
 }
@@ -271,3 +311,12 @@ func LoadConf(configFile string) (*Conf, error) {
 
 	return srvConf, nil
 }
+
+type Slot struct {
+	slotInfo    *models.Slot
+	groupInfo   *models.ServerGroup
+	dst         *group.Group
+	migrateFrom *group.Group
+}
+
+type OnSuicideFun func() error
