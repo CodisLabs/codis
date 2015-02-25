@@ -169,6 +169,52 @@ func (b *Binlog) Set(db uint32, args ...interface{}) error {
 	return b.commit(bt, fw)
 }
 
+// PSETEX key milliseconds value
+func (b *Binlog) PSetEX(db uint32, args ...interface{}) error {
+	if len(args) != 3 {
+		return errArguments("len(args) = %d, expect = 3", len(args))
+	}
+
+	var key, value []byte
+	var ttlms int64
+	for i, ref := range []interface{}{&key, &ttlms, &value} {
+		if err := parseArgument(args[i], ref); err != nil {
+			return errArguments("parse args[%d] failed, %s", i, err)
+		}
+	}
+	if ttlms == 0 {
+		return errArguments("invalid ttlms = %d", ttlms)
+	}
+	expireat := uint64(0)
+	if v, ok := TTLmsToExpireAt(ttlms); ok && v > 0 {
+		expireat = v
+	} else {
+		return errArguments("invalid ttlms = %d", ttlms)
+	}
+
+	if err := b.acquire(); err != nil {
+		return err
+	}
+	defer b.release()
+
+	bt := store.NewBatch()
+	_, err := b.deleteIfExists(bt, db, key)
+	if err != nil {
+		return err
+	}
+	if !IsExpired(expireat) {
+		o := newStringRow(db, key)
+		o.ExpireAt, o.Value = expireat, value
+		bt.Set(o.DataKey(), o.DataValue())
+		bt.Set(o.MetaKey(), o.MetaValue())
+		fw := &Forward{DB: db, Op: "PSetEX", Args: args}
+		return b.commit(bt, fw)
+	} else {
+		fw := &Forward{DB: db, Op: "Del", Args: []interface{}{key}}
+		return b.commit(bt, fw)
+	}
+}
+
 // SETEX key seconds value
 func (b *Binlog) SetEX(db uint32, args ...interface{}) error {
 	if len(args) != 3 {

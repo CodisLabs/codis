@@ -62,6 +62,24 @@ func (h *Handler) Set(arg0 interface{}, args [][]byte) (redis.Resp, error) {
 	}
 }
 
+// PSETEX key milliseconds value
+func (h *Handler) PSetEX(arg0 interface{}, args [][]byte) (redis.Resp, error) {
+	if len(args) != 3 {
+		return toRespErrorf("len(args) = %d, expect = 3", len(args))
+	}
+
+	s, err := session(arg0, args)
+	if err != nil {
+		return toRespError(err)
+	}
+
+	if err := s.Binlog().PSetEX(s.DB(), iconvert(args)...); err != nil {
+		return toRespError(err)
+	} else {
+		return redis.NewString("OK"), nil
+	}
+}
+
 // SETEX key seconds value
 func (h *Handler) SetEX(arg0 interface{}, args [][]byte) (redis.Resp, error) {
 	if len(args) != 3 {

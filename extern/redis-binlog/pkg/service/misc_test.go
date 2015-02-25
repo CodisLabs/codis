@@ -15,13 +15,13 @@ func TestEcho(t *testing.T) {
 	checkstring(t, "HELLO", c, "echo", "HELLO")
 }
 
-func TestReset(t *testing.T) {
+func TestFlushAll(t *testing.T) {
 	c := client(t)
 	k := random(t)
 	checknil(t, c, "get", k)
 	checkint(t, 5, c, "append", k, "hello")
 	checkint(t, 11, c, "append", k, " world")
 	checkstring(t, "hello world", c, "get", k)
-	checkok(t, c, "reset")
+	checkok(t, c, "flushall")
 	checknil(t, c, "get", k)
 }

@@ -15,7 +15,7 @@ import (
 func TestBgsaveTo(t *testing.T) {
 	c := client(t)
 	k := random(t)
-	checkok(t, c, "reset")
+	checkok(t, c, "flushall")
 	const max = 100
 	for i := 0; i < max; i++ {
 		checkok(t, c, "set", k+strconv.Itoa(i), i)

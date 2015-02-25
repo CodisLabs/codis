@@ -38,8 +38,8 @@ func (h *Handler) Echo(arg0 interface{}, args [][]byte) (redis.Resp, error) {
 	return redis.NewString(string(args[0])), nil
 }
 
-// RESET
-func (h *Handler) Reset(arg0 interface{}, args [][]byte) (redis.Resp, error) {
+// FLUSHALL
+func (h *Handler) FlushAll(arg0 interface{}, args [][]byte) (redis.Resp, error) {
 	if len(args) != 0 {
 		return toRespErrorf("len(args) = %d, expect = 0", len(args))
 	}

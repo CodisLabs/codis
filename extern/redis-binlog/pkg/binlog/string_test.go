@@ -72,6 +72,13 @@ func xgetset(t *testing.T, db uint32, key, value string, expect string) {
 	kttl(t, db, key, -1)
 }
 
+func xpsetex(t *testing.T, db uint32, key, value string, ttlms uint64) {
+	err := testbl.PSetEX(db, key, ttlms, value)
+	checkerror(t, err, true)
+	xdump(t, db, key, value)
+	kpttl(t, db, key, int64(ttlms))
+}
+
 func xsetex(t *testing.T, db uint32, key, value string, ttls uint64) {
 	err := testbl.SetEX(db, key, ttls, value)
 	checkerror(t, err, true)
@@ -278,6 +285,15 @@ func TestXSetEX(t *testing.T) {
 	xsetex(t, 0, "string", "world", 100)
 	xget(t, 0, "string", "world")
 	kpttl(t, 0, "string", 100000)
+	xdel(t, 0, "string", 1)
+	checkempty(t)
+}
+
+func TestXPSetEX(t *testing.T) {
+	xpsetex(t, 0, "string", "hello", 1000)
+	kpttl(t, 0, "string", 1000)
+	xpsetex(t, 0, "string", "world", 2000)
+	kpttl(t, 0, "string", 2000)
 	xdel(t, 0, "string", 1)
 	checkempty(t)
 }

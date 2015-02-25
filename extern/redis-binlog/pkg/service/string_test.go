@@ -81,12 +81,22 @@ func TestXSet(t *testing.T) {
 	checkstring(t, "hello", c, "get", k)
 }
 
+func TestXPSetEX(t *testing.T) {
+	c := client(t)
+	k := random(t)
+	checkok(t, c, "psetex", k, 1000*1000, "hello")
+	checkok(t, c, "psetex", k, 2000*1000, "world")
+	checkstring(t, "world", c, "get", k)
+	checkintapprox(t, 2000, 5, c, "ttl", k)
+}
+
 func TestXSetEX(t *testing.T) {
 	c := client(t)
 	k := random(t)
 	checkok(t, c, "setex", k, 1000, "hello")
 	checkok(t, c, "setex", k, 2000, "world")
 	checkstring(t, "world", c, "get", k)
+	checkintapprox(t, 2000, 5, c, "ttl", k)
 }
 
 func TestXSetNX(t *testing.T) {
@@ -95,6 +105,7 @@ func TestXSetNX(t *testing.T) {
 	checkint(t, 1, c, "setnx", k, "hello")
 	checkint(t, 0, c, "setnx", k, "world")
 	checkstring(t, "hello", c, "get", k)
+	checkint(t, -1, c, "ttl", k)
 }
 
 func TestXSetRange(t *testing.T) {
