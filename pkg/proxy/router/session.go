@@ -96,8 +96,8 @@ func (s *session) WritingLoop() {
 		select {
 		case resp, ok := <-s.backQ:
 			if !ok {
-				s.closeSignal.Done()
 				s.Close()
+				s.closeSignal.Done()
 				return
 			}
 

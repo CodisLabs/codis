@@ -31,7 +31,6 @@ import (
 	"github.com/juju/errors"
 	stats "github.com/ngaut/gostats"
 	log "github.com/ngaut/logging"
-	"github.com/ngaut/tokenlimiter"
 )
 
 type Server struct {
@@ -40,11 +39,10 @@ type Server struct {
 	evtbus chan interface{}
 	reqCh  chan *PipelineRequest
 
-	lastActionSeq     int
-	pi                models.ProxyInfo
-	startAt           time.Time
-	addr              string
-	concurrentLimiter *tokenlimiter.TokenLimiter
+	lastActionSeq int
+	pi            models.ProxyInfo
+	startAt       time.Time
+	addr          string
 
 	moper       *MultiOperator
 	pools       *cachepool.CachePool
@@ -250,14 +248,9 @@ func (s *Server) redisTunnel(c *session) error {
 	}
 
 	i := mapKey2Slot(k)
-	token := s.concurrentLimiter.Get()
-	defer s.concurrentLimiter.Put(token)
 
 	//pipeline
 	c.pipelineSeq++
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-
 	pr := &PipelineRequest{
 		slotIdx: i,
 		op:      op,
@@ -265,11 +258,12 @@ func (s *Server) redisTunnel(c *session) error {
 		seq:     c.pipelineSeq,
 		backQ:   c.backQ,
 		req:     resp,
-		wg:      wg,
+		wg:      &sync.WaitGroup{},
 	}
+	pr.wg.Add(1)
 
 	s.reqCh <- pr
-	wg.Wait()
+	pr.wg.Wait()
 
 	return nil
 }
@@ -280,8 +274,8 @@ func (s *Server) handleConn(c net.Conn) {
 	s.counter.Add("connections", 1)
 	client := &session{
 		Conn:        c,
-		r:           bufio.NewReader(c),
-		w:           bufio.NewWriter(c),
+		r:           bufio.NewReaderSize(c, 32*1024),
+		w:           bufio.NewWriterSize(c, 32*1024),
 		CreateAt:    time.Now(),
 		backQ:       make(chan *PipelineResponse, 1000),
 		closeSignal: &sync.WaitGroup{},
@@ -460,8 +454,7 @@ func (s *Server) handleProxyCommand() {
 }
 
 func (s *Server) processAction(e interface{}) {
-	actPath := GetEventPath(e)
-	if strings.Index(actPath, models.GetProxyPath(s.top.ProductName)) == 0 {
+	if strings.Index(GetEventPath(e), models.GetProxyPath(s.top.ProductName)) == 0 {
 		//proxy event, should be order for me to suicide
 		s.handleProxyCommand()
 		return
@@ -635,19 +628,18 @@ func (s *Server) RegisterAndWait() {
 func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	log.Infof("start with configuration: %+v", conf)
 	s := &Server{
-		evtbus:            make(chan interface{}, 100),
-		top:               topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
-		netTimeout:        conf.netTimeout,
-		counter:           stats.NewCounters("router"),
-		lastActionSeq:     -1,
-		startAt:           time.Now(),
-		addr:              addr,
-		concurrentLimiter: tokenlimiter.NewTokenLimiter(1000),
-		moper:             NewMultiOperator(addr),
-		reqCh:             make(chan *PipelineRequest, 1000),
-		pools:             cachepool.NewCachePool(),
-		pipeConns:         make(map[string]*taskRunner),
-		bufferedReq:       list.New(),
+		evtbus:        make(chan interface{}, 1000),
+		top:           topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
+		netTimeout:    conf.netTimeout,
+		counter:       stats.NewCounters("router"),
+		lastActionSeq: -1,
+		startAt:       time.Now(),
+		addr:          addr,
+		moper:         NewMultiOperator(addr),
+		reqCh:         make(chan *PipelineRequest, 1000),
+		pools:         cachepool.NewCachePool(),
+		pipeConns:     make(map[string]*taskRunner),
+		bufferedReq:   list.New(),
 	}
 
 	s.pi.Id = conf.proxyId
