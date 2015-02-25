@@ -5,6 +5,7 @@ package router
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os/exec"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils"
 
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
 
@@ -86,7 +88,7 @@ type DeadlineReadWriter interface {
 	SetReadDeadline(t time.Time) error
 }
 
-func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byte, timeout int) (bool, bool, error) {
+func handleSpecCommand(cmd string, keys [][]byte, timeout int) ([]byte, bool, bool, error) {
 	var b []byte
 	shouldClose := false
 	switch cmd {
@@ -104,24 +106,18 @@ func handleSpecCommand(cmd string, clientWriter DeadlineReadWriter, keys [][]byt
 			var err error
 			b, err = respcoding.Marshal(string(keys[0]))
 			if err != nil {
-				return true, false, errors.Trace(err)
+				return nil, true, false, errors.Trace(err)
 			}
 		} else {
-			return true, false, nil
+			return nil, true, false, nil
 		}
 	}
 
 	if len(b) > 0 {
-		clientWriter.SetWriteDeadline(time.Now().Add(time.Duration(timeout) * time.Second))
-		_, err := clientWriter.Write(b)
-		if err != nil {
-			return shouldClose, true, errors.Errorf("%s, cmd:%s", err.Error(), cmd)
-		}
-
-		return shouldClose, true, nil
+		return b, shouldClose, true, nil
 	}
 
-	return shouldClose, false, nil
+	return b, shouldClose, false, nil
 }
 
 func write2Client(redisReader *bufio.Reader, clientWriter io.Writer) (redisErr error, clientErr error) {
@@ -192,6 +188,44 @@ func StringsContain(s []string, key string) bool {
 	return false
 }
 
+func getRespOpKeys(c *session) (*parser.Resp, []byte, [][]byte, error) {
+	resp, err := parser.Parse(c.r) // read client request
+	if err != nil {
+		return nil, nil, nil, errors.Trace(err)
+	}
+
+	op, keys, err := resp.GetOpKeys()
+	if err != nil {
+		return nil, nil, nil, errors.Trace(err)
+	}
+
+	if len(keys) == 0 {
+		keys = [][]byte{[]byte("fakeKey")}
+	}
+
+	return resp, op, keys, nil
+}
+
+func filter(opstr string, keys [][]byte, c *session, timeoutSec int) (rawresp []byte, next bool, err error) {
+	if !allowOp(opstr) {
+		return nil, false, errors.Trace(fmt.Errorf("%s not allowed", opstr))
+	}
+
+	buf, shouldClose, handled, err := handleSpecCommand(opstr, keys, timeoutSec)
+	if shouldClose { //quit command
+		return buf, false, errors.Trace(io.EOF)
+	}
+	if err != nil {
+		return nil, false, errors.Trace(err)
+	}
+
+	if handled {
+		return buf, false, nil
+	}
+
+	return nil, true, nil
+}
+
 func GetEventPath(evt interface{}) string {
 	return evt.(topo.Event).Path
 }
@@ -241,6 +275,10 @@ func recordResponseTime(c *stats.Counters, d time.Duration) {
 	}
 }
 
+type killEvent struct {
+	done chan error
+}
+
 type Conf struct {
 	proxyId     string
 	productName string
@@ -273,3 +311,12 @@ func LoadConf(configFile string) (*Conf, error) {
 
 	return srvConf, nil
 }
+
+type Slot struct {
+	slotInfo    *models.Slot
+	groupInfo   *models.ServerGroup
+	dst         *group.Group
+	migrateFrom *group.Group
+}
+
+type OnSuicideFun func() error

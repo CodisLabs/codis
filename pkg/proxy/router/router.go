@@ -5,7 +5,6 @@ package router
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -19,46 +18,40 @@ import (
 
 	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
 
+	"bytes"
+
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/redispool"
 
+	"container/list"
+
 	"github.com/juju/errors"
 	stats "github.com/ngaut/gostats"
 	log "github.com/ngaut/logging"
-	"github.com/ngaut/tokenlimiter"
 )
 
-type Slot struct {
-	slotInfo    *models.Slot
-	groupInfo   *models.ServerGroup
-	dst         *group.Group
-	migrateFrom *group.Group
-}
-
-type OnSuicideFun func() error
-
-//change field is not allowed without Lock
 type Server struct {
-	mu     sync.RWMutex
 	slots  [models.DEFAULT_SLOT_NUM]*Slot
 	top    *topo.Topology
 	evtbus chan interface{}
+	reqCh  chan *PipelineRequest
 
-	lastActionSeq     int
-	pi                models.ProxyInfo
-	startAt           time.Time
-	addr              string
-	concurrentLimiter *tokenlimiter.TokenLimiter
+	lastActionSeq int
+	pi            models.ProxyInfo
+	startAt       time.Time
+	addr          string
 
-	moper *MultiOperator
-	pools *cachepool.CachePool
-	//counter
-	counter    *stats.Counters
-	OnSuicide  OnSuicideFun
-	netTimeout int //seconds
+	moper       *MultiOperator
+	pools       *cachepool.CachePool
+	counter     *stats.Counters
+	OnSuicide   OnSuicideFun
+	netTimeout  int //seconds
+	bufferedReq *list.List
+
+	pipeConns map[string]*taskRunner //redis->taskrunner
 }
 
 func (s *Server) clearSlot(i int) {
@@ -73,7 +66,21 @@ func (s *Server) clearSlot(i int) {
 	}
 }
 
-//use it in lock
+func (s *Server) stopTaskRunners() {
+	wg := &sync.WaitGroup{}
+	log.Warning("taskrunner count", len(s.pipeConns))
+	wg.Add(len(s.pipeConns))
+	for _, tr := range s.pipeConns {
+		tr.in <- wg
+	}
+	wg.Wait()
+
+	//remove all
+	for k, _ := range s.pipeConns {
+		delete(s.pipeConns, k)
+	}
+}
+
 func (s *Server) fillSlot(i int, force bool) {
 	if !validSlot(i) {
 		return
@@ -113,6 +120,27 @@ func (s *Server) fillSlot(i int, force bool) {
 
 	s.slots[i] = slot
 	s.counter.Add("FillSlot", 1)
+}
+
+func (s *Server) createTaskRunner(slot *Slot) error {
+	dst := slot.dst.Master()
+	if _, ok := s.pipeConns[dst]; !ok {
+		tr, err := NewTaskRunner(dst, s.netTimeout)
+		if err != nil {
+			log.Error(dst) //todo: how to handle this error?
+			return err
+		} else {
+			s.pipeConns[dst] = tr
+		}
+	}
+
+	return nil
+}
+
+func (s *Server) createTaskRunners() {
+	for _, slotNo := range s.slots {
+		s.createTaskRunner(slotNo)
+	}
 }
 
 func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
@@ -168,108 +196,76 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 	return nil
 }
 
-func (s *Server) filter(opstr string, keys [][]byte, c *session) (next bool, err error) {
-	if !allowOp(opstr) {
-		return false, errors.Trace(fmt.Errorf("%s not allowed", opstr))
+func (s *Server) sendBack(c *session, op []byte, keys [][]byte, resp *parser.Resp, result []byte) {
+	c.pipelineSeq++
+	pr := &PipelineRequest{
+		op:    op,
+		keys:  keys,
+		seq:   c.pipelineSeq,
+		backQ: c.backQ,
+		req:   resp,
 	}
 
-	shouldClose, handled, err := handleSpecCommand(opstr, c, keys, s.netTimeout)
-	if shouldClose { //quit command
-		return false, errors.Trace(io.EOF)
-	}
-	if err != nil {
-		return false, errors.Trace(err)
-	}
-	if handled {
-		return false, nil
-	}
-
-	if isMulOp(opstr) {
-		if len(keys) == 1 { //can send to redis directly
-			return true, nil
-		} else {
-			return false, s.moper.handleMultiOp(opstr, keys, c)
-		}
-	}
-
-	return true, nil
+	resp, err := parser.Parse(bufio.NewReader(bytes.NewReader(result)))
+	//just send to backQ
+	c.backQ <- &PipelineResponse{ctx: pr, err: err, resp: resp}
 }
 
 func (s *Server) redisTunnel(c *session) error {
-	resp, err := parser.Parse(c.r) // read client request
+	resp, op, keys, err := getRespOpKeys(c)
 	if err != nil {
 		return errors.Trace(err)
 	}
-
-	op, keys, err := resp.GetOpKeys()
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	if len(keys) == 0 {
-		keys = [][]byte{[]byte("fakeKey")}
-	}
-
-	start := time.Now()
 	k := keys[0]
 
 	opstr := strings.ToUpper(string(op))
-	//log.Debugf("op: %s, %s", opstr, keys[0])
-	next, err := s.filter(opstr, keys, c)
+	buf, next, err := filter(opstr, keys, c, s.netTimeout)
 	if err != nil {
+		if len(buf) > 0 { //quit command
+			s.sendBack(c, op, keys, resp, buf)
+		}
 		return errors.Trace(err)
 	}
 
 	s.counter.Add(opstr, 1)
 	s.counter.Add("ops", 1)
 	if !next {
+		s.sendBack(c, op, keys, resp, buf)
 		return nil
 	}
 
-	i := mapKey2Slot(k)
-	token := s.concurrentLimiter.Get()
+	if isMulOp(opstr) {
+		if len(keys) > 1 { //can send to redis directly
+			var result []byte
+			err := s.moper.handleMultiOp(opstr, keys, &result)
+			if err != nil {
+				return errors.Trace(err)
+			}
 
-check_state:
-	s.mu.RLock()
-	if s.slots[i] == nil {
-		s.mu.RUnlock()
-		s.concurrentLimiter.Put(token)
-		return errors.Errorf("should never happend, slot %d is empty", i)
-	}
-	//wait for state change, should be soon
-	if s.slots[i].slotInfo.State.Status == models.SLOT_STATUS_PRE_MIGRATE {
-		s.mu.RUnlock()
-		time.Sleep(10 * time.Millisecond)
-		goto check_state
-	}
-
-	defer func() {
-		s.mu.RUnlock()
-		sec := time.Since(start).Seconds()
-		if sec > 2 {
-			log.Warningf("op: %s, key:%s, on: %s, too long %d seconds, client: %s", opstr,
-				string(k), s.slots[i].dst.Master(), int(sec), c.RemoteAddr().String())
+			s.sendBack(c, op, keys, resp, result)
+			return nil
 		}
-		recordResponseTime(s.counter, time.Duration(sec)*1000)
-		s.concurrentLimiter.Put(token)
-	}()
-
-	if err := s.handleMigrateState(i, k); err != nil {
-		return errors.Trace(err)
 	}
 
-	//get redis connection
-	redisConn, err := s.pools.GetConn(s.slots[i].dst.Master())
-	if err != nil {
-		return errors.Trace(err)
-	}
+	i := mapKey2Slot(k)
 
-	redisErr, clientErr := forward(c, redisConn.(*redispool.PooledConn), resp, s.netTimeout)
-	if redisErr != nil {
-		redisConn.Close()
+	//pipeline
+	c.pipelineSeq++
+	pr := &PipelineRequest{
+		slotIdx: i,
+		op:      op,
+		keys:    keys,
+		seq:     c.pipelineSeq,
+		backQ:   c.backQ,
+		req:     resp,
+		wg:      &sync.WaitGroup{},
 	}
-	s.pools.ReleaseConn(redisConn)
-	return errors.Trace(clientErr)
+	pr.wg.Add(1)
+
+	s.reqCh <- pr
+	pr.wg.Wait()
+
+	return nil
 }
 
 func (s *Server) handleConn(c net.Conn) {
@@ -277,14 +273,21 @@ func (s *Server) handleConn(c net.Conn) {
 
 	s.counter.Add("connections", 1)
 	client := &session{
-		Conn:     c,
-		r:        bufio.NewReader(c),
-		CreateAt: time.Now(),
+		Conn:        c,
+		r:           bufio.NewReaderSize(c, 32*1024),
+		w:           bufio.NewWriterSize(c, 32*1024),
+		CreateAt:    time.Now(),
+		backQ:       make(chan *PipelineResponse, 1000),
+		closeSignal: &sync.WaitGroup{},
 	}
+	client.closeSignal.Add(1)
+
+	go client.WritingLoop()
 
 	var err error
-
 	defer func() {
+		client.closeSignal.Wait() //waiting for writer goroutine
+
 		if err != nil { //todo: fix this ugly error check
 			if GetOriginError(err.(*errors.Err)).Error() != io.EOF.Error() {
 				log.Warningf("close connection %v, %+v, %v", c.RemoteAddr(), client, errors.ErrorStack(err))
@@ -295,13 +298,13 @@ func (s *Server) handleConn(c net.Conn) {
 			log.Infof("close connection %v, %+v", c.RemoteAddr(), client)
 		}
 
-		c.Close()
 		s.counter.Add("connections", -1)
 	}()
 
 	for {
 		err = s.redisTunnel(client)
 		if err != nil {
+			close(client.backQ)
 			return
 		}
 		client.Ops++
@@ -339,11 +342,13 @@ func (s *Server) OnGroupChange(groupId int) {
 
 func (s *Server) registerSignal() {
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, os.Kill)
 	go func() {
 		<-c
 		log.Info("ctrl-c or SIGTERM found, mark offline server")
-		s.handleMarkOffline()
+		done := make(chan error)
+		s.evtbus <- &killEvent{done: done}
+		<-done
 	}()
 }
 
@@ -373,8 +378,7 @@ func (s *Server) responseAction(seq int64) {
 }
 
 func (s *Server) getProxyInfo() models.ProxyInfo {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	//todo:send request to evtbus, and get response
 	var pi = s.pi
 	return pi
 }
@@ -391,13 +395,15 @@ func (s *Server) getActionObject(seq int, target interface{}) {
 
 func (s *Server) checkAndDoTopoChange(seq int) (needResponse bool) {
 	act, err := s.top.GetActionWithSeq(int64(seq))
-	if err != nil {
+	if err != nil { //todo: error is not "not exist"
 		log.Fatal(errors.ErrorStack(err), "action seq", seq)
 	}
 
 	if !StringsContain(act.Receivers, s.pi.Id) { //no need to response
 		return false
 	}
+
+	s.stopTaskRunners()
 
 	switch act.Type {
 	case models.ACTION_TYPE_SLOT_MIGRATE, models.ACTION_TYPE_SLOT_CHANGED,
@@ -418,6 +424,8 @@ func (s *Server) checkAndDoTopoChange(seq int) (needResponse bool) {
 	default:
 		log.Fatalf("unknown action %+v", act)
 	}
+
+	s.createTaskRunners()
 
 	return true
 }
@@ -446,16 +454,7 @@ func (s *Server) handleProxyCommand() {
 }
 
 func (s *Server) processAction(e interface{}) {
-	start := time.Now()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if time.Since(start).Seconds() > 10 {
-		log.Warning("take too long to get lock")
-	}
-
-	actPath := GetEventPath(e)
-	if strings.Index(actPath, models.GetProxyPath(s.top.ProductName)) == 0 {
+	if strings.Index(GetEventPath(e), models.GetProxyPath(s.top.ProductName)) == 0 {
 		//proxy event, should be order for me to suicide
 		s.handleProxyCommand()
 		return
@@ -518,20 +517,53 @@ func (s *Server) processAction(e interface{}) {
 	s.lastActionSeq = seqs[len(seqs)-1]
 }
 
+func (s *Server) dispatch(r *PipelineRequest) {
+	s.handleMigrateState(r.slotIdx, r.keys[0])
+	tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
+	if !ok {
+		//try recreate taskrunner
+		if err := s.createTaskRunner(s.slots[r.slotIdx]); err != nil {
+			r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
+			return
+		}
+
+		tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
+	}
+	tr.in <- r
+
+}
+
 func (s *Server) handleTopoEvent() {
 	for {
 		select {
+		case r := <-s.reqCh:
+			if s.slots[r.slotIdx].slotInfo.State.Status == models.SLOT_STATUS_PRE_MIGRATE {
+				s.bufferedReq.PushBack(r)
+				continue
+			}
+
+			for e := s.bufferedReq.Front(); e != nil; {
+				next := e.Next()
+				s.dispatch(e.Value.(*PipelineRequest))
+				s.bufferedReq.Remove(e)
+				e = next
+			}
+
+			s.dispatch(r)
 		case e := <-s.evtbus:
 			log.Infof("got event %s, %v", s.pi.Id, e)
-			s.processAction(e)
+			switch e.(type) {
+			case *killEvent:
+				s.handleMarkOffline()
+				e.(*killEvent).done <- nil
+			default:
+				s.processAction(e)
+			}
 		}
 	}
 }
 
 func (s *Server) waitOnline() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	for {
 		pi, err := s.top.GetProxyInfo(s.pi.Id)
 		if err != nil {
@@ -552,6 +584,16 @@ func (s *Server) waitOnline() {
 			}
 
 			return
+		}
+
+		select {
+		case e := <-s.evtbus:
+			switch e.(type) {
+			case *killEvent:
+				s.handleMarkOffline()
+				e.(*killEvent).done <- nil
+			}
+		default: //otherwise ignore it
 		}
 
 		println("wait to be online ", s.pi.Id)
@@ -583,21 +625,22 @@ func (s *Server) RegisterAndWait() {
 }
 
 func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
-	log.Infof("%+v", conf)
+	log.Infof("start with configuration: %+v", conf)
 	s := &Server{
-		evtbus:            make(chan interface{}, 100),
-		top:               topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
-		netTimeout:        conf.netTimeout,
-		counter:           stats.NewCounters("router"),
-		lastActionSeq:     -1,
-		startAt:           time.Now(),
-		addr:              addr,
-		concurrentLimiter: tokenlimiter.NewTokenLimiter(100),
-		moper:             NewMultiOperator(addr),
-		pools:             cachepool.NewCachePool(),
+		evtbus:        make(chan interface{}, 1000),
+		top:           topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
+		netTimeout:    conf.netTimeout,
+		counter:       stats.NewCounters("router"),
+		lastActionSeq: -1,
+		startAt:       time.Now(),
+		addr:          addr,
+		moper:         NewMultiOperator(addr),
+		reqCh:         make(chan *PipelineRequest, 1000),
+		pools:         cachepool.NewCachePool(),
+		pipeConns:     make(map[string]*taskRunner),
+		bufferedReq:   list.New(),
 	}
 
-	s.mu.Lock()
 	s.pi.Id = conf.proxyId
 	s.pi.State = models.PROXY_STATE_OFFLINE
 	hname, err := os.Hostname()
@@ -607,7 +650,6 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	s.pi.Addr = hname + ":" + strings.Split(addr, ":")[1]
 	s.pi.DebugVarAddr = hname + ":" + strings.Split(debugVarAddr, ":")[1]
 	log.Infof("proxy_info:%+v", s.pi)
-	s.mu.Unlock()
 	//todo:fill more field
 
 	stats.Publish("evtbus", stats.StringFunc(func() string {

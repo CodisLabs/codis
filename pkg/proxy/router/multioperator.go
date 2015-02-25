@@ -18,10 +18,10 @@ type MultiOperator struct {
 }
 
 type MulOp struct {
-	op   string
-	keys [][]byte
-	w    DeadlineReadWriter
-	wait chan error
+	op     string
+	keys   [][]byte
+	result *[]byte
+	wait   chan error
 }
 
 func NewMultiOperator(server string) *MultiOperator {
@@ -56,9 +56,9 @@ func newPool(server, password string) *redis.Pool {
 	}
 }
 
-func (oper *MultiOperator) handleMultiOp(op string, keys [][]byte, w DeadlineReadWriter) error {
+func (oper *MultiOperator) handleMultiOp(op string, keys [][]byte, result *[]byte) error {
 	wait := make(chan error, 1)
-	oper.q <- &MulOp{op: op, keys: keys, w: w, wait: wait}
+	oper.q <- &MulOp{op: op, keys: keys, result: result, wait: wait}
 	return <-wait
 }
 
@@ -111,13 +111,7 @@ func (oper *MultiOperator) mget(mop *MulOp) {
 		mop.wait <- errors.Trace(err)
 		return
 	}
-
-	if err := mop.w.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		mop.wait <- errors.Trace(err)
-		return
-	}
-
-	_, err = mop.w.Write(b)
+	*mop.result = b
 	mop.wait <- errors.Trace(err)
 }
 
@@ -141,6 +135,7 @@ func (oper *MultiOperator) msetResults(mop *MulOp) ([]byte, error) {
 	conn := oper.pool.Get()
 	defer conn.Close()
 	for i := 0; i < len(mop.keys); i += 2 {
+		log.Info(string(mop.keys[i]), string(mop.keys[i+1]))
 		_, err := conn.Do("set", mop.keys[i], mop.keys[i+1]) //change mset to set
 		if err != nil {
 			return nil, errors.Trace(err)
@@ -164,12 +159,7 @@ func (oper *MultiOperator) mset(mop *MulOp) {
 		return
 	}
 
-	if err := mop.w.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		mop.wait <- errors.Trace(err)
-		return
-	}
-
-	_, err = mop.w.Write(b)
+	*mop.result = b
 	mop.wait <- errors.Trace(err)
 }
 
@@ -187,11 +177,6 @@ func (oper *MultiOperator) del(mop *MulOp) {
 		return
 	}
 
-	if err := mop.w.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
-		mop.wait <- errors.Trace(err)
-		return
-	}
-
-	_, err = mop.w.Write(b)
+	*mop.result = b
 	mop.wait <- errors.Trace(err)
 }

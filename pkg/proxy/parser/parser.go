@@ -113,6 +113,19 @@ func readLine(r *bufio.Reader) ([]byte, error) {
 }
 
 func raw2Bulk(r *Resp) []byte {
+	if r.Type == BulkResp {
+		if r.Raw[1] == '0' { //  $0\r\n\r\n
+			return nil //empty key
+		}
+
+		if r.Raw[1] == '-' { //   $-1\r\n
+			return r.Raw[1 : len(r.Raw)-2]
+		}
+
+		startIdx := bytes.IndexByte(r.Raw, '\n') //  "$6\r\nfoobar\r\n"
+		return r.Raw[startIdx+1 : len(r.Raw)-2]
+	}
+
 	return r.Raw[1 : len(r.Raw)-2] //skip type &&  \r\n
 }
 
@@ -123,12 +136,6 @@ func raw2Error(r *Resp) []byte {
 func (r *Resp) GetOpKeys() (op []byte, keys [][]byte, err error) {
 	if len(r.Multi) > 0 {
 		op = raw2Bulk(r.Multi[0])
-		startPos := bytes.IndexByte(op, '\n')
-		if startPos < 0 {
-			return nil, nil, errors.Errorf("invalid resp %+v", r)
-		}
-
-		op = op[startPos+1:]
 		if len(op) == 0 || len(op) > 50 {
 			return nil, nil, errors.Errorf("error parse op %s", string(op))
 		}
@@ -155,11 +162,7 @@ func defaultGetKeys(r *Resp) ([][]byte, error) {
 	keys := make([][]byte, 0, count)
 	for _, v := range r.Multi[1:] {
 		key := raw2Bulk(v)
-		startPos := bytes.IndexByte(key, '\n')
-		if startPos < 0 {
-			return nil, errors.Errorf("invalid resp %+v", r)
-		}
-		keys = append(keys, key[startPos+1:])
+		keys = append(keys, key)
 	}
 
 	return keys, nil

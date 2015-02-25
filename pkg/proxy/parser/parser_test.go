@@ -89,6 +89,39 @@ func TestKeys(t *testing.T) {
 	}
 }
 
+func TestMulOpKeys(t *testing.T) {
+	table := []string{
+		"*7\r\n$4\r\nmset\r\n$4\r\nkey1\r\n$6\r\nvalue1\r\n$4\r\nkey2\r\n$6\r\nvalue2\r\n$4\r\nkey3\r\n$0\r\n\r\n",
+	}
+
+	for _, s := range table {
+		buf := bytes.NewBuffer([]byte(s))
+		r := bufio.NewReader(buf)
+
+		resp, err := Parse(r)
+		if err != nil {
+			t.Error(errors.ErrorStack(err))
+		}
+		b, err := resp.Bytes()
+		if err != nil {
+			t.Error(err)
+		}
+
+		if s != string(b) {
+			t.Fatalf("not match, expect %s, got %s", s, string(b))
+		}
+
+		_, keys, err := resp.GetOpKeys()
+		if err != nil {
+			t.Error(err)
+		}
+
+		if len(keys) != 6 || string(keys[5]) != "" {
+			t.Error("Keys failed", string(keys[5]))
+		}
+	}
+}
+
 func TestParser(t *testing.T) {
 	table := []string{
 		"$6\r\nfoobar\r\n",

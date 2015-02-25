@@ -25,9 +25,16 @@ func (c *Conn) IsClosed() bool {
 	return c.closed
 }
 
+type IPool interface {
+	Put(conn PoolConnection)
+	Get() (PoolConnection, error)
+	Open(fact CreateConnectionFunc)
+	Close()
+}
+
 type PooledConn struct {
 	*Conn
-	pool *ConnectionPool
+	pool IPool
 }
 
 func (pc *PooledConn) Recycle() {
@@ -65,11 +72,11 @@ func NewConnection(addr string) (*Conn, error) {
 }
 
 func ConnectionCreator(addr string) CreateConnectionFunc {
-	return func(pool *ConnectionPool) (PoolConnection, error) {
+	return func(pool IPool) (PoolConnection, error) {
 		c, err := NewConnection(addr)
 		if err != nil {
 			return nil, err
 		}
-		return &PooledConn{c, pool}, nil
+		return &PooledConn{Conn: c, pool: pool}, nil
 	}
 }
