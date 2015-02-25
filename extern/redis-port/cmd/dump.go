@@ -10,13 +10,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 )
 
 type cmdDump struct {
-	ndump counter.Int64
+	ndump atomic2.Int64
 }
 
 func (cmd *cmdDump) Main() {
@@ -72,7 +72,7 @@ func (cmd *cmdDump) SendCmd(master string) (net.Conn, int64) {
 }
 
 func (cmd *cmdDump) DumpRDBFile(reader *bufio.Reader, writer *bufio.Writer, nsize int64) {
-	var nread counter.Int64
+	var nread atomic2.Int64
 	wait := make(chan struct{})
 	go func() {
 		defer close(wait)

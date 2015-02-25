@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/pipe"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
@@ -20,7 +20,7 @@ import (
 )
 
 type cmdSync struct {
-	nread, nrecv, nobjs counter.Int64
+	nread, nrecv, nobjs atomic2.Int64
 }
 
 func (cmd *cmdSync) Main() {
@@ -132,7 +132,7 @@ func (cmd *cmdSync) SyncRDBFile(reader *bufio.Reader, slave string, nsize int64)
 }
 
 func (cmd *cmdSync) SyncCommand(reader *bufio.Reader, slave string) {
-	var forward, nbypass counter.Int64
+	var forward, nbypass atomic2.Int64
 	c := openNetConn(slave)
 	defer c.Close()
 

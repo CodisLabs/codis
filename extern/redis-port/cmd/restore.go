@@ -9,14 +9,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/redis"
 )
 
 type cmdRestore struct {
-	nread, nobjs counter.Int64
+	nread, nobjs atomic2.Int64
 }
 
 func (cmd *cmdRestore) Main() {
@@ -104,7 +104,7 @@ func (cmd *cmdRestore) RestoreRDBFile(reader *bufio.Reader, target string, nsize
 }
 
 func (cmd *cmdRestore) RestoreCommand(reader *bufio.Reader, slave string, nsize int64) {
-	var forward, nbypass counter.Int64
+	var forward, nbypass atomic2.Int64
 	c := openNetConn(slave)
 	defer c.Close()
 

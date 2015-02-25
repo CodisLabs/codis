@@ -6,17 +6,17 @@ package ioutils
 import (
 	"io"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
 )
 
 type CountReader struct {
-	p *counter.Int64
+	p *atomic2.Int64
 	r io.Reader
 }
 
-func NewCountReader(r io.Reader, p *counter.Int64) *CountReader {
+func NewCountReader(r io.Reader, p *atomic2.Int64) *CountReader {
 	if p == nil {
-		p = &counter.Int64{}
+		p = &atomic2.Int64{}
 	}
 	return &CountReader{p: p, r: r}
 }
@@ -36,13 +36,13 @@ func (r *CountReader) Read(p []byte) (int, error) {
 }
 
 type CountWriter struct {
-	p *counter.Int64
+	p *atomic2.Int64
 	w io.Writer
 }
 
-func NewCountWriter(w io.Writer, p *counter.Int64) *CountWriter {
+func NewCountWriter(w io.Writer, p *atomic2.Int64) *CountWriter {
 	if p == nil {
-		p = &counter.Int64{}
+		p = &atomic2.Int64{}
 	}
 	return &CountWriter{p: p, w: w}
 }

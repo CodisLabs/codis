@@ -8,7 +8,7 @@ import (
 	"net"
 
 	"github.com/wandoulabs/codis/extern/redis-binlog/pkg/binlog"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/redis"
@@ -80,14 +80,14 @@ type Handler struct {
 	signal chan int
 
 	counters struct {
-		bgsave          counter.Int64
-		clients         counter.Int64
-		clientsAccepted counter.Int64
-		commands        counter.Int64
-		commandsFailed  counter.Int64
-		syncRdbRemains  counter.Int64
-		syncCacheBytes  counter.Int64
-		syncTotalBytes  counter.Int64
+		bgsave          atomic2.Int64
+		clients         atomic2.Int64
+		clientsAccepted atomic2.Int64
+		commands        atomic2.Int64
+		commandsFailed  atomic2.Int64
+		syncRdbRemains  atomic2.Int64
+		syncCacheBytes  atomic2.Int64
+		syncTotalBytes  atomic2.Int64
 	}
 }
 

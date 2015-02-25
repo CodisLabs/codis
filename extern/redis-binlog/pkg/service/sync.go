@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/wandoulabs/codis/extern/redis-binlog/pkg/binlog"
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/errors"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/pipe"
@@ -307,7 +307,7 @@ func (h *Handler) doSyncRDB(c *conn, size int64) error {
 	errs := make(chan error, ncpu)
 
 	var lock sync.Mutex
-	var flag counter.Int64
+	var flag atomic2.Int64
 	loadNextEntry := func() (*rdb.BinEntry, error) {
 		lock.Lock()
 		defer lock.Unlock()

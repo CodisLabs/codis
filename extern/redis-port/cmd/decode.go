@@ -13,14 +13,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/counter"
+	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/atomic2"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/io/ioutils"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/libs/log"
 	"github.com/wandoulabs/codis/extern/redis-port/pkg/rdb"
 )
 
 type cmdDecode struct {
-	nread, nsave, nobjs counter.Int64
+	nread, nsave, nobjs atomic2.Int64
 }
 
 func (cmd *cmdDecode) Main() {
