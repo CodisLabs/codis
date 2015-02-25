@@ -73,7 +73,9 @@ type Handler struct {
 	config *Config
 	htable redis.HandlerTable
 
-	syncto string
+	syncto       string
+	syncto_since int64
+
 	master chan *conn
 	signal chan int
 
@@ -84,8 +86,8 @@ type Handler struct {
 		commands        counter.Int64
 		commandsFailed  counter.Int64
 		syncRdbRemains  counter.Int64
-		syncTotalBytes  counter.Int64
 		syncCacheBytes  counter.Int64
+		syncTotalBytes  counter.Int64
 	}
 }
 

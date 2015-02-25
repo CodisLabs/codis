@@ -114,15 +114,16 @@ func (h *Handler) Info(arg0 interface{}, args [][]byte) (redis.Resp, error) {
 		fmt.Fprintf(&b, "\n")
 
 		fmt.Fprintf(&b, "# Clients\n")
-		fmt.Fprintf(&b, "syncto:%s\n", h.syncto)
 		fmt.Fprintf(&b, "bgsave:%d\n", h.counters.bgsave.Get())
 		fmt.Fprintf(&b, "clients:%d\n", h.counters.clients.Get())
 		fmt.Fprintf(&b, "clients_accepted:%d\n", h.counters.clientsAccepted.Get())
 		fmt.Fprintf(&b, "commands:%d\n", h.counters.commands.Get())
 		fmt.Fprintf(&b, "commands_failed:%d\n", h.counters.commandsFailed.Get())
 		fmt.Fprintf(&b, "sync_rdb_remains:%d\n", h.counters.syncRdbRemains.Get())
-		fmt.Fprintf(&b, "sync_total_bytes:%d\n", h.counters.syncTotalBytes.Get())
 		fmt.Fprintf(&b, "sync_cache_bytes:%d\n", h.counters.syncCacheBytes.Get())
+		fmt.Fprintf(&b, "sync_total_bytes:%d\n", h.counters.syncTotalBytes.Get())
+		fmt.Fprintf(&b, "slaveof:%s\n", h.syncto)
+		fmt.Fprintf(&b, "slaveof_since:%d\n", h.syncto_since)
 		fmt.Fprintf(&b, "\n")
 		return redis.NewString(b.String()), nil
 	}

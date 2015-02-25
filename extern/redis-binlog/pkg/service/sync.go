@@ -168,11 +168,11 @@ func (h *Handler) SlaveOf(arg0 interface{}, args [][]byte) (redis.Resp, error) {
 
 func (h *Handler) daemonSyncMaster() {
 	var last *conn
-	wait := make(chan int, 0)
+	lost := make(chan int, 0)
 	for exit := false; !exit; {
 		var c *conn
 		select {
-		case <-wait:
+		case <-lost:
 			last = nil
 		case <-h.signal:
 			exit = true
@@ -180,22 +180,24 @@ func (h *Handler) daemonSyncMaster() {
 		}
 		if last != nil {
 			last.Close()
-			<-wait
+			<-lost
 		}
 		last = c
 		if c != nil {
 			go func() {
 				defer func() {
-					wait <- 0
+					lost <- 0
 				}()
 				defer c.Close()
 				err := h.doSyncTo(c)
 				log.InfoErrorf(err, "stop sync: %s", c.summ)
 			}()
 			h.syncto = c.nc.RemoteAddr().String()
+			h.syncto_since = time.Now().UnixNano() / int64(time.Millisecond)
 			log.Infof("sync to %s", h.syncto)
 		} else {
 			h.syncto = ""
+			h.syncto_since = 0
 			log.Infof("sync to no one")
 		}
 	}
