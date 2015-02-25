@@ -537,7 +537,6 @@ func (s *Server) handleTopoEvent() {
 	for {
 		select {
 		case r := <-s.reqCh:
-			log.Debugf("got event %v, seq:%v", string(r.op), r.seq)
 			if s.slots[r.slotIdx].slotInfo.State.Status == models.SLOT_STATUS_PRE_MIGRATE {
 				s.bufferedReq.PushBack(r)
 				continue

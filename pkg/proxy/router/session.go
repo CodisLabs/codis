@@ -59,8 +59,6 @@ func (s *session) writeResp(resp *PipelineResponse) error {
 }
 
 func (s *session) handleResponse(resp *PipelineResponse) (flush bool, err error) {
-	log.Debug("session handleResponse ", resp.ctx, "lastUnsentResponseSeq", s.lastUnsentResponseSeq)
-
 	if resp.ctx.seq != s.lastUnsentResponseSeq {
 		log.Fatal("should never happend")
 	}

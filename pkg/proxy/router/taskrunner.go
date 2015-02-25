@@ -58,7 +58,6 @@ func (tr *taskRunner) handleTask(r *PipelineRequest, flush bool) error {
 		return tr.c.Flush()
 	}
 
-	log.Debugf("handleTask:%v", r)
 	tr.tasks.PushBack(r)
 
 	return errors.Trace(tr.dowrite(r, flush))
@@ -148,7 +147,6 @@ func (tr *taskRunner) handleResponse(e interface{}) error {
 		resp := e.(*parser.Resp)
 		e := tr.tasks.Front()
 		req := e.Value.(*PipelineRequest)
-		log.Debug("finish", req)
 		req.backQ <- &PipelineResponse{ctx: req, resp: resp, err: nil}
 		tr.tasks.Remove(e)
 		return nil

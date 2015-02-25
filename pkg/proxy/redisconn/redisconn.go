@@ -31,7 +31,7 @@ func NewConnection(addr string, netTimeout int) (*Conn, error) {
 	}, nil
 }
 
-//requre read to use bufio
+//require read to use bufio
 func (c *Conn) Read(p []byte) (int, error) {
 	panic("not allowed")
 }
