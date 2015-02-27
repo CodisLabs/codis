@@ -124,6 +124,13 @@ func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 	return nil
 }
 
+func (t *MigrateTask) stop() error {
+	if t.Status == MIGRATE_TASK_MIGRATING {
+		t.stopChan <- struct{}{}
+	}
+	return nil
+}
+
 // migrate multi slots
 func (t *MigrateTask) run() error {
 	// create zk conn on demand
