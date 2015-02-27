@@ -15,6 +15,10 @@ make -C ../ build || exit $?
 pkill -9 codis-config 2>&1 >/dev/null
 pkill -9 codis-server
 
+# start dashboard
+../bin/codis-config -L dashboard.log dashboard 2>&1 >/dev/null &
+echo "starting dashboard ..."
+sleep 1
 ../bin/codis-config action remove-lock 2>&1
 
 ########################################
@@ -28,6 +32,7 @@ done
 # restart codis-config & reset zookeeper slots-info
 
 > config.log
+
 
 for i in {1,2,3}; do
     ../bin/codis-config proxy offline proxy_${i} 2>&1 >/dev/null
