@@ -5,10 +5,13 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/juju/errors"
+	"github.com/ngaut/go-zookeeper/zk"
 	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/models"
 
@@ -45,18 +48,14 @@ options:
 		logFileName = args["--http-log"].(string)
 	}
 
-	if args["--addr"] != nil {
-		runDashboard(args["--addr"].(string), logFileName)
-	} else {
-		runDashboard(":8086", logFileName)
-	}
+	runDashboard(globalEnv.DashboardAddr(), logFileName)
 	return nil
 }
 
 var proxiesSpeed int64
 
 func CreateZkConn() zkhelper.Conn {
-	conn, _ := zkhelper.ConnectToZk(zkAddr)
+	conn, _ := globalEnv.NewZkConn()
 	return conn
 }
 
@@ -85,7 +84,7 @@ func jsonRetSucc() (int, string) {
 func getAllProxyOps() int64 {
 	conn := CreateZkConn()
 	defer conn.Close()
-	proxies, err := models.ProxyList(conn, productName, nil)
+	proxies, err := models.ProxyList(conn, globalEnv.ProductName(), nil)
 	if err != nil {
 		log.Warning(err)
 		return -1
@@ -106,7 +105,7 @@ func getAllProxyOps() int64 {
 func getAllProxyDebugVars() map[string]map[string]interface{} {
 	conn := CreateZkConn()
 	defer conn.Close()
-	proxies, err := models.ProxyList(conn, productName, nil)
+	proxies, err := models.ProxyList(conn, globalEnv.ProductName(), nil)
 	if err != nil {
 		log.Warning(err)
 		return nil
@@ -138,8 +137,47 @@ func getProxySpeedChan() <-chan int64 {
 	}(c)
 	return c
 }
+
 func pageSlots(r render.Render) {
 	r.HTML(200, "slots", nil)
+}
+
+func createDashboardNode() error {
+	conn := CreateZkConn()
+	defer conn.Close()
+
+	// make sure root dir is exists
+	rootDir := fmt.Sprintf("/zk/codis/db_%s", globalEnv.ProductName())
+	zkhelper.CreateRecursive(conn, rootDir, "", 0, zkhelper.DefaultDirACLs())
+
+	zkPath := fmt.Sprintf("%s/dashboard", rootDir)
+	// make sure we're the only one dashboard
+	if exists, _, _ := conn.Exists(zkPath); exists {
+		data, _, _ := conn.Get(zkPath)
+		return errors.New("dashboard already running: " + string(data))
+	}
+
+	content := fmt.Sprintf(`{"addr": "%v", "pid": %v}`, globalEnv.DashboardAddr(), os.Getpid())
+	pathCreated, err := conn.Create(zkPath, []byte(content),
+		zk.FlagEphemeral, zkhelper.DefaultACLs())
+
+	log.Info("dashboard node created:", pathCreated, string(content))
+
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
+}
+
+func releaseDashboardNode() {
+	conn := CreateZkConn()
+	defer conn.Close()
+
+	zkPath := fmt.Sprintf("/zk/codis/db_%s/dashboard", globalEnv.ProductName())
+	if exists, _, _ := conn.Exists(zkPath); exists {
+		log.Info("clean dashboard node")
+		conn.Delete(zkPath, 0)
+	}
 }
 
 func runDashboard(addr string, httpLogFile string) {
@@ -150,8 +188,8 @@ func runDashboard(addr string, httpLogFile string) {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer f.Close()
-	m.Map(stdlog.New(f, "[martini]", stdlog.LstdFlags))
 
+	m.Map(stdlog.New(f, "[martini]", stdlog.LstdFlags))
 	binRoot, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
 		log.Fatal(err)
@@ -192,22 +230,39 @@ func runDashboard(addr string, httpLogFile string) {
 	m.Get("/api/migrate/tasks", apiGetMigrateTasks)
 	m.Delete("/api/migrate/pending_task/:id/remove", apiRemovePendingMigrateTask)
 	m.Delete("/api/migrate/task/:id/stop", apiStopMigratingTask)
-	m.Post("/api/migrate", binding.Json(MigrateTaskForm{}), apiDoMigrate)
+	m.Post("/api/migrate", binding.Json(MigrateTaskInfo{}), apiDoMigrate)
 
 	m.Post("/api/rebalance", apiRebalance)
 	m.Get("/api/rebalance/status", apiRebalanceStatus)
 
 	m.Get("/api/slot/list", apiGetSlots)
+	m.Get("/api/slot/:id", apiGetSingleSlot)
+	m.Post("/api/slots/init", apiInitSlots)
 	m.Get("/api/slots", apiGetSlots)
 	m.Post("/api/slot", binding.Json(RangeSetTask{}), apiSlotRangeSet)
 	m.Get("/api/proxy/list", apiGetProxyList)
 	m.Get("/api/proxy/debug/vars", apiGetProxyDebugVars)
 	m.Post("/api/proxy", binding.Json(models.ProxyInfo{}), apiSetProxyStatus)
 
+	m.Get("/api/action/gc", apiActionGC)
+	m.Get("/api/force_remove_locks", apiForceRemoveLocks)
+
 	m.Get("/slots", pageSlots)
 	m.Get("/", func(r render.Render) {
 		r.Redirect("/admin")
 	})
+
+	// create temp node in ZK
+	if err := createDashboardNode(); err != nil {
+		Fatal(err)
+	}
+	defer releaseDashboardNode()
+
+	// create long live migrate manager
+	conn := CreateZkConn()
+	defer conn.Close()
+	globalMigrateManager = NewMigrateManager(conn, globalEnv.ProductName(), preMigrateCheck)
+	defer globalMigrateManager.removeNode()
 
 	go func() {
 		c := getProxySpeedChan()
@@ -215,8 +270,6 @@ func runDashboard(addr string, httpLogFile string) {
 			atomic.StoreInt64(&proxiesSpeed, <-c)
 		}
 	}()
-
-	go migrateTaskWorker()
 
 	m.RunOnAddr(addr)
 }

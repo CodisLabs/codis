@@ -94,8 +94,8 @@ func GetSlot(zkConn zkhelper.Conn, productName string, id int) (*Slot, error) {
 	return &slot, nil
 }
 
-func GetMigratingSlots(conn zkhelper.Conn, productName string) ([]Slot, error) {
-	migrateSlots := make([]Slot, 0)
+func GetMigratingSlots(conn zkhelper.Conn, productName string) ([]*Slot, error) {
+	migrateSlots := make([]*Slot, 0)
 	slots, err := Slots(conn, productName)
 	if err != nil {
 		return nil, err
@@ -110,20 +110,20 @@ func GetMigratingSlots(conn zkhelper.Conn, productName string) ([]Slot, error) {
 	return migrateSlots, nil
 }
 
-func Slots(zkConn zkhelper.Conn, productName string) ([]Slot, error) {
+func Slots(zkConn zkhelper.Conn, productName string) ([]*Slot, error) {
 	zkPath := GetSlotBasePath(productName)
 	children, _, err := zkConn.Children(zkPath)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	var slots []Slot
+	var slots []*Slot
 	for _, p := range children {
 		data, _, err := zkConn.Get(path.Join(zkPath, p))
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		slot := Slot{}
+		slot := &Slot{}
 		if err := json.Unmarshal(data, &slot); err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -133,13 +133,13 @@ func Slots(zkConn zkhelper.Conn, productName string) ([]Slot, error) {
 	return slots, nil
 }
 
-func NoGroupSlots(zkConn zkhelper.Conn, productName string) ([]Slot, error) {
+func NoGroupSlots(zkConn zkhelper.Conn, productName string) ([]*Slot, error) {
 	slots, err := Slots(zkConn, productName)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	var ret []Slot
+	var ret []*Slot
 	for _, slot := range slots {
 		if slot.GroupId == INVALID_ID {
 			ret = append(ret, slot)
@@ -148,7 +148,7 @@ func NoGroupSlots(zkConn zkhelper.Conn, productName string) ([]Slot, error) {
 	return ret, nil
 }
 
-func SetSlots(zkConn zkhelper.Conn, productName string, slots []Slot, groupId int, status SlotStatus) error {
+func SetSlots(zkConn zkhelper.Conn, productName string, slots []*Slot, groupId int, status SlotStatus) error {
 	if status != SLOT_STATUS_OFFLINE && status != SLOT_STATUS_ONLINE {
 		return errors.New("invalid status")
 	}

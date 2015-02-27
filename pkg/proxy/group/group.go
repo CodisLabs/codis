@@ -11,7 +11,7 @@ import (
 
 type Group struct {
 	master       string
-	redisServers map[string]models.Server
+	redisServers map[string]*models.Server
 }
 
 func (g *Group) Master() string {
@@ -20,7 +20,7 @@ func (g *Group) Master() string {
 
 func NewGroup(groupInfo models.ServerGroup) *Group {
 	g := &Group{
-		redisServers: make(map[string]models.Server),
+		redisServers: make(map[string]*models.Server),
 	}
 
 	for _, server := range groupInfo.Servers {

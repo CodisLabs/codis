@@ -4,6 +4,7 @@
 package models
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"path"
@@ -11,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"bytes"
 
 	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -252,7 +252,7 @@ func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, 
 		}
 		if len(fenceProxies) > 0 {
 			errMsg := bytes.NewBufferString("Some proxies may not stop cleanly:")
-			for k,_ := range fenceProxies {
+			for k, _ := range fenceProxies {
 				errMsg.WriteString(" ")
 				errMsg.WriteString(k)
 			}
@@ -292,7 +292,7 @@ func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, 
 func ForceRemoveLock(zkConn zkhelper.Conn, productName string) error {
 	lockPath := fmt.Sprintf("/zk/codis/db_%s/LOCK", productName)
 	children, _, err := zkConn.Children(lockPath)
-	if err != nil {
+	if err != nil && !zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 		return errors.Trace(err)
 	}
 

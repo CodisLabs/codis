@@ -8,10 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/models"
-
-	log "github.com/ngaut/logging"
 
 	"github.com/garyburd/redigo/redis"
 	_ "github.com/juju/errors"
@@ -23,6 +20,7 @@ const (
 
 var ErrGroupMasterNotFound = errors.New("group master not found")
 var ErrInvalidAddr = errors.New("invalid addr")
+var ErrStopMigrateByUser = errors.New("migration stop by user")
 
 // return: success_count, remain_count, error
 // slotsmgrt host port timeout slotnum count
@@ -44,24 +42,25 @@ func sendRedisMigrateCmd(c redis.Conn, slotId int, toAddr string) (int, int, err
 	return succ, remain, nil
 }
 
-var ErrStopMigrateByUser = errors.New("migration stop by user")
+// Migrator Implement
+type CodisSlotMigrator struct{}
 
-func MigrateSingleSlot(zkConn zkhelper.Conn, slotId, fromGroup, toGroup int, delay int, stopChan <-chan struct{}) error {
-	groupFrom, err := models.GetGroup(zkConn, productName, fromGroup)
+func (m *CodisSlotMigrator) Migrate(slot *models.Slot, fromGroup, toGroup int, task *MigrateTask, onProgress func(SlotMigrateProgress)) (err error) {
+	groupFrom, err := models.GetGroup(task.zkConn, task.productName, fromGroup)
 	if err != nil {
 		return err
 	}
-	groupTo, err := models.GetGroup(zkConn, productName, toGroup)
-	if err != nil {
-		return err
-	}
-
-	fromMaster, err := groupFrom.Master(zkConn)
+	groupTo, err := models.GetGroup(task.zkConn, task.productName, toGroup)
 	if err != nil {
 		return err
 	}
 
-	toMaster, err := groupTo.Master(zkConn)
+	fromMaster, err := groupFrom.Master(task.zkConn)
+	if err != nil {
+		return err
+	}
+
+	toMaster, err := groupTo.Master(task.zkConn)
 	if err != nil {
 		return err
 	}
@@ -77,25 +76,30 @@ func MigrateSingleSlot(zkConn zkhelper.Conn, slotId, fromGroup, toGroup int, del
 
 	defer c.Close()
 
-	_, remain, err := sendRedisMigrateCmd(c, slotId, toMaster.Addr)
+	_, remain, err := sendRedisMigrateCmd(c, slot.Id, toMaster.Addr)
 	if err != nil {
 		return err
 	}
 
 	for remain > 0 {
-		if delay > 0 {
-			time.Sleep(time.Duration(delay) * time.Millisecond)
+		if task.Delay > 0 {
+			time.Sleep(time.Duration(task.Delay) * time.Millisecond)
 		}
-		if stopChan != nil {
+		if task.stopChan != nil {
 			select {
-			case <-stopChan:
+			case <-task.stopChan:
 				return ErrStopMigrateByUser
 			default:
 			}
 		}
-		_, remain, err = sendRedisMigrateCmd(c, slotId, toMaster.Addr)
-		if remain%500 == 0 && remain > 0 {
-			log.Info("remain:", remain)
+		_, remain, err = sendRedisMigrateCmd(c, slot.Id, toMaster.Addr)
+		if remain >= 0 {
+			onProgress(SlotMigrateProgress{
+				SlotId:    slot.Id,
+				FromGroup: fromGroup,
+				ToGroup:   toGroup,
+				Remain:    remain,
+			})
 		}
 		if err != nil {
 			return err

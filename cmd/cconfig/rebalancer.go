@@ -22,11 +22,11 @@ type NodeInfo struct {
 }
 
 func getLivingNodeInfos(zkConn zkhelper.Conn) ([]*NodeInfo, error) {
-	groups, err := models.ServerGroups(zkConn, productName)
+	groups, err := models.ServerGroups(zkConn, globalEnv.ProductName())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	slots, err := models.Slots(zkConn, productName)
+	slots, err := models.Slots(zkConn, globalEnv.ProductName())
 	slotMap := make(map[int][]int)
 	for _, slot := range slots {
 		if slot.State.Status == models.SLOT_STATUS_ONLINE {
@@ -110,23 +110,21 @@ func Rebalance(zkConn zkhelper.Conn, delay int) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
+	log.Info("start rebalance")
 	for _, node := range livingNodes {
 		for len(node.CurSlots) > targetQuota[node.GroupId] {
 			for _, dest := range livingNodes {
 				if dest.GroupId != node.GroupId && len(dest.CurSlots) < targetQuota[dest.GroupId] {
 					slot := node.CurSlots[len(node.CurSlots)-1]
 					// create a migration task
-					t := &MigrateTask{
-						MigrateTaskForm: MigrateTaskForm{
-							Delay:      delay,
-							FromSlot:   slot,
-							ToSlot:     slot,
-							NewGroupId: dest.GroupId,
-							Status:     "migrating",
-							CreateAt:   strconv.FormatInt(time.Now().Unix(), 10),
-						},
-						stopChan: make(chan struct{}),
-					}
+					t := NewMigrateTask(MigrateTaskInfo{
+						Delay:      delay,
+						FromSlot:   slot,
+						ToSlot:     slot,
+						NewGroupId: dest.GroupId,
+						Status:     MIGRATE_TASK_MIGRATING,
+						CreateAt:   strconv.FormatInt(time.Now().Unix(), 10),
+					})
 					u, err := uuid.NewV4()
 					if err != nil {
 						return errors.Trace(err)
@@ -134,7 +132,8 @@ func Rebalance(zkConn zkhelper.Conn, delay int) error {
 					t.Id = u.String()
 
 					if ok, err := preMigrateCheck(t); ok {
-						err = RunMigrateTask(t)
+						// do migrate
+						err := t.run()
 						if err != nil {
 							log.Warning(err)
 							return errors.Trace(err)
@@ -149,5 +148,6 @@ func Rebalance(zkConn zkhelper.Conn, delay int) error {
 			}
 		}
 	}
+	log.Info("rebalance finish")
 	return nil
 }

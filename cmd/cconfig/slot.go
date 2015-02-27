@@ -4,17 +4,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/juju/errors"
-	"github.com/wandoulabs/codis/pkg/models"
 
 	"github.com/docopt/docopt-go"
 	log "github.com/ngaut/logging"
-	"github.com/nu7hatch/gouuid"
 )
 
 func cmdSlot(argv []string) (err error) {
@@ -71,14 +67,6 @@ func cmdSlot(argv []string) (err error) {
 		return runRebalance(delay)
 	}
 
-	zkLock.Lock(fmt.Sprintf("slot, %+v", argv))
-	defer func() {
-		err := zkLock.Unlock()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
-
 	if args["init"].(bool) {
 		force := args["-f"].(bool)
 		return runSlotInit(force)
@@ -127,84 +115,73 @@ func cmdSlot(argv []string) (err error) {
 }
 
 func runSlotInit(isForce bool) error {
-	if !isForce {
-		p := models.GetSlotBasePath(productName)
-		exists, _, err := zkConn.Exists(p)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		if exists {
-			return errors.New("slots already exists. use -f flag to force init")
-		}
+	var v interface{}
+	url := "/api/slots/init"
+	if isForce {
+		url += "?is_force=1"
 	}
-	err := models.InitSlotSet(zkConn, productName, models.DEFAULT_SLOT_NUM)
+	err := callApi(METHOD_POST, url, nil, &v)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
+	fmt.Println(jsonify(v))
 	return nil
 }
 
 func runSlotInfo(slotId int) error {
-	s, err := models.GetSlot(zkConn, productName, slotId)
+	var v interface{}
+	err := callApi(METHOD_GET, fmt.Sprintf("/api/slot/%d", slotId), nil, &v)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
-	b, _ := json.MarshalIndent(s, " ", "  ")
-	fmt.Println(string(b))
+	fmt.Println(jsonify(v))
 	return nil
 }
 
 func runSlotRangeSet(fromSlotId, toSlotId int, groupId int, status string) error {
-	err := models.SetSlotRange(zkConn, productName, fromSlotId, toSlotId, groupId, models.SlotStatus(status))
-	if err != nil {
-		return errors.Trace(err)
+	t := RangeSetTask{
+		FromSlot:   fromSlotId,
+		ToSlot:     toSlotId,
+		NewGroupId: groupId,
+		Status:     status,
 	}
+
+	var v interface{}
+	err := callApi(METHOD_POST, "/api/slot", t, &v)
+	if err != nil {
+		return err
+	}
+	fmt.Println(jsonify(v))
 	return nil
 }
 
 func runSlotSet(slotId int, groupId int, status string) error {
-	err := models.SetSlotRange(zkConn, productName, slotId, slotId, groupId, models.SlotStatus(status))
-	if err != nil {
-		return errors.Trace(err)
-	}
-	return nil
+	return runSlotRangeSet(slotId, slotId, groupId, status)
 }
 
 func runSlotMigrate(fromSlotId, toSlotId int, newGroupId int, delay int) error {
-	t := &MigrateTask{}
-	t.Delay = delay
-	t.FromSlot = fromSlotId
-	t.ToSlot = toSlotId
-	t.NewGroupId = newGroupId
-	t.Status = "migrating"
-	t.CreateAt = strconv.FormatInt(time.Now().Unix(), 10)
-	u, err := uuid.NewV4()
-	if err != nil {
-		log.Warning(err)
-		return errors.Trace(err)
+	migrateInfo := &MigrateTaskInfo{
+		FromSlot:   fromSlotId,
+		ToSlot:     toSlotId,
+		NewGroupId: newGroupId,
+		Delay:      delay,
 	}
-	t.Id = u.String()
-	t.stopChan = make(chan struct{})
 
-	// run migrate
-	if ok, err := preMigrateCheck(t); ok {
-		err = RunMigrateTask(t)
-		if err != nil {
-			log.Warning(err)
-			return errors.Trace(err)
-		}
-	} else {
-		log.Warning(err)
-		return errors.Trace(err)
+	var v interface{}
+	err := callApi(METHOD_POST, "/api/migrate", migrateInfo, &v)
+	if err != nil {
+		return err
 	}
+	fmt.Println(jsonify(v))
 	return nil
 }
 
 func runRebalance(delay int) error {
-	err := Rebalance(zkConn, delay)
+	var v interface{}
+	err := callApi(METHOD_POST, "/api/rebalance", nil, &v)
 	if err != nil {
-		log.Warning(err)
-		return errors.Trace(err)
+		return err
 	}
+	fmt.Println(jsonify(v))
 	return nil
 }

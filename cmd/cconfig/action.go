@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/juju/errors"
-	"github.com/wandoulabs/codis/pkg/models"
 
 	docopt "github.com/docopt/docopt-go"
 	log "github.com/ngaut/logging"
@@ -34,14 +33,6 @@ options:
 		return errors.Trace(runRemoveLock())
 	}
 
-	zkLock.Lock(fmt.Sprintf("action, %+v", argv))
-	defer func() {
-		err := zkLock.Unlock()
-		if err != nil {
-			log.Info(err)
-		}
-	}()
-
 	if args["gc"].(bool) {
 		if args["-n"].(bool) {
 			n, err := strconv.Atoi(args["<num>"].(string))
@@ -64,17 +55,29 @@ options:
 }
 
 func runGCKeepN(keep int) error {
-	log.Info("gc...")
-	return models.ActionGC(zkConn, productName, models.GC_TYPE_N, keep)
+	var v interface{}
+	if err := callApi(METHOD_GET, fmt.Sprintf("/api/action/gc?keep=%d", keep), nil, &v); err != nil {
+		return err
+	}
+	fmt.Println(jsonify(v))
+	return nil
 }
 
 func runGCKeepNSec(secs int) error {
-	log.Info("gc...")
-	return models.ActionGC(zkConn, productName, models.GC_TYPE_SEC, secs)
+	var v interface{}
+	if err := callApi(METHOD_GET, fmt.Sprintf("/api/action/gc?secs=%d", secs), nil, &v); err != nil {
+		return err
+	}
+	fmt.Println(jsonify(v))
+	return nil
 }
 
 func runRemoveLock() error {
-	log.Info("removing lock...")
-	zkLock.Unlock()
-	return errors.Trace(models.ForceRemoveLock(zkConn, productName))
+	var v interface{}
+	if err := callApi(METHOD_GET, "/api/force_remove_locks", nil, &v); err != nil {
+		return err
+	}
+	fmt.Println(jsonify(v))
+	return nil
+
 }
