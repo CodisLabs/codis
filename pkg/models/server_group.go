@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -32,17 +33,17 @@ type Server struct {
 
 // redis server group
 type ServerGroup struct {
-	Id          int      `json:"id"`
-	ProductName string   `json:"product_name"`
-	Servers     []Server `json:"servers"`
+	Id          int       `json:"id"`
+	ProductName string    `json:"product_name"`
+	Servers     []*Server `json:"servers"`
 }
 
-func (self Server) String() string {
+func (self *Server) String() string {
 	b, _ := json.MarshalIndent(self, "", "  ")
 	return string(b)
 }
 
-func (self ServerGroup) String() string {
+func (self *ServerGroup) String() string {
 	b, _ := json.MarshalIndent(self, "", "  ")
 	return string(b) + "\n"
 }
@@ -104,8 +105,8 @@ func GetGroup(zkConn zkhelper.Conn, productName string, groupId int) (*ServerGro
 	return group, nil
 }
 
-func ServerGroups(zkConn zkhelper.Conn, productName string) ([]ServerGroup, error) {
-	var ret []ServerGroup
+func ServerGroups(zkConn zkhelper.Conn, productName string) ([]*ServerGroup, error) {
+	var ret []*ServerGroup
 	root := fmt.Sprintf("/zk/codis/db_%s/servers", productName)
 	groups, _, err := zkConn.Children(root)
 	if err != nil {
@@ -125,7 +126,7 @@ func ServerGroups(zkConn zkhelper.Conn, productName string) ([]ServerGroup, erro
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		ret = append(ret, *g)
+		ret = append(ret, g)
 	}
 	return ret, nil
 }
@@ -138,7 +139,7 @@ func (self *ServerGroup) Master(zkConn zkhelper.Conn) (*Server, error) {
 	for _, s := range servers {
 		// TODO check if there are two masters
 		if s.Type == SERVER_TYPE_MASTER {
-			return &s, nil
+			return s, nil
 		}
 	}
 	return nil, nil
@@ -161,21 +162,34 @@ func (self *ServerGroup) Remove(zkConn zkhelper.Conn) error {
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d", self.ProductName, self.Id)
 	err = zkhelper.DeleteRecursive(zkConn, zkPath, -1)
 
+	// we know that there's no slots affected, so this action won't need proxy confirm
 	err = NewAction(zkConn, self.ProductName, ACTION_TYPE_SERVER_GROUP_REMOVE, self, "", false)
 	return errors.Trace(err)
 }
 
-func (self *ServerGroup) RemoveServer(zkConn zkhelper.Conn, s Server) error {
-	if s.Type == SERVER_TYPE_MASTER {
-		return errors.New("cannot remove master, use promote first")
-	}
-
-	zkPath := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d/%s", self.ProductName, self.Id, s.Addr)
-	err := zkConn.Delete(zkPath, -1)
+func (self *ServerGroup) RemoveServer(zkConn zkhelper.Conn, addr string) error {
+	zkPath := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d/%s", self.ProductName, self.Id, addr)
+	data, _, err := zkConn.Get(zkPath)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
+	var s Server
+	err = json.Unmarshal(data, &s)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	log.Info(s)
+	if s.Type == SERVER_TYPE_MASTER {
+		return errors.New("cannot remove master, use promote first")
+	}
+
+	err = zkConn.Delete(zkPath, -1)
+	if err != nil {
+		return errors.Trace(err)
+	}
+
+	// update server list
 	for i := 0; i < len(self.Servers); i++ {
 		if self.Servers[i].Addr == s.Addr {
 			self.Servers = append(self.Servers[:i], self.Servers[i+1:]...)
@@ -183,12 +197,13 @@ func (self *ServerGroup) RemoveServer(zkConn zkhelper.Conn, s Server) error {
 		}
 	}
 
+	// remove slave won't need proxy confirm
 	err = NewAction(zkConn, self.ProductName, ACTION_TYPE_SERVER_GROUP_CHANGED, self, "", false)
 	return errors.Trace(err)
 }
 
 func (self *ServerGroup) Promote(conn zkhelper.Conn, addr string) error {
-	var s Server
+	var s *Server
 	exists := false
 	for i := 0; i < len(self.Servers); i++ {
 		if self.Servers[i].Addr == addr {
@@ -224,7 +239,7 @@ func (self *ServerGroup) Promote(conn zkhelper.Conn, addr string) error {
 
 	// promote new server to master
 	s.Type = SERVER_TYPE_MASTER
-	err = self.AddServer(conn, &s)
+	err = self.AddServer(conn, s)
 	return errors.Trace(err)
 }
 
@@ -302,8 +317,8 @@ func (self *ServerGroup) AddServer(zkConn zkhelper.Conn, s *Server) error {
 	return nil
 }
 
-func (self *ServerGroup) GetServers(zkConn zkhelper.Conn) ([]Server, error) {
-	var ret []Server
+func (self *ServerGroup) GetServers(zkConn zkhelper.Conn) ([]*Server, error) {
+	var ret []*Server
 	root := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d", self.ProductName, self.Id)
 	nodes, _, err := zkConn.Children(root)
 	if err != nil {
@@ -315,7 +330,7 @@ func (self *ServerGroup) GetServers(zkConn zkhelper.Conn) ([]Server, error) {
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		ret = append(ret, *s)
+		ret = append(ret, s)
 	}
 	return ret, nil
 }

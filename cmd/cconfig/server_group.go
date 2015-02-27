@@ -4,14 +4,12 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 
-	"github.com/wandoulabs/codis/pkg/models"
-
 	"github.com/docopt/docopt-go"
 	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/codis/pkg/models"
 )
 
 // codis redis instance manage tool
@@ -31,14 +29,6 @@ func cmdServer(argv []string) (err error) {
 		return err
 	}
 	log.Debug(args)
-
-	zkLock.Lock(fmt.Sprintf("server, %+v", argv))
-	defer func() {
-		err := zkLock.Unlock()
-		if err != nil {
-			log.Error(err)
-		}
-	}()
 
 	if args["list"].(bool) {
 		return runListServerGroup()
@@ -73,82 +63,67 @@ func cmdServer(argv []string) (err error) {
 }
 
 func runAddServerGroup(groupId int) error {
-	serverGroup := models.NewServerGroup(productName, groupId)
-	if err := serverGroup.Create(zkConn); err != nil {
+	serverGroup := models.NewServerGroup(globalEnv.ProductName(), groupId)
+	var v interface{}
+	err := callApi(METHOD_PUT, "/api/server_groups", serverGroup, &v)
+	if err != nil {
 		return err
 	}
+	fmt.Println(jsonify(v))
 	return nil
 }
 
 func runPromoteServerToMaster(groupId int, addr string) error {
-	group, err := models.GetGroup(zkConn, productName, groupId)
+	s := models.Server{
+		Addr:    addr,
+		GroupId: groupId,
+	}
+	var v interface{}
+	err := callApi(METHOD_POST, fmt.Sprintf("/api/server_group/%d/promote", groupId), s, &v)
 	if err != nil {
 		return err
 	}
-
-	err = group.Promote(zkConn, addr)
-	if err != nil {
-		return err
-	}
+	fmt.Println(jsonify(v))
 	return nil
 }
 
 func runAddServerToGroup(groupId int, addr string, role string) error {
-	serverGroup := models.NewServerGroup(productName, groupId)
-	if len(addr) > 0 && len(role) > 0 {
-		exists, err := serverGroup.Exists(zkConn)
-		if err != nil {
-			log.Warning(err)
-			return err
-		}
-		// if server group not exists, create it first
-		if !exists {
-			serverGroup.Create(zkConn)
-		}
-		server := models.NewServer(role, addr)
-		if err := serverGroup.AddServer(zkConn, server); err != nil {
-			log.Warning(err)
-			return err
-		}
+	server := models.NewServer(role, addr)
+	var v interface{}
+	err := callApi(METHOD_PUT, fmt.Sprintf("/api/server_group/%d/addServer", groupId), server, &v)
+	if err != nil {
+		return err
 	}
+	fmt.Println(jsonify(v))
 	return nil
 }
 
 func runListServerGroup() error {
-	groups, err := models.ServerGroups(zkConn, productName)
+	var v interface{}
+	err := callApi(METHOD_GET, "/api/server_groups", nil, &v)
 	if err != nil {
-		log.Warning(err)
 		return err
 	}
-	b, _ := json.MarshalIndent(groups, " ", "  ")
-	fmt.Println(string(b))
+	fmt.Println(jsonify(v))
 	return nil
 }
 
 func runRemoveServerGroup(groupId int) error {
-	serverGroup := models.NewServerGroup(productName, groupId)
-	err := serverGroup.Remove(zkConn)
+	var v interface{}
+	err := callApi(METHOD_DELETE, fmt.Sprintf("/api/server_group/%d", groupId), nil, &v)
 	if err != nil {
-		log.Warning(err)
 		return err
 	}
+	fmt.Println(jsonify(v))
 	return nil
 }
 
 func runRemoveServerFromGroup(groupId int, addr string) error {
-	serverGroup, err := models.GetGroup(zkConn, productName, groupId)
+	var v interface{}
+	err := callApi(METHOD_PUT, fmt.Sprintf("/api/server_group/%d/removeServer", groupId), models.Server{Addr: addr}, &v)
 	if err != nil {
-		log.Warning(err)
 		return err
 	}
-	for _, s := range serverGroup.Servers {
-		if s.Addr == addr {
-			err := serverGroup.RemoveServer(zkConn, s)
-			if err != nil {
-				log.Warning(err)
-				return err
-			}
-		}
-	}
+	fmt.Println(jsonify(v))
 	return nil
 }

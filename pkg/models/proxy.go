@@ -33,7 +33,7 @@ type ProxyInfo struct {
 	DebugVarAddr string `json:"debug_var_addr"`
 }
 
-func (p ProxyInfo) Ops() (int64, error) {
+func (p *ProxyInfo) Ops() (int64, error) {
 	resp, err := http.Get("http://" + p.DebugVarAddr + "/debug/vars")
 	if err != nil {
 		return -1, errors.Trace(err)
@@ -60,7 +60,7 @@ func (p ProxyInfo) Ops() (int64, error) {
 	return 0, nil
 }
 
-func (p ProxyInfo) DebugVars() (map[string]interface{}, error) {
+func (p *ProxyInfo) DebugVars() (map[string]interface{}, error) {
 	resp, err := http.Get("http://" + p.DebugVarAddr + "/debug/vars")
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -126,7 +126,7 @@ func ProxyList(zkConn zkhelper.Conn, productName string, filter func(*ProxyInfo)
 
 func GetFenceProxyMap(zkConn zkhelper.Conn, productName string) (map[string]bool, error) {
 	children, _, err := zkConn.Children(GetProxyFencePath(productName))
-	if (err != nil) {
+	if err != nil {
 		if err.Error() == zk.ErrNoNode.Error() {
 			return make(map[string]bool), nil
 		} else {
@@ -135,7 +135,7 @@ func GetFenceProxyMap(zkConn zkhelper.Conn, productName string) (map[string]bool
 	}
 	m := make(map[string]bool, len(children))
 	for _, fenceNode := range children {
-		m[fenceNode] = true			
+		m[fenceNode] = true
 	}
 	return m, nil
 }
