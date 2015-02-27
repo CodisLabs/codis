@@ -54,88 +54,93 @@ func NewMigrateTask(info MigrateTaskInfo) *MigrateTask {
 	}
 }
 
+func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
+	// set slot status
+	s, err := models.GetSlot(t.zkConn, t.productName, slotId)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+	if s.State.Status != models.SLOT_STATUS_ONLINE && s.State.Status != models.SLOT_STATUS_MIGRATE {
+		log.Warning("status is not online && migrate", s)
+		return nil
+	}
+
+	from := s.GroupId
+	if s.State.Status == models.SLOT_STATUS_MIGRATE {
+		from = s.State.MigrateStatus.From
+	}
+
+	// make sure from group & target group exists
+	exists, err := models.GroupExists(t.zkConn, t.productName, from)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if !exists {
+		log.Errorf("src group %d not exist when migrate from %d to %d", from, from, to)
+		return errors.NotFoundf("group %d", from)
+	}
+
+	exists, err = models.GroupExists(t.zkConn, t.productName, to)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if !exists {
+		return errors.NotFoundf("group %d", to)
+	}
+
+	// cannot migrate to itself, just ignore
+	if from == to {
+		log.Warning("from == to, ignore", s)
+		return nil
+	}
+
+	// modify slot status
+	if err := s.SetMigrateStatus(t.zkConn, from, to); err != nil {
+		log.Error(err)
+		return err
+	}
+
+	err = t.slotMigrator.Migrate(s, from, to, t, func(p SlotMigrateProgress) {
+		// on migrate slot progress
+		if p.Remain%500 == 0 {
+			log.Info(p)
+		}
+	})
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	// migrate done, change slot status back
+	s.State.Status = models.SLOT_STATUS_ONLINE
+	s.State.MigrateStatus.From = models.INVALID_ID
+	s.State.MigrateStatus.To = models.INVALID_ID
+	if err := s.Update(t.zkConn); err != nil {
+		log.Error(err)
+		return err
+	}
+
+	return nil
+}
+
+func (t *MigrateTask) stop() error {
+	if t.Status == MIGRATE_TASK_MIGRATING {
+		t.stopChan <- struct{}{}
+	}
+	return nil
+}
+
 // migrate multi slots
 func (t *MigrateTask) run() error {
 	// create zk conn on demand
 	t.zkConn = CreateZkConn()
-	defer func() {
-		if t.zkConn != nil {
-			t.zkConn.Close()
-		}
-	}()
+	defer t.zkConn.Close()
+
 	to := t.NewGroupId
 	t.Status = MIGRATE_TASK_MIGRATING
 	for slotId := t.FromSlot; slotId <= t.ToSlot; slotId++ {
-		err := func() error {
-			log.Info("start migrate slot:", slotId)
-
-			// set slot status
-			s, err := models.GetSlot(t.zkConn, t.productName, slotId)
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-			if s.State.Status != models.SLOT_STATUS_ONLINE && s.State.Status != models.SLOT_STATUS_MIGRATE {
-				log.Warning("status is not online && migrate", s)
-				return nil
-			}
-
-			from := s.GroupId
-			if s.State.Status == models.SLOT_STATUS_MIGRATE {
-				from = s.State.MigrateStatus.From
-			}
-
-			// make sure from group & target group exists
-			exists, err := models.GroupExists(t.zkConn, t.productName, from)
-			if err != nil {
-				return errors.Trace(err)
-			}
-			if !exists {
-				log.Errorf("src group %d not exist when migrate from %d to %d", from, from, to)
-				return errors.NotFoundf("group %d", from)
-			}
-			exists, err = models.GroupExists(t.zkConn, t.productName, to)
-			if err != nil {
-				return errors.Trace(err)
-			}
-			if !exists {
-				return errors.NotFoundf("group %d", to)
-			}
-
-			// cannot migrate to itself
-			if from == to {
-				log.Warning("from == to, ignore", s)
-				return nil
-			}
-
-			// modify slot status
-			if err := s.SetMigrateStatus(t.zkConn, from, to); err != nil {
-				log.Error(err)
-				return err
-			}
-
-			err = t.slotMigrator.Migrate(s, from, to, t, func(p SlotMigrateProgress) {
-				// on migrate slot progress
-				if p.Remain%500 == 0 {
-					log.Info(p)
-				}
-			})
-			if err != nil {
-				log.Error(err)
-				return err
-			}
-
-			// migrate done, change slot status back
-			s.State.Status = models.SLOT_STATUS_ONLINE
-			s.State.MigrateStatus.From = models.INVALID_ID
-			s.State.MigrateStatus.To = models.INVALID_ID
-			if err := s.Update(t.zkConn); err != nil {
-				log.Error(err)
-				return err
-			}
-			return nil
-		}()
-
+		err := t.migrateSingleSlot(slotId, to)
 		if err == ErrStopMigrateByUser {
 			log.Info("stop migration job by user")
 			break
@@ -144,7 +149,6 @@ func (t *MigrateTask) run() error {
 			t.Status = MIGRATE_TASK_ERR
 			return err
 		}
-
 		t.Percent = (slotId - t.FromSlot + 1) * 100 / (t.ToSlot - t.FromSlot + 1)
 		log.Info("total percent:", t.Percent)
 	}

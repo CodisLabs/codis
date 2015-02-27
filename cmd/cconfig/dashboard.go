@@ -55,7 +55,10 @@ options:
 var proxiesSpeed int64
 
 func CreateZkConn() zkhelper.Conn {
-	conn, _ := globalEnv.NewZkConn()
+	conn, err := globalEnv.NewZkConn()
+	if err != nil {
+		Fatal("create zk conn error: " + err.Error())
+	}
 	return conn
 }
 
@@ -124,7 +127,7 @@ func getAllProxyDebugVars() map[string]map[string]interface{} {
 
 func getProxySpeedChan() <-chan int64 {
 	c := make(chan int64)
-	go func(c chan int64) {
+	go func() {
 		var lastCnt int64
 		for {
 			cnt := getAllProxyOps()
@@ -134,7 +137,7 @@ func getProxySpeedChan() <-chan int64 {
 			lastCnt = cnt
 			time.Sleep(1 * time.Second)
 		}
-	}(c)
+	}()
 	return c
 }
 
@@ -163,10 +166,7 @@ func createDashboardNode() error {
 
 	log.Info("dashboard node created:", pathCreated, string(content))
 
-	if err != nil {
-		return errors.Trace(err)
-	}
-	return nil
+	return errors.Trace(err)
 }
 
 func releaseDashboardNode() {
@@ -185,14 +185,14 @@ func runDashboard(addr string, httpLogFile string) {
 	m := martini.Classic()
 	f, err := os.OpenFile(httpLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		log.Fatalf("error opening file: %v", err)
+		Fatal(err)
 	}
 	defer f.Close()
 
 	m.Map(stdlog.New(f, "[martini]", stdlog.LstdFlags))
 	binRoot, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
-		log.Fatal(err)
+		Fatal(err)
 	}
 
 	m.Use(martini.Static(filepath.Join(binRoot, "assets/statics")))

@@ -194,14 +194,23 @@ func apiRebalance(param martini.Params) (int, string) {
 }
 
 func apiGetMigrateTasks() (int, string) {
-	return 200, ""
+	tasks := globalMigrateManager.Tasks()
+	b, _ := json.MarshalIndent(tasks, " ", "  ")
+	return 200, string(b)
 }
 
 func apiRemovePendingMigrateTask(param martini.Params) (int, string) {
-	return 500, "remove task error"
+	id := param["id"]
+	if err := globalMigrateManager.RemovePendingTask(id); err != nil {
+		return 500, "remove task error: " + err.Error()
+	}
+	return jsonRetSucc()
 }
 
 func apiStopMigratingTask(param martini.Params) (int, string) {
+	if err := globalMigrateManager.StopRunningTask(); err != nil {
+		return 500, "stop migrate task error:" + err.Error()
+	}
 	return jsonRetSucc()
 }
 
@@ -234,7 +243,7 @@ func apiMigrateStatus() (int, string) {
 
 	b, err := json.MarshalIndent(map[string]interface{}{
 		"migrate_slots": migrateSlots,
-		"migrate_task":  nil,
+		"migrate_task":  globalMigrateManager.runningTask,
 	}, " ", "  ")
 	return 200, string(b)
 }

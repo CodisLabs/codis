@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/juju/errors"
 	"github.com/ngaut/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
@@ -121,16 +122,55 @@ func (m *MigrateManager) loop() error {
 	}
 }
 
-func (m *MigrateManager) StopTask(taskId string) error {
+func (m *MigrateManager) RemovePendingTask(taskId string) error {
 	m.lck.Lock()
 	defer m.lck.Unlock()
+
+	for e := m.pendingTasks.Front(); e != nil; e = e.Next() {
+		t := e.Value.(*MigrateTask)
+		if t.Id == taskId && t.Status == MIGRATE_TASK_PENDING {
+			m.pendingTasks.Remove(e)
+			return nil
+		}
+	}
+	return errors.NotFoundf("task: %s", taskId)
+}
+
+func (m *MigrateManager) StopRunningTask() error {
+	m.lck.Lock()
+	defer m.lck.Unlock()
+
+	err := m.runningTask.stop()
+	if err != nil {
+		return errors.Trace(err)
+	}
+	m.runningTask = nil
 	return nil
 }
 
-func (m *MigrateManager) Tasks() ([]*MigrateTask, error) {
-	return nil, nil
+func (m *MigrateManager) Tasks() []*MigrateTask {
+	m.lck.RLock()
+	defer m.lck.RUnlock()
+
+	var tasks = make([]*MigrateTask, 0)
+	for e := m.pendingTasks.Front(); e != nil; e = e.Next() {
+		tasks = append(tasks, e.Value.(*MigrateTask))
+	}
+
+	return tasks
 }
 
-func (m *MigrateManager) GetTaskById(taskId string) (*MigrateTask, error) {
-	return nil, nil
+func (m *MigrateManager) getTaskById(taskId string) *MigrateTask {
+	// if running task is target
+	if m.runningTask.Id == taskId {
+		return m.runningTask
+	}
+
+	for e := m.pendingTasks.Front(); e != nil; e = e.Next() {
+		if e.Value.(*MigrateTask).Id == taskId {
+			return e.Value.(*MigrateTask)
+		}
+	}
+
+	return nil
 }
