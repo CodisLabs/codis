@@ -43,9 +43,13 @@ type MigrateManager struct {
 	lck         sync.RWMutex
 }
 
+func getManagerPath(productName string) string {
+	return fmt.Sprintf("/zk/codis/db_%s/migrate_manager", productName)
+}
+
 func (m *MigrateManager) createNode() error {
 	zkhelper.CreateRecursive(m.zkConn, fmt.Sprintf("/zk/codis/db_%s/migrate_tasks", m.productName), "", 0, zkhelper.DefaultDirACLs())
-	_, err := m.zkConn.Create(fmt.Sprintf("/zk/codis/db_%s/migrate_manager", m.productName),
+	_, err := m.zkConn.Create(getManagerPath(m.productName),
 		[]byte(""), zk.FlagEphemeral, zkhelper.DefaultDirACLs())
 	if err != nil {
 		log.Error("there is another dashboard exists! ERR:", err)
@@ -54,7 +58,7 @@ func (m *MigrateManager) createNode() error {
 }
 
 func (m *MigrateManager) removeNode() error {
-	return zkhelper.DeleteRecursive(m.zkConn, fmt.Sprintf("/zk/codis/db_%s/migrate_manager", m.productName), 0)
+	return zkhelper.DeleteRecursive(m.zkConn, getManagerPath(m.productName), 0)
 }
 
 func NewMigrateManager(zkConn zkhelper.Conn, pn string, preTaskCheck MigrateTaskCheckFunc) *MigrateManager {
