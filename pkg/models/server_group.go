@@ -17,14 +17,13 @@ import (
 	"github.com/juju/errors"
 )
 
-// redis server instance
-
 const (
 	SERVER_TYPE_MASTER  string = "master"
 	SERVER_TYPE_SLAVE   string = "slave"
 	SERVER_TYPE_OFFLINE string = "offline"
 )
 
+// redis server instance
 type Server struct {
 	Type    string `json:"type"`
 	GroupId int    `json:"group_id"`
@@ -158,11 +157,11 @@ func (self *ServerGroup) Remove(zkConn zkhelper.Conn) error {
 		}
 	}
 
-	// do delte
+	// do delete
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d", self.ProductName, self.Id)
 	err = zkhelper.DeleteRecursive(zkConn, zkPath, -1)
 
-	// we know that there's no slots affected, so this action won't need proxy confirm
+	// we know that there's no slots affected, so this action doesn't need proxy confirm
 	err = NewAction(zkConn, self.ProductName, ACTION_TYPE_SERVER_GROUP_REMOVE, self, "", false)
 	return errors.Trace(err)
 }
