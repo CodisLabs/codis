@@ -20,7 +20,7 @@ const (
 
 var ErrGroupMasterNotFound = errors.New("group master not found")
 var ErrInvalidAddr = errors.New("invalid addr")
-var ErrStopMigrateByUser = errors.New("migration stop by user")
+var ErrStopMigrateByUser = errors.New("migration stopped by user")
 
 // return: success_count, remain_count, error
 // slotsmgrt host port timeout slotnum count

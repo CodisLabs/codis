@@ -57,7 +57,7 @@ var proxiesSpeed int64
 func CreateZkConn() zkhelper.Conn {
 	conn, err := globalEnv.NewZkConn()
 	if err != nil {
-		Fatal("create zk conn error: " + err.Error())
+		Fatal("Failed to create zk connection: " + err.Error())
 	}
 	return conn
 }
@@ -157,7 +157,7 @@ func createDashboardNode() error {
 	// make sure we're the only one dashboard
 	if exists, _, _ := conn.Exists(zkPath); exists {
 		data, _, _ := conn.Get(zkPath)
-		return errors.New("dashboard already running: " + string(data))
+		return errors.New("dashboard already exists: " + string(data))
 	}
 
 	content := fmt.Sprintf(`{"addr": "%v", "pid": %v}`, globalEnv.DashboardAddr(), os.Getpid())
@@ -175,13 +175,13 @@ func releaseDashboardNode() {
 
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/dashboard", globalEnv.ProductName())
 	if exists, _, _ := conn.Exists(zkPath); exists {
-		log.Info("clean dashboard node")
+		log.Info("removing dashboard node")
 		conn.Delete(zkPath, 0)
 	}
 }
 
 func runDashboard(addr string, httpLogFile string) {
-	log.Info("dashboard start listen in addr:", addr)
+	log.Info("dashboard listening on addr: ", addr)
 	m := martini.Classic()
 	f, err := os.OpenFile(httpLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {

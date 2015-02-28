@@ -35,7 +35,7 @@ type RangeSetTask struct {
 func apiGetProxyDebugVars() (int, string) {
 	m := getAllProxyDebugVars()
 	if m == nil {
-		return 500, "get proxy debug var error"
+		return 500, "Error getting proxy debug vars"
 	}
 
 	b, err := json.MarshalIndent(m, " ", "  ")
@@ -115,7 +115,7 @@ func apiInitSlots(r *http.Request) (int, string) {
 	if !isForce {
 		s, _ := models.Slots(conn, globalEnv.ProductName())
 		if len(s) > 0 {
-			return 500, "slots already initialized, use 'force' flag and try again."
+			return 500, "slots already initialized, you may use 'is_force' flag and try again."
 		}
 	}
 
@@ -202,14 +202,14 @@ func apiGetMigrateTasks() (int, string) {
 func apiRemovePendingMigrateTask(param martini.Params) (int, string) {
 	id := param["id"]
 	if err := globalMigrateManager.RemovePendingTask(id); err != nil {
-		return 500, "remove task error: " + err.Error()
+		return 500, "Error removing task: " + err.Error()
 	}
 	return jsonRetSucc()
 }
 
 func apiStopMigratingTask(param martini.Params) (int, string) {
 	if err := globalMigrateManager.StopRunningTask(); err != nil {
-		return 500, "stop migrate task error:" + err.Error()
+		return 500, "Error stopping migrate task: " + err.Error()
 	}
 	return jsonRetSucc()
 }
@@ -294,8 +294,7 @@ func apiGetRedisSlotInfoFromGroupId(param martini.Params) (int, string) {
 	}
 
 	if s == nil {
-		log.Warning("this group has no master server")
-		return 500, "this group has no master server"
+		return 500, "master not found"
 	}
 
 	slotInfo, err := utils.SlotsInfo(s.Addr, slotId, slotId)
@@ -319,7 +318,7 @@ func apiRemoveServerGroup(param martini.Params) (int, string) {
 	defer conn.Close()
 
 	lock := utils.GetZkLock(conn, globalEnv.ProductName())
-	lock.Lock(fmt.Sprintf("remove group %s", param["id"]))
+	lock.Lock(fmt.Sprintf("removing group %s", param["id"]))
 
 	defer func() {
 		err := lock.Unlock()
@@ -444,7 +443,7 @@ func apiRemoveServerFromGroup(server models.Server, param martini.Params) (int, 
 	defer conn.Close()
 
 	lock := utils.GetZkLock(conn, globalEnv.ProductName())
-	lock.Lock(fmt.Sprintf("remove server from group, %+v", server))
+	lock.Lock(fmt.Sprintf("removing server from group, %+v", server))
 	defer func() {
 		err := lock.Unlock()
 		if err != nil {
@@ -512,7 +511,7 @@ func apiGetSlots() (int, string) {
 	defer conn.Close()
 	slots, err := models.Slots(conn, globalEnv.ProductName())
 	if err != nil {
-		log.Warning("get slot info error, maybe init slots first? err:", err)
+		log.Warning("Error getting slot info, try init slots first? err: ", err)
 		return 500, err.Error()
 	}
 	b, err := json.MarshalIndent(slots, " ", "  ")

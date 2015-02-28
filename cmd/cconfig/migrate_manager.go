@@ -52,7 +52,7 @@ func (m *MigrateManager) createNode() error {
 	_, err := m.zkConn.Create(getManagerPath(m.productName),
 		[]byte(""), zk.FlagEphemeral, zkhelper.DefaultDirACLs())
 	if err != nil {
-		log.Error("there is another dashboard exists! ERR:", err)
+		log.Error("dashboard already exists! err: ", err)
 	}
 	return nil
 }
@@ -70,7 +70,7 @@ func NewMigrateManager(zkConn zkhelper.Conn, pn string, preTaskCheck MigrateTask
 	}
 	err := m.createNode()
 	if err != nil {
-		Fatal("check if there's another codis-config running? shut it down and try again")
+		Fatal("another codis-config exists? shut it down and try again")
 	}
 	go m.loop()
 	return m
@@ -103,16 +103,16 @@ func (m *MigrateManager) loop() error {
 
 		m.runningTask = t
 		if m.preCheck != nil {
-			log.Info("start migrate task pre-check")
+			log.Info("start migration pre-check")
 			if ok, err := m.preCheck(t); !ok {
 				if err != nil {
 					log.Error(err)
 				}
-				log.Error("migrate task pre-check error", t)
+				log.Error("migration pre-check error", t)
 				continue
 			}
 		}
-		log.Info("migrate task pre-check done")
+		log.Info("migration pre-check done")
 		// do migrate
 		err := t.run()
 		if err != nil {
