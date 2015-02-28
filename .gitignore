@@ -7,3 +7,4 @@ martini_log
 /Dockerfile
 /deploy.tar
 _workspace
+.htaccess
