@@ -86,7 +86,7 @@ func (tr *taskRunner) cleanupOutgoingTasks(err error) {
 }
 
 func (tr *taskRunner) tryRecover(err error) error {
-	log.Warning(errors.ErrorStack(err))
+	log.Warning("try recover from ", err)
 	tr.cleanupOutgoingTasks(err)
 	//try to recover
 	c, err := redisconn.NewConnection(tr.redisAddr, tr.netTimeout)

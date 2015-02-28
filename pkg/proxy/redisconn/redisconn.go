@@ -25,8 +25,8 @@ func NewConnection(addr string, netTimeout int) (*Conn, error) {
 	return &Conn{
 		addr:       addr,
 		Conn:       conn,
-		r:          bufio.NewReaderSize(conn, 204800),
-		w:          bufio.NewWriterSize(conn, 204800),
+		r:          bufio.NewReaderSize(conn, 512*1024),
+		w:          bufio.NewWriterSize(conn, 512*1024),
 		netTimeout: netTimeout,
 	}, nil
 }
@@ -41,10 +41,6 @@ func (c *Conn) Flush() error {
 }
 
 func (c *Conn) Write(p []byte) (int, error) {
-	if c.w.Available() < len(p) {
-		c.Conn.SetWriteDeadline(time.Now().Add(time.Duration(c.netTimeout) * time.Second))
-	}
-
 	return c.w.Write(p)
 }
 
