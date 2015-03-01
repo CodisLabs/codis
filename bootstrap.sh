@@ -24,6 +24,7 @@ go get -u github.com/ngaut/gostats
 go get -u github.com/ngaut/logging
 go get -u github.com/ngaut/zkhelper
 go get -u github.com/ngaut/pools
+go get -u github.com/ngaut/bufio
 go get -u github.com/ngaut/resp
 go get -u github.com/ngaut/tokenlimiter
 go get -u github.com/ngaut/sync2
