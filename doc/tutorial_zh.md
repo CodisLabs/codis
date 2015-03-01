@@ -149,14 +149,8 @@ $ ../bin/codis-config slot range-set 512 1023 2 online
 ```
  ../bin/codis-config -c config.ini proxy online <proxy_name>  <---- proxy的id, 如 proxy_1
 ```
- 
- **6. 启动 dashboard 服务 (可选, 但是建议启动)**  
 
-```
- ../bin/codis-config -c config.ini -L ./log/dashboard.log dashboard --addr=:18087 --http-log=./log/requests.log
-```
-
- **7. 打开浏览器 http://localhost:18087/admin**
+ **6. 打开浏览器 http://localhost:18087/admin**
  
  现在可以在浏览器里面完成各种操作了， 玩得开心
   
