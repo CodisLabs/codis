@@ -4,6 +4,7 @@
 package utils
 
 import (
+	"net"
 	"strings"
 	"time"
 
@@ -98,6 +99,24 @@ func GetRedisConfig(addr string, configName string) (string, error) {
 		return ret[1], nil
 	}
 	return "", nil
+}
+
+func SlaveOf(slave, master string) error {
+	c, err := redis.DialTimeout("tcp", slave, defaultTimeout, defaultTimeout, defaultTimeout)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	host, port, err := net.SplitHostPort(master)
+	if err != nil {
+		return err
+	}
+	_, err = c.Do("SLAVEOF", host, port)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func SlaveNoOne(addr string) error {
