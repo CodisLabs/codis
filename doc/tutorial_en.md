@@ -150,12 +150,7 @@ $ ./codis-config slot range-set 512 1023 2 online
  ../bin/codis-config -c config.ini proxy online <proxy_name>  <---- proxy id, e.g. proxy_1
 ```
 
-6. Start dashboard server(Optional but recommended)
-
-```
-../bin/codis-config -c config.ini -L ./log/dashboard.log dashboard --addr=:18087 --http-log=./log/requests.log
-```
-7. Open http://localhost:18087/admin in browser
+6. Open http://localhost:18087/admin in browser
 
 Now you can achieve operations in browser. Enjoy!
 
