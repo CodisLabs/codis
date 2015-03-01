@@ -2,6 +2,7 @@ package redisconn
 
 import (
 	"bufio"
+	deadlinebufio "github.com/ngaut/bufio"
 	"net"
 	"time"
 )
@@ -12,7 +13,7 @@ type Conn struct {
 	net.Conn
 	closed     bool
 	r          *bufio.Reader
-	w          *bufio.Writer
+	w          *deadlinebufio.Writer
 	netTimeout int //second
 }
 
@@ -26,7 +27,7 @@ func NewConnection(addr string, netTimeout int) (*Conn, error) {
 		addr:       addr,
 		Conn:       conn,
 		r:          bufio.NewReaderSize(conn, 512*1024),
-		w:          bufio.NewWriterSize(conn, 512*1024),
+		w:          deadlinebufio.NewWriterSize(conn, 512*1024, time.Duration(netTimeout)*time.Second),
 		netTimeout: netTimeout,
 	}, nil
 }

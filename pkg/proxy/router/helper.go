@@ -82,8 +82,7 @@ func WriteMigrateKeyCmd(w io.Writer, addr string, timeoutMs int, key []byte) err
 }
 
 type DeadlineReadWriter interface {
-	io.Writer
-	io.Reader
+	io.ReadWriter
 	SetWriteDeadline(t time.Time) error
 	SetReadDeadline(t time.Time) error
 }
