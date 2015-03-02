@@ -9,6 +9,20 @@ import (
 	"github.com/ngaut/zkhelper"
 )
 
+func TestAddSlaveToEmptyGroup(t *testing.T) {
+	fakeZkConn := zkhelper.NewConn()
+	g := NewServerGroup(productName, 1)
+	g.Create(fakeZkConn)
+
+	s1 := NewServer(SERVER_TYPE_SLAVE, "localhost:1111")
+	g.AddServer(fakeZkConn, s1)
+
+	if g.Servers[0].Type != SERVER_TYPE_MASTER {
+		t.Error("add a slave to an empty group, this server should become master")
+	}
+
+}
+
 func TestServerGroup(t *testing.T) {
 	fakeZkConn := zkhelper.NewConn()
 	g := NewServerGroup(productName, 1)
