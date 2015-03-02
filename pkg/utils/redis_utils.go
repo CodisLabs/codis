@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
+	"github.com/juju/errors"
 )
 
 var defaultTimeout = 1 * time.Second
@@ -104,30 +105,32 @@ func GetRedisConfig(addr string, configName string) (string, error) {
 func SlaveOf(slave, master string) error {
 	c, err := redis.DialTimeout("tcp", slave, defaultTimeout, defaultTimeout, defaultTimeout)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	defer c.Close()
 
 	host, port, err := net.SplitHostPort(master)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
+
 	_, err = c.Do("SLAVEOF", host, port)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
+
 	return nil
 }
 
 func SlaveNoOne(addr string) error {
 	c, err := redis.DialTimeout("tcp", addr, defaultTimeout, defaultTimeout, defaultTimeout)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	defer c.Close()
 	_, err = c.Do("SLAVEOF", "NO", "ONE")
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	return nil
 }
