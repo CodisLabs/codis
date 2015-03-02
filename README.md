@@ -45,15 +45,14 @@ Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia
 [English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_en.md)
 
 ## Performance (Benchmark)
-Twemproxy:
-
+Twemproxy:  
   redis-benchmark -p 22121 -c 500 -n 5000000 -P 100 -r 10000 -t get,set
   
-Codis:
-
+Codis:  
   redis-benchmark -p 19000 -c 500 -n 5000000 -P 100 -r 10000 -t get,set
 
 Result:  
+
 ![main](doc/bench.png)  
 
 
