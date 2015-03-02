@@ -24,7 +24,7 @@ Install Go please check [this document](https://github.com/astaxie/build-web-app
 
 ```
 go get github.com/wandoulabs/codis
-cd path/to/codis
+cd $GOPATH/src/github.com/wandoulabs/codis
 ./bootstrap.sh
 make gotest
 ```
