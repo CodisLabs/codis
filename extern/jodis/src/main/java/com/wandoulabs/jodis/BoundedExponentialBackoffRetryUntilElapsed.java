@@ -24,11 +24,12 @@
  */
 package com.wandoulabs.jodis;
 
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.RetrySleeper;
+
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Similar to {@link org.apache.curator.retry.BoundedExponentialBackoffRetry},
