@@ -278,29 +278,38 @@ var ErrNodeExists = errors.New("node already exists")
 
 func (self *ServerGroup) AddServer(zkConn zkhelper.Conn, s *Server) error {
 	s.GroupId = self.Id
-	val, err := json.Marshal(s)
+
+	servers, err := self.GetServers(zkConn)
 	if err != nil {
 		return errors.Trace(err)
 	}
+	var masterAddr string
+	for _, server := range servers {
+		if server.Type == SERVER_TYPE_MASTER {
+			masterAddr = server.Addr
+		}
+	}
 
-	if s.Type == SERVER_TYPE_MASTER {
-		// make sure there is only one master
-		servers, err := self.GetServers(zkConn)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		for _, server := range servers {
-			if server.Type == SERVER_TYPE_MASTER {
-				return errors.Trace(ErrNodeExists)
-			}
-		}
+	// make sure there is only one master
+	if s.Type == SERVER_TYPE_MASTER && len(masterAddr) > 0 {
+		return errors.Trace(ErrNodeExists)
+	}
+
+	// if this group has no server. auto promote this server to master
+	if len(servers) == 0 {
+		s.Type = SERVER_TYPE_MASTER
+	}
+
+	val, err := json.Marshal(s)
+	if err != nil {
+		return errors.Trace(err)
 	}
 
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d/%s", self.ProductName, self.Id, s.Addr)
 	_, err = zkhelper.CreateOrUpdate(zkConn, zkPath, string(val), 0, zkhelper.DefaultFileACLs(), true)
 
 	// update servers
-	servers, err := self.GetServers(zkConn)
+	servers, err = self.GetServers(zkConn)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -308,6 +317,12 @@ func (self *ServerGroup) AddServer(zkConn zkhelper.Conn, s *Server) error {
 
 	if s.Type == SERVER_TYPE_MASTER {
 		err = NewAction(zkConn, self.ProductName, ACTION_TYPE_SERVER_GROUP_CHANGED, self, "", true)
+		if err != nil {
+			return errors.Trace(err)
+		}
+	} else if s.Type == SERVER_TYPE_SLAVE && len(masterAddr) > 0 {
+		// send command slaveof to slave
+		err := utils.SlaveOf(s.Addr, masterAddr)
 		if err != nil {
 			return errors.Trace(err)
 		}
