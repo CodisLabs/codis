@@ -16,9 +16,8 @@ import (
 )
 
 var (
-	once     sync.Once
-	waitOnce sync.Once
-	conn     zkhelper.Conn
+	once sync.Once
+	conn zkhelper.Conn
 )
 
 func runFakeRedisSrv(addr string) {
@@ -43,13 +42,8 @@ func runFakeRedisSrv(addr string) {
 func resetEnv() {
 	conn = zkhelper.NewConn()
 	once.Do(func() {
-		addr1 := "127.0.0.1:1111"
-		addr2 := "127.0.0.1:2222"
-		go runFakeRedisSrv(addr1)
-		go runFakeRedisSrv(addr2)
-	})
-
-	waitOnce.Do(func() {
+		go runFakeRedisSrv("127.0.0.1:1111")
+		go runFakeRedisSrv("127.0.0.1:2222")
 		time.Sleep(1 * time.Second)
 	})
 }
@@ -145,7 +139,7 @@ func TestServerGroup(t *testing.T) {
 	}
 
 	if s.Addr != s2.Addr {
-		t.Error("prompt error", s, s1)
+		t.Error("promote error", s, s1)
 		return
 	}
 }
