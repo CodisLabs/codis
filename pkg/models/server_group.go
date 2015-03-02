@@ -278,10 +278,6 @@ var ErrNodeExists = errors.New("node already exists")
 
 func (self *ServerGroup) AddServer(zkConn zkhelper.Conn, s *Server) error {
 	s.GroupId = self.Id
-	val, err := json.Marshal(s)
-	if err != nil {
-		return errors.Trace(err)
-	}
 
 	servers, err := self.GetServers(zkConn)
 	if err != nil {
@@ -302,6 +298,11 @@ func (self *ServerGroup) AddServer(zkConn zkhelper.Conn, s *Server) error {
 	// if this group has no server. auto promote this server to master
 	if len(servers) == 0 {
 		s.Type = SERVER_TYPE_MASTER
+	}
+
+	val, err := json.Marshal(s)
+	if err != nil {
+		return errors.Trace(err)
 	}
 
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d/%s", self.ProductName, self.Id, s.Addr)
