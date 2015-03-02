@@ -280,7 +280,7 @@ func ReadBulk(r *bufio.Reader, size int, raw *[]byte) error {
 	}
 	*raw = (*raw)[0 : n+size : cap(*raw)]
 
-	if (*raw)[len(*raw)-1] != '\r' && (*raw)[len(*raw)-1] != '\n' {
+	if (*raw)[len(*raw)-2] != '\r' || (*raw)[len(*raw)-1] != '\n' {
 		return errors.New("invalid protocol")
 	}
 
