@@ -101,7 +101,7 @@ func Btoi(b []byte) (int, error) {
 }
 
 func readLine(r *bufio.Reader) ([]byte, error) {
-	line, err := r.ReadBytes('\n')
+	line, err := r.ReadSlice('\n')
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -174,7 +174,14 @@ func Parse(r *bufio.Reader) (*Resp, error) {
 		return nil, errors.Trace(err)
 	}
 
-	resp := &Resp{Raw: line}
+	resp := &Resp{}
+	if line[0] == '$' || line[0] == '*' {
+		resp.Raw = make([]byte, 0, len(line)+64)
+	} else {
+		resp.Raw = make([]byte, 0, len(line))
+	}
+
+	resp.Raw = append(resp.Raw, line...)
 
 	switch line[0] {
 	case '-':
@@ -258,22 +265,23 @@ func ReadBulk(r *bufio.Reader, size int, raw *[]byte) error {
 		return nil
 	}
 
-	buf := make([]byte, size)
-	if _, err := io.ReadFull(r, buf); err != nil {
+	n := len(*raw)
+	size += 2 //  \r\n
+
+	if cap(*raw)-n < size {
+		old := *raw
+		*raw = make([]byte, 0, len(old)+size)
+		*raw = append(*raw, old...)
+	}
+
+	//avoid copy
+	if _, err := io.ReadFull(r, (*raw)[n:n+size]); err != nil {
 		return err
 	}
+	*raw = (*raw)[0 : n+size : cap(*raw)]
 
-	*raw = append(*raw, buf...)
-
-	line, err := readLine(r)
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	*raw = append(*raw, line...)
-
-	if len(line) != 2 {
-		return errors.New("should be just 0 " + string(line))
+	if (*raw)[len(*raw)-1] != '\r' && (*raw)[len(*raw)-1] != '\n' {
+		return errors.New("invalid protocol")
 	}
 
 	return nil
