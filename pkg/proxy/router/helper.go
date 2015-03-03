@@ -283,7 +283,8 @@ type Conf struct {
 	productName string
 	zkAddr      string
 	f           topology.ZkFactory
-	netTimeout  int //seconds
+	netTimeout  int    //seconds
+	proto       string //tcp or tcp4
 }
 
 func LoadConf(configFile string) (*Conf, error) {
@@ -307,6 +308,8 @@ func LoadConf(configFile string) (*Conf, error) {
 	}
 
 	srvConf.netTimeout, _ = conf.ReadInt("net_timeout", 5)
+	srvConf.proto, _ = conf.ReadString("proto", "tcp")
+	log.Infof("%+v", srvConf)
 
 	return srvConf, nil
 }

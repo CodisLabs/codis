@@ -38,6 +38,7 @@ func InitEnv() {
 			zkAddr:      "localhost:2181",
 			netTimeout:  5,
 			f:           func(string) (zkhelper.Conn, error) { return conn, nil },
+			proto:       "tcp4",
 		}
 
 		//init action path

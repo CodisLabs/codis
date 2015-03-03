@@ -48,8 +48,8 @@ type Server struct {
 	pools       *cachepool.CachePool
 	counter     *stats.Counters
 	OnSuicide   OnSuicideFun
-	netTimeout  int //seconds
 	bufferedReq *list.List
+	conf        *Conf
 
 	pipeConns map[string]*taskRunner //redis->taskrunner
 }
@@ -125,7 +125,7 @@ func (s *Server) fillSlot(i int, force bool) {
 func (s *Server) createTaskRunner(slot *Slot) error {
 	dst := slot.dst.Master()
 	if _, ok := s.pipeConns[dst]; !ok {
-		tr, err := NewTaskRunner(dst, s.netTimeout)
+		tr, err := NewTaskRunner(dst, s.conf.netTimeout)
 		if err != nil {
 			log.Error(dst) //todo: how to handle this error?
 			return err
@@ -219,7 +219,7 @@ func (s *Server) redisTunnel(c *session) error {
 	k := keys[0]
 
 	opstr := strings.ToUpper(string(op))
-	buf, next, err := filter(opstr, keys, c, s.netTimeout)
+	buf, next, err := filter(opstr, keys, c, s.conf.netTimeout)
 	if err != nil {
 		if len(buf) > 0 { //quit command
 			s.sendBack(c, op, keys, resp, buf)
@@ -353,8 +353,8 @@ func (s *Server) registerSignal() {
 }
 
 func (s *Server) Run() {
-	log.Info("listening on", s.addr)
-	listener, err := net.Listen("tcp", s.addr)
+	log.Infof("listening %s on %s", s.conf.proto, s.addr)
+	listener, err := net.Listen(s.conf.proto, s.addr)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -627,9 +627,9 @@ func (s *Server) RegisterAndWait() {
 func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	log.Infof("start with configuration: %+v", conf)
 	s := &Server{
+		conf:          conf,
 		evtbus:        make(chan interface{}, 1000),
 		top:           topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
-		netTimeout:    conf.netTimeout,
 		counter:       stats.NewCounters("router"),
 		lastActionSeq: -1,
 		startAt:       time.Now(),
