@@ -235,7 +235,7 @@ func TestInvalidRedisCmdPing(t *testing.T) {
 	}
 	defer c.Close()
 
-	_, err = c.Do("info")
+	_, err = c.Do("SAVE")
 	if err != io.EOF {
 		t.Fatal(err)
 	}
