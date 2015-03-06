@@ -117,7 +117,7 @@ func (tr *taskRunner) getOutgoingResponse() {
 	}
 }
 
-func (tr *taskRunner) processTask(t interface{}) error {
+func (tr *taskRunner) processTask(t interface{}) {
 	switch t.(type) {
 	case *PipelineRequest:
 		r := t.(*PipelineRequest)
@@ -126,17 +126,17 @@ func (tr *taskRunner) processTask(t interface{}) error {
 			flush = true
 		}
 
-		return tr.handleTask(r, flush)
+		tr.handleTask(r, flush)
 	case *sync.WaitGroup: //close taskrunner
 		err := tr.handleTask(nil, true) //flush
+		if err != nil {
+			log.Warning(err)
+		}
 		//get all response for out going request
 		tr.getOutgoingResponse()
 		tr.closed = true
 		tr.wgClose = t.(*sync.WaitGroup)
-		return err
 	}
-
-	return nil
 }
 
 func (tr *taskRunner) handleResponse(e interface{}) error {
@@ -174,7 +174,7 @@ func (tr *taskRunner) writeloop() {
 
 		select {
 		case t := <-tr.in:
-			err = tr.processTask(t)
+			tr.processTask(t)
 		case resp := <-tr.out:
 			err = tr.handleResponse(resp)
 		}
