@@ -27,6 +27,8 @@ var args struct {
 	sockfile string
 	filesize int64
 
+	auth string
+
 	shift time.Duration
 }
 
@@ -60,10 +62,11 @@ func main() {
 Usage:
 	redis-port decode   [--ncpu=N]  [--parallel=M]  [--input=INPUT]  [--output=OUTPUT]
 	redis-port restore  [--ncpu=N]  [--parallel=M]  [--input=INPUT]   --target=TARGET  [--extra]     [--faketime=FAKETIME] [--filterdb=DB]
-	redis-port dump     [--ncpu=N]  [--parallel=M]   --from=MASTER   [--output=OUTPUT] [--extra]
-	redis-port sync     [--ncpu=N]  [--parallel=M]   --from=MASTER    --target=TARGET  [--sockfile=FILE [--filesize=SIZE]] [--filterdb=DB]
+	redis-port dump     [--ncpu=N]  [--parallel=M]   --from=MASTER   [--output=OUTPUT] [--extra] [--password=PASSWORD]
+	redis-port sync     [--ncpu=N]  [--parallel=M]   --from=MASTER    --target=TARGET  [--sockfile=FILE [--filesize=SIZE]] [--filterdb=DB] [--password=PASSWORD]
 
 Options:
+	-P PASSWORD, --password           Set master's auth code.
 	-n N, --ncpu=N                    Set runtime.GOMAXPROCS to N.
 	-p M, --parallel=M                Set the number of parallel routines to M.
 	-i INPUT, --input=INPUT           Set input file, default is stdin ('/dev/stdin').
@@ -112,6 +115,8 @@ Options:
 
 	args.extra, _ = d["--extra"].(bool)
 	args.sockfile, _ = d["--sockfile"].(string)
+
+	args.auth, _ = d["--password"].(string)
 
 	if s, ok := d["--faketime"].(string); ok && s != "" {
 		switch s[0] {

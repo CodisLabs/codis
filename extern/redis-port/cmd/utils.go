@@ -5,6 +5,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -50,8 +51,27 @@ func openWriteFile(name string) *os.File {
 	return f
 }
 
-func openSyncConn(target string) (net.Conn, chan int64) {
+func openSyncConn(target string, authCode string) (net.Conn, chan int64) {
 	c := openNetConn(target)
+
+	// send auth to master
+	if len(authCode) > 0 {
+		cmd := fmt.Sprintf("*2\r\n$4\r\nauth\r\n$%d\r\n%s\r\n", len(authCode), authCode)
+		if _, err := ioutils.WriteFull(c, []byte(cmd)); err != nil {
+			log.PanicError(err, "write auth command failed")
+		}
+
+		resp := make([]byte, 5)
+		if _, err := io.ReadFull(c, resp); err != nil {
+			log.PanicError(err, "read auth response failed")
+		}
+
+		if string(resp) != "+OK\r\n" {
+			log.Panic("auth failed")
+		}
+
+	}
+
 	if _, err := ioutils.WriteFull(c, []byte("*1\r\n$4\r\nsync\r\n")); err != nil {
 		log.PanicError(err, "write sync command failed")
 	}

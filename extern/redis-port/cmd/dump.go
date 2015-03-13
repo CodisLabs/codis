@@ -56,7 +56,7 @@ func (cmd *cmdDump) Main() {
 }
 
 func (cmd *cmdDump) SendCmd(master string) (net.Conn, int64) {
-	c, wait := openSyncConn(master)
+	c, wait := openSyncConn(master, args.auth)
 	for {
 		select {
 		case nsize := <-wait:
