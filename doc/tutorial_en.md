@@ -74,9 +74,11 @@ options:
 
 ```
 zk=localhost:2181   <- Location of `zookeeper`, use `zk=hostname1:2181,hostname2:2181,hostname3:2181,hostname4:2181,hostname5:2181` for `zookeeper` clusters.
+`zk=http://hostname1:2181,http://hostname2:2181,http://hostname3:2181 for `etcd` clusters.
 product=test        <- Product name, also the name of this Coids clusters, can be considered as namespace, Codis with different names have no intersection. 
 proxy_id=proxy_1    <- Proxy will take this as identifier for proxy, multiple proxy can use different `config.ini` with various `proxy_id`.
 dashboard_addr=localhost:18087  <- dashboard provides the RESTful API for CLI
+coordinator=zookeeper  <-replace zookeeper to etcd if you are using etcd.
 ```
 
 ### Workflow
