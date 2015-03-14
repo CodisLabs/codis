@@ -5,7 +5,6 @@ package topology
 
 import (
 	"encoding/json"
-	"fmt"
 	"path"
 
 	"github.com/ngaut/zkhelper"
@@ -29,6 +28,7 @@ type Topology struct {
 	zkAddr      string
 	zkConn      zkhelper.Conn
 	fact        ZkFactory
+	provider    string
 }
 
 func (top *Topology) GetGroup(groupId int) (*models.ServerGroup, error) {
@@ -58,10 +58,17 @@ func (top *Topology) GetSlotByIndex(i int) (*models.Slot, *models.ServerGroup, e
 	return slot, groupServer, nil
 }
 
-func NewTopo(ProductName string, zkAddr string, f ZkFactory) *Topology {
-	t := &Topology{zkAddr: zkAddr, ProductName: ProductName, fact: f}
+func NewTopo(ProductName string, zkAddr string, f ZkFactory, provider string) *Topology {
+	t := &Topology{zkAddr: zkAddr, ProductName: ProductName, fact: f, provider: provider}
 	if t.fact == nil {
-		t.fact = zkhelper.ConnectToZk
+		switch t.provider {
+		case "etcd":
+			t.fact = zkhelper.NewEtcdConn
+		case "zookeeper":
+			t.fact = zkhelper.ConnectToZk
+		default:
+			log.Fatal("coordinator not found in config")
+		}
 	}
 	t.InitZkConn()
 	return t
@@ -76,11 +83,11 @@ func (top *Topology) InitZkConn() {
 }
 
 func (top *Topology) GetActionWithSeq(seq int64) (*models.Action, error) {
-	return models.GetActionWithSeq(top.zkConn, top.ProductName, seq)
+	return models.GetActionWithSeq(top.zkConn, top.ProductName, seq, top.provider)
 }
 
 func (top *Topology) GetActionWithSeqObject(seq int64, act *models.Action) error {
-	return models.GetActionObject(top.zkConn, top.ProductName, seq, act)
+	return models.GetActionObject(top.zkConn, top.ProductName, seq, act, top.provider)
 }
 
 func (top *Topology) GetActionSeqList(productName string) ([]int, error) {
@@ -104,7 +111,7 @@ func (top *Topology) GetProxyInfo(proxyName string) (*models.ProxyInfo, error) {
 }
 
 func (top *Topology) GetActionResponsePath(seq int) string {
-	return path.Join(models.GetWatchActionPath(top.ProductName), "action_"+fmt.Sprintf("%0.10d", seq))
+	return path.Join(models.GetActionResponsePath(top.ProductName), top.zkConn.Seq2Str(int64(seq)))
 }
 
 func (top *Topology) SetProxyStatus(proxyName string, status string) error {
@@ -134,17 +141,18 @@ func (top *Topology) DoResponse(seq int, pi *models.ProxyInfo) error {
 	}
 
 	_, err = top.zkConn.Create(path.Join(actionPath, pi.Id), data,
-		0, zkhelper.DefaultACLs())
+		0, zkhelper.DefaultFileACLs())
 
 	return err
 }
 
 func (top *Topology) doWatch(evtch <-chan topo.Event, evtbus chan interface{}) {
 	e := <-evtch
-	log.Infof("topo event %+v", e)
-	if e.State == topo.StateExpired {
+	if e.State == topo.StateExpired || e.Type == topo.EventNotWatching {
 		log.Fatalf("session expired: %+v", e)
 	}
+
+	log.Warningf("topo event %+v", e)
 
 	switch e.Type {
 	//case topo.EventNodeCreated:

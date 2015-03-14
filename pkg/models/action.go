@@ -10,7 +10,6 @@ import (
 	"path"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ngaut/zkhelper"
@@ -49,9 +48,13 @@ func GetWatchActionPath(productName string) string {
 	return fmt.Sprintf("/zk/codis/db_%s/actions", productName)
 }
 
-func GetActionWithSeq(zkConn zkhelper.Conn, productName string, seq int64) (*Action, error) {
+func GetActionResponsePath(productName string) string {
+	return path.Join(path.Dir(GetWatchActionPath(productName)), "ActionResponse")
+}
+
+func GetActionWithSeq(zkConn zkhelper.Conn, productName string, seq int64, provider string) (*Action, error) {
 	var act Action
-	data, _, err := zkConn.Get(path.Join(GetWatchActionPath(productName), "action_"+fmt.Sprintf("%0.10d", seq)))
+	data, _, err := zkConn.Get(path.Join(GetWatchActionPath(productName), zkConn.Seq2Str(seq)))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -63,8 +66,8 @@ func GetActionWithSeq(zkConn zkhelper.Conn, productName string, seq int64) (*Act
 	return &act, nil
 }
 
-func GetActionObject(zkConn zkhelper.Conn, productName string, seq int64, act interface{}) error {
-	data, _, err := zkConn.Get(path.Join(GetWatchActionPath(productName), "action_"+fmt.Sprintf("%0.10d", seq)))
+func GetActionObject(zkConn zkhelper.Conn, productName string, seq int64, act interface{}, provider string) error {
+	data, _, err := zkConn.Get(path.Join(GetWatchActionPath(productName), zkConn.Seq2Str(seq)))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -140,7 +143,7 @@ func GetActionSeqList(zkConn zkhelper.Conn, productName string) ([]int, error) {
 func ExtraSeqList(nodes []string) ([]int, error) {
 	var seqs []int
 	for _, nodeName := range nodes {
-		seq, err := strconv.Atoi(strings.Split(nodeName, "_")[1])
+		seq, err := strconv.Atoi(nodeName)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -266,22 +269,47 @@ func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, 
 	b, _ := json.Marshal(action)
 
 	prefix := GetWatchActionPath(productName)
-
+	//action root path
 	err = CreateActionRootPath(zkConn, prefix)
 	if err != nil {
 		return errors.Trace(err)
 	}
 
-	// create action node
-	actionCreated, err := zkConn.Create(prefix+"/action_", b, int32(zk.FlagSequence), zkhelper.DefaultDirACLs())
-
+	//response path
+	respPath := path.Join(path.Dir(prefix), "ActionResponse")
+	err = CreateActionRootPath(zkConn, respPath)
 	if err != nil {
-		log.Error(err, prefix)
+		return errors.Trace(err)
+	}
+
+	//create response node, etcd do not support create in order directory
+	//get path first
+	actionRespPath, err := zkConn.Create(respPath+"/", b, int32(zk.FlagSequence), zkhelper.DefaultFileACLs())
+	if err != nil {
+		log.Error(err, respPath)
+		return errors.Trace(err)
+	}
+
+	//remove file then create directory
+	zkConn.Delete(actionRespPath, -1)
+	actionRespPath, err = zkConn.Create(actionRespPath, b, 0, zkhelper.DefaultDirACLs())
+	if err != nil {
+		log.Error(err, respPath)
+		return errors.Trace(err)
+	}
+
+	suffix := path.Base(actionRespPath)
+
+	// create action node
+	actionPath := path.Join(prefix, suffix)
+	_, err = zkConn.Create(actionPath, b, 0, zkhelper.DefaultFileACLs())
+	if err != nil {
+		log.Error(err, actionPath)
 		return errors.Trace(err)
 	}
 
 	if needConfirm {
-		if err := WaitForReceiver(zkConn, productName, actionCreated, proxies); err != nil {
+		if err := WaitForReceiver(zkConn, productName, actionRespPath, proxies); err != nil {
 			return errors.Trace(err)
 		}
 	}

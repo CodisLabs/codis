@@ -61,5 +61,5 @@ func callApi(method HttpMethod, apiPath string, params interface{}, retVal inter
 		return nil
 	}
 
-	return errors.New(string(body))
+	return errors.Errorf("http status code %d, %s", resp.StatusCode, string(body))
 }

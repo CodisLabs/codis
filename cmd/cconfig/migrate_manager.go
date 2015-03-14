@@ -50,7 +50,7 @@ func getManagerPath(productName string) string {
 func (m *MigrateManager) createNode() error {
 	zkhelper.CreateRecursive(m.zkConn, fmt.Sprintf("/zk/codis/db_%s/migrate_tasks", m.productName), "", 0, zkhelper.DefaultDirACLs())
 	_, err := m.zkConn.Create(getManagerPath(m.productName),
-		[]byte(""), zk.FlagEphemeral, zkhelper.DefaultDirACLs())
+		[]byte(""), zk.FlagEphemeral, zkhelper.DefaultFileACLs())
 	if err != nil {
 		log.Error("dashboard already exists! err: ", err)
 	}

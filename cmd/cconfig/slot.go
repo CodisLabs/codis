@@ -109,7 +109,7 @@ func cmdSlot(argv []string) (err error) {
 			log.Warning(err)
 			return errors.Trace(err)
 		}
-		return runSlotRangeSet(slotFrom, slotTo, groupId, status)
+		return errors.Trace(runSlotRangeSet(slotFrom, slotTo, groupId, status))
 	}
 	return nil
 }
@@ -122,7 +122,7 @@ func runSlotInit(isForce bool) error {
 	}
 	err := callApi(METHOD_POST, url, nil, &v)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	fmt.Println(jsonify(v))
 	return nil
@@ -132,7 +132,7 @@ func runSlotInfo(slotId int) error {
 	var v interface{}
 	err := callApi(METHOD_GET, fmt.Sprintf("/api/slot/%d", slotId), nil, &v)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	fmt.Println(jsonify(v))
 	return nil
@@ -149,7 +149,7 @@ func runSlotRangeSet(fromSlotId, toSlotId int, groupId int, status string) error
 	var v interface{}
 	err := callApi(METHOD_POST, "/api/slot", t, &v)
 	if err != nil {
-		return err
+		return errors.Trace(err)
 	}
 	fmt.Println(jsonify(v))
 	return nil
