@@ -2,6 +2,7 @@ package env
 
 import (
 	"os"
+	"strings"
 
 	"github.com/c4pt0r/cfg"
 	errors "github.com/juju/errors"
@@ -69,7 +70,11 @@ func (e *CodisEnv) NewZkConn() (zkhelper.Conn, error) {
 	case "zookeeper":
 		return zkhelper.ConnectToZk(e.zkAddr)
 	case "etcd":
-		return zkhelper.NewEtcdConn(e.zkAddr)
+		addr := strings.TrimSpace(e.zkAddr)
+		if !strings.HasPrefix(addr, "http://") {
+			addr = "http://" + addr
+		}
+		return zkhelper.NewEtcdConn(addr)
 	}
 
 	return nil, errors.Errorf("need coordinator in config file, %+v", e)

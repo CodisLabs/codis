@@ -546,9 +546,10 @@ func apiSlotRangeSet(task RangeSetTask) (int, string) {
 }
 
 // actions
-func apiActionGC(param martini.Params) (int, string) {
-	keep, _ := strconv.Atoi(param["keep"])
-	secs, _ := strconv.Atoi(param["secs"])
+func apiActionGC(r *http.Request) (int, string) {
+	r.ParseForm()
+	keep, _ := strconv.Atoi(r.FormValue("keep"))
+	secs, _ := strconv.Atoi(r.FormValue("secs"))
 
 	conn := CreateZkConn()
 	defer conn.Close()
