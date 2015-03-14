@@ -78,9 +78,11 @@ config.ini:
 
 ```
 zk=localhost:2181   <- zookeeper的地址, 如果是zookeeper集群，可以这么写: zk=hostname1:2181,hostname2:2181,hostname3:2181,hostname4:2181,hostname5:2181
+如果是etcd，则写成http://hostname1:port,http://hostname2:port,http://hostname3:port
 product=test        <- 产品名称, 这个codis集群的名字, 可以认为是命名空间, 不同命名空间的codis没有交集
 proxy_id=proxy_1    <- proxy会读取, 用于标记proxy的名字, 针对多个proxy的情况, 可以使用不同的config.ini, 只需要更改 proxy_id 即可
 dashboard_addr=localhost:18087   <- dashboard 服务的地址，CLI 的所有命令都依赖于 dashboard 的 RESTful API，所以必须启动
+coordinator=zookeeper  <- 如果用etcd，则将zookeeper替换为etcd
 ```
 
 ####流程
