@@ -402,7 +402,7 @@ func apiAddServerToGroup(server models.Server, param martini.Params) (int, strin
 	}
 
 	if err := serverGroup.AddServer(conn, &server); err != nil {
-		log.Warning(err)
+		log.Warning(errors.ErrorStack(err))
 		return 500, err.Error()
 	}
 
@@ -469,7 +469,7 @@ func apiSetProxyStatus(proxy models.ProxyInfo, param martini.Params) (int, strin
 		if proxy.State == models.PROXY_STATE_MARK_OFFLINE && zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 			return jsonRetSucc()
 		}
-		log.Warning(err)
+		log.Warning(errors.ErrorStack(err))
 		return 500, err.Error()
 	}
 	return jsonRetSucc()
@@ -537,7 +537,6 @@ func apiSlotRangeSet(task RangeSetTask) (int, string) {
 	}
 
 	err := models.SetSlotRange(conn, globalEnv.ProductName(), task.FromSlot, task.ToSlot, task.NewGroupId, models.SlotStatus(task.Status))
-
 	if err != nil {
 		log.Warning(err)
 		return 500, err.Error()

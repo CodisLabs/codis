@@ -162,7 +162,7 @@ func createDashboardNode() error {
 
 	content := fmt.Sprintf(`{"addr": "%v", "pid": %v}`, globalEnv.DashboardAddr(), os.Getpid())
 	pathCreated, err := conn.Create(zkPath, []byte(content),
-		zk.FlagEphemeral, zkhelper.DefaultACLs())
+		zk.FlagEphemeral, zkhelper.DefaultFileACLs())
 
 	log.Info("dashboard node created:", pathCreated, string(content))
 

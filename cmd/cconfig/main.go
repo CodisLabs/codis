@@ -5,7 +5,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -73,17 +72,17 @@ func runCommand(cmd string, args []string) (err error) {
 	argv = append(argv, args...)
 	switch cmd {
 	case "action":
-		return cmdAction(argv)
+		return errors.Trace(cmdAction(argv))
 	case "dashboard":
-		return cmdDashboard(argv)
+		return errors.Trace(cmdDashboard(argv))
 	case "server":
-		return cmdServer(argv)
+		return errors.Trace(cmdServer(argv))
 	case "proxy":
-		return cmdProxy(argv)
+		return errors.Trace(cmdProxy(argv))
 	case "slot":
-		return cmdSlot(argv)
+		return errors.Trace(cmdSlot(argv))
 	}
-	return fmt.Errorf("%s is not a valid command. See 'codis-config -h'", cmd)
+	return errors.Errorf("%s is not a valid command. See 'codis-config -h'", cmd)
 }
 
 func main() {

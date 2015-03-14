@@ -29,7 +29,14 @@ func TestNewAction(t *testing.T) {
 		t.Error(errors.ErrorStack(err))
 	}
 
-	d, _, err := fakeZkConn.Get(prefix + "/action_0000000001")
+	//test if response node exists
+	d, _, err := fakeZkConn.Get(prefix + "/0000000001")
+	if err != nil {
+		t.Error(errors.ErrorStack(err))
+	}
+
+	//test get action data
+	d, _, err = fakeZkConn.Get(GetActionResponsePath(productName) + "/0000000001")
 	if err != nil {
 		t.Error(errors.ErrorStack(err))
 	}

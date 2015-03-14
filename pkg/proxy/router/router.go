@@ -403,6 +403,8 @@ func (s *Server) checkAndDoTopoChange(seq int) (needResponse bool) {
 		return false
 	}
 
+	log.Warningf("action %v receivers %v", seq, act.Receivers)
+
 	s.stopTaskRunners()
 
 	switch act.Type {
@@ -485,17 +487,7 @@ func (s *Server) processAction(e interface{}) {
 	}
 
 	if index < 0 {
-		log.Warningf("zookeeper restarted or actions were deleted ? lastActionSeq: %d", s.lastActionSeq)
-		if s.lastActionSeq > seqs[len(seqs)-1] {
-			log.Fatalf("unknown error, zookeeper restarted or actions were deleted ? lastActionSeq: %d, %v", s.lastActionSeq, nodes)
-		}
-
-		if s.lastActionSeq == seqs[len(seqs)-1] { //children change or delete event
-			return
-		}
-
-		//actions node was remove by someone, seems we can handle it
-		index = 0
+		return
 	}
 
 	actions := seqs[index:]
@@ -551,12 +543,27 @@ func (s *Server) handleTopoEvent() {
 
 			s.dispatch(r)
 		case e := <-s.evtbus:
-			log.Infof("got event %s, %v", s.pi.Id, e)
 			switch e.(type) {
 			case *killEvent:
 				s.handleMarkOffline()
 				e.(*killEvent).done <- nil
 			default:
+				evtPath := GetEventPath(e)
+				log.Infof("got event %s, %v, lastActionSeq %d", s.pi.Id, e, s.lastActionSeq)
+				if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
+					seq, err := strconv.Atoi(path.Base(evtPath))
+					if err != nil {
+						log.Warning(err)
+					} else {
+						if seq < s.lastActionSeq {
+							log.Info("ignore", seq)
+							continue
+						}
+					}
+
+				}
+
+				log.Infof("got event %s, %v, lastActionSeq %d", s.pi.Id, e, s.lastActionSeq)
 				s.processAction(e)
 			}
 		}
@@ -629,7 +636,7 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	s := &Server{
 		conf:          conf,
 		evtbus:        make(chan interface{}, 1000),
-		top:           topo.NewTopo(conf.productName, conf.zkAddr, conf.f),
+		top:           topo.NewTopo(conf.productName, conf.zkAddr, conf.f, conf.provider),
 		counter:       stats.NewCounters("router"),
 		lastActionSeq: -1,
 		startAt:       time.Now(),

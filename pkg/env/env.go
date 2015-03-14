@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/c4pt0r/cfg"
+	errors "github.com/juju/errors"
 	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
 )
@@ -18,6 +19,7 @@ type CodisEnv struct {
 	zkAddr        string
 	dashboardAddr string
 	productName   string
+	provider      string
 }
 
 func LoadCodisEnv(cfg *cfg.Cfg) Env {
@@ -41,10 +43,16 @@ func LoadCodisEnv(cfg *cfg.Cfg) Env {
 		log.Fatal(err)
 	}
 
+	provider, err := cfg.ReadString("coordinator", "zookeeper")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &CodisEnv{
 		zkAddr:        zkAddr,
 		dashboardAddr: dashboardAddr,
 		productName:   productName,
+		provider:      provider,
 	}
 }
 
@@ -57,5 +65,12 @@ func (e *CodisEnv) DashboardAddr() string {
 }
 
 func (e *CodisEnv) NewZkConn() (zkhelper.Conn, error) {
-	return zkhelper.ConnectToZk(e.zkAddr)
+	switch e.provider {
+	case "zookeeper":
+		return zkhelper.ConnectToZk(e.zkAddr)
+	case "etcd":
+		return zkhelper.NewEtcdConn(e.zkAddr)
+	}
+
+	return nil, errors.Errorf("need coordinator in config file, %+v", e)
 }
