@@ -73,6 +73,10 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 
 见 [Codis 数据迁移流程](http://0xffff.me/blog/2014/11/11/codis-de-she-ji-yu-shi-xian-part-2/)
 
+###Codis支持etcd吗 ? 
+
+支持，请参考使用教程
+
 ###现有redis集群上有上T的数据，如何迁移到Codis上来？
 
 为了提高 Codis 推广和部署上的效率，我们为数据迁移提供了一个叫做 [redis-port](https://github.com/wandoulabs/codis/tree/master/extern/redis-port) 的命令行工具，它能够：
