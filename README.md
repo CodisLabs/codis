@@ -17,6 +17,7 @@ Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia
 ##Features
 * Auto rebalance
 * Extremely simple to use 
+* Support both redis or rocksdb transparently
 * GUI dashboard & admin tools 
 * Supports most of Redis commands, Fully compatible with twemproxy(https://github.com/twitter/twemproxy)
 * Native Redis clients are supported
