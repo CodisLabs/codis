@@ -1,4 +1,4 @@
-var codisControllers = angular.module('codisControllers', ['ui.bootstrap', 'ngResource']);
+var codisControllers = angular.module('codisControllers', ['ui.bootstrap', 'ngResource', 'highcharts-ng']);
 
 codisControllers.config(['$interpolateProvider',
     function($interpolateProvider) {
@@ -95,6 +95,20 @@ function($scope, $http, ProxyStatusFactory) {
 
 codisControllers.controller('codisOverviewCtl', ['$scope', '$http', '$timeout',
 function($scope, $http, $timeout) {
+
+    var refreshChart = function(data) {
+      var seriesArray = $scope.chartOps.series[0].data;
+
+      if (seriesArray.length > 20) {
+          seriesArray.shift();
+      }
+      seriesArray.push({
+        x : new Date(),
+        y : data
+      });
+      $scope.chartOps.series[0].data = seriesArray;
+    }
+
     $scope.refresh = function() {
         $http.get('http://localhost:18087/api/overview').success(function(succData) {
             var keys = 0;
@@ -119,9 +133,41 @@ function($scope, $http, $timeout) {
             } else {
                 $scope.ops = 0;
             }
+            refreshChart($scope.ops)
         });
     }
     $scope.refresh();
+
+    $scope.chartOps = {
+        options: {
+            global: {
+                useUTC: false,
+            },
+            chart: {
+                useUTC: false,
+                type: 'spline',
+            }
+        },
+        series: [{
+            name: 'OP/s',
+            data: []
+        }],
+        title: {
+            text: 'OP/s'
+        },
+        xAxis: {
+            type : "datetime",
+            title: {
+                text: 'Time'
+            },
+        },
+        yAxis: {
+            title: {
+                text: 'value'
+            },
+
+        },
+    };
 
     (function autoUpdate() {
         $timeout(autoUpdate, 1000);
