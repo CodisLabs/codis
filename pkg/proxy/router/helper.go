@@ -315,10 +315,6 @@ func LoadConf(configFile string) (*Conf, error) {
 	srvConf.provider, _ = conf.ReadString("coordinator", "zookeeper")
 	log.Infof("%+v", srvConf)
 
-	if srvConf.provider == "etcd" && !strings.HasPrefix(srvConf.zkAddr, "http://") {
-		srvConf.zkAddr = "http://" + srvConf.zkAddr
-	}
-
 	return srvConf, nil
 }
 
