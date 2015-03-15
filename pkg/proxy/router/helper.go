@@ -303,6 +303,8 @@ func LoadConf(configFile string) (*Conf, error) {
 	if len(srvConf.zkAddr) == 0 {
 		log.Fatalf("invalid config: need zk entry is missing in %s", configFile)
 	}
+	srvConf.zkAddr = strings.TrimSpace(srvConf.zkAddr)
+
 	srvConf.proxyId, _ = conf.ReadString("proxy_id", "")
 	if len(srvConf.proxyId) == 0 {
 		log.Fatalf("invalid config: need proxy_id entry is missing in %s", configFile)
@@ -312,6 +314,10 @@ func LoadConf(configFile string) (*Conf, error) {
 	srvConf.proto, _ = conf.ReadString("proto", "tcp")
 	srvConf.provider, _ = conf.ReadString("coordinator", "zookeeper")
 	log.Infof("%+v", srvConf)
+
+	if srvConf.provider == "etcd" && !strings.HasPrefix(srvConf.zkAddr, "http://") {
+		srvConf.zkAddr = "http://" + srvConf.zkAddr
+	}
 
 	return srvConf, nil
 }
