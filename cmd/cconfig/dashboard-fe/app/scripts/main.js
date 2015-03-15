@@ -13,51 +13,51 @@ codisControllers.config(['$httpProvider', function($httpProvider) {
 }]);
 
 codisControllers.factory('ServerGroupsFactory', ['$resource', function ($resource) {
-    return $resource('http://localhost:8086/api/server_groups', {}, {
+    return $resource('http://localhost:18087/api/server_groups', {}, {
         query: { method: 'GET', isArray: true },
         create : { method: 'PUT' }
     });
 }]);
 
 codisControllers.factory('ProxyStatusFactory', ['$resource', function ($resource) {
-    return $resource('http://localhost:8086/api/proxy', {}, {
-        query: { method: 'GET', url : 'http://localhost:8086/api/proxy/list', isArray: true },
+    return $resource('http://localhost:18087/api/proxy', {}, {
+        query: { method: 'GET', url : 'http://localhost:18087/api/proxy/list', isArray: true },
         setStatus: { method: 'POST' }
     });
 }]);
 
 codisControllers.factory('RedisStatusFactory', ['$resource', function ($resource) {
-    return $resource('http://localhost:8086/api/redis', {}, {
-        stat: { method: 'GET', url : 'http://localhost:8086/api/redis/:addr/stat' },
-        slotInfoByGroupId : { method : 'GET', url: 'http://localhost:8086/api/redis/group/:group_id/:slot_id/slotinfo'}
+    return $resource('http://localhost:18087/api/redis', {}, {
+        stat: { method: 'GET', url : 'http://localhost:18087/api/redis/:addr/stat' },
+        slotInfoByGroupId : { method : 'GET', url: 'http://localhost:18087/api/redis/group/:group_id/:slot_id/slotinfo'}
     });
 }]);
 
 codisControllers.factory('MigrateStatusFactory', ['$resource', function ($resource) {
-    return $resource('http://localhost:8086/api/migrate/status', {}, {
+    return $resource('http://localhost:18087/api/migrate/status', {}, {
         query: { method: 'GET' },
-        tasks: { method: 'GET', url: 'http://localhost:8086/api/migrate/tasks', isArray: true},
-        doMigrate : { method:'POST', url:'http://localhost:8086/api/migrate'},
-        removePendingTask : {method : 'DELETE', url: 'http://localhost:8086/api/migrate/pending_task/:id/remove', params : { id : '@id'} },
-        stopRunningTask : {method : 'DELETE', url: 'http://localhost:8086/api/migrate/task/:id/stop', params : { id : '@id'} },
-        rebalanceStatus : { method:'GET', url: 'http://localhost:8086/api/rebalance/status'},
-        doRebalance: {method:'POST', url: 'http://localhost:8086/api/rebalance'},
+        tasks: { method: 'GET', url: 'http://localhost:18087/api/migrate/tasks', isArray: true},
+        doMigrate : { method:'POST', url:'http://localhost:18087/api/migrate'},
+        removePendingTask : {method : 'DELETE', url: 'http://localhost:18087/api/migrate/pending_task/:id/remove', params : { id : '@id'} },
+        stopRunningTask : {method : 'DELETE', url: 'http://localhost:18087/api/migrate/task/:id/stop', params : { id : '@id'} },
+        rebalanceStatus : { method:'GET', url: 'http://localhost:18087/api/rebalance/status'},
+        doRebalance: {method:'POST', url: 'http://localhost:18087/api/rebalance'},
     });
 }]);
 
 codisControllers.factory('SlotFactory', ['$resource', function ($resource) {
-    return $resource('http://localhost:8086/api/slot', {}, {
+    return $resource('http://localhost:18087/api/slot', {}, {
         rangeSet: { method: 'POST' }
     });
 }]);
 
 codisControllers.factory('ServerGroupFactory', ['$resource', function ($resource) {
-    return $resource('http://localhost:8086/api/server_group/:id', {}, {
+    return $resource('http://localhost:18087/api/server_group/:id', {}, {
         show: { method: 'GET', isArray: true },
         delete: { method: 'DELETE', params: {id: '@id'} },
-        addServer: { method: 'PUT', url: 'http://localhost:8086/api/server_group/:id/addServer', params :{ id : '@group_id' } },
-        deleteServer :{ method : 'PUT', url: 'http://localhost:8086/api/server_group/:id/removeServer', params :{ id : '@group_id' } },
-        promote :{ method : 'POST', url: 'http://localhost:8086/api/server_group/:id/promote', params :{ id : '@group_id' } }
+        addServer: { method: 'PUT', url: 'http://localhost:18087/api/server_group/:id/addServer', params :{ id : '@group_id' } },
+        deleteServer :{ method : 'PUT', url: 'http://localhost:18087/api/server_group/:id/removeServer', params :{ id : '@group_id' } },
+        promote :{ method : 'POST', url: 'http://localhost:18087/api/server_group/:id/promote', params :{ id : '@group_id' } }
         // no update here, just delete and create, :)
     });
 }]);
@@ -96,7 +96,7 @@ function($scope, $http, ProxyStatusFactory) {
 codisControllers.controller('codisOverviewCtl', ['$scope', '$http', '$timeout',
 function($scope, $http, $timeout) {
     $scope.refresh = function() {
-        $http.get('http://localhost:8086/api/overview').success(function(succData) {
+        $http.get('http://localhost:18087/api/overview').success(function(succData) {
             var keys = 0;
             var memUsed = 0;
             var redisData = succData["redis_infos"];

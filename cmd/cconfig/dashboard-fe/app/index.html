@@ -215,7 +215,7 @@
           </div>
         </div>
         <div class="row">
-          <div class="col-md-9">
+          <div class="col-md-12">
                 <div class="panel panel-default" ng-repeat="group in server_groups | orderBy:'id'">
                   <div class="panel-heading">
                     <b>group_[[ group.id ]]</b>
@@ -357,8 +357,15 @@
                 <tr ng-repeat="proxy in proxies">
                   <td> <p>[[proxy.id]]</p> </td>
                   <td> [[proxy.addr]] </td>
-                  <td> <a href="http://[[proxy.debug_var_addr]]" target="_blank">[[proxy.debug_var_addr]]</a> </td>
-                  <td> [[proxy.state]] </td>
+                  <td> <a href="http://[[proxy.debug_var_addr]]/debug/vars" target="_blank">[[proxy.debug_var_addr]]</a> </td>
+                  <td ng-switch="proxy.state">
+                    <span class="label label-success" ng-switch-when="online">
+                     [[proxy.state]]
+                    </span>
+                    <span class="label label-default" ng-switch-default>
+                     [[proxy.state]]
+                    </span>
+                   </td>
                   <td><button class="btn btn-default" ng-click="setStatus(proxy, 'online')">Mark Online</button>  <button class="btn btn-danger" ng-click="setStatus(proxy, 'mark_offline')">Mark Offline</button></td>
                 </tr>
               </tbody>

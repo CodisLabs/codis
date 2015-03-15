@@ -67,7 +67,7 @@ module.exports = function (grunt) {
     // The actual grunt server settings
     connect: {
       options: {
-        port: 4001,
+        port: 4002,
         open: true,
         livereload: 35729,
         // Change this to '0.0.0.0' to access the server from outside
@@ -313,7 +313,7 @@ module.exports = function (grunt) {
         src: ['<%= config.dist %>/{,*/}*.js'],
         overwrite: true,                 // overwrite matched source files
         replacements: [{
-          from: "http://localhost:8086",
+          from: "http://localhost:18087",
           to: ""
         }]
       }
