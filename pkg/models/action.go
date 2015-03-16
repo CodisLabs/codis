@@ -157,6 +157,8 @@ func ExtraSeqList(nodes []string) ([]int, error) {
 
 func ActionGC(zkConn zkhelper.Conn, productName string, gcType int, keep int) error {
 	prefix := GetWatchActionPath(productName)
+	respPrefix := GetActionResponsePath(productName)
+
 	exists, err := zkhelper.NodeExists(zkConn, prefix)
 	if err != nil {
 		return errors.Trace(err)
@@ -176,12 +178,16 @@ func ActionGC(zkConn zkhelper.Conn, productName string, gcType int, keep int) er
 
 	if gcType == GC_TYPE_N {
 		sort.Strings(actions)
-		if len(actions) <= keep {
+		// keep last 500 actions
+		if len(actions)-500 <= keep {
 			return nil
 		}
-
-		for _, action := range actions[:len(actions)-keep] {
+		for _, action := range actions[:len(actions)-keep-500] {
 			if err := zkhelper.DeleteRecursive(zkConn, path.Join(prefix, action), -1); err != nil {
+				return errors.Trace(err)
+			}
+			err := zkhelper.DeleteRecursive(zkConn, path.Join(respPrefix, action), -1)
+			if err != nil && !zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 				return errors.Trace(err)
 			}
 		}
@@ -199,7 +205,11 @@ func ActionGC(zkConn zkhelper.Conn, productName string, gcType int, keep int) er
 			ts, _ := strconv.ParseInt(act.Ts, 10, 64)
 
 			if currentTs-ts > int64(secs) {
-				if err := zkConn.Delete(path.Join(prefix, action), -1); err != nil {
+				if err := zkhelper.DeleteRecursive(zkConn, path.Join(prefix, action), -1); err != nil {
+					return errors.Trace(err)
+				}
+				err := zkhelper.DeleteRecursive(zkConn, path.Join(respPrefix, action), -1)
+				if err != nil && !zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 					return errors.Trace(err)
 				}
 			}

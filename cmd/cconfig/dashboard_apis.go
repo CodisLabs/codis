@@ -563,7 +563,7 @@ func apiActionGC(r *http.Request) (int, string) {
 	}()
 
 	var err error
-	if keep > 0 {
+	if keep >= 0 {
 		err = models.ActionGC(conn, globalEnv.ProductName(), models.GC_TYPE_N, keep)
 	} else if secs > 0 {
 		err = models.ActionGC(conn, globalEnv.ProductName(), models.GC_TYPE_SEC, secs)
