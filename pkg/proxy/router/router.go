@@ -227,6 +227,11 @@ func (s *Server) redisTunnel(c *session) error {
 		return errors.Trace(err)
 	}
 
+	start := time.Now()
+	defer func() {
+		recordResponseTime(s.counter, time.Since(start)/1000/1000)
+	}()
+
 	s.counter.Add(opstr, 1)
 	s.counter.Add("ops", 1)
 	if !next {
