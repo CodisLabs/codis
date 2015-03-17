@@ -21,6 +21,7 @@ type taskRunner struct {
 	netTimeout int //second
 	closed     bool
 	wgClose    *sync.WaitGroup
+	latest     time.Time //latest request time stamp
 }
 
 func (tr *taskRunner) readloop() {
@@ -59,6 +60,7 @@ func (tr *taskRunner) handleTask(r *PipelineRequest, flush bool) error {
 	}
 
 	tr.tasks.PushBack(r)
+	tr.latest = time.Now()
 
 	return errors.Trace(tr.dowrite(r, flush))
 }
@@ -180,6 +182,10 @@ func (tr *taskRunner) writeloop() {
 			tr.processTask(t)
 		case resp := <-tr.out:
 			err = tr.handleResponse(resp)
+		case <-time.After(1 * time.Second):
+			if tr.tasks.Len() > 0 && int(time.Since(tr.latest).Seconds()) > tr.netTimeout {
+				tr.c.Close()
+			}
 		}
 	}
 }
