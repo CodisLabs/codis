@@ -116,3 +116,7 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 + redis-port 处理还是很快的，参考：
 	- https://github.com/sripathikrishnan/redis-rdb-tools
 	- https://github.com/cupcake/rdb
+
+#### Dashboard 中 Ops 一直是 0？
+
+检查你的启动 dashboard 进程的机器，看是否可以访问proxy的地址，对应的地址是 proxy 启动参数中的 debug_var_addr 中填写的地址。
