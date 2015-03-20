@@ -31,6 +31,8 @@ type ProxyInfo struct {
 	State        string `json:"state"`
 	Description  string `json:"description"`
 	DebugVarAddr string `json:"debug_var_addr"`
+	Pid          int    `json:"pid"`
+	StartAt      string `json:"start_at"`
 }
 
 func (p *ProxyInfo) Ops() (int64, error) {

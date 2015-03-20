@@ -273,7 +273,11 @@ func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, 
 		}
 	}
 	for _, p := range proxies {
-		action.Receivers = append(action.Receivers, p.Id)
+		buf, err := json.Marshal(p)
+		if err != nil {
+			return errors.Trace(err)
+		}
+		action.Receivers = append(action.Receivers, string(buf))
 	}
 
 	b, _ := json.Marshal(action)
