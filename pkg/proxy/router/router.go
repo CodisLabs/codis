@@ -242,7 +242,7 @@ func (s *Server) redisTunnel(c *session) error {
 	}
 
 	if isMulOp(opstr) {
-		if len(keys) > 1 { //can send to redis directly
+		if len(keys) > 1 { //can not send to redis directly
 			var result []byte
 			err := s.moper.handleMultiOp(opstr, keys, &result)
 			if err != nil {
