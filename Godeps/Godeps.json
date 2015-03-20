@@ -7,11 +7,11 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/alicebob/miniredis",
-			"Rev": "0eac5c45007759bb535908bccdcbd21734477c54"
+			"Rev": "369a529586baa6b4da7675162a4eb066d4babfe3"
 		},
 		{
 			"ImportPath": "github.com/bsm/redeo",
-			"Rev": "f32947adbe7a776bc7e83d05e21f57e5e9ad1811"
+			"Rev": "436f4440f2ee191b0bfbdf9d12894fe0f1eedd9b"
 		},
 		{
 			"ImportPath": "github.com/c4pt0r/cfg",
@@ -93,7 +93,7 @@
 		},
 		{
 			"ImportPath": "github.com/ngaut/zkhelper",
-			"Rev": "50ed4f0e625879e2edd01950c70d4d006b1d60ca"
+			"Rev": "df17f13b81b6f1c35f16cf843f6ce3bdabdb64ea"
 		},
 		{
 			"ImportPath": "github.com/nu7hatch/gouuid",
