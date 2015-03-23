@@ -51,6 +51,10 @@ Codis 是会把 KEYS 指令屏蔽的, 即使你在使用 raw Redis, 我也不太
 
 CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合TAG使用. 
 
+###有没有 zookeeper 的教程？
+
+[请参考这里](http://www.juvenxu.com/2015/03/20/experiences-on-zookeeper-ops/)
+
 ###Codis的性能如何?
 
 8 core Xeon 2.10GHz, 多线程的 benchmark, 单 proxy 的 ops 是 12w. 而且 proxy 是可以动态水平扩展的, 理论上的性能瓶颈应该是百万级别的.
