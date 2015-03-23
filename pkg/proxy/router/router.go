@@ -297,12 +297,12 @@ func (s *Server) handleConn(c net.Conn) {
 
 		if err != nil { //todo: fix this ugly error check
 			if GetOriginError(err.(*errors.Err)).Error() != io.EOF.Error() {
-				log.Warningf("close connection %v, %+v, %v", c.RemoteAddr(), client, errors.ErrorStack(err))
+				log.Warningf("close connection %v, %v", client, errors.ErrorStack(err))
 			} else {
-				log.Infof("close connection %v, %+v", c.RemoteAddr(), client)
+				log.Infof("close connection  %v", client)
 			}
 		} else {
-			log.Infof("close connection %v, %+v", c.RemoteAddr(), client)
+			log.Infof("close connection %v", client)
 		}
 
 		s.counter.Add("connections", -1)
