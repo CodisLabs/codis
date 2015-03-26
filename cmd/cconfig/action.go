@@ -14,7 +14,7 @@ import (
 )
 
 func cmdAction(argv []string) (err error) {
-	usage := `usage: codis-config action (gc [-n <num> | -s <seconds>] | remove-lock)
+	usage := `usage: codis-config action (gc [-n <num> | -s <seconds>] | remove-lock | remove-fence)
 
 options:
 	gc:
@@ -31,6 +31,10 @@ options:
 
 	if args["remove-lock"].(bool) {
 		return errors.Trace(runRemoveLock())
+	}
+
+	if args["remove-fence"].(bool) {
+		return errors.Trace(runRemoveFence())
 	}
 
 	if args["gc"].(bool) {
@@ -51,6 +55,15 @@ options:
 		}
 	}
 
+	return nil
+}
+
+func runRemoveFence() error {
+	var v interface{}
+	if err := callApi(METHOD_GET, "/api/remove_fence", nil, &v); err != nil {
+		return err
+	}
+	fmt.Println(jsonify(v))
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"time"
@@ -347,5 +348,33 @@ func ForceRemoveLock(zkConn zkhelper.Conn, productName string) error {
 		}
 	}
 
+	return nil
+}
+
+func ForceRemoveDeadFence(zkConn zkhelper.Conn, productName string) error {
+	proxies, err := ProxyList(zkConn, productName, func(p *ProxyInfo) bool {
+		return p.State == PROXY_STATE_ONLINE
+	})
+	if err != nil {
+		return errors.Trace(err)
+	}
+	fenceProxies, err := GetFenceProxyMap(zkConn, productName)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	// remove online proxies's fence
+	for _, proxy := range proxies {
+		delete(fenceProxies, proxy.Addr)
+	}
+
+	// delete dead fence in zookeeper
+	path := GetProxyFencePath(productName)
+	for remainFence, _ := range fenceProxies {
+		fencePath := filepath.Join(path, remainFence)
+		log.Info("removing fence: ", fencePath)
+		if err := zkhelper.DeleteRecursive(zkConn, fencePath, -1); err != nil {
+			return errors.Trace(err)
+		}
+	}
 	return nil
 }
