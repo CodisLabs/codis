@@ -429,6 +429,7 @@ func apiPromoteServer(server models.Server, param martini.Params) (int, string) 
 	}
 	err = group.Promote(conn, server.Addr)
 	if err != nil {
+		log.Warning(errors.ErrorStack(err))
 		log.Warning(err)
 		return 500, err.Error()
 	}
@@ -583,4 +584,17 @@ func apiForceRemoveLocks() (int, string) {
 		return 500, err.Error()
 	}
 	return jsonRetSucc()
+}
+
+func apiRemoveFence() (int, string) {
+	conn := CreateZkConn()
+	defer conn.Close()
+
+	err := models.ForceRemoveDeadFence(conn, globalEnv.ProductName())
+	if err != nil {
+		log.Warning(errors.ErrorStack(err))
+		return 500, err.Error()
+	}
+	return jsonRetSucc()
+
 }
