@@ -124,3 +124,8 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 #### Dashboard 中 Ops 一直是 0？
 
 检查你的启动 dashboard 进程的机器，看是否可以访问proxy的地址，对应的地址是 proxy 启动参数中的 debug_var_addr 中填写的地址。
+
+#### 如果出现错误 "Some proxies may not stop cleanly ..." 如何处理？
+
+可能的原因是之前某个 proxy 并没有正常退出所致，我们并不能区分该 proxy 是 session expire 或者已经退出，为了安全起见，我们在这期间是禁止做集群拓扑结构变更的操作的。请确认这个 proxy 已经确实下线，或者确实进程已经被杀掉后，然后清除这个 proxy 留下的fence，使用命令：
+`codis-config action remove-fence` 进行操作。
