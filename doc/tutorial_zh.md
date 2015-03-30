@@ -87,7 +87,8 @@ coordinator=zookeeper  <- 如果用etcd，则将zookeeper替换为etcd
 
 ####流程
 
-**0. 启动 dashboard **, 执行 `../bin/codis-config dashboard`, 该命令会启动 dashboard
+**0. 启动 dashboard**, 执行 `../bin/codis-config dashboard`, 该命令会启动 dashboard
+
 **1. 初始化 slots** , 执行 `../bin/codis-config slot init`，该命令会在zookeeper上创建slot相关信息
 
 **2. 启动 Codis Redis** , 和官方的Redis Server参数一样
