@@ -48,7 +48,12 @@ options:
 		logFileName = args["--http-log"].(string)
 	}
 
-	runDashboard(globalEnv.DashboardAddr(), logFileName)
+	addr := ":8086"
+	if args["--addr"] != nil {
+		addr = args["--addr"].(string)
+	}
+
+	runDashboard(addr, logFileName)
 	return nil
 }
 
