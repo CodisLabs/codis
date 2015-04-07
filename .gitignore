@@ -4,7 +4,6 @@
 nohup.out
 martini_log
 /bin
-/Dockerfile
 /deploy.tar
 _workspace
 .htaccess
