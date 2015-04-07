@@ -16,4 +16,4 @@ EXPOSE 19000
 EXPOSE 11000
 EXPOSE 18087
 
-CMD ./startall.sh
+CMD ./startall.sh && tail -f nohup.out
