@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/ngaut/zkhelper"
-	"github.com/wandoulabs/codis/pkg/utils"
 
 	"github.com/juju/errors"
 	"github.com/ngaut/go-zookeeper/zk"
@@ -82,38 +81,49 @@ func GetActionObject(zkConn zkhelper.Conn, productName string, seq int64, act in
 
 var ErrReceiverTimeout = errors.New("receiver timeout")
 
-func WaitForReceiver(zkConn zkhelper.Conn, productName string, actionZkPath string, proxies []ProxyInfo) error {
+func WaitForReceiverWithTimeout(zkConn zkhelper.Conn, productName string, actionZkPath string, proxies []ProxyInfo, timeoutInMs int) error {
 	if len(proxies) == 0 {
 		return nil
 	}
 
 	times := 0
-	var proxyIds []string
+	proxyIds := make(map[string]struct{})
 	var offlineProxyIds []string
 	for _, p := range proxies {
-		proxyIds = append(proxyIds, p.Id)
+		proxyIds[p.Id] = struct{}{}
 	}
-	sort.Strings(proxyIds)
+
+	checkTimes := timeoutInMs / 500
 	// check every 500ms
-	for times < 60 {
+	for times < checkTimes {
 		if times >= 6 && (times*500)%1000 == 0 {
-			log.Warning("abnormal waiting time for receivers", actionZkPath)
+			log.Warning("abnormal waiting time for receivers", actionZkPath, offlineProxyIds)
 		}
+		// get confirm ids
 		nodes, _, err := zkConn.Children(actionZkPath)
 		if err != nil {
 			return errors.Trace(err)
 		}
-		var confirmIds []string
+		confirmIds := make(map[string]struct{})
 		for _, node := range nodes {
 			id := path.Base(node)
-			confirmIds = append(confirmIds, id)
+			confirmIds[id] = struct{}{}
 		}
 		if len(confirmIds) != 0 {
-			sort.Strings(confirmIds)
-			if utils.Strings(proxyIds).Eq(confirmIds) {
+			match := true
+			// check if all proxy have responsed
+			var notMatchList []string
+			for id, _ := range proxyIds {
+				// if proxy id not in confirm ids, means someone didn't response
+				if _, ok := confirmIds[id]; !ok {
+					match = false
+					notMatchList = append(notMatchList, id)
+				}
+			}
+			if match {
 				return nil
 			}
-			offlineProxyIds = proxyIds[len(confirmIds)-1:]
+			offlineProxyIds = notMatchList
 		}
 		times += 1
 		time.Sleep(500 * time.Millisecond)
@@ -121,15 +131,15 @@ func WaitForReceiver(zkConn zkhelper.Conn, productName string, actionZkPath stri
 	if len(offlineProxyIds) > 0 {
 		log.Error("proxies didn't responed: ", offlineProxyIds)
 	}
+
 	// set offline proxies
 	for _, id := range offlineProxyIds {
 		log.Errorf("mark proxy %s to PROXY_STATE_MARK_OFFLINE", id)
 		if err := SetProxyStatus(zkConn, productName, id, PROXY_STATE_MARK_OFFLINE); err != nil {
-			return err
+			return errors.Trace(err)
 		}
 	}
-
-	return ErrReceiverTimeout
+	return errors.Trace(ErrReceiverTimeout)
 }
 
 func GetActionSeqList(zkConn zkhelper.Conn, productName string) ([]int, error) {
@@ -238,6 +248,11 @@ func CreateActionRootPath(zkConn zkhelper.Conn, path string) error {
 }
 
 func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, target interface{}, desc string, needConfirm bool) error {
+	// new action with default timeout: 30s
+	return NewActionWithTimeout(zkConn, productName, actionType, target, desc, needConfirm, 30*1000)
+}
+
+func NewActionWithTimeout(zkConn zkhelper.Conn, productName string, actionType ActionType, target interface{}, desc string, needConfirm bool, timeoutInMs int) error {
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
 
 	action := &Action{
@@ -324,7 +339,7 @@ func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, 
 	}
 
 	if needConfirm {
-		if err := WaitForReceiver(zkConn, productName, actionRespPath, proxies); err != nil {
+		if err := WaitForReceiverWithTimeout(zkConn, productName, actionRespPath, proxies, timeoutInMs); err != nil {
 			return errors.Trace(err)
 		}
 	}
