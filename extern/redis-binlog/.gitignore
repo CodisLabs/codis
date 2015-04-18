@@ -1,9 +1,0 @@
-*.rdb
-*.swp
-*.log
-*.tmp
-*.out
-*.pipe
-/bin/*
-/test*
-/temp-*
