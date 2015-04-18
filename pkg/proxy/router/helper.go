@@ -5,6 +5,7 @@ package router
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os/exec"
@@ -326,3 +327,23 @@ type Slot struct {
 }
 
 type OnSuicideFun func() error
+
+func needResponse(receivers []string, self models.ProxyInfo) bool {
+	var pi models.ProxyInfo
+	for _, v := range receivers {
+		err := json.Unmarshal([]byte(v), &pi)
+		if err != nil {
+			//is it old version of dashboard
+			if v == self.Id {
+				return true
+			}
+			return false
+		}
+
+		if pi.Id == self.Id && pi.Pid == self.Pid && pi.StartAt == self.StartAt {
+			return true
+		}
+	}
+
+	return false
+}

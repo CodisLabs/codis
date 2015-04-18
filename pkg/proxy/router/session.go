@@ -49,6 +49,10 @@ type PipelineResponse struct {
 	ctx  *PipelineRequest
 }
 
+func (s *session) String() string {
+	return fmt.Sprintf("conn:%s, CreateAt:%s, Ops:%d, closed:%v", s.Conn.RemoteAddr(), s.CreateAt, s.Ops, s.closed)
+}
+
 func (s *session) writeResp(resp *PipelineResponse) error {
 	buf, err := resp.resp.Bytes()
 	if err != nil {

@@ -46,6 +46,11 @@ Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia
 [English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_en.md)
 
 ## Performance (Benchmark)
+Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz
+
+MemTotal: 16376596 kB
+
+
 Twemproxy:  
   redis-benchmark -p 22121 -c 500 -n 5000000 -P 100 -r 10000 -t get,set
   

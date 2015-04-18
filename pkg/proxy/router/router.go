@@ -91,8 +91,6 @@ func (s *Server) fillSlot(i int, force bool) {
 		return
 	}
 
-	log.Infof("fill slot %d, force %v", i, force)
-
 	s.clearSlot(i)
 
 	slotInfo, groupInfo, err := s.top.GetSlotByIndex(i)
@@ -105,6 +103,8 @@ func (s *Server) fillSlot(i int, force bool) {
 		dst:       group.NewGroup(*groupInfo),
 		groupInfo: groupInfo,
 	}
+
+	log.Infof("fill slot %d, force %v, %+v", i, force, slot.dst)
 
 	s.pools.AddPool(slot.dst.Master())
 
@@ -127,8 +127,7 @@ func (s *Server) createTaskRunner(slot *Slot) error {
 	if _, ok := s.pipeConns[dst]; !ok {
 		tr, err := NewTaskRunner(dst, s.conf.netTimeout)
 		if err != nil {
-			log.Error(dst) //todo: how to handle this error?
-			return err
+			return errors.Errorf("create task runner failed, %v,  %+v, %+v", err, slot.dst, slot.slotInfo)
 		} else {
 			s.pipeConns[dst] = tr
 		}
@@ -138,8 +137,11 @@ func (s *Server) createTaskRunner(slot *Slot) error {
 }
 
 func (s *Server) createTaskRunners() {
-	for _, slotNo := range s.slots {
-		s.createTaskRunner(slotNo)
+	for _, slot := range s.slots {
+		if err := s.createTaskRunner(slot); err != nil {
+			log.Error(err)
+			return
+		}
 	}
 }
 
@@ -240,7 +242,7 @@ func (s *Server) redisTunnel(c *session) error {
 	}
 
 	if isMulOp(opstr) {
-		if len(keys) > 1 { //can send to redis directly
+		if len(keys) > 1 { //can not send to redis directly
 			var result []byte
 			err := s.moper.handleMultiOp(opstr, keys, &result)
 			if err != nil {
@@ -295,12 +297,12 @@ func (s *Server) handleConn(c net.Conn) {
 
 		if err != nil { //todo: fix this ugly error check
 			if GetOriginError(err.(*errors.Err)).Error() != io.EOF.Error() {
-				log.Warningf("close connection %v, %+v, %v", c.RemoteAddr(), client, errors.ErrorStack(err))
+				log.Warningf("close connection %v, %v", client, errors.ErrorStack(err))
 			} else {
-				log.Infof("close connection %v, %+v", c.RemoteAddr(), client)
+				log.Infof("close connection  %v", client)
 			}
 		} else {
-			log.Infof("close connection %v, %+v", c.RemoteAddr(), client)
+			log.Infof("close connection %v", client)
 		}
 
 		s.counter.Add("connections", -1)
@@ -398,13 +400,13 @@ func (s *Server) getActionObject(seq int, target interface{}) {
 	log.Infof("%+v", act)
 }
 
-func (s *Server) checkAndDoTopoChange(seq int) (needResponse bool) {
+func (s *Server) checkAndDoTopoChange(seq int) bool {
 	act, err := s.top.GetActionWithSeq(int64(seq))
 	if err != nil { //todo: error is not "not exist"
 		log.Fatal(errors.ErrorStack(err), "action seq", seq)
 	}
 
-	if !StringsContain(act.Receivers, s.pi.Id) { //no need to response
+	if !needResponse(act.Receivers, s.pi) { //no need to response
 		return false
 	}
 
@@ -661,8 +663,10 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 	}
 	s.pi.Addr = hname + ":" + strings.Split(addr, ":")[1]
 	s.pi.DebugVarAddr = hname + ":" + strings.Split(debugVarAddr, ":")[1]
+	s.pi.Pid = os.Getpid()
+	s.pi.StartAt = time.Now().String()
+
 	log.Infof("proxy_info:%+v", s.pi)
-	//todo:fill more field
 
 	stats.Publish("evtbus", stats.StringFunc(func() string {
 		return strconv.Itoa(len(s.evtbus))

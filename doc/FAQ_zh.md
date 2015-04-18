@@ -51,6 +51,10 @@ Codis 是会把 KEYS 指令屏蔽的, 即使你在使用 raw Redis, 我也不太
 
 CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合TAG使用. 
 
+###有没有 zookeeper 的教程？
+
+[请参考这里](http://www.juvenxu.com/2015/03/20/experiences-on-zookeeper-ops/)
+
 ###Codis的性能如何?
 
 8 core Xeon 2.10GHz, 多线程的 benchmark, 单 proxy 的 ops 是 12w. 而且 proxy 是可以动态水平扩展的, 理论上的性能瓶颈应该是百万级别的.
@@ -116,3 +120,7 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 + redis-port 处理还是很快的，参考：
 	- https://github.com/sripathikrishnan/redis-rdb-tools
 	- https://github.com/cupcake/rdb
+
+#### Dashboard 中 Ops 一直是 0？
+
+检查你的启动 dashboard 进程的机器，看是否可以访问proxy的地址，对应的地址是 proxy 启动参数中的 debug_var_addr 中填写的地址。
