@@ -133,7 +133,7 @@ func main() {
 	cmd := args["<command>"].(string)
 	cmdArgs := args["<args>"].([]string)
 
-	go http.ListenAndServe(globalEnv.DashboardAddr(), nil)
+	go http.ListenAndServe(":10086", nil)
 	err = runCommand(cmd, cmdArgs)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
