@@ -425,7 +425,7 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 		s.getActionObject(seq, serverGroup)
 		s.OnGroupChange(serverGroup.Id)
 	case models.ACTION_TYPE_SERVER_GROUP_REMOVE:
-		//do not care
+	//do not care
 	case models.ACTION_TYPE_MULTI_SLOT_CHANGED:
 		param := &models.SlotMultiSetParam{}
 		s.getActionObject(seq, param)
@@ -657,12 +657,20 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 
 	s.pi.Id = conf.proxyId
 	s.pi.State = models.PROXY_STATE_OFFLINE
+	host := strings.Split(addr, ":")[0]
+	debugHost := strings.Split(debugVarAddr, ":")[0]
 	hname, err := os.Hostname()
 	if err != nil {
 		log.Fatal("get host name failed", err)
 	}
-	s.pi.Addr = hname + ":" + strings.Split(addr, ":")[1]
-	s.pi.DebugVarAddr = hname + ":" + strings.Split(debugVarAddr, ":")[1]
+	if host == "0.0.0.0" || strings.HasPrefix(host, "127.0.0.") {
+		host = hname
+	}
+	if debugHost == "0.0.0.0" || strings.HasPrefix(debugHost, "127.0.0.") {
+		debugHost = hname
+	}
+	s.pi.Addr = host + ":" + strings.Split(addr, ":")[1]
+	s.pi.DebugVarAddr = debugHost + ":" + strings.Split(debugVarAddr, ":")[1]
 	s.pi.Pid = os.Getpid()
 	s.pi.StartAt = time.Now().String()
 
