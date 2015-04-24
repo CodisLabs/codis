@@ -26,7 +26,7 @@ Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name
 安装go[参考这里](https://golang.org/doc/install)，建议使用Go源码安装，然后参考下的流程
 
 ```
-go get github.com/wandoulabs/codis
+go get -d github.com/wandoulabs/codis
 cd $GOPATH/src/github.com/wandoulabs/codis
 ./bootstrap.sh
 make gotest

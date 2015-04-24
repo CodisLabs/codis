@@ -23,7 +23,7 @@ Codis support namespace, configs of products with different name  won’t be con
 Install Go please check [this document](https://github.com/astaxie/build-web-application-with-golang/blob/master/ebook/01.1.md). Then follow these hints:
 
 ```
-go get github.com/wandoulabs/codis
+go get -d github.com/wandoulabs/codis
 cd $GOPATH/src/github.com/wandoulabs/codis
 ./bootstrap.sh
 make gotest

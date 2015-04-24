@@ -28,8 +28,8 @@ Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia
 ## Build and Install
 
 * Install go & ZooKeeper
-* go get github.com/wandoulabs/codis
-* cd codis
+* go get -d github.com/wandoulabs/codis
+* cd $GOPATH/src/github.com/wandoulabs/codis
 * ./bootstrap.sh
 * make gotest
 * cd sample
