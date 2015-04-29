@@ -118,7 +118,7 @@ $ ../bin/codis-config server add 1 localhost:6380 slave
 类似的，再添加group，group的id为2
 ```
 $ ../bin/codis-config server add 2 localhost:6479 master
-$ ../bin/codis-config server add 2 localhost:6479 slave
+$ ../bin/codis-config server add 2 localhost:6480 slave
 ```
 
 **4. 设置 server group 服务的 slot 范围**

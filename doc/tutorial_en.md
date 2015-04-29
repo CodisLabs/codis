@@ -116,7 +116,7 @@ Then the group with id of 2:
 
 ```
 $ ./codis-config server add 2 localhost:6479 master
-$ ./codis-config server add 2 localhost:6479 slave
+$ ./codis-config server add 2 localhost:6480 slave
 ```
 
 4. Config slot range of server group
