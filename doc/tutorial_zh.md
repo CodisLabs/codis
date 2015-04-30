@@ -192,6 +192,8 @@ $ ../bin/codis-config slot rebalance
  * 所有 server group 都必须有 Master
  * 
 
-####如实现codis-server的主从自动切换
+####如何实现codis-server的主从自动切换
 
-codis-ha是一个通过codis开放的api实现自动切换主从的例子。[具体用法](https://github.com/ngaut/codis-ha)
+需要注意，codis将其中一个slave升级为master时，该组内其他slave实例不会自动改变状态，这些slave仍将试图从旧的master上同步数据，因而会导致数据不一致。但因为redis的slave of命令切换master实例时会丢弃slave上的全部数据，从新master完整同步，会消耗master资源。因此建议在知情的情况下手动操作。使用 `codis-config server add <group_id> <redis_addr> slave` 命令刷新这些节点的状态即可。
+
+codis-ha是一个通过codis开放的api实现自动切换主从的例子。[具体用法](https://github.com/ngaut/codis-ha) 该工具会在检测到master挂掉的时候将其下线并选择其中一个slave变成master继续提供服务，不会自动刷新其余slave的状态。
