@@ -172,7 +172,7 @@ Migration progress is reliable and transparent, data won’t vanish and top laye
 
 Notice that migration task could be paused, but if there is a paused task, it must be fulfilled before another start(means only one migration task is allowed at the same time). 
 
-## Auto Rebalance
+### Auto Rebalance
 
 Codis support dynamic slots migration based on RAM usage to balance data distribution.
  
@@ -184,3 +184,16 @@ Requirements:
  * all codis-server must set maxmemory.
  * All slots’ status should be `online`, namely no transportation task is running. 
  * All server groups must have a master. 
+
+
+##HA
+
+Codis's proxy is stateless so you can run more than one proxies to get high availability and horizontal scalability.
+
+For Java users, you can use a modified jedis, [Jodis](https://github.com/wandoulabs/codis/tree/master/extern/jodis). It will watch the ZooKeeper to get the real-time available proxies, then query via them using a round robin policy to balance load and detect proxy online and offline automatically.
+
+For redis instances, the designers of codis think when a master down, system administrator should know about it and promote a slave to master by hand, not automatically. Because a crashed master may result in the data in this group not consistent.
+But we also offer a solution: [codis-ha](https://github.com/ngaut/codis-ha)。It is a tool using codis rest api to promote a slave to master when it find the master down.
+
+When codis promote one slave instantce to master, other slaves will not change there status. These slaves will still try to sync from the old crashed master, so the data in this group is not consistent.
+Because the `slave of` command in redis will let a slave drop its data and sync from the new master, it will make the master a little slow on handling queries.So you should change the status by hand after your acknowledgement by using `codis-config server add <group_id> <redis_addr> slave` to refresh the status of remain slaves. Codis-ha won't do this.

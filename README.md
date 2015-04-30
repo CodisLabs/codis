@@ -66,9 +66,10 @@ Result:
 [简体中文](https://github.com/wandoulabs/codis/blob/master/doc/benchmark_zh.md)  
 English (WIP)
 
-## For Java users who want to support HA
+## High Availability
 
-[Jodis \(HA Codis Connection Pool based on Jedis\)] (https://github.com/wandoulabs/codis/tree/master/extern/jodis)
+[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#ha) 
+[English](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md#ha) 
 
 ## Architecture
 

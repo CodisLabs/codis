@@ -1,4 +1,4 @@
-## Codis 使用文档
+# Codis 使用文档
 
 Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接到 Codis Proxy 和连接原生的 Redis Server 没有明显的区别 (不支持的命令列表), 上层应用可以像使用单机的 Redis 一样使用, Codis 底层会处理请求的转发, 不停机的数据迁移等工作, 所有后边的一切事情, 对于前面的客户端来说是透明的, 可以简单的认为后边连接的是一个内存无限大的 Redis 服务.
 
@@ -20,7 +20,7 @@ Codis 依赖 ZooKeeper 来存放数据路由表和 codis-proxy 节点的元信�
 Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name 的产品, 各项配置都不会冲突.
 
 
-###Build codis-proxy & codis-config
+##Build codis-proxy & codis-config
 ------------------
 
 安装go[参考这里](https://golang.org/doc/install)，建议使用Go源码安装，然后参考下的流程
@@ -67,10 +67,10 @@ options:
    --http-addr=<debug_http_server_addr>   proxy 的调试信息启动的http server, 可以访问 http://debug_http_server_addr/debug/vars
 ```
 
-###部署
+##部署
 ------------------------
 
-####配置文件
+###配置文件
 
 codis-config 和 codis-proxy 在不加 -c 参数的时候, 默认会读取当前目录下的 config.ini 文件
 
@@ -85,7 +85,7 @@ dashboard_addr=localhost:18087   <- dashboard 服务的地址，CLI 的所有命
 coordinator=zookeeper  <- 如果用etcd，则将zookeeper替换为etcd
 ```
 
-####流程
+###流程
 
 **0. 启动 dashboard**, 执行 `../bin/codis-config dashboard`, 该命令会启动 dashboard
 
@@ -158,7 +158,7 @@ $ ../bin/codis-config slot range-set 512 1023 2 online
  现在可以在浏览器里面完成各种操作了， 玩得开心
   
 
-###数据迁移
+##数据迁移
 -----------------------------
 
 安全和透明的数据迁移是 Codis 提供的一个重要的服务, 也是 Codis 区别于 Twemproxy 等静态的分布式 Redis 解决方案的地方.
@@ -178,7 +178,7 @@ $ ../bin/codis-config slot migrate 0 511 2 --delay=10
 注意, 迁移的过程中打断是可以的, 但是如果中断了一个正在迁移某个slot的任务, 下次需要先迁移掉正处于迁移状态的 slot, 否则无法继续 (即迁移程序会检查同一时刻只能有一个 slot 处于迁移状态).
 
 
-####Auto Rebalance 
+###Auto Rebalance 
 
 Codis 支持动态的根据实例内存, 自动对slot进行迁移, 以均衡数据分布.
 
@@ -190,10 +190,14 @@ $ ../bin/codis-config slot rebalance
  * 所有的codis-server都必须设置了maxmemory参数
  * 所有的 slots 都应该处于 online 状态, 即没有迁移任务正在执行
  * 所有 server group 都必须有 Master
- * 
 
-####如何实现codis-server的主从自动切换
+##HA
 
-需要注意，codis将其中一个slave升级为master时，该组内其他slave实例不会自动改变状态，这些slave仍将试图从旧的master上同步数据，因而会导致数据不一致。但因为redis的slave of命令切换master实例时会丢弃slave上的全部数据，从新master完整同步，会消耗master资源。因此建议在知情的情况下手动操作。使用 `codis-config server add <group_id> <redis_addr> slave` 命令刷新这些节点的状态即可。
+因为codis的proxy是无状态的，可以比较容易的搭多个proxy来实现高可用性并横向扩容。
 
-codis-ha是一个通过codis开放的api实现自动切换主从的例子。[具体用法](https://github.com/ngaut/codis-ha) 该工具会在检测到master挂掉的时候将其下线并选择其中一个slave变成master继续提供服务，不会自动刷新其余slave的状态。
+对Java用户来说，可以使用经过我们修改过的Jedis，[Jodis](https://github.com/wandoulabs/codis/tree/master/extern/jodis) ，来实现proxy层的HA。它会通过监控zk上的注册信息来实时获得当前可用的proxy列表，既可以保证高可用性，也可以通过轮流请求所有的proxy实现负载均衡。
+
+对下层的redis实例来说，codis的设计者认为，当一个group的master挂掉的时候，应该让管理员清楚，并手动的操作，因为这涉及到了数据一致性等问题。因此codis不会自动的将某个slave升级成master。
+不过我们也提供一种解决方案：[codis-ha](https://github.com/ngaut/codis-ha)。这是一个通过codis开放的api实现自动切换主从的工具。该工具会在检测到master挂掉的时候将其下线并选择其中一个slave提升为master继续提供服务。
+
+需要注意，codis将其中一个slave升级为master时，该组内其他slave实例是不会自动改变状态的，这些slave仍将试图从旧的master上同步数据，因而会导致组内新的master和其他slave之间的数据不一致。因为redis的slave of命令切换master时会丢弃slave上的全部数据，从新master完整同步，会消耗master资源。因此建议在知情的情况下手动操作。使用 `codis-config server add <group_id> <redis_addr> slave` 命令刷新这些节点的状态即可。codis-ha不会自动刷新其他slave的状态。
