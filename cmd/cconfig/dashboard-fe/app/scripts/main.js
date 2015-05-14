@@ -92,10 +92,13 @@ function($scope, $http, ProxyStatusFactory) {
     }
 
 }]);
-
 codisControllers.controller('codisOverviewCtl', ['$scope', '$http', '$timeout',
 function($scope, $http, $timeout) {
-
+    Highcharts.setOptions({
+        global: {
+            useUTC: false
+        }
+    });
     var refreshChart = function(data) {
       var seriesArray = $scope.chartOps.series[0].data;
 
@@ -137,16 +140,10 @@ function($scope, $http, $timeout) {
         });
     }
     $scope.refresh();
-
     $scope.chartOps = {
-        options: {
-            global: {
-                useUTC: false,
-            },
-            chart: {
-                useUTC: false,
-                type: 'spline',
-            }
+        chart: {
+            useUTC: false,
+            type: 'spline'
         },
         series: [{
             name: 'OP/s',
@@ -156,7 +153,7 @@ function($scope, $http, $timeout) {
             text: 'OP/s'
         },
         xAxis: {
-            type : "datetime",
+            type : 'datetime',
             title: {
                 text: 'Time'
             },
@@ -165,7 +162,6 @@ function($scope, $http, $timeout) {
             title: {
                 text: 'value'
             },
-
         },
     };
 
