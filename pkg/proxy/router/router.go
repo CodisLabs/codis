@@ -543,8 +543,11 @@ func (s *Server) handleTopoEvent() {
 
 			for e := s.bufferedReq.Front(); e != nil; {
 				next := e.Next()
-				s.dispatch(e.Value.(*PipelineRequest))
-				s.bufferedReq.Remove(e)
+				blockedReq := e.Value.(*PipelineRequest)
+				if s.slots[blockedReq.slotIdx].slotInfo.State.Status != models.SLOT_STATUS_PRE_MIGRATE {
+					s.dispatch(r)
+					s.bufferedReq.Remove(e)
+				}
 				e = next
 			}
 
