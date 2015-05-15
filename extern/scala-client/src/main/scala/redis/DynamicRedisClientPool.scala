@@ -3,8 +3,8 @@ package redis
 import java.net.InetSocketAddress
 
 import akka.actor.{ActorRef, ActorSystem, Props}
-import codis.CodisLogSource
-import CodisLogSource._
+import codis.CodisLogSource._
+import redis.DynamicRedisClientPool._
 import redis.actors.RedisClientActor
 
 import scala.concurrent.ExecutionContext
@@ -28,9 +28,9 @@ import scala.concurrent.ExecutionContext
  * @author Tianyi HE <tess3ract@wandoujia.com>
  */
 case class DynamicRedisClientPool(actorsEachProxy: Int, var proxies: Set[String])
-                                 (implicit system: ActorSystem) extends RoundRobinPoolRequest with RedisCommands {
-
-  import DynamicRedisClientPool._
+                                 (implicit system: ActorSystem,
+                                  clientActorSupplier: ClientSupplier = clientActor)
+  extends RoundRobinPoolRequest with RedisCommands {
 
   // groups of connections, each group represent a set of connections to identical redis instance
   // the size of each group is specified by [actorsEachProxy]
@@ -39,9 +39,9 @@ case class DynamicRedisClientPool(actorsEachProxy: Int, var proxies: Set[String]
   val log              = akka.event.Logging(system, this)
   val executionContext = system.dispatcher
 
-  var redisServers       : Set[RedisServer] = Set()
+  var redisServers       : Set[RedisServer] = Set.empty
   var redisConnectionPool: Seq[ActorRef]    = Nil
-  var connectionGroups   : ConnectionGroups = Map()
+  var connectionGroups   : ConnectionGroups = Map.empty
 
   // bootstrap
   redisServers = proxies.map(addr2server)
@@ -56,11 +56,7 @@ case class DynamicRedisClientPool(actorsEachProxy: Int, var proxies: Set[String]
    */
   def connectionGroup(server: RedisServer): Seq[ActorRef] = {
     log.info("Creating connection group for {}", server)
-    (0 until actorsEachProxy)
-      .map(_ => system.actorOf(Props(classOf[RedisClientActor],
-                                     new InetSocketAddress(server.host, server.port),
-                                     getConnectOperations(server)).withDispatcher(Redis.dispatcher),
-                               "codis-" + Redis.tempName()))
+    (0 until actorsEachProxy).map(_ => clientActorSupplier(system, server))
   }
 
   /**
@@ -81,8 +77,9 @@ case class DynamicRedisClientPool(actorsEachProxy: Int, var proxies: Set[String]
     log.info("Added: {}", added)
     log.info("Removed: {}", removed.keys)
     connectionGroups = retained ++ added.map(server => (server -> connectionGroup(server))).toMap
-    // flatten connection groups
-    redisConnectionPool = connectionGroups.values.flatten.toSeq
+    // flatten connection groups, make sure it is interleaved (i.e. 0-1-2-0-1-2, instead of 0-0-1-1-2-2)
+    val matrix = connectionGroups.values.transpose
+    redisConnectionPool = matrix.flatten.toSeq
     // kill removed connections, this may cause ongoing async redis operations fail
     removed.values.flatten.foreach(system.stop)
   }
@@ -110,15 +107,6 @@ case class DynamicRedisClientPool(actorsEachProxy: Int, var proxies: Set[String]
     currentConnectionPool(next.getAndIncrement % currentConnectionPool.size)
   }
 
-  // method adopted from redis.RedisClientPool
-  def getConnectOperations(server: RedisServer): () => Seq[Operation[_, _]] = () => {
-    val self = this
-    val redis = new BufferedRequest with RedisCommands {
-      implicit val executionContext: ExecutionContext = self.executionContext
-    }
-    redis.operations.result()
-  }
-
   /**
    * Disconnect from the server (stop the actor)
    */
@@ -128,9 +116,27 @@ case class DynamicRedisClientPool(actorsEachProxy: Int, var proxies: Set[String]
 
 object DynamicRedisClientPool {
 
+  type ConnectOperations = () => Seq[Operation[_, _]]
+  type ClientSupplier = (ActorSystem, RedisServer) => ActorRef
+
   implicit def addr2server(addr: String): RedisServer = {
     val components = addr.split(":")
     RedisServer(components(0), components(1).toInt)
   }
+
+  def clientActor(system: ActorSystem, server: RedisServer) =
+    system.actorOf(Props(classOf[RedisClientActor],
+                         new InetSocketAddress(server.host, server.port),
+                         getConnectOperations(server)(system)).withDispatcher(Redis.dispatcher),
+                   "codis-" + Redis.tempName())
+
+  // method adopted from redis.RedisClientPool
+  def getConnectOperations(server: RedisServer)(implicit system: ActorSystem): ConnectOperations =
+    () => {
+      val redis = new BufferedRequest with RedisCommands {
+        implicit val executionContext: ExecutionContext = system.dispatcher
+      }
+      redis.operations.result()
+    }
 
 }

@@ -10,10 +10,12 @@ object CodisScalaClientBuild extends Build {
     publishMavenStyle := true,
     publishTo := {
       val nexus = "https://oss.sonatype.org/"
-      if (isSnapshot.value)
+      if (isSnapshot.value) {
         Some("snapshots" at nexus + "content/repositories/snapshots")
-      else
+      }
+      else {
         Some("releases" at nexus + "service/local/staging/deploy/maven2")
+      }
     },
     publishArtifact in Test := false,
     credentials += Credentials(Path.userHome / ".ivy2" / ".credentials"))
@@ -26,6 +28,9 @@ object CodisScalaClientBuild extends Build {
 }
 
 object Dependencies {
+
+  val AkkaVersion = "2.3.6"
+
   val basic = Seq(
     "io.spray" %% "spray-json" % "1.3.1"
   )
@@ -38,5 +43,10 @@ object Dependencies {
     "com.etaty.rediscala" %% "rediscala" % "1.4.0"
   )
 
-  val deps = basic ++ zk ++ redis
+  val testKit = Seq(
+    "com.typesafe.akka" %% "akka-testkit" % AkkaVersion % Test,
+    "org.scalatest" %% "scalatest" % "2.2.4" % Test
+  )
+  
+  val deps = basic ++ zk ++ redis ++ testKit
 }

@@ -1,6 +1,7 @@
 package codis
 
 import akka.actor.ActorSystem
+import codis.CodisClient._
 import codis.CodisLogSource._
 import org.apache.curator.framework.imps.CuratorFrameworkState
 import org.apache.curator.framework.recipes.cache.PathChildrenCache.StartMode
@@ -30,7 +31,7 @@ import scala.concurrent.{ExecutionContext, Future}
  * that number. Note that actor are dispatched sequentially, thus using multiple actors may increase
  * performance.
  *
- * @author Tianyi HE
+ * @author Tianyi HE <tess3ract@wandoujia.com>
  */
 class CodisClient(connectString: String,
                   zkPath: String,
@@ -46,9 +47,9 @@ class CodisClient(connectString: String,
     .sessionTimeoutMs(sessionTimeout.toMillis.toInt)
     .connectionTimeoutMs(connectTimeout.toMillis.toInt)
     .retryPolicy(
-      new BoundedExponentialBackoffRetry(CodisClient.CuratorRetryBaseSleep.toMillis.toInt,
-                                         CodisClient.CuratorRetryMaxSleep.toMillis.toInt,
-                                         CodisClient.CuratorMaxRetries))
+      new BoundedExponentialBackoffRetry(CuratorRetryBaseSleep.toMillis.toInt,
+                                         CuratorRetryMaxSleep.toMillis.toInt,
+                                         CuratorMaxRetries))
     .build()
 
   lazy val watcher = new PathChildrenCache(curatorClient, zkPath, true)
@@ -84,10 +85,7 @@ class CodisClient(connectString: String,
    */
   def reloadProxies(): Set[String] = {
     val children = collectionAsScalaIterable(watcher.getCurrentData)
-    val proxies = children
-      .map(child => new String(child.getData).parseJson.asJsObject)
-      .filter(_.fields(CodisClient.ProxyStateKey).convertTo[String] == CodisClient.ProxyStateOnline)
-      .map(_.fields(CodisClient.ProxyAddressKey).convertTo[String])
+    val proxies = readProxies(children.map(x => new String(x.getData)))
     log.info("Loaded proxies: {}", proxies)
     proxies.toSet
   }
@@ -119,6 +117,13 @@ object CodisClient {
   val ResetTypes = Set(PathChildrenCacheEvent.Type.CHILD_ADDED,
                        PathChildrenCacheEvent.Type.CHILD_UPDATED,
                        PathChildrenCacheEvent.Type.CHILD_REMOVED)
+
+  def readProxies(items: Iterable[String]) =
+    items
+      .map(_.parseJson.asJsObject)
+      .filter(_.fields(CodisClient.ProxyStateKey).convertTo[String] == CodisClient.ProxyStateOnline)
+      .map(_.fields(CodisClient.ProxyAddressKey).convertTo[String])
+
 }
 
 class PoolingConfig(val actorsEachProxy: Int)
