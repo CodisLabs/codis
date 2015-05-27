@@ -3,9 +3,13 @@
 *.swp
 *.out
 *.dump
+
 martini_log
+_workspace
+.htaccess
+
 /bin
 /pkg/utils/version.go
 /deploy.tar
-_workspace
-.htaccess
+
+makefile
