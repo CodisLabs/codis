@@ -1,6 +1,7 @@
 *.log
 *.dump
 *.rdb
+*.swp
 nohup.out
 martini_log
 /bin
