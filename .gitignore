@@ -1,10 +1,11 @@
 *.log
-*.dump
 *.rdb
 *.swp
-nohup.out
+*.out
+*.dump
 martini_log
 /bin
+/pkg/utils/version.go
 /deploy.tar
 _workspace
 .htaccess
