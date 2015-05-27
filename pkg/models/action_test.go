@@ -11,12 +11,11 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/ngaut/logging"
-
-	"github.com/juju/errors"
 	"github.com/ngaut/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/assert"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var (
@@ -33,7 +32,7 @@ func waitForProxyMarkOffline(zkConn zkhelper.Conn, proxyName string) {
 }
 
 func TestProxyOfflineInWaitActionReceiver(t *testing.T) {
-	log.Info("test proxy offline when waiting action response")
+	log.Infof("test proxy offline when waiting action response")
 	fakeZkConn := zkhelper.NewConn()
 
 	for i := 1; i <= 4; i++ {
@@ -45,9 +44,8 @@ func TestProxyOfflineInWaitActionReceiver(t *testing.T) {
 	}
 
 	lst, _ := ProxyList(fakeZkConn, productName, nil)
-	if len(lst) != 4 {
-		t.Error("create proxy info error")
-	}
+	assert.Must(len(lst) == 4)
+
 	go func() {
 		time.Sleep(500 * time.Millisecond)
 		actionPath := path.Join(GetActionResponsePath(productName), fakeZkConn.Seq2Str(1))
@@ -57,69 +55,54 @@ func TestProxyOfflineInWaitActionReceiver(t *testing.T) {
 	}()
 
 	err := NewActionWithTimeout(fakeZkConn, productName, ACTION_TYPE_SLOT_CHANGED, nil, "desc", true, 3*1000)
-	if err != nil && err.Error() != ErrReceiverTimeout.Error() {
-		t.Error(errors.ErrorStack(err))
+	if err != nil {
+		assert.Must(err.Error() == ErrReceiverTimeout.Error())
 	}
 
 	for i := 1; i <= 3; i++ {
-		if info, _ := GetProxyInfo(fakeZkConn, productName, strconv.Itoa(i)); info.State != PROXY_STATE_OFFLINE {
-			t.Error("shutdown offline proxy error")
-		}
+		info, _ := GetProxyInfo(fakeZkConn, productName, strconv.Itoa(i))
+		assert.Must(info.State == PROXY_STATE_OFFLINE)
 	}
 }
 
 func TestNewAction(t *testing.T) {
 	fakeZkConn := zkhelper.NewConn()
 	err := NewAction(fakeZkConn, productName, ACTION_TYPE_SLOT_CHANGED, nil, "desc", false)
-	if err != nil {
-		t.Error(errors.ErrorStack(err))
-	}
+	assert.MustNoError(err)
+
 	prefix := GetWatchActionPath(productName)
-	if exist, _, err := fakeZkConn.Exists(prefix); !exist {
-		t.Error(errors.ErrorStack(err))
-	}
+	exist, _, err := fakeZkConn.Exists(prefix)
+	assert.MustNoError(err)
+	assert.Must(exist)
 
 	//test if response node exists
 	d, _, err := fakeZkConn.Get(prefix + "/0000000001")
-	if err != nil {
-		t.Error(errors.ErrorStack(err))
-	}
+	assert.MustNoError(err)
 
 	//test get action data
 	d, _, err = fakeZkConn.Get(GetActionResponsePath(productName) + "/0000000001")
-	if err != nil {
-		t.Error(errors.ErrorStack(err))
-	}
+	assert.MustNoError(err)
 
 	var action Action
-	json.Unmarshal(d, &action)
-	if action.Desc != "desc" || action.Type != ACTION_TYPE_SLOT_CHANGED {
-		t.Error("create action error")
-	}
+	err = json.Unmarshal(d, &action)
+	assert.MustNoError(err)
+	assert.Must(action.Desc == "desc")
+	assert.Must(action.Type == ACTION_TYPE_SLOT_CHANGED)
 }
 
 func TestForceRemoveLock(t *testing.T) {
 	fakeZkConn := zkhelper.NewConn()
 	zkLock := utils.GetZkLock(fakeZkConn, productName)
-	if zkLock == nil {
-		t.Error("create lock error")
-	}
+	assert.Must(zkLock != nil)
 
 	zkLock.Lock("force remove lock")
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/LOCK", productName)
 	children, _, err := fakeZkConn.Children(zkPath)
-	if err != nil {
-		t.Error(err)
-	}
-	if len(children) == 0 {
-		t.Error("create lock error")
-	}
+	assert.MustNoError(err)
+	assert.Must(len(children) != 0)
+
 	ForceRemoveLock(fakeZkConn, productName)
 	children, _, err = fakeZkConn.Children(zkPath)
-	if err != nil {
-		t.Error(err)
-	}
-	if len(children) != 0 {
-		t.Error("remove lock error")
-	}
+	assert.MustNoError(err)
+	assert.Must(len(children) == 0)
 }
