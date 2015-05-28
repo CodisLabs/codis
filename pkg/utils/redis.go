@@ -100,7 +100,7 @@ func GetRedisConfig(addr string, configName string) (string, error) {
 
 func SlaveOf(slave, master string) error {
 	if master == slave {
-		return errors.New("can not slave of itself")
+		return errors.Errorf("can not slave of itself")
 	}
 
 	c, err := redis.DialTimeout("tcp", slave, defaultTimeout, defaultTimeout, defaultTimeout)

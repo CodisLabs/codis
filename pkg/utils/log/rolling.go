@@ -25,7 +25,7 @@ type rollingFile struct {
 	fragSize int64
 }
 
-var ErrClosedRollingFile = errors.Static("rolling file is closed")
+var ErrClosedRollingFile = errors.New("rolling file is closed")
 
 func (r *rollingFile) roll() error {
 	if r.file != nil {

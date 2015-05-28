@@ -9,39 +9,28 @@ import (
 
 var TraceEnabled = true
 
-type Error struct {
+type TracedError struct {
 	Stack trace.Stack
 	Cause error
 }
 
-func (e *Error) Error() string {
+func (e *TracedError) Error() string {
 	return e.Cause.Error()
 }
 
-func Static(s string) error {
-	return errors.New(s)
-}
-
 func New(s string) error {
-	err := errors.New(s)
-	if !TraceEnabled {
-		return err
-	}
-	return &Error{
-		Stack: trace.TraceN(1, 32),
-		Cause: err,
-	}
+	return errors.New(s)
 }
 
 func Trace(err error) error {
 	if err == nil || !TraceEnabled {
 		return err
 	}
-	_, ok := err.(*Error)
+	_, ok := err.(*TracedError)
 	if ok {
 		return err
 	}
-	return &Error{
+	return &TracedError{
 		Stack: trace.TraceN(1, 32),
 		Cause: err,
 	}
@@ -52,7 +41,7 @@ func Errorf(format string, v ...interface{}) error {
 	if !TraceEnabled {
 		return err
 	}
-	return &Error{
+	return &TracedError{
 		Stack: trace.TraceN(1, 32),
 		Cause: err,
 	}
@@ -62,7 +51,7 @@ func Stack(err error) trace.Stack {
 	if err == nil {
 		return nil
 	}
-	e, ok := err.(*Error)
+	e, ok := err.(*TracedError)
 	if ok {
 		return e.Stack
 	}
@@ -71,7 +60,7 @@ func Stack(err error) trace.Stack {
 
 func Cause(err error) error {
 	for err != nil {
-		e, ok := err.(*Error)
+		e, ok := err.(*TracedError)
 		if ok {
 			err = e.Cause
 		} else {
