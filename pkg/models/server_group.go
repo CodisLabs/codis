@@ -9,12 +9,11 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/utils"
-
-	"github.com/juju/errors"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 const (
@@ -89,7 +88,7 @@ func GetGroup(zkConn zkhelper.Conn, productName string, groupId int) (*ServerGro
 		return nil, errors.Trace(err)
 	}
 	if !exists {
-		return nil, errors.NotFoundf("group %d", groupId)
+		return nil, errors.Errorf("group %d is not found", groupId)
 	}
 
 	group := &ServerGroup{
@@ -153,7 +152,7 @@ func (self *ServerGroup) Remove(zkConn zkhelper.Conn) error {
 
 	for _, slot := range slots {
 		if slot.GroupId == self.Id {
-			return errors.AlreadyExistsf("group %d is using by slot %d", slot.GroupId, slot.Id)
+			return errors.Errorf("group %d is using by slot %d", slot.GroupId, slot.Id)
 		}
 	}
 
@@ -180,7 +179,7 @@ func (self *ServerGroup) RemoveServer(zkConn zkhelper.Conn, addr string) error {
 	}
 	log.Info(s)
 	if s.Type == SERVER_TYPE_MASTER {
-		return errors.New("cannot remove master, use promote first")
+		return errors.Errorf("cannot remove master, use promote first")
 	}
 
 	err = zkConn.Delete(zkPath, -1)
@@ -213,7 +212,7 @@ func (self *ServerGroup) Promote(conn zkhelper.Conn, addr string) error {
 	}
 
 	if !exists {
-		return errors.NotFoundf("no such addr %s", addr)
+		return errors.Errorf("no such addr %s", addr)
 	}
 
 	err := utils.SlaveNoOne(s.Addr)
@@ -244,7 +243,7 @@ func (self *ServerGroup) Promote(conn zkhelper.Conn, addr string) error {
 
 func (self *ServerGroup) Create(zkConn zkhelper.Conn) error {
 	if self.Id < 0 {
-		return errors.NotSupportedf("invalid server group id %d", self.Id)
+		return errors.Errorf("invalid server group id %d", self.Id)
 	}
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d", self.ProductName, self.Id)
 	_, err := zkhelper.CreateOrUpdate(zkConn, zkPath, "", 0, zkhelper.DefaultDirACLs(), true)

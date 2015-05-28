@@ -10,11 +10,11 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/ngaut/go-zookeeper/zk"
 	"github.com/ngaut/zkhelper"
 
-	"github.com/juju/errors"
-	"github.com/ngaut/go-zookeeper/zk"
-	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 const (
@@ -197,7 +197,7 @@ func SetProxyStatus(zkConn zkhelper.Conn, productName string, proxyName string, 
 				return errors.Trace(err)
 			}
 			if info.State == PROXY_STATE_OFFLINE {
-				log.Info("proxy:", proxyName, "offline success!")
+				log.Infof("proxy: %s offline success!", proxyName)
 				return nil
 			}
 		}

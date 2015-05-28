@@ -279,7 +279,7 @@ func NewActionWithTimeout(zkConn zkhelper.Conn, productName string, actionType A
 				errMsg.WriteString(" ")
 				errMsg.WriteString(k)
 			}
-			return errors.New(errMsg.String())
+			return errors.Errorf("%s", errMsg)
 		}
 	}
 	for _, p := range proxies {

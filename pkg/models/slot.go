@@ -10,7 +10,7 @@ import (
 
 	"github.com/ngaut/zkhelper"
 
-	"github.com/juju/errors"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
 type SlotStatus string
@@ -83,14 +83,13 @@ func GetSlot(zkConn zkhelper.Conn, productName string, id int) (*Slot, error) {
 	zkPath := GetSlotPath(productName, id)
 	data, _, err := zkConn.Get(zkPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 
 	var slot Slot
 	if err := json.Unmarshal(data, &slot); err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
-
 	return &slot, nil
 }
 
@@ -98,7 +97,7 @@ func GetMigratingSlots(conn zkhelper.Conn, productName string) ([]*Slot, error) 
 	migrateSlots := make([]*Slot, 0)
 	slots, err := Slots(conn, productName)
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 
 	for _, slot := range slots {
@@ -106,7 +105,6 @@ func GetMigratingSlots(conn zkhelper.Conn, productName string) ([]*Slot, error) 
 			migrateSlots = append(migrateSlots, slot)
 		}
 	}
-
 	return migrateSlots, nil
 }
 
@@ -129,7 +127,6 @@ func Slots(zkConn zkhelper.Conn, productName string) ([]*Slot, error) {
 		}
 		slots = append(slots, slot)
 	}
-
 	return slots, nil
 }
 
@@ -150,7 +147,7 @@ func NoGroupSlots(zkConn zkhelper.Conn, productName string) ([]*Slot, error) {
 
 func SetSlots(zkConn zkhelper.Conn, productName string, slots []*Slot, groupId int, status SlotStatus) error {
 	if status != SLOT_STATUS_OFFLINE && status != SLOT_STATUS_ONLINE {
-		return errors.New("invalid status")
+		return errors.Errorf("invalid status")
 	}
 
 	ok, err := GroupExists(zkConn, productName, groupId)
@@ -158,7 +155,7 @@ func SetSlots(zkConn zkhelper.Conn, productName string, slots []*Slot, groupId i
 		return errors.Trace(err)
 	}
 	if !ok {
-		return errors.NotFoundf("group %d", groupId)
+		return errors.Errorf("group %d is not found", groupId)
 	}
 
 	for _, s := range slots {
@@ -190,7 +187,7 @@ func SetSlots(zkConn zkhelper.Conn, productName string, slots []*Slot, groupId i
 
 func SetSlotRange(zkConn zkhelper.Conn, productName string, fromSlot, toSlot, groupId int, status SlotStatus) error {
 	if status != SLOT_STATUS_OFFLINE && status != SLOT_STATUS_ONLINE {
-		return errors.New("invalid status")
+		return errors.Errorf("invalid status")
 	}
 
 	ok, err := GroupExists(zkConn, productName, groupId)
@@ -198,7 +195,7 @@ func SetSlotRange(zkConn zkhelper.Conn, productName string, fromSlot, toSlot, gr
 		return errors.Trace(err)
 	}
 	if !ok {
-		return errors.NotFoundf("group %d", groupId)
+		return errors.Errorf("group %d is not found", groupId)
 	}
 
 	for i := fromSlot; i <= toSlot; i++ {
