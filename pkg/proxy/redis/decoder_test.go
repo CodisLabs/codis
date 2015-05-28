@@ -42,9 +42,8 @@ func TestDecodeInvalidRequests(t *testing.T) {
 func TestDecodeSimpleRequest1(t *testing.T) {
 	resp, err := DecodeFromBytes([]byte("\r\n"))
 	assert.MustNoError(err)
-	x, ok := resp.(*Array)
-	assert.Must(ok)
-	assert.Must(len(x.Value) == 0)
+	assert.Must(resp.IsArray())
+	assert.Must(len(resp.Array) == 0)
 }
 
 func TestDecodeSimpleRequest2(t *testing.T) {
@@ -58,13 +57,12 @@ func TestDecodeSimpleRequest2(t *testing.T) {
 	for _, s := range test {
 		resp, err := DecodeFromBytes([]byte(s))
 		assert.MustNoError(err)
-		x, ok := resp.(*Array)
-		assert.Must(ok)
-		assert.Must(len(x.Value) == 2)
-		s1, ok := x.Value[0].(*BulkBytes)
-		assert.Must(ok && bytes.Equal(s1.Value, []byte("hello")))
-		s2, ok := x.Value[1].(*BulkBytes)
-		assert.Must(ok && bytes.Equal(s2.Value, []byte("world")))
+		assert.Must(resp.IsArray())
+		assert.Must(len(resp.Array) == 2)
+		s1 := resp.Array[0]
+		assert.Must(bytes.Equal(s1.Value, []byte("hello")))
+		s2 := resp.Array[1]
+		assert.Must(bytes.Equal(s2.Value, []byte("world")))
 	}
 }
 
@@ -80,14 +78,10 @@ func TestDecodeBulkBytes(t *testing.T) {
 	test := "*2\r\n$4\r\nLLEN\r\n$6\r\nmylist\r\n"
 	resp, err := DecodeFromBytes([]byte(test))
 	assert.MustNoError(err)
-	x, ok := resp.(*Array)
-	assert.Must(ok)
-	assert.Must(len(x.Value) == 2)
-	s1, ok := x.Value[0].(*BulkBytes)
-	assert.Must(ok)
+	assert.Must(len(resp.Array) == 2)
+	s1 := resp.Array[0]
 	assert.Must(bytes.Equal(s1.Value, []byte("LLEN")))
-	s2, ok := x.Value[1].(*BulkBytes)
-	assert.Must(ok)
+	s2 := resp.Array[1]
 	assert.Must(bytes.Equal(s2.Value, []byte("mylist")))
 }
 

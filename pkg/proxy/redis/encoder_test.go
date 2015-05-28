@@ -20,26 +20,25 @@ func TestItos(t *testing.T) {
 }
 
 func TestEncodeString(t *testing.T) {
-	resp := &String{"OK"}
+	resp := NewString([]byte("OK"))
 	testEncodeAndCheck(t, resp, []byte("+OK\r\n"))
 }
 
 func TestEncodeError(t *testing.T) {
-	resp := &Error{"Error"}
+	resp := NewError([]byte("Error"))
 	testEncodeAndCheck(t, resp, []byte("-Error\r\n"))
 }
 
 func TestEncodeInt(t *testing.T) {
-	resp := &Int{}
 	for _, v := range []int{-1, 0, 1024 * 1024} {
-		resp.Value = int64(v)
-		testEncodeAndCheck(t, resp, []byte(":"+strconv.FormatInt(int64(v), 10)+"\r\n"))
+		s := strconv.Itoa(v)
+		resp := NewInt([]byte(s))
+		testEncodeAndCheck(t, resp, []byte(":"+s+"\r\n"))
 	}
 }
 
 func TestEncodeBulkBytes(t *testing.T) {
-	resp := &BulkBytes{}
-	resp.Value = nil
+	resp := NewBulkBytes(nil)
 	testEncodeAndCheck(t, resp, []byte("$-1\r\n"))
 	resp.Value = []byte{}
 	testEncodeAndCheck(t, resp, []byte("$0\r\n\r\n"))
@@ -48,20 +47,19 @@ func TestEncodeBulkBytes(t *testing.T) {
 }
 
 func TestEncodeArray(t *testing.T) {
-	resp := &Array{}
-	resp.Value = nil
+	resp := NewArray(nil)
 	testEncodeAndCheck(t, resp, []byte("*-1\r\n"))
-	resp.Value = []Resp{}
+	resp.Array = []*Resp{}
 	testEncodeAndCheck(t, resp, []byte("*0\r\n"))
-	resp.Append(&Int{0})
+	resp.Append(NewInt([]byte(strconv.Itoa(0))))
 	testEncodeAndCheck(t, resp, []byte("*1\r\n:0\r\n"))
-	resp.Append(&BulkBytes{nil})
+	resp.Append(NewBulkBytes(nil))
 	testEncodeAndCheck(t, resp, []byte("*2\r\n:0\r\n$-1\r\n"))
-	resp.Append(&BulkBytes{[]byte("test")})
+	resp.Append(NewBulkBytes([]byte("test")))
 	testEncodeAndCheck(t, resp, []byte("*3\r\n:0\r\n$-1\r\n$4\r\ntest\r\n"))
 }
 
-func testEncodeAndCheck(t *testing.T, resp Resp, expect []byte) {
+func testEncodeAndCheck(t *testing.T, resp *Resp, expect []byte) {
 	b, err := EncodeToBytes(resp)
 	assert.MustNoError(err)
 	assert.Must(bytes.Equal(b, expect))

@@ -3,181 +3,99 @@
 
 package redis
 
-import (
-	"fmt"
-	"reflect"
+import "fmt"
 
-	"github.com/wandoulabs/codis/pkg/utils/errors"
-)
-
-type respType byte
+type RespType byte
 
 const (
-	typeString    respType = '+'
-	typeError     respType = '-'
-	typeInt       respType = ':'
-	typeBulkBytes respType = '$'
-	typeArray     respType = '*'
+	TypeString    RespType = '+'
+	TypeError     RespType = '-'
+	TypeInt       RespType = ':'
+	TypeBulkBytes RespType = '$'
+	TypeArray     RespType = '*'
 )
 
-func (t respType) String() string {
+func (t RespType) String() string {
 	switch t {
-	case typeString:
+	case TypeString:
 		return "<string>"
-	case typeError:
+	case TypeError:
 		return "<error>"
-	case typeInt:
+	case TypeInt:
 		return "<int>"
-	case typeBulkBytes:
+	case TypeBulkBytes:
 		return "<bulkbytes>"
-	case typeArray:
+	case TypeArray:
 		return "<array>"
 	default:
-		if c := uint8(t); c > 0x20 && c < 0x7F {
-			return fmt.Sprintf("<unknown-%c", c)
-		} else {
-			return fmt.Sprintf("<unknown-0x%02x", c)
-		}
+		return fmt.Sprintf("<unknown-0x%02x>", byte(t))
 	}
 }
 
-type Resp interface {
-}
+type Resp struct {
+	Type RespType
 
-type String struct {
-	Value string
-}
-
-func NewString(s string) *String {
-	return &String{s}
-}
-
-type Error struct {
-	Value string
-}
-
-func NewError(err error) *Error {
-	return &Error{err.Error()}
-}
-
-type Int struct {
-	Value int64
-}
-
-func NewInt(n int64) *Int {
-	return &Int{n}
-}
-
-type BulkBytes struct {
 	Value []byte
+	Array []*Resp
 }
 
-func NewBulkBytes(p []byte) *BulkBytes {
-	return &BulkBytes{p}
+func (r *Resp) IsString() bool {
+	return r.Type == TypeString
 }
 
-type Array struct {
-	Value []Resp
+func (r *Resp) IsError() bool {
+	return r.Type == TypeError
 }
 
-func NewArray() *Array {
-	return &Array{}
+func (r *Resp) IsInt() bool {
+	return r.Type == TypeInt
 }
 
-func (r *Array) Append(a Resp) {
-	r.Value = append(r.Value, a)
+func (r *Resp) IsBulkBytes() bool {
+	return r.Type == TypeBulkBytes
 }
 
-func (r *Array) AppendString(s string) {
-	r.Append(NewString(s))
+func (r *Resp) IsArray() bool {
+	return r.Type == TypeArray
 }
 
-func (r *Array) AppendBulkBytes(b []byte) {
-	r.Append(NewBulkBytes(b))
-}
-
-func (r *Array) AppendInt(n int64) {
-	r.Append(NewInt(n))
-}
-
-func (r *Array) AppendError(err error) {
-	r.Append(NewError(err))
-}
-
-func AsString(r Resp, err error) (string, error) {
-	if err != nil {
-		return "", err
-	}
-	x, ok := r.(*String)
-	if ok && x != nil {
-		return x.Value, nil
-	} else {
-		return "", errors.Errorf("expect String, but got <%s>", reflect.TypeOf(r))
+func NewString(value []byte) *Resp {
+	return &Resp{
+		Type:  TypeString,
+		Value: value,
 	}
 }
 
-func AsError(r Resp, err error) (string, error) {
-	if err != nil {
-		return "", err
-	}
-	x, ok := r.(*Error)
-	if ok && x != nil {
-		return x.Value, nil
-	} else {
-		return "", errors.Errorf("expect Error, but got <%s>", reflect.TypeOf(r))
+func NewError(value []byte) *Resp {
+	return &Resp{
+		Type:  TypeError,
+		Value: value,
 	}
 }
 
-func AsBulkBytes(r Resp, err error) ([]byte, error) {
-	if err != nil {
-		return nil, err
-	}
-	x, ok := r.(*BulkBytes)
-	if ok && x != nil {
-		return x.Value, nil
-	} else {
-		return nil, errors.Errorf("expect BulkBytes, but got <%s>", reflect.TypeOf(r))
+func NewInt(value []byte) *Resp {
+	return &Resp{
+		Type:  TypeInt,
+		Value: value,
 	}
 }
 
-func AsInt(r Resp, err error) (int64, error) {
-	if err != nil {
-		return 0, err
-	}
-	x, ok := r.(*Int)
-	if ok && x != nil {
-		return x.Value, nil
-	} else {
-		return 0, errors.Errorf("expect Int, but got <%s>", reflect.TypeOf(r))
+func NewBulkBytes(value []byte) *Resp {
+	return &Resp{
+		Type:  TypeBulkBytes,
+		Value: value,
 	}
 }
 
-func AsArray(r Resp, err error) ([]Resp, error) {
-	if err != nil {
-		return nil, err
-	}
-	x, ok := r.(*Array)
-	if ok && x != nil {
-		return x.Value, nil
-	} else {
-		return nil, errors.Errorf("expect Array, but got <%s>", reflect.TypeOf(r))
+func NewArray(array []*Resp) *Resp {
+	return &Resp{
+		Type:  TypeArray,
+		Array: array,
 	}
 }
 
-func NewCommand(cmd string, args ...interface{}) Resp {
-	r := NewArray()
-	r.AppendBulkBytes([]byte(cmd))
-	for i := 0; i < len(args); i++ {
-		switch x := args[i].(type) {
-		case nil:
-			r.AppendBulkBytes(nil)
-		case string:
-			r.AppendBulkBytes([]byte(x))
-		case []byte:
-			r.AppendBulkBytes(x)
-		default:
-			r.AppendBulkBytes([]byte(fmt.Sprint(x)))
-		}
+func (r *Resp) Append(x *Resp) {
+	if r.Type == TypeArray {
+		r.Array = append(r.Array, x)
 	}
-	return r
 }
