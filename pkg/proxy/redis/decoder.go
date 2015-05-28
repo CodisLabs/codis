@@ -19,6 +19,34 @@ var (
 	ErrBadRespArrayLen = errors.New("bad resp array len")
 )
 
+type Decoder struct {
+	*decoder
+	Err error
+}
+
+func NewDecoderSize(r io.Reader, size int) *Decoder {
+	if br, ok := r.(*bufio.Reader); ok {
+		return NewDecoder(br)
+	} else {
+		return NewDecoder(bufio.NewReaderSize(r, size))
+	}
+}
+
+func NewDecoder(r *bufio.Reader) *Decoder {
+	return &Decoder{decoder: &decoder{r}}
+}
+
+func (d *Decoder) Decode() (Resp, error) {
+	if d.Err != nil {
+		return nil, d.Err
+	}
+	r, err := d.decodeResp(0)
+	if err != nil {
+		d.Err = err
+	}
+	return r, err
+}
+
 type decoder struct {
 	r *bufio.Reader
 }

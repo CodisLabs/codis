@@ -6,16 +6,13 @@ package redis
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"reflect"
 	"strconv"
 
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
-
-type encoder struct {
-	w *bufio.Writer
-}
 
 var (
 	imap []string
@@ -34,6 +31,41 @@ func itos(i int64) string {
 	} else {
 		return strconv.FormatInt(i, 10)
 	}
+}
+
+type Encoder struct {
+	*encoder
+	Err error
+}
+
+func NewEncoderSize(w io.Writer, size int) *Encoder {
+	if bw, ok := w.(*bufio.Writer); ok {
+		return NewEncoder(bw)
+	} else {
+		return NewEncoder(bufio.NewWriterSize(w, size))
+	}
+}
+
+func NewEncoder(w *bufio.Writer) *Encoder {
+	return &Encoder{encoder: &encoder{w}}
+}
+
+type encoder struct {
+	w *bufio.Writer
+}
+
+func (e *Encoder) Encode(r Resp, flush bool) error {
+	if e.Err != nil {
+		return e.Err
+	}
+	err := e.encodeResp(r)
+	if err == nil && flush {
+		err = errors.Trace(e.w.Flush())
+	}
+	if err != nil {
+		e.Err = err
+	}
+	return err
 }
 
 func Encode(w *bufio.Writer, r Resp, flush bool) error {
