@@ -64,11 +64,11 @@ func (r *connReader) Read(b []byte) (int, error) {
 		}
 		r.hasDeadline = false
 	}
-	r.ReaderLastUnix = time.Now().Unix()
 	n, err := r.Sock.Read(b)
 	if err != nil {
 		err = errors.Trace(err)
 	}
+	r.ReaderLastUnix = time.Now().Unix()
 	return n, err
 }
 
@@ -89,11 +89,11 @@ func (w *connWriter) Write(b []byte) (int, error) {
 		}
 		w.hasDeadline = false
 	}
-	w.WriterLastUnix = time.Now().Unix()
 	n, err := w.Sock.Write(b)
 	if err != nil {
 		err = errors.Trace(err)
 	}
+	w.WriterLastUnix = time.Now().Unix()
 	return n, err
 }
 
