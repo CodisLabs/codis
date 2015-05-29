@@ -13,22 +13,41 @@ import (
 )
 
 var (
-	imap []string
+	itoamap []string
+	itobmap [][]byte
 )
 
 func init() {
-	imap = make([]string, 1024*512+1024)
-	for i := 0; i < len(imap); i++ {
-		imap[i] = strconv.Itoa(i - 1024)
+	itoamap = make([]string, 1024*128+1024)
+	itobmap = make([][]byte, len(itoamap))
+	for i := 0; i < len(itoamap); i++ {
+		itoamap[i] = strconv.Itoa(i - 1024)
+		itobmap[i] = []byte(itoamap[i])
 	}
 }
 
-func itos(i int64) string {
-	if n := i + 1024; n >= 0 && n < int64(len(imap)) {
-		return imap[n]
-	} else {
-		return strconv.FormatInt(i, 10)
+func itoxIndex(i int64) int {
+	n := i + 1024
+	if i < n {
+		if n >= 0 && n < int64(len(itoamap)) {
+			return int(n)
+		}
 	}
+	return -1
+}
+
+func itoa(i int64) string {
+	if n := itoxIndex(i); n >= 0 {
+		return itoamap[n]
+	}
+	return strconv.FormatInt(i, 10)
+}
+
+func itob(i int64) []byte {
+	if n := itoxIndex(i); n >= 0 {
+		return itobmap[n]
+	}
+	return []byte(strconv.FormatInt(i, 10))
 }
 
 type Encoder struct {
@@ -110,7 +129,7 @@ func (e *Encoder) encodeTextString(s string) error {
 }
 
 func (e *Encoder) encodeInt(v int64) error {
-	return e.encodeTextString(itos(v))
+	return e.encodeTextString(itoa(v))
 }
 
 func (e *Encoder) encodeBulkBytes(b []byte) error {

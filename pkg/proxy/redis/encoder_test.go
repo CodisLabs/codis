@@ -5,17 +5,28 @@ package redis
 
 import (
 	"bytes"
+	"math"
 	"strconv"
 	"testing"
 
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 )
 
-func TestItos(t *testing.T) {
-	for i := 0; i < len(imap)*2; i++ {
+func TestItox(t *testing.T) {
+	for i := 0; i < len(itoamap)*2; i++ {
 		n, p := -i, i
-		assert.Must(strconv.Itoa(n) == itos(int64(n)))
-		assert.Must(strconv.Itoa(p) == itos(int64(p)))
+		assert.Must(strconv.Itoa(n) == itoa(int64(n)))
+		assert.Must(strconv.Itoa(p) == itoa(int64(p)))
+		assert.Must(strconv.Itoa(n) == string(itob(int64(n))))
+		assert.Must(strconv.Itoa(p) == string(itob(int64(p))))
+	}
+	tests := []int64{
+		math.MaxInt32, math.MinInt32,
+		math.MaxInt64, math.MinInt64,
+	}
+	for _, v := range tests {
+		assert.Must(strconv.FormatInt(v, 10) == itoa(int64(v)))
+		assert.Must(strconv.FormatInt(v, 10) == string(itob(int64(v))))
 	}
 }
 
