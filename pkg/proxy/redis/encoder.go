@@ -32,13 +32,13 @@ func itos(i int64) string {
 }
 
 type Encoder struct {
-	bw *bufio.Writer
+	*bufio.Writer
 
 	Err error
 }
 
 func NewEncoder(bw *bufio.Writer) *Encoder {
-	return &Encoder{bw: bw}
+	return &Encoder{Writer: bw}
 }
 
 func NewEncoderSize(w io.Writer, size int) *Encoder {
@@ -46,7 +46,7 @@ func NewEncoderSize(w io.Writer, size int) *Encoder {
 	if !ok {
 		bw = bufio.NewWriterSize(w, size)
 	}
-	return &Encoder{bw: bw}
+	return &Encoder{Writer: bw}
 }
 
 func (e *Encoder) Encode(r *Resp, flush bool) error {
@@ -55,7 +55,7 @@ func (e *Encoder) Encode(r *Resp, flush bool) error {
 	}
 	err := e.encodeResp(r)
 	if err == nil && flush {
-		err = errors.Trace(e.bw.Flush())
+		err = errors.Trace(e.Flush())
 	}
 	if err != nil {
 		e.Err = err
@@ -74,7 +74,7 @@ func EncodeToBytes(r *Resp) ([]byte, error) {
 }
 
 func (e *Encoder) encodeResp(r *Resp) error {
-	if err := e.bw.WriteByte(byte(r.Type)); err != nil {
+	if err := e.WriteByte(byte(r.Type)); err != nil {
 		return errors.Trace(err)
 	}
 	switch r.Type {
@@ -90,20 +90,20 @@ func (e *Encoder) encodeResp(r *Resp) error {
 }
 
 func (e *Encoder) encodeTextBytes(b []byte) error {
-	if _, err := e.bw.Write(b); err != nil {
+	if _, err := e.Write(b); err != nil {
 		return errors.Trace(err)
 	}
-	if _, err := e.bw.WriteString("\r\n"); err != nil {
+	if _, err := e.WriteString("\r\n"); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
 }
 
 func (e *Encoder) encodeTextString(s string) error {
-	if _, err := e.bw.WriteString(s); err != nil {
+	if _, err := e.WriteString(s); err != nil {
 		return errors.Trace(err)
 	}
-	if _, err := e.bw.WriteString("\r\n"); err != nil {
+	if _, err := e.WriteString("\r\n"); err != nil {
 		return errors.Trace(err)
 	}
 	return nil
