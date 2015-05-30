@@ -34,7 +34,7 @@ func cleanupPool(lastunix int64) {
 		x := connPool.Remove(connPool.Front()).(*connPoolElem)
 		c := x.conn
 		if c.ReaderLastUnix < lastunix && c.WriterLastUnix < lastunix {
-			log.Infof("redis close pool conn: [%p] %s is timeout", c, c.Sock.RemoteAddr())
+			log.Infof("pool conn: [%p] to %s, closed due to timeout", c, c.Sock.RemoteAddr())
 			c.Close()
 		} else {
 			connPool.PushBack(x)
@@ -45,7 +45,7 @@ func cleanupPool(lastunix int64) {
 
 func putPoolConn(c *Conn, addr string) {
 	if c.Reader.Err != nil || c.Writer.Err != nil {
-		log.Infof("redis close pool conn: [%p] %s error happens", c, c.Sock.RemoteAddr())
+		log.Infof("pool conn: [%p] to %s, closed due to error", c, c.Sock.RemoteAddr())
 		c.Close()
 	} else {
 		connPool.Lock()
@@ -75,7 +75,7 @@ func getPoolConn(addr string) (*Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("redis create pool conn: [%p] %s", c, c.Sock.RemoteAddr())
+	log.Infof("pool conn: [%p] to %s, create new connection", c, c.Sock.RemoteAddr())
 	return c, nil
 }
 
