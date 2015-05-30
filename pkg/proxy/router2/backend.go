@@ -25,16 +25,15 @@ func NewBackendConn(addr string) *BackendConn {
 }
 
 func (bc *BackendConn) Run() {
-	defer bc.Close()
 	log.Infof("backend conn [%p] to %s, start service", bc, bc.Addr)
-	for {
+	for k := 0; ; k++ {
 		stop, err := bc.loopWriter()
 		if stop {
 			break
 		}
-		log.InfoErrorf(err, "backend conn [%p] to %s, error break", bc, bc.Addr)
+		n := bc.discard(err)
+		log.ErrorErrorf(err, "backend conn [%p] to %s, error break[%d], discard all %d requests and restart [%d]", bc, bc.Addr, k, n)
 		time.Sleep(time.Millisecond * 50)
-		log.Infof("backend conn [%p] to %s, restart service", bc, bc.Addr)
 	}
 	log.Infof("backend conn [%p] to %s, stop and exit", bc, bc.Addr)
 }
@@ -49,6 +48,21 @@ func (bc *BackendConn) PushBack(r *Request) {
 	r.wait.Add(1)
 	r.slot.jobs.Add(1)
 	bc.input <- r
+}
+
+func (bc *BackendConn) discard(err error) int {
+	var n int
+	for i := len(bc.input); i != 0; i-- {
+		select {
+		case r := <-bc.input:
+			if r != nil {
+				r.SetResponse(nil, err)
+				n++
+			}
+		default:
+		}
+	}
+	return n
 }
 
 func (bc *BackendConn) loopWriter() (bool, error) {
