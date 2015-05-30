@@ -27,12 +27,16 @@ func NewBackendConn(addr string) *BackendConn {
 func (bc *BackendConn) Run() {
 	log.Infof("backend conn [%p] to %s, start service", bc, bc.Addr)
 	for k := 0; ; k++ {
+		starttime := time.Now()
 		stop, err := bc.loopWriter()
 		if stop {
 			break
 		}
-		n := bc.discard(err)
-		log.ErrorErrorf(err, "backend conn [%p] to %s, error break[%d], discard all %d requests and restart [%d]", bc, bc.Addr, k, n)
+		var n int
+		if time.Now().Sub(starttime) < time.Second {
+			n = bc.discard(err, len(bc.input)/20+1)
+		}
+		log.InfoErrorf(err, "backend conn [%p] to %s, error break[%d], discard next %d requests and restart [%d]", bc, bc.Addr, k, n)
 		time.Sleep(time.Millisecond * 50)
 	}
 	log.Infof("backend conn [%p] to %s, stop and exit", bc, bc.Addr)
@@ -50,15 +54,16 @@ func (bc *BackendConn) PushBack(r *Request) {
 	bc.input <- r
 }
 
-func (bc *BackendConn) discard(err error) int {
+func (bc *BackendConn) discard(err error, max int) int {
 	var n int
-	for i := len(bc.input); i != 0; i-- {
+	for i := 0; i < max; i++ {
 		select {
-		case r := <-bc.input:
-			if r != nil {
-				r.SetResponse(nil, err)
-				n++
+		case r, ok := <-bc.input:
+			if !ok {
+				return n
 			}
+			r.SetResponse(nil, err)
+			n++
 		default:
 		}
 	}
