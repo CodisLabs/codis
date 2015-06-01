@@ -35,9 +35,10 @@ type Server struct {
 	top    *topo.Topology
 	evtbus chan interface{}
 
+	conf *Config
+
 	lastActionSeq int
 	pi            models.ProxyInfo
-	startAt       time.Time
 	addr          string
 
 	moper       *MultiOperator
@@ -45,7 +46,6 @@ type Server struct {
 	counter     *stats.Counters
 	OnSuicide   OnSuicideFun
 	bufferedReq *list.List
-	conf        *Conf
 }
 
 func (s *Server) clearSlot(i int) {
@@ -583,47 +583,50 @@ func (s *Server) RegisterAndWait() {
 	s.waitOnline()
 }
 
-func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
-	log.Infof("start with configuration: %+v", conf)
+func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
+	log.Infof("start proxy with config: %+v", conf)
 	s := &Server{
 		conf:          conf,
 		evtbus:        make(chan interface{}, 1000),
 		top:           topo.NewTopo(conf.productName, conf.zkAddr, conf.f, conf.provider),
 		counter:       stats.NewCounters("router"),
 		lastActionSeq: -1,
-		startAt:       time.Now(),
 		addr:          addr,
 		moper:         NewMultiOperator(addr),
 		pools:         cachepool.NewCachePool(),
 		bufferedReq:   list.New(),
 	}
 
-	s.pi.Id = conf.proxyId
-	s.pi.State = models.PROXY_STATE_OFFLINE
-	host := strings.Split(addr, ":")[0]
-	debugHost := strings.Split(debugVarAddr, ":")[0]
-	hname, err := os.Hostname()
-	if err != nil {
-		log.Fatal("get host name failed", err)
+	proxyHost := strings.Split(addr, ":")[0]
+	if len(proxyHost) != 2 {
+		log.Panicf("invalid proxy host = %s", addr)
 	}
-	if host == "0.0.0.0" || strings.HasPrefix(host, "127.0.0.") {
-		host = hname
+	debugHost := strings.Split(debugVarAddr, ":")[0]
+	if len(debugHost) != 2 {
+		log.Panicf("invalid debug host = %s", debugVarAddr)
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.PanicErrorf(err, "get host name failed")
+	}
+	if proxyHost == "0.0.0.0" || strings.HasPrefix(proxyHost, "127.0.0.") {
+		proxyHost = hostname
 	}
 	if debugHost == "0.0.0.0" || strings.HasPrefix(debugHost, "127.0.0.") {
-		debugHost = hname
+		debugHost = hostname
 	}
-	s.pi.Addr = host + ":" + strings.Split(addr, ":")[1]
+
+	s.pi.Id = conf.proxyId
+	s.pi.State = models.PROXY_STATE_OFFLINE
+	s.pi.Addr = proxyHost + ":" + strings.Split(addr, ":")[1]
 	s.pi.DebugVarAddr = debugHost + ":" + strings.Split(debugVarAddr, ":")[1]
 	s.pi.Pid = os.Getpid()
-	s.pi.StartAt = time.Now().String()
 
-	log.Infof("proxy_info:%+v", s.pi)
+	log.Infof("proxy info = %+v", s.pi)
 
 	stats.Publish("evtbus", stats.StringFunc(func() string {
 		return strconv.Itoa(len(s.evtbus))
-	}))
-	stats.Publish("startAt", stats.StringFunc(func() string {
-		return s.startAt.String()
 	}))
 
 	s.RegisterAndWait()
