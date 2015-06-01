@@ -18,12 +18,9 @@ import (
 
 	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
 
-	"bytes"
-
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
-	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/redispool"
 
 	"container/list"
@@ -37,7 +34,6 @@ type Server struct {
 	slots  [models.DEFAULT_SLOT_NUM]*Slot
 	top    *topo.Topology
 	evtbus chan interface{}
-	reqCh  chan *PipelineRequest
 
 	lastActionSeq int
 	pi            models.ProxyInfo
@@ -158,6 +154,7 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 	return nil
 }
 
+/*
 func (s *Server) sendBack(c *session, op []byte, keys [][]byte, resp *parser.Resp, result []byte) {
 	c.pipelineSeq++
 	pr := &PipelineRequest{
@@ -234,6 +231,7 @@ func (s *Server) redisTunnel(c *session) error {
 
 	return nil
 }
+*/
 
 func (s *Server) handleConn(c net.Conn) {
 	log.Info("new connection", c.RemoteAddr())
@@ -496,23 +494,6 @@ func (s *Server) dispatch(r *PipelineRequest) {
 func (s *Server) handleTopoEvent() {
 	for {
 		select {
-		case r := <-s.reqCh:
-			if s.slots[r.slotIdx].slotInfo.State.Status == models.SLOT_STATUS_PRE_MIGRATE {
-				s.bufferedReq.PushBack(r)
-				continue
-			}
-
-			for e := s.bufferedReq.Front(); e != nil; {
-				next := e.Next()
-				blockedReq := e.Value.(*PipelineRequest)
-				if s.slots[blockedReq.slotIdx].slotInfo.State.Status != models.SLOT_STATUS_PRE_MIGRATE {
-					s.dispatch(r)
-					s.bufferedReq.Remove(e)
-				}
-				e = next
-			}
-
-			s.dispatch(r)
 		case e := <-s.evtbus:
 			switch e.(type) {
 			case *killEvent:
@@ -613,7 +594,6 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 		startAt:       time.Now(),
 		addr:          addr,
 		moper:         NewMultiOperator(addr),
-		reqCh:         make(chan *PipelineRequest, 1000),
 		pools:         cachepool.NewCachePool(),
 		bufferedReq:   list.New(),
 	}
