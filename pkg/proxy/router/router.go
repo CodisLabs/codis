@@ -32,13 +32,13 @@ import (
 
 type Server struct {
 	slots  [models.DEFAULT_SLOT_NUM]*Slot
-	top    *topo.Topology
 	evtbus chan interface{}
 
 	conf *Config
+	topo *topo.Topology
+	info models.ProxyInfo
 
 	lastActionSeq int
-	pi            models.ProxyInfo
 	addr          string
 
 	moper       *MultiOperator
@@ -72,7 +72,7 @@ func (s *Server) fillSlot(i int, force bool) {
 
 	s.clearSlot(i)
 
-	slotInfo, groupInfo, err := s.top.GetSlotByIndex(i)
+	slotInfo, groupInfo, err := s.topo.GetSlotByIndex(i)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
@@ -89,7 +89,7 @@ func (s *Server) fillSlot(i int, force bool) {
 
 	if slot.slotInfo.State.Status == models.SLOT_STATUS_MIGRATE {
 		//get migrate src group and fill it
-		from, err := s.top.GetGroup(slot.slotInfo.State.MigrateStatus.From)
+		from, err := s.topo.GetGroup(slot.slotInfo.State.MigrateStatus.From)
 		if err != nil { //todo: retry ?
 			log.Fatal(err)
 		}
@@ -336,7 +336,7 @@ func (s *Server) Run() {
 
 func (s *Server) responseAction(seq int64) {
 	log.Info("send response", seq)
-	err := s.top.DoResponse(int(seq), &s.pi)
+	err := s.topo.DoResponse(int(seq), &s.pi)
 	if err != nil {
 		log.Error(errors.ErrorStack(err))
 	}
@@ -350,7 +350,7 @@ func (s *Server) getProxyInfo() models.ProxyInfo {
 
 func (s *Server) getActionObject(seq int, target interface{}) {
 	act := &models.Action{Target: target}
-	err := s.top.GetActionWithSeqObject(int64(seq), act)
+	err := s.topo.GetActionWithSeqObject(int64(seq), act)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
@@ -359,7 +359,7 @@ func (s *Server) getActionObject(seq int, target interface{}) {
 }
 
 func (s *Server) checkAndDoTopoChange(seq int) bool {
-	act, err := s.top.GetActionWithSeq(int64(seq))
+	act, err := s.topo.GetActionWithSeq(int64(seq))
 	if err != nil { //todo: error is not "not exist"
 		log.Fatal(errors.ErrorStack(err), "action seq", seq)
 	}
@@ -398,7 +398,7 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 }
 
 func (s *Server) handleMarkOffline() {
-	s.top.Close(s.pi.Id)
+	s.topo.Close(s.pi.Id)
 	if s.OnSuicide == nil {
 		s.OnSuicide = func() error {
 			log.Fatalf("suicide %+v", s.pi)
@@ -410,7 +410,7 @@ func (s *Server) handleMarkOffline() {
 }
 
 func (s *Server) handleProxyCommand() {
-	pi, err := s.top.GetProxyInfo(s.pi.Id)
+	pi, err := s.topo.GetProxyInfo(s.pi.Id)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
@@ -421,14 +421,14 @@ func (s *Server) handleProxyCommand() {
 }
 
 func (s *Server) processAction(e interface{}) {
-	if strings.Index(GetEventPath(e), models.GetProxyPath(s.top.ProductName)) == 0 {
+	if strings.Index(GetEventPath(e), models.GetProxyPath(s.topo.ProductName)) == 0 {
 		//proxy event, should be order for me to suicide
 		s.handleProxyCommand()
 		return
 	}
 
 	//re-watch
-	nodes, err := s.top.WatchChildren(models.GetWatchActionPath(s.top.ProductName), s.evtbus)
+	nodes, err := s.topo.WatchChildren(models.GetWatchActionPath(s.topo.ProductName), s.evtbus)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
@@ -438,7 +438,7 @@ func (s *Server) processAction(e interface{}) {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	if len(seqs) == 0 || !s.top.IsChildrenChangedEvent(e) {
+	if len(seqs) == 0 || !s.topo.IsChildrenChangedEvent(e) {
 		return
 	}
 
@@ -457,7 +457,7 @@ func (s *Server) processAction(e interface{}) {
 
 	actions := seqs[index:]
 	for _, seq := range actions {
-		exist, err := s.top.Exist(path.Join(s.top.GetActionResponsePath(seq), s.pi.Id))
+		exist, err := s.topo.Exist(path.Join(s.topo.GetActionResponsePath(seq), s.pi.Id))
 		if err != nil {
 			log.Fatal(errors.ErrorStack(err))
 		}
@@ -524,7 +524,7 @@ func (s *Server) handleTopoEvent() {
 
 func (s *Server) waitOnline() {
 	for {
-		pi, err := s.top.GetProxyInfo(s.pi.Id)
+		pi, err := s.topo.GetProxyInfo(s.pi.Id)
 		if err != nil {
 			log.Fatal(errors.ErrorStack(err))
 		}
@@ -537,7 +537,7 @@ func (s *Server) waitOnline() {
 			s.pi.State = pi.State
 			println("good, we are on line", s.pi.Id)
 			log.Info("we are online", s.pi.Id)
-			_, err := s.top.WatchNode(path.Join(models.GetProxyPath(s.top.ProductName), s.pi.Id), s.evtbus)
+			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.pi.Id), s.evtbus)
 			if err != nil {
 				log.Fatal(errors.ErrorStack(err))
 			}
@@ -569,12 +569,12 @@ func (s *Server) FillSlots() {
 }
 
 func (s *Server) RegisterAndWait() {
-	_, err := s.top.CreateProxyInfo(&s.pi)
+	_, err := s.topo.CreateProxyInfo(&s.pi)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	_, err = s.top.CreateProxyFenceNode(&s.pi)
+	_, err = s.topo.CreateProxyFenceNode(&s.pi)
 	if err != nil {
 		log.Warning(errors.ErrorStack(err))
 	}
@@ -631,7 +631,7 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 
 	s.RegisterAndWait()
 
-	_, err = s.top.WatchChildren(models.GetWatchActionPath(conf.productName), s.evtbus)
+	_, err = s.topo.WatchChildren(models.GetWatchActionPath(conf.productName), s.evtbus)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
