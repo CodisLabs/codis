@@ -28,8 +28,8 @@ func (bc *BackendConn) Run() {
 	log.Infof("backend conn [%p] to %s, start service", bc, bc.Addr)
 	for k := 0; ; k++ {
 		starttime := time.Now()
-		stop, err := bc.loopWriter()
-		if stop {
+		err := bc.loopWriter()
+		if err == nil {
 			break
 		}
 		var n int
@@ -49,8 +49,6 @@ func (bc *BackendConn) Close() {
 }
 
 func (bc *BackendConn) PushBack(r *Request) {
-	r.wait.Add(1)
-	r.slot.jobs.Add(1)
 	bc.input <- r
 }
 
@@ -70,29 +68,24 @@ func (bc *BackendConn) discard(err error, max int) int {
 	return n
 }
 
-func (bc *BackendConn) loopWriter() (bool, error) {
+func (bc *BackendConn) loopWriter() error {
 	r, ok := <-bc.input
 	if ok {
 		c, tasks, err := bc.newBackendReader()
 		if err != nil {
-			r.SetResponse(nil, err)
-			return false, err
+			return r.SetResponse(nil, err)
 		}
-		defer func() {
-			c.Close()
-			close(tasks)
-		}()
+		defer close(tasks)
 		for ok {
-			flush := len(bc.input) == 0
-			if err := c.Writer.Encode(r.Resp, flush); err != nil {
-				r.SetResponse(nil, err)
-				return false, err
+			if err := c.Writer.Encode(r.Resp, r.Flush || len(bc.input) == 0); err != nil {
+				c.Close()
+				return r.SetResponse(nil, err)
 			}
 			tasks <- r
 			r, ok = <-bc.input
 		}
 	}
-	return true, nil
+	return nil
 }
 
 func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) {

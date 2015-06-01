@@ -10,6 +10,7 @@ import (
 type Request struct {
 	SeqId int64
 	OpStr string
+	Flush bool
 
 	Resp *redis.Resp
 
@@ -22,10 +23,21 @@ type Request struct {
 	wait *sync.WaitGroup
 }
 
-func (r *Request) SetResponse(resp *redis.Resp, err error) {
+func (r *Request) SetResponse(resp *redis.Resp, err error) error {
 	r.Response.Resp, r.Response.Err = resp, err
-	r.wait.Done()
-	r.slot.jobs.Done()
+	if r.slot != nil {
+		r.slot.jobs.Done()
+	}
+	if r.wait != nil {
+		r.wait.Done()
+	}
+	return err
+}
+
+func (r *Request) Wait() {
+	if r.wait != nil {
+		r.wait.Wait()
+	}
 }
 
 func (r *Request) String() string {
