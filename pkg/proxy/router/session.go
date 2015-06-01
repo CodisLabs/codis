@@ -42,7 +42,6 @@ func NewSession(c net.Conn) *Session {
 	s.Conn = redis.NewConn(c)
 	s.Conn.ReaderTimeout = time.Minute * 30
 	s.Conn.WriterTimeout = time.Minute
-	go s.Run()
 	return addNewSession(s)
 }
 
@@ -51,7 +50,7 @@ func (s *Session) Close() {
 	s.Conn.Close()
 }
 
-func (s *Session) Run() {
+func (s *Session) Serve() {
 	var errlist errors.ErrorList
 	defer func() {
 		log.Infof("session [%p] closed, session = %s, error = %s", s, s, errlist.First())

@@ -31,7 +31,6 @@ type Server struct {
 	conf *Config
 	topo *topology.Topology
 	info models.ProxyInfo
-	addr string
 
 	lastActionSeq int
 
@@ -41,6 +40,10 @@ type Server struct {
 
 func getEventPath(evt interface{}) string {
 	return evt.(topo.Event).Path
+}
+
+func (s *Server) isValidSlot(i int) bool {
+	return i >= 0 && i < len(s.slots)
 }
 
 func (s *Server) clearSlot(i int) {
@@ -238,53 +241,11 @@ func (s *Server) redisTunnel(c *session) error {
 */
 
 /*
-func (s *Server) handleConn(c net.Conn) {
-	log.Info("new connection", c.RemoteAddr())
-
-	s.counter.Add("connections", 1)
-	client := &session{
-		Conn:        c,
-		r:           bufio.NewReaderSize(c, 32*1024),
-		w:           bufio.NewWriterSize(c, 32*1024),
-		CreateAt:    time.Now(),
-		backQ:       make(chan *PipelineResponse, 1000),
-		closeSignal: &sync.WaitGroup{},
-	}
-	client.closeSignal.Add(1)
-
-	go client.WritingLoop()
-
-	var err error
-	defer func() {
-		client.closeSignal.Wait() //waiting for writer goroutine
-
-		if err != nil { //todo: fix this ugly error check
-			if GetOriginError(err.(*errors.Err)).Error() != io.EOF.Error() {
-				log.Warningf("close connection %v, %v", client, errors.ErrorStack(err))
-			} else {
-				log.Infof("close connection  %v", client)
-			}
-		} else {
-			log.Infof("close connection %v", client)
-		}
-
-		s.counter.Add("connections", -1)
-	}()
-
-	for {
-		err = s.redisTunnel(client)
-		if err != nil {
-			close(client.backQ)
-			return
-		}
-		client.Ops++
-	}
-}
-*/
+ */
 
 func (s *Server) OnSlotRangeChange(param *models.SlotMultiSetParam) {
 	log.Warningf("slotRangeChange %+v", param)
-	if !validSlot(param.From) || !validSlot(param.To) {
+	if !s.isValidSlot(param.From) || !s.isValidSlot(param.To) {
 		log.Errorf("invalid slot number, %+v", param)
 		return
 	}
@@ -325,23 +286,6 @@ func (s *Server) registerSignal() {
 		s.evtbus <- &killEvent{done: done}
 		<-done
 	}()
-}
-
-func (s *Server) Run() {
-	log.Infof("listening %s on %s", s.conf.proto, s.addr)
-	listener, err := net.Listen(s.conf.proto, s.addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Warning(errors.ErrorStack(err))
-			continue
-		}
-		go s.handleConn(conn)
-	}
 }
 
 func (s *Server) responseAction(seq int64) {
@@ -595,7 +539,6 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 		topo:          topology.NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider),
 		counter:       stats.NewCounters("router"),
 		lastActionSeq: -1,
-		addr:          addr,
 	}
 
 	proxyHost := strings.Split(addr, ":")[0]
@@ -630,6 +573,12 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 		return strconv.Itoa(len(s.evtbus))
 	}))
 
+	l, err := net.Listen(conf.proto, addr)
+	if err != nil {
+		log.PanicErrorf(err, "open listener %s failed", addr)
+	}
+	log.Infof("proxy now listening on %s", l.Addr().String())
+
 	s.RegisterAndWait()
 
 	_, err = s.topo.WatchChildren(models.GetWatchActionPath(conf.productName), s.evtbus)
@@ -639,10 +588,18 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 
 	s.FillSlots()
 
-	//start event handler
 	go s.handleTopoEvent()
 
 	log.Info("proxy start ok")
 
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				log.InfoErrorf(err, "accept conn failed")
+			}
+			go NewSession(c).Serve()
+		}
+	}()
 	return s
 }
