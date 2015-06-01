@@ -20,8 +20,7 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/models"
 
-	"github.com/juju/errors"
-	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type Server struct {
@@ -244,12 +243,11 @@ func (s *Server) redisTunnel(c *session) error {
  */
 
 func (s *Server) OnSlotRangeChange(param *models.SlotMultiSetParam) {
-	log.Warningf("slotRangeChange %+v", param)
+	log.Warnf("slotRangeChange %+v", param)
 	if !s.isValidSlot(param.From) || !s.isValidSlot(param.To) {
 		log.Errorf("invalid slot number, %+v", param)
 		return
 	}
-
 	for i := param.From; i <= param.To; i++ {
 		switch param.Status {
 		case models.SLOT_STATUS_OFFLINE:
@@ -263,8 +261,7 @@ func (s *Server) OnSlotRangeChange(param *models.SlotMultiSetParam) {
 }
 
 func (s *Server) OnGroupChange(groupId int) {
-	log.Warning("group changed", groupId)
-
+	log.Warnf("group changed %d", groupId)
 	for i, slot := range s.slots {
 		if slot.slotInfo.GroupId == groupId {
 			s.fillSlot(i, true)
@@ -289,10 +286,10 @@ func (s *Server) registerSignal() {
 }
 
 func (s *Server) responseAction(seq int64) {
-	log.Info("send response", seq)
+	log.Infof("send response seq = %d", seq)
 	err := s.topo.DoResponse(int(seq), &s.info)
 	if err != nil {
-		log.Error(errors.ErrorStack(err))
+		log.InfoErrorf(err, "send response seq = %d failed", seq)
 	}
 }
 
@@ -300,23 +297,22 @@ func (s *Server) getActionObject(seq int, target interface{}) {
 	act := &models.Action{Target: target}
 	err := s.topo.GetActionWithSeqObject(int64(seq), act)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "get action object failed, seq = %d", seq)
 	}
-
-	log.Infof("%+v", act)
+	log.Infof("action %+v", act)
 }
 
 func (s *Server) checkAndDoTopoChange(seq int) bool {
 	act, err := s.topo.GetActionWithSeq(int64(seq))
 	if err != nil { //todo: error is not "not exist"
-		log.Fatal(errors.ErrorStack(err), "action seq", seq)
+		log.PanicErrorf(err, "action failed, seq = %d", seq)
 	}
 
 	if !needResponse(act.Receivers, s.info) { //no need to response
 		return false
 	}
 
-	log.Warningf("action %v receivers %v", seq, act.Receivers)
+	log.Warnf("action %v receivers %v", seq, act.Receivers)
 
 	// s.stopTaskRunners()
 
@@ -337,7 +333,7 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 		s.getActionObject(seq, param)
 		s.OnSlotRangeChange(param)
 	default:
-		log.Fatalf("unknown action %+v", act)
+		log.Panicf("unknown action %+v", act)
 	}
 
 	// s.createTaskRunners()
@@ -349,7 +345,7 @@ func (s *Server) handleMarkOffline() {
 	s.topo.Close(s.info.Id)
 	if s.OnSuicide == nil {
 		s.OnSuicide = func() error {
-			log.Fatalf("suicide %+v", s.info)
+			log.Panicf("suicide %+v", s.info)
 			return nil
 		}
 	}
@@ -360,9 +356,8 @@ func (s *Server) handleMarkOffline() {
 func (s *Server) handleProxyCommand() {
 	pi, err := s.topo.GetProxyInfo(s.info.Id)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
 	}
-
 	if pi.State == models.PROXY_STATE_MARK_OFFLINE {
 		s.handleMarkOffline()
 	}
@@ -378,12 +373,12 @@ func (s *Server) processAction(e interface{}) {
 	//re-watch
 	nodes, err := s.topo.WatchChildren(models.GetWatchActionPath(s.topo.ProductName), s.evtbus)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "rewatch children failed")
 	}
 
 	seqs, err := models.ExtraSeqList(nodes)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "get seq list failed")
 	}
 
 	if len(seqs) == 0 || !s.topo.IsChildrenChangedEvent(e) {
@@ -407,13 +402,11 @@ func (s *Server) processAction(e interface{}) {
 	for _, seq := range actions {
 		exist, err := s.topo.Exist(path.Join(s.topo.GetActionResponsePath(seq), s.info.Id))
 		if err != nil {
-			log.Fatal(errors.ErrorStack(err))
+			log.PanicErrorf(err, "get action failed")
 		}
-
 		if exist {
 			continue
 		}
-
 		if s.checkAndDoTopoChange(seq) {
 			s.responseAction(int64(seq))
 		}
@@ -453,10 +446,10 @@ func (s *Server) handleTopoEvent() {
 				if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
 					seq, err := strconv.Atoi(path.Base(evtPath))
 					if err != nil {
-						log.Warning(err)
+						log.WarnErrorf(err, "parse action seq failed")
 					} else {
 						if seq < s.lastActionSeq {
-							log.Info("ignore", seq)
+							log.Infof("ignore seq = %d", seq)
 							continue
 						}
 					}
@@ -474,7 +467,7 @@ func (s *Server) waitOnline() {
 	for {
 		pi, err := s.topo.GetProxyInfo(s.info.Id)
 		if err != nil {
-			log.Fatal(errors.ErrorStack(err))
+			log.PanicErrorf(err, "get proxy info failed")
 		}
 
 		if pi.State == models.PROXY_STATE_MARK_OFFLINE {
@@ -483,13 +476,11 @@ func (s *Server) waitOnline() {
 
 		if pi.State == models.PROXY_STATE_ONLINE {
 			s.info.State = pi.State
-			println("good, we are on line", s.info.Id)
-			log.Info("we are online", s.info.Id)
+			log.Infof("we are online: %s", s.info.Id)
 			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
 			if err != nil {
-				log.Fatal(errors.ErrorStack(err))
+				log.PanicErrorf(err, "watch node failed")
 			}
-
 			return
 		}
 
@@ -502,10 +493,7 @@ func (s *Server) waitOnline() {
 			}
 		default: //otherwise ignore it
 		}
-
-		println("wait to be online ", s.info.Id)
-		log.Warning(s.info.Id, "wait to be online")
-
+		log.Warnf("wait to be online: %s", s.info.Id)
 		time.Sleep(3 * time.Second)
 	}
 }
@@ -519,14 +507,12 @@ func (s *Server) FillSlots() {
 func (s *Server) RegisterAndWait() {
 	_, err := s.topo.CreateProxyInfo(&s.info)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "create proxy node failed")
 	}
-
 	_, err = s.topo.CreateProxyFenceNode(&s.info)
 	if err != nil {
-		log.Warning(errors.ErrorStack(err))
+		log.WarnErrorf(err, "create fence node failed")
 	}
-
 	s.registerSignal()
 	s.waitOnline()
 }
@@ -583,7 +569,7 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 
 	_, err = s.topo.WatchChildren(models.GetWatchActionPath(conf.productName), s.evtbus)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "watch children failed")
 	}
 
 	s.FillSlots()
