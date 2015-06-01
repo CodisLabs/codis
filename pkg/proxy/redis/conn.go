@@ -47,6 +47,10 @@ func (c *Conn) Close() error {
 	return c.Sock.Close()
 }
 
+func (c *Conn) IsTimeout(lastunix int64) bool {
+	return c.ReaderLastUnix < lastunix && c.WriterLastUnix < lastunix
+}
+
 type connReader struct {
 	*Conn
 	hasDeadline bool

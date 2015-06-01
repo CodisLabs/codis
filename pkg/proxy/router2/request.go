@@ -1,13 +1,14 @@
 package router
 
 import (
-	"fmt"
+	"encoding/json"
 	"sync"
 
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
 )
 
 type Request struct {
+	Sid   int64
 	SeqId int64
 	OpStr string
 	Flush bool
@@ -21,6 +22,21 @@ type Request struct {
 
 	slot *Slot
 	wait *sync.WaitGroup
+}
+
+func (r *Request) String() string {
+	o := &struct {
+		Sid    int64
+		SeqId  int64
+		OpStr  string
+		Flush  bool
+		SlotId int
+	}{
+		r.Sid, r.SeqId, r.OpStr,
+		r.Flush, r.slot.Id,
+	}
+	b, _ := json.Marshal(o)
+	return string(b)
 }
 
 func (r *Request) SetResponse(resp *redis.Resp, err error) error {
@@ -38,9 +54,4 @@ func (r *Request) Wait() {
 	if r.wait != nil {
 		r.wait.Wait()
 	}
-}
-
-func (r *Request) String() string {
-	return fmt.Sprintf("request{slot: %4d opstr: %6s seqid: %d}",
-		r.slot.Id, r.OpStr, r.SeqId)
 }

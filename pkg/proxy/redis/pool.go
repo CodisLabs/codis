@@ -31,13 +31,14 @@ func init() {
 func cleanupPool(lastunix int64) {
 	connPool.Lock()
 	for i := connPool.Len(); i != 0; i-- {
-		x := connPool.Remove(connPool.Front()).(*connPoolElem)
-		c := x.conn
-		if c.ReaderLastUnix < lastunix && c.WriterLastUnix < lastunix {
-			log.Infof("pool conn: [%p] to %s, closed due to timeout", c, c.Sock.RemoteAddr())
+		e := connPool.Front()
+		c := e.Value.(*connPoolElem).conn
+		if c.IsTimeout(lastunix) {
 			c.Close()
+			log.Infof("pool conn: [%p] to %s, closed due to timeout", c, c.Sock.RemoteAddr())
+			connPool.Remove(e)
 		} else {
-			connPool.PushBack(x)
+			connPool.MoveToBack(e)
 		}
 	}
 	connPool.Unlock()
