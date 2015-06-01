@@ -13,12 +13,14 @@ import (
 	"syscall"
 	"time"
 
-	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
+	topo "github.com/ngaut/go-zookeeper/zk"
+	stats "github.com/ngaut/gostats"
+
+	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
 
 	"github.com/wandoulabs/codis/pkg/models"
 
 	"github.com/juju/errors"
-	stats "github.com/ngaut/gostats"
 	log "github.com/ngaut/logging"
 )
 
@@ -27,7 +29,7 @@ type Server struct {
 	evtbus chan interface{}
 
 	conf *Config
-	topo *topo.Topology
+	topo *topology.Topology
 	info models.ProxyInfo
 	addr string
 
@@ -35,6 +37,10 @@ type Server struct {
 
 	counter   *stats.Counters
 	OnSuicide func() error
+}
+
+func getEventPath(evt interface{}) string {
+	return evt.(topo.Event).Path
 }
 
 func (s *Server) clearSlot(i int) {
@@ -305,6 +311,10 @@ func (s *Server) OnGroupChange(groupId int) {
 	}
 }
 
+type killEvent struct {
+	done chan error
+}
+
 func (s *Server) registerSignal() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, os.Kill)
@@ -336,16 +346,10 @@ func (s *Server) Run() {
 
 func (s *Server) responseAction(seq int64) {
 	log.Info("send response", seq)
-	err := s.topo.DoResponse(int(seq), &s.pi)
+	err := s.topo.DoResponse(int(seq), &s.info)
 	if err != nil {
 		log.Error(errors.ErrorStack(err))
 	}
-}
-
-func (s *Server) getProxyInfo() models.ProxyInfo {
-	//todo:send request to evtbus, and get response
-	var pi = s.pi
-	return pi
 }
 
 func (s *Server) getActionObject(seq int, target interface{}) {
@@ -364,7 +368,7 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 		log.Fatal(errors.ErrorStack(err), "action seq", seq)
 	}
 
-	if !needResponse(act.Receivers, s.pi) { //no need to response
+	if !needResponse(act.Receivers, s.info) { //no need to response
 		return false
 	}
 
@@ -398,10 +402,10 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 }
 
 func (s *Server) handleMarkOffline() {
-	s.topo.Close(s.pi.Id)
+	s.topo.Close(s.info.Id)
 	if s.OnSuicide == nil {
 		s.OnSuicide = func() error {
-			log.Fatalf("suicide %+v", s.pi)
+			log.Fatalf("suicide %+v", s.info)
 			return nil
 		}
 	}
@@ -410,7 +414,7 @@ func (s *Server) handleMarkOffline() {
 }
 
 func (s *Server) handleProxyCommand() {
-	pi, err := s.topo.GetProxyInfo(s.pi.Id)
+	pi, err := s.topo.GetProxyInfo(s.info.Id)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
@@ -421,7 +425,7 @@ func (s *Server) handleProxyCommand() {
 }
 
 func (s *Server) processAction(e interface{}) {
-	if strings.Index(GetEventPath(e), models.GetProxyPath(s.topo.ProductName)) == 0 {
+	if strings.Index(getEventPath(e), models.GetProxyPath(s.topo.ProductName)) == 0 {
 		//proxy event, should be order for me to suicide
 		s.handleProxyCommand()
 		return
@@ -457,7 +461,7 @@ func (s *Server) processAction(e interface{}) {
 
 	actions := seqs[index:]
 	for _, seq := range actions {
-		exist, err := s.topo.Exist(path.Join(s.topo.GetActionResponsePath(seq), s.pi.Id))
+		exist, err := s.topo.Exist(path.Join(s.topo.GetActionResponsePath(seq), s.info.Id))
 		if err != nil {
 			log.Fatal(errors.ErrorStack(err))
 		}
@@ -500,8 +504,8 @@ func (s *Server) handleTopoEvent() {
 				s.handleMarkOffline()
 				e.(*killEvent).done <- nil
 			default:
-				evtPath := GetEventPath(e)
-				log.Infof("got event %s, %v, lastActionSeq %d", s.pi.Id, e, s.lastActionSeq)
+				evtPath := getEventPath(e)
+				log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
 				if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
 					seq, err := strconv.Atoi(path.Base(evtPath))
 					if err != nil {
@@ -515,7 +519,7 @@ func (s *Server) handleTopoEvent() {
 
 				}
 
-				log.Infof("got event %s, %v, lastActionSeq %d", s.pi.Id, e, s.lastActionSeq)
+				log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
 				s.processAction(e)
 			}
 		}
@@ -524,7 +528,7 @@ func (s *Server) handleTopoEvent() {
 
 func (s *Server) waitOnline() {
 	for {
-		pi, err := s.topo.GetProxyInfo(s.pi.Id)
+		pi, err := s.topo.GetProxyInfo(s.info.Id)
 		if err != nil {
 			log.Fatal(errors.ErrorStack(err))
 		}
@@ -534,10 +538,10 @@ func (s *Server) waitOnline() {
 		}
 
 		if pi.State == models.PROXY_STATE_ONLINE {
-			s.pi.State = pi.State
-			println("good, we are on line", s.pi.Id)
-			log.Info("we are online", s.pi.Id)
-			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.pi.Id), s.evtbus)
+			s.info.State = pi.State
+			println("good, we are on line", s.info.Id)
+			log.Info("we are online", s.info.Id)
+			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
 			if err != nil {
 				log.Fatal(errors.ErrorStack(err))
 			}
@@ -555,8 +559,8 @@ func (s *Server) waitOnline() {
 		default: //otherwise ignore it
 		}
 
-		println("wait to be online ", s.pi.Id)
-		log.Warning(s.pi.Id, "wait to be online")
+		println("wait to be online ", s.info.Id)
+		log.Warning(s.info.Id, "wait to be online")
 
 		time.Sleep(3 * time.Second)
 	}
@@ -569,12 +573,12 @@ func (s *Server) FillSlots() {
 }
 
 func (s *Server) RegisterAndWait() {
-	_, err := s.topo.CreateProxyInfo(&s.pi)
+	_, err := s.topo.CreateProxyInfo(&s.info)
 	if err != nil {
 		log.Fatal(errors.ErrorStack(err))
 	}
 
-	_, err = s.topo.CreateProxyFenceNode(&s.pi)
+	_, err = s.topo.CreateProxyFenceNode(&s.info)
 	if err != nil {
 		log.Warning(errors.ErrorStack(err))
 	}
@@ -588,7 +592,7 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 	s := &Server{
 		conf:          conf,
 		evtbus:        make(chan interface{}, 1000),
-		top:           topo.NewTopo(conf.productName, conf.zkAddr, conf.f, conf.provider),
+		topo:          topology.NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider),
 		counter:       stats.NewCounters("router"),
 		lastActionSeq: -1,
 		addr:          addr,
@@ -614,13 +618,13 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 		debugHost = hostname
 	}
 
-	s.pi.Id = conf.proxyId
-	s.pi.State = models.PROXY_STATE_OFFLINE
-	s.pi.Addr = proxyHost + ":" + strings.Split(addr, ":")[1]
-	s.pi.DebugVarAddr = debugHost + ":" + strings.Split(debugVarAddr, ":")[1]
-	s.pi.Pid = os.Getpid()
+	s.info.Id = conf.proxyId
+	s.info.State = models.PROXY_STATE_OFFLINE
+	s.info.Addr = proxyHost + ":" + strings.Split(addr, ":")[1]
+	s.info.DebugVarAddr = debugHost + ":" + strings.Split(debugVarAddr, ":")[1]
+	s.info.Pid = os.Getpid()
 
-	log.Infof("proxy info = %+v", s.pi)
+	log.Infof("proxy info = %+v", s.info)
 
 	stats.Publish("evtbus", stats.StringFunc(func() string {
 		return strconv.Itoa(len(s.evtbus))
