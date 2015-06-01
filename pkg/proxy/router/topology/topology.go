@@ -7,13 +7,12 @@ import (
 	"encoding/json"
 	"path"
 
+	topo "github.com/ngaut/go-zookeeper/zk"
 	"github.com/ngaut/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/models"
-
-	"github.com/juju/errors"
-	topo "github.com/ngaut/go-zookeeper/zk"
-	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type TopoUpdate interface {
@@ -67,7 +66,7 @@ func NewTopo(ProductName string, zkAddr string, f ZkFactory, provider string) *T
 		case "zookeeper":
 			t.fact = zkhelper.ConnectToZk
 		default:
-			log.Fatal("coordinator not found in config")
+			log.Panicf("coordinator not found in config")
 		}
 	}
 	t.InitZkConn()
@@ -78,7 +77,7 @@ func (top *Topology) InitZkConn() {
 	var err error
 	top.zkConn, err = top.fact(top.zkAddr)
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "init failed")
 	}
 }
 
@@ -122,7 +121,7 @@ func (top *Topology) Close(proxyName string) {
 	// delete fence znode
 	pi, err := models.GetProxyInfo(top.zkConn, top.ProductName, proxyName)
 	if err != nil {
-		log.Error("killing fence error, proxy %s is not exists", proxyName)
+		log.Errorf("killing fence error, proxy %s is not exists", proxyName)
 	} else {
 		zkhelper.DeleteRecursive(top.zkConn, path.Join(models.GetProxyFencePath(top.ProductName), pi.Addr), -1)
 	}
@@ -149,10 +148,10 @@ func (top *Topology) DoResponse(seq int, pi *models.ProxyInfo) error {
 func (top *Topology) doWatch(evtch <-chan topo.Event, evtbus chan interface{}) {
 	e := <-evtch
 	if e.State == topo.StateExpired || e.Type == topo.EventNotWatching {
-		log.Fatalf("session expired: %+v", e)
+		log.Panicf("session expired: %+v", e)
 	}
 
-	log.Warningf("topo event %+v", e)
+	log.Warnf("topo event %+v", e)
 
 	switch e.Type {
 	//case topo.EventNodeCreated:
@@ -160,7 +159,7 @@ func (top *Topology) doWatch(evtch <-chan topo.Event, evtbus chan interface{}) {
 	case topo.EventNodeChildrenChanged: //only care children changed
 		//todo:get changed node and decode event
 	default:
-		log.Warningf("%+v", e)
+		log.Warnf("%+v", e)
 	}
 
 	evtbus <- e
