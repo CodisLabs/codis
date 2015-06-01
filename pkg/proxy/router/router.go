@@ -4,26 +4,18 @@
 package router
 
 import (
-	"bufio"
-	"io"
 	"net"
 	"os"
 	"os/signal"
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
 	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
-	"github.com/wandoulabs/codis/pkg/proxy/group"
-	"github.com/wandoulabs/codis/pkg/proxy/redispool"
-
-	"container/list"
 
 	"github.com/juju/errors"
 	stats "github.com/ngaut/gostats"
@@ -37,121 +29,127 @@ type Server struct {
 	conf *Config
 	topo *topo.Topology
 	info models.ProxyInfo
+	addr string
 
 	lastActionSeq int
-	addr          string
 
-	moper       *MultiOperator
-	pools       *cachepool.CachePool
-	counter     *stats.Counters
-	OnSuicide   OnSuicideFun
-	bufferedReq *list.List
+	counter   *stats.Counters
+	OnSuicide func() error
 }
 
 func (s *Server) clearSlot(i int) {
-	if !validSlot(i) {
-		return
-	}
+	panic("todo")
+	/*
+		if !validSlot(i) {
+			return
+		}
 
-	if s.slots[i] != nil {
-		s.slots[i].dst = nil
-		s.slots[i].migrateFrom = nil
-		s.slots[i] = nil
-	}
+		if s.slots[i] != nil {
+			s.slots[i].dst = nil
+			s.slots[i].migrateFrom = nil
+			s.slots[i] = nil
+		}
+	*/
 }
 
 func (s *Server) fillSlot(i int, force bool) {
-	if !validSlot(i) {
-		return
-	}
-
-	if !force && s.slots[i] != nil { //check
-		log.Fatalf("slot %d already filled, slot: %+v", i, s.slots[i])
-		return
-	}
-
-	s.clearSlot(i)
-
-	slotInfo, groupInfo, err := s.topo.GetSlotByIndex(i)
-	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
-	}
-
-	slot := &Slot{
-		slotInfo:  slotInfo,
-		dst:       group.NewGroup(*groupInfo),
-		groupInfo: groupInfo,
-	}
-
-	log.Infof("fill slot %d, force %v, %+v", i, force, slot.dst)
-
-	s.pools.AddPool(slot.dst.Master())
-
-	if slot.slotInfo.State.Status == models.SLOT_STATUS_MIGRATE {
-		//get migrate src group and fill it
-		from, err := s.topo.GetGroup(slot.slotInfo.State.MigrateStatus.From)
-		if err != nil { //todo: retry ?
-			log.Fatal(err)
+	panic("todo")
+	/*
+		if !validSlot(i) {
+			return
 		}
-		slot.migrateFrom = group.NewGroup(*from)
-		s.pools.AddPool(slot.migrateFrom.Master())
-	}
 
-	s.slots[i] = slot
-	s.counter.Add("FillSlot", 1)
+		if !force && s.slots[i] != nil { //check
+			log.Fatalf("slot %d already filled, slot: %+v", i, s.slots[i])
+			return
+		}
+
+		s.clearSlot(i)
+
+		slotInfo, groupInfo, err := s.topo.GetSlotByIndex(i)
+		if err != nil {
+			log.Fatal(errors.ErrorStack(err))
+		}
+
+		slot := &Slot{
+			slotInfo:  slotInfo,
+			dst:       group.NewGroup(*groupInfo),
+			groupInfo: groupInfo,
+		}
+
+		log.Infof("fill slot %d, force %v, %+v", i, force, slot.dst)
+
+		s.pools.AddPool(slot.dst.Master())
+
+		if slot.slotInfo.State.Status == models.SLOT_STATUS_MIGRATE {
+			//get migrate src group and fill it
+			from, err := s.topo.GetGroup(slot.slotInfo.State.MigrateStatus.From)
+			if err != nil { //todo: retry ?
+				log.Fatal(err)
+			}
+			slot.migrateFrom = group.NewGroup(*from)
+			s.pools.AddPool(slot.migrateFrom.Master())
+		}
+
+		s.slots[i] = slot
+		s.counter.Add("FillSlot", 1)
+	*/
 }
 
 func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
-	shd := s.slots[slotIndex]
-	if shd.slotInfo.State.Status != models.SLOT_STATUS_MIGRATE {
+	panic("todo")
+	/*
+		shd := s.slots[slotIndex]
+		if shd.slotInfo.State.Status != models.SLOT_STATUS_MIGRATE {
+			return nil
+		}
+
+		if shd.migrateFrom == nil {
+			log.Fatalf("migrateFrom not exist %+v", shd)
+		}
+
+		if shd.dst.Master() == shd.migrateFrom.Master() {
+			log.Fatalf("the same migrate src and dst, %+v", shd)
+		}
+
+		redisConn, err := s.pools.GetConn(shd.migrateFrom.Master())
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		defer s.pools.ReleaseConn(redisConn)
+
+		redisReader := redisConn.(*redispool.PooledConn).BufioReader()
+
+		err = WriteMigrateKeyCmd(redisConn.(*redispool.PooledConn), shd.dst.Master(), 30*1000, key)
+		if err != nil {
+			redisConn.Close()
+			log.Warningf("migrate key %s error, from %s to %s",
+				string(key), shd.migrateFrom.Master(), shd.dst.Master())
+			return errors.Trace(err)
+		}
+
+		//handle migrate result
+		resp, err := parser.Parse(redisReader)
+		if err != nil {
+			redisConn.Close()
+			return errors.Trace(err)
+		}
+
+		result, err := resp.Bytes()
+
+		log.Debug("migrate", string(key), "from", shd.migrateFrom.Master(), "to", shd.dst.Master(),
+			string(result))
+
+		if resp.Type == parser.ErrorResp {
+			redisConn.Close()
+			log.Error(string(key), string(resp.Raw), "migrateFrom", shd.migrateFrom.Master())
+			return errors.New(string(resp.Raw))
+		}
+
+		s.counter.Add("Migrate", 1)
 		return nil
-	}
-
-	if shd.migrateFrom == nil {
-		log.Fatalf("migrateFrom not exist %+v", shd)
-	}
-
-	if shd.dst.Master() == shd.migrateFrom.Master() {
-		log.Fatalf("the same migrate src and dst, %+v", shd)
-	}
-
-	redisConn, err := s.pools.GetConn(shd.migrateFrom.Master())
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	defer s.pools.ReleaseConn(redisConn)
-
-	redisReader := redisConn.(*redispool.PooledConn).BufioReader()
-
-	err = WriteMigrateKeyCmd(redisConn.(*redispool.PooledConn), shd.dst.Master(), 30*1000, key)
-	if err != nil {
-		redisConn.Close()
-		log.Warningf("migrate key %s error, from %s to %s",
-			string(key), shd.migrateFrom.Master(), shd.dst.Master())
-		return errors.Trace(err)
-	}
-
-	//handle migrate result
-	resp, err := parser.Parse(redisReader)
-	if err != nil {
-		redisConn.Close()
-		return errors.Trace(err)
-	}
-
-	result, err := resp.Bytes()
-
-	log.Debug("migrate", string(key), "from", shd.migrateFrom.Master(), "to", shd.dst.Master(),
-		string(result))
-
-	if resp.Type == parser.ErrorResp {
-		redisConn.Close()
-		log.Error(string(key), string(resp.Raw), "migrateFrom", shd.migrateFrom.Master())
-		return errors.New(string(resp.Raw))
-	}
-
-	s.counter.Add("Migrate", 1)
-	return nil
+	*/
 }
 
 /*
@@ -233,6 +231,7 @@ func (s *Server) redisTunnel(c *session) error {
 }
 */
 
+/*
 func (s *Server) handleConn(c net.Conn) {
 	log.Info("new connection", c.RemoteAddr())
 
@@ -275,6 +274,7 @@ func (s *Server) handleConn(c net.Conn) {
 		client.Ops++
 	}
 }
+*/
 
 func (s *Server) OnSlotRangeChange(param *models.SlotMultiSetParam) {
 	log.Warningf("slotRangeChange %+v", param)
@@ -592,9 +592,6 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 		counter:       stats.NewCounters("router"),
 		lastActionSeq: -1,
 		addr:          addr,
-		moper:         NewMultiOperator(addr),
-		pools:         cachepool.NewCachePool(),
-		bufferedReq:   list.New(),
 	}
 
 	proxyHost := strings.Split(addr, ":")[0]
