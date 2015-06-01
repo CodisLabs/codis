@@ -16,10 +16,8 @@ import (
 	topo "github.com/ngaut/go-zookeeper/zk"
 	stats "github.com/ngaut/gostats"
 
-	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
-
 	"github.com/wandoulabs/codis/pkg/models"
-
+	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -349,16 +347,15 @@ func (s *Server) handleMarkOffline() {
 			return nil
 		}
 	}
-
 	s.OnSuicide()
 }
 
 func (s *Server) handleProxyCommand() {
-	pi, err := s.topo.GetProxyInfo(s.info.Id)
+	info, err := s.topo.GetProxyInfo(s.info.Id)
 	if err != nil {
 		log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
 	}
-	if pi.State == models.PROXY_STATE_MARK_OFFLINE {
+	if info.State == models.PROXY_STATE_MARK_OFFLINE {
 		s.handleMarkOffline()
 	}
 }
@@ -415,8 +412,8 @@ func (s *Server) processAction(e interface{}) {
 	s.lastActionSeq = seqs[len(seqs)-1]
 }
 
+/*
 func (s *Server) dispatch(r *PipelineRequest) {
-	/*
 		s.handleMigrateState(r.slotIdx, r.keys[0])
 		tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
 		if !ok {
@@ -429,8 +426,8 @@ func (s *Server) dispatch(r *PipelineRequest) {
 			tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
 		}
 		tr.in <- r
-	*/
 }
+*/
 
 func (s *Server) handleTopoEvent() {
 	for {
@@ -465,17 +462,15 @@ func (s *Server) handleTopoEvent() {
 
 func (s *Server) waitOnline() {
 	for {
-		pi, err := s.topo.GetProxyInfo(s.info.Id)
+		info, err := s.topo.GetProxyInfo(s.info.Id)
 		if err != nil {
 			log.PanicErrorf(err, "get proxy info failed")
 		}
-
-		if pi.State == models.PROXY_STATE_MARK_OFFLINE {
+		switch info.State {
+		case models.PROXY_STATE_MARK_OFFLINE:
 			s.handleMarkOffline()
-		}
-
-		if pi.State == models.PROXY_STATE_ONLINE {
-			s.info.State = pi.State
+		case models.PROXY_STATE_ONLINE:
+			s.info.State = info.State
 			log.Infof("we are online: %s", s.info.Id)
 			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
 			if err != nil {
@@ -483,7 +478,6 @@ func (s *Server) waitOnline() {
 			}
 			return
 		}
-
 		select {
 		case e := <-s.evtbus:
 			switch e.(type) {
