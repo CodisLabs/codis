@@ -50,8 +50,6 @@ type Server struct {
 	OnSuicide   OnSuicideFun
 	bufferedReq *list.List
 	conf        *Conf
-
-	pipeConns map[string]*taskRunner //redis->taskrunner
 }
 
 func (s *Server) clearSlot(i int) {
@@ -63,21 +61,6 @@ func (s *Server) clearSlot(i int) {
 		s.slots[i].dst = nil
 		s.slots[i].migrateFrom = nil
 		s.slots[i] = nil
-	}
-}
-
-func (s *Server) stopTaskRunners() {
-	wg := &sync.WaitGroup{}
-	log.Warning("taskrunner count", len(s.pipeConns))
-	wg.Add(len(s.pipeConns))
-	for _, tr := range s.pipeConns {
-		tr.in <- wg
-	}
-	wg.Wait()
-
-	//remove all
-	for k, _ := range s.pipeConns {
-		delete(s.pipeConns, k)
 	}
 }
 
@@ -120,29 +103,6 @@ func (s *Server) fillSlot(i int, force bool) {
 
 	s.slots[i] = slot
 	s.counter.Add("FillSlot", 1)
-}
-
-func (s *Server) createTaskRunner(slot *Slot) error {
-	dst := slot.dst.Master()
-	if _, ok := s.pipeConns[dst]; !ok {
-		tr, err := NewTaskRunner(dst, s.conf.netTimeout)
-		if err != nil {
-			return errors.Errorf("create task runner failed, %v,  %+v, %+v", err, slot.dst, slot.slotInfo)
-		} else {
-			s.pipeConns[dst] = tr
-		}
-	}
-
-	return nil
-}
-
-func (s *Server) createTaskRunners() {
-	for _, slot := range s.slots {
-		if err := s.createTaskRunner(slot); err != nil {
-			log.Error(err)
-			return
-		}
-	}
 }
 
 func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
@@ -412,7 +372,7 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 
 	log.Warningf("action %v receivers %v", seq, act.Receivers)
 
-	s.stopTaskRunners()
+	// s.stopTaskRunners()
 
 	switch act.Type {
 	case models.ACTION_TYPE_SLOT_MIGRATE, models.ACTION_TYPE_SLOT_CHANGED,
@@ -434,7 +394,7 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 		log.Fatalf("unknown action %+v", act)
 	}
 
-	s.createTaskRunners()
+	// s.createTaskRunners()
 
 	return true
 }
@@ -517,19 +477,20 @@ func (s *Server) processAction(e interface{}) {
 }
 
 func (s *Server) dispatch(r *PipelineRequest) {
-	s.handleMigrateState(r.slotIdx, r.keys[0])
-	tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
-	if !ok {
-		//try recreate taskrunner
-		if err := s.createTaskRunner(s.slots[r.slotIdx]); err != nil {
-			r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
-			return
+	/*
+		s.handleMigrateState(r.slotIdx, r.keys[0])
+		tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
+		if !ok {
+			//try recreate taskrunner
+			if err := s.createTaskRunner(s.slots[r.slotIdx]); err != nil {
+				r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
+				return
+			}
+
+			tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
 		}
-
-		tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
-	}
-	tr.in <- r
-
+		tr.in <- r
+	*/
 }
 
 func (s *Server) handleTopoEvent() {
@@ -654,7 +615,6 @@ func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
 		moper:         NewMultiOperator(addr),
 		reqCh:         make(chan *PipelineRequest, 1000),
 		pools:         cachepool.NewCachePool(),
-		pipeConns:     make(map[string]*taskRunner),
 		bufferedReq:   list.New(),
 	}
 

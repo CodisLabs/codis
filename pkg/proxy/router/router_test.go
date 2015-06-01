@@ -3,6 +3,8 @@
 
 package router
 
+/*
+
 import (
 	"io"
 	"sync"
@@ -351,3 +353,4 @@ func TestRedisRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+*/
