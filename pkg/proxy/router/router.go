@@ -4,6 +4,7 @@
 package router
 
 import (
+	"encoding/json"
 	"net"
 	"os"
 	"os/signal"
@@ -37,6 +38,23 @@ type Server struct {
 
 func getEventPath(evt interface{}) string {
 	return evt.(topo.Event).Path
+}
+
+func needResponse(receivers []string, self models.ProxyInfo) bool {
+	var info models.ProxyInfo
+	for _, v := range receivers {
+		err := json.Unmarshal([]byte(v), &info)
+		if err != nil {
+			if v == self.Id {
+				return true
+			}
+			return false
+		}
+		if info.Id == self.Id && info.Pid == self.Pid && info.StartAt == self.StartAt {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Server) isValidSlot(i int) bool {
@@ -546,6 +564,7 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 	s.info.Addr = proxyHost + ":" + strings.Split(addr, ":")[1]
 	s.info.DebugVarAddr = debugHost + ":" + strings.Split(debugVarAddr, ":")[1]
 	s.info.Pid = os.Getpid()
+	s.info.StartAt = time.Now().String()
 
 	log.Infof("proxy info = %+v", s.info)
 
