@@ -43,8 +43,10 @@ func isNotAllowed(opstr string) bool {
 	return blacklist[opstr]
 }
 
-var ErrBadRespType = errors.New("bad resp type for command")
-var ErrBadOpStrLen = errors.New("bad opstr length, too short or too lang")
+var (
+	ErrBadRespType = errors.New("bad resp type for command")
+	ErrBadOpStrLen = errors.New("bad opstr length, too short or too lang")
+)
 
 func getOpStr(resp *redis.Resp) (string, error) {
 	if resp.Type != redis.TypeArray {

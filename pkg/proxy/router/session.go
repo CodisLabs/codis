@@ -3,6 +3,7 @@ package router
 import (
 	"container/list"
 	"encoding/json"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -53,7 +54,12 @@ func (s *Session) Close() {
 func (s *Session) Serve() {
 	var errlist errors.ErrorList
 	defer func() {
-		log.Infof("session [%p] closed, session = %s, error = %s", s, s, errlist.First())
+		var err = errlist.First()
+		if err != nil {
+			log.Infof("session [%p] closed, session = %s, error = %s", s, s, err)
+		} else {
+			log.Infof("session [%p] closed, session = %s, quit", s, s)
+		}
 	}()
 
 	tasks := make(chan *Request, 256)
@@ -73,7 +79,16 @@ func (s *Session) Serve() {
 			errlist.PushBack(err)
 			return
 		}
-		tasks <- s.handleRequest(resp)
+		r, err := s.handleRequest(resp)
+		if err != nil {
+			errlist.PushBack(err)
+			return
+		}
+		if r == nil {
+			return
+		} else {
+			tasks <- r
+		}
 	}
 }
 
@@ -90,13 +105,23 @@ func (s *Session) loopWriter(tasks <-chan *Request) error {
 	return nil
 }
 
-func (s *Session) handleRequest(resp *redis.Resp) *Request {
+func (s *Session) handleRequest(resp *redis.Resp) (*Request, error) {
+	opstr, err := getOpStr(resp)
+	if err != nil {
+		return nil, err
+	}
+	if isNotAllowed(opstr) {
+		return nil, errors.New(fmt.Sprintf("<%s> is not allowed", opstr))
+	}
+
 	s.SeqId++
 	r := &Request{
 		Sid: s.Sid, SeqId: s.SeqId,
+		Resp: resp, OpStr: opstr,
 	}
+	_ = r
+
 	panic("todo")
-	return r
 	// if success then r.wait.Add(1)
 }
 
