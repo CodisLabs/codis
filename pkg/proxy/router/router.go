@@ -89,10 +89,10 @@ func (s *Server) clearSlot(i int) {
 	}
 	slot := s.slots[i]
 	slot.blockAndWait()
-	slot.Info, slot.Group = nil, nil
 
-	bc := slot.update("", "", nil)
+	bc := slot.reset()
 	s.putBackendConn(bc)
+
 	slot.unblock()
 }
 
@@ -111,7 +111,6 @@ func (s *Server) fillSlot(i int, force bool) {
 	}
 
 	var from string
-	var addr = group.NewGroup(*slotGroup).Master()
 	if slotInfo.State.Status == models.SLOT_STATUS_MIGRATE {
 		fromGroup, err := s.topo.GetGroup(slotInfo.State.MigrateStatus.From)
 		if err != nil {
@@ -119,12 +118,25 @@ func (s *Server) fillSlot(i int, force bool) {
 		}
 		from = group.NewGroup(*fromGroup).Master()
 	}
+	var addr = group.NewGroup(*slotGroup).Master()
 
 	slot.blockAndWait()
-	slot.Info, slot.Group = slotInfo, slotGroup
 
-	bc := slot.update(addr, from, s.getBackendConn(addr))
+	bc := slot.reset()
 	s.putBackendConn(bc)
+
+	slot.Info, slot.Group = slotInfo, slotGroup
+	slot.from = from
+	if len(addr) != 0 {
+		xx := strings.Split(addr, ":")
+		if len(xx) >= 1 {
+			slot.addr.host = []byte(xx[0])
+		}
+		if len(xx) >= 2 {
+			slot.addr.port = []byte(xx[1])
+		}
+	}
+	slot.bc = s.getBackendConn(addr)
 
 	if slotInfo.State.Status != models.SLOT_STATUS_PRE_MIGRATE {
 		slot.unblock()

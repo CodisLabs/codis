@@ -1,7 +1,6 @@
 package router
 
 import (
-	"strings"
 	"sync"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -12,14 +11,13 @@ type Slot struct {
 	Info  *models.Slot
 	Group *models.ServerGroup
 
-	from string
+	bc   *BackendConn
 	addr struct {
 		host []byte
 		port []byte
 	}
-	migrating bool
+	from string
 
-	bc   *BackendConn
 	jobs sync.WaitGroup
 	lock struct {
 		hold bool
@@ -43,21 +41,12 @@ func (s *Slot) unblock() {
 	s.lock.Unlock()
 }
 
-func (s *Slot) update(addr, from string, bc *BackendConn) *BackendConn {
+func (s *Slot) reset() (bc *BackendConn) {
+	s.Info, s.Group = nil, nil
+	s.bc, bc = nil, s.bc
 	s.addr.host = nil
 	s.addr.port = nil
 	s.from = ""
-	if len(addr) != 0 {
-		ss := strings.Split(addr, ":")
-		if len(ss) >= 1 {
-			s.addr.host = []byte(ss[0])
-		}
-		if len(ss) >= 2 {
-			s.addr.port = []byte(ss[1])
-		}
-	}
-	s.migrating = len(from) != 0
-	s.bc, bc = bc, s.bc
 	return bc
 }
 
