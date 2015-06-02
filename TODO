@@ -1,4 +1,0 @@
-1. upgrade codis-proxy
-2. fix codis-config's bug
-3. upgrade redis to redis-2.8.20 & optimize memory usage
-4. powerful bash scripts
