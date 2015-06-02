@@ -42,7 +42,7 @@ func NewSession(c net.Conn) *Session {
 	s.Conn = redis.NewConn(c)
 	s.Conn.ReaderTimeout = time.Minute * 30
 	s.Conn.WriterTimeout = time.Minute
-	return addNewSession(s)
+	return addToSessions(s)
 }
 
 func (s *Session) Close() {
@@ -121,7 +121,7 @@ func init() {
 	}()
 }
 
-func addNewSession(s *Session) *Session {
+func addToSessions(s *Session) *Session {
 	sessions.Lock()
 	sessions.PushBack(s)
 	sessions.Unlock()

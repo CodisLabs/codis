@@ -18,6 +18,7 @@ import (
 	stats "github.com/ngaut/gostats"
 
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -61,68 +62,81 @@ func (s *Server) isValidSlot(i int) bool {
 	return i >= 0 && i < len(s.slots)
 }
 
-func (s *Server) clearSlot(i int) {
-	panic("todo")
-	/*
-		if !validSlot(i) {
+func (s *Server) getBackendConn(addr string) *BackendConn {
+	for _, slot := range s.slots {
+		if slot.bc != nil && slot.bc.Addr == addr {
+			return slot.bc
+		}
+	}
+	return NewBackendConn(addr)
+}
+
+func (s *Server) putBackendConn(bc *BackendConn) {
+	if bc == nil {
+		return
+	}
+	for _, slot := range s.slots {
+		if slot.bc == bc {
 			return
 		}
+	}
+	bc.Close()
+}
 
-		if s.slots[i] != nil {
-			s.slots[i].dst = nil
-			s.slots[i].migrateFrom = nil
-			s.slots[i] = nil
-		}
-	*/
+func (s *Server) clearSlot(i int) {
+	if !s.isValidSlot(i) {
+		return
+	}
+	slot := s.slots[i]
+	slot.blockAndWait()
+	slot.Info, slot.Group = nil, nil
+
+	bc := slot.update("", "", nil)
+	s.putBackendConn(bc)
+	slot.unblock()
 }
 
 func (s *Server) fillSlot(i int, force bool) {
-	panic("todo")
-	/*
-		if !validSlot(i) {
-			return
-		}
+	if !s.isValidSlot(i) {
+		return
+	}
+	slot := s.slots[i]
+	if !force && slot.bc != nil {
+		log.Panicf("slot %d already filled, slot: %+v", i, slot)
+	}
 
-		if !force && s.slots[i] != nil { //check
-			log.Fatalf("slot %d already filled, slot: %+v", i, s.slots[i])
-			return
-		}
+	slotInfo, slotGroup, err := s.topo.GetSlotByIndex(i)
+	if err != nil {
+		log.PanicErrorf(err, "get slot by index failed", i)
+	}
 
-		s.clearSlot(i)
-
-		slotInfo, groupInfo, err := s.topo.GetSlotByIndex(i)
+	var from string
+	var addr = group.NewGroup(*slotGroup).Master()
+	if slotInfo.State.Status == models.SLOT_STATUS_MIGRATE {
+		fromGroup, err := s.topo.GetGroup(slotInfo.State.MigrateStatus.From)
 		if err != nil {
-			log.Fatal(errors.ErrorStack(err))
+			log.PanicErrorf(err, "get migrate from failed")
 		}
+		from = group.NewGroup(*fromGroup).Master()
+	}
 
-		slot := &Slot{
-			slotInfo:  slotInfo,
-			dst:       group.NewGroup(*groupInfo),
-			groupInfo: groupInfo,
-		}
+	slot.blockAndWait()
+	slot.Info, slot.Group = slotInfo, slotGroup
 
-		log.Infof("fill slot %d, force %v, %+v", i, force, slot.dst)
+	bc := slot.update(addr, from, s.getBackendConn(addr))
+	s.putBackendConn(bc)
 
-		s.pools.AddPool(slot.dst.Master())
+	if slotInfo.State.Status != models.SLOT_STATUS_PRE_MIGRATE {
+		slot.unblock()
+	}
 
-		if slot.slotInfo.State.Status == models.SLOT_STATUS_MIGRATE {
-			//get migrate src group and fill it
-			from, err := s.topo.GetGroup(slot.slotInfo.State.MigrateStatus.From)
-			if err != nil { //todo: retry ?
-				log.Fatal(err)
-			}
-			slot.migrateFrom = group.NewGroup(*from)
-			s.pools.AddPool(slot.migrateFrom.Master())
-		}
-
-		s.slots[i] = slot
-		s.counter.Add("FillSlot", 1)
-	*/
+	s.counter.Add("FillSlot", 1)
+	log.Infof("fill slot %d, force %v, addr = %s, from = %+v", i, force, addr, from)
 }
 
+/*
 func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 	panic("todo")
-	/*
 		shd := s.slots[slotIndex]
 		if shd.slotInfo.State.Status != models.SLOT_STATUS_MIGRATE {
 			return nil
@@ -173,8 +187,8 @@ func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
 
 		s.counter.Add("Migrate", 1)
 		return nil
-	*/
 }
+*/
 
 /*
 func (s *Server) sendBack(c *session, op []byte, keys [][]byte, resp *parser.Resp, result []byte) {
@@ -279,7 +293,7 @@ func (s *Server) OnSlotRangeChange(param *models.SlotMultiSetParam) {
 func (s *Server) OnGroupChange(groupId int) {
 	log.Warnf("group changed %d", groupId)
 	for i, slot := range s.slots {
-		if slot.slotInfo.GroupId == groupId {
+		if slot.Info.GroupId == groupId {
 			s.fillSlot(i, true)
 		}
 	}
@@ -330,8 +344,6 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 
 	log.Warnf("action %v receivers %v", seq, act.Receivers)
 
-	// s.stopTaskRunners()
-
 	switch act.Type {
 	case models.ACTION_TYPE_SLOT_MIGRATE, models.ACTION_TYPE_SLOT_CHANGED,
 		models.ACTION_TYPE_SLOT_PREMIGRATE:
@@ -351,9 +363,6 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 	default:
 		log.Panicf("unknown action %+v", act)
 	}
-
-	// s.createTaskRunners()
-
 	return true
 }
 
@@ -368,20 +377,15 @@ func (s *Server) handleMarkOffline() {
 	s.OnSuicide()
 }
 
-func (s *Server) handleProxyCommand() {
-	info, err := s.topo.GetProxyInfo(s.info.Id)
-	if err != nil {
-		log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
-	}
-	if info.State == models.PROXY_STATE_MARK_OFFLINE {
-		s.handleMarkOffline()
-	}
-}
-
 func (s *Server) processAction(e interface{}) {
 	if strings.Index(getEventPath(e), models.GetProxyPath(s.topo.ProductName)) == 0 {
-		//proxy event, should be order for me to suicide
-		s.handleProxyCommand()
+		info, err := s.topo.GetProxyInfo(s.info.Id)
+		if err != nil {
+			log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
+		}
+		if info.State == models.PROXY_STATE_MARK_OFFLINE {
+			s.handleMarkOffline()
+		}
 		return
 	}
 
@@ -449,31 +453,27 @@ func (s *Server) dispatch(r *PipelineRequest) {
 
 func (s *Server) handleTopoEvent() {
 	for {
-		select {
-		case e := <-s.evtbus:
-			switch e.(type) {
-			case *killEvent:
-				s.handleMarkOffline()
-				e.(*killEvent).done <- nil
-			default:
-				evtPath := getEventPath(e)
-				log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
-				if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
-					seq, err := strconv.Atoi(path.Base(evtPath))
-					if err != nil {
-						log.WarnErrorf(err, "parse action seq failed")
-					} else {
-						if seq < s.lastActionSeq {
-							log.Infof("ignore seq = %d", seq)
-							continue
-						}
+		e := <-s.evtbus
+		switch e.(type) {
+		case *killEvent:
+			s.handleMarkOffline()
+			e.(*killEvent).done <- nil
+		default:
+			evtPath := getEventPath(e)
+			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
+			if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
+				seq, err := strconv.Atoi(path.Base(evtPath))
+				if err != nil {
+					log.WarnErrorf(err, "parse action seq failed")
+				} else {
+					if seq < s.lastActionSeq {
+						log.Infof("ignore seq = %d", seq)
+						continue
 					}
-
 				}
-
-				log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
-				s.processAction(e)
 			}
+			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
+			s.processAction(e)
 		}
 	}
 }
@@ -510,12 +510,6 @@ func (s *Server) waitOnline() {
 	}
 }
 
-func (s *Server) FillSlots() {
-	for i := 0; i < models.DEFAULT_SLOT_NUM; i++ {
-		s.fillSlot(i, false)
-	}
-}
-
 func (s *Server) RegisterAndWait() {
 	_, err := s.topo.CreateProxyInfo(&s.info)
 	if err != nil {
@@ -532,11 +526,14 @@ func (s *Server) RegisterAndWait() {
 func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 	log.Infof("start proxy with config: %+v", conf)
 	s := &Server{
-		conf:          conf,
 		evtbus:        make(chan interface{}, 1000),
+		conf:          conf,
 		topo:          topology.NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider),
 		counter:       stats.NewCounters("router"),
 		lastActionSeq: -1,
+	}
+	for i := 0; i < len(s.slots); i++ {
+		s.slots[i] = &Slot{Id: i}
 	}
 
 	proxyHost := strings.Split(addr, ":")[0]
@@ -585,7 +582,9 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 		log.PanicErrorf(err, "watch children failed")
 	}
 
-	s.FillSlots()
+	for i := 0; i < len(s.slots); i++ {
+		s.fillSlot(i, false)
+	}
 
 	go s.handleTopoEvent()
 
