@@ -2,9 +2,11 @@ package redis
 
 import (
 	"container/list"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -82,10 +84,10 @@ func getPoolConn(addr string) (*Conn, error) {
 
 var mgrttagone = []byte("slotsmgrttagone")
 
-func SlotsMgrtTagOne(addr string, host []byte, port []byte, key []byte) (*Resp, error) {
+func SlotsMgrtTagOne(addr string, host []byte, port []byte, key []byte) (int, error) {
 	c, err := getPoolConn(addr)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	defer putPoolConn(c, addr)
 
@@ -100,7 +102,19 @@ func SlotsMgrtTagOne(addr string, host []byte, port []byte, key []byte) (*Resp, 
 		NewBulkBytes(key),
 	})
 	if err := c.Writer.Encode(resp, true); err != nil {
-		return nil, err
+		return 0, err
 	}
-	return c.Reader.Decode()
+	if resp, err := c.Reader.Decode(); err != nil {
+		return 0, err
+	} else if resp.IsError() {
+		return 0, errors.Errorf("error resp: %s", resp.Value)
+	} else if resp.IsInt() {
+		if n, err := strconv.ParseInt(string(resp.Value), 10, 64); err != nil {
+			return 0, errors.Trace(err)
+		} else {
+			return int(n), nil
+		}
+	} else {
+		return 0, errors.Errorf("bad response of slotsmgrttagone, should be integer")
+	}
 }

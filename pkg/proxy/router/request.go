@@ -37,8 +37,10 @@ func (r *Request) String() string {
 		Flush  bool
 		SlotId int
 	}{
-		r.Sid, r.Seq, r.OpStr,
-		r.Flush, r.slot.Id,
+		r.Sid, r.Seq, r.OpStr, r.Flush, -1,
+	}
+	if r.slot != nil {
+		o.SlotId = r.slot.Id
 	}
 	b, _ := json.Marshal(o)
 	return string(b)
