@@ -69,8 +69,8 @@ func getOpStr(resp *redis.Resp) (string, error) {
 		return "", ErrBadOpStrLen
 	}
 	for i := 0; i < len(op); i++ {
-		k := int(uint8(op[i]))
-		if k < len(charmap) {
+		c := uint8(op[i])
+		if k := int(c); k < len(charmap) {
 			upper[i] = charmap[k]
 		} else {
 			return strings.ToUpper(string(op)), nil
@@ -79,17 +79,17 @@ func getOpStr(resp *redis.Resp) (string, error) {
 	return string(upper[:len(op)]), nil
 }
 
-func hashSlot(key []byte, nslots int) int {
+func hashSlot(key []byte) int {
 	const (
 		TagBeg = '{'
 		TagEnd = '}'
 	)
 	if beg := bytes.IndexByte(key, TagBeg); beg >= 0 {
-		if end := bytes.IndexByte(key[beg:], TagEnd); end >= 0 {
-			key = key[beg+1 : beg+end]
+		if end := bytes.IndexByte(key[beg+1:], TagEnd); end >= 0 {
+			key = key[beg+1 : beg+1+end]
 		}
 	}
-	return int(crc32.ChecksumIEEE(key) % uint32(nslots))
+	return int(crc32.ChecksumIEEE(key) % MaxSlotNum)
 }
 
 func getHashKey(resp *redis.Resp, opstr string) []byte {

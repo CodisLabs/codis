@@ -23,8 +23,10 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
+const MaxSlotNum = models.DEFAULT_SLOT_NUM
+
 type Server struct {
-	slots  [models.DEFAULT_SLOT_NUM]*Slot
+	slots  [MaxSlotNum]*Slot
 	evtbus chan interface{}
 
 	conf *Config
@@ -59,7 +61,7 @@ func needResponse(receivers []string, self models.ProxyInfo) bool {
 }
 
 func (s *Server) isValidSlot(i int) bool {
-	return i >= 0 && i < len(s.slots)
+	return i >= 0 && i < MaxSlotNum
 }
 
 func (s *Server) getBackendConn(addr string) *BackendConn {
@@ -544,7 +546,7 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 		counter:       stats.NewCounters("router"),
 		lastActionSeq: -1,
 	}
-	for i := 0; i < len(s.slots); i++ {
+	for i := 0; i < MaxSlotNum; i++ {
 		s.slots[i] = &Slot{Id: i}
 	}
 
@@ -594,7 +596,7 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 		log.PanicErrorf(err, "watch children failed")
 	}
 
-	for i := 0; i < len(s.slots); i++ {
+	for i := 0; i < MaxSlotNum; i++ {
 		s.fillSlot(i, false)
 	}
 
