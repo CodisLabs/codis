@@ -22,6 +22,8 @@ type Session struct {
 	Seq    int64
 	Closed bool
 
+	quit bool
+
 	CreateUnix int64
 }
 
@@ -84,7 +86,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
 	if d == nil {
 		return errors.New("nil dispatcher")
 	}
-	for {
+	for !s.quit {
 		resp, err := s.Reader.Decode()
 		if err != nil {
 			return err
@@ -92,13 +94,11 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
 		r, err := s.handleRequest(resp, d)
 		if err != nil {
 			return err
-		}
-		if r == nil {
-			return nil
 		} else {
 			tasks <- r
 		}
 	}
+	return nil
 }
 
 func (s *Session) loopWriter(tasks <-chan *Request) error {
@@ -152,11 +152,12 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 	}
 
 	switch opstr {
+	case "QUIT":
+		s.quit = true
+		fallthrough
 	case "AUTH", "SELECT":
 		r.Response.Resp = redis.NewString([]byte("OK"))
 		return r, nil
-	case "QUIT":
-		return nil, nil
 	case "MGET":
 		return s.handleRequestMGet(r, d)
 	case "MSET":
