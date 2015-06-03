@@ -7,17 +7,19 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"os/exec"
 	"path"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
+
+	"github.com/docopt/docopt-go"
 
 	"github.com/wandoulabs/codis/pkg/proxy/router"
 	"github.com/wandoulabs/codis/pkg/utils"
-
-	"github.com/docopt/docopt-go"
-	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var (
@@ -38,7 +40,7 @@ options:
    --http-addr=<debug_http_server_addr>		debug vars http server
 `
 
-var banner string = `
+const banner string = `
   _____  ____    ____/ /  (_)  _____
  / ___/ / __ \  / __  /  / /  / ___/
 / /__  / /_/ / / /_/ /  / /  (__  )
@@ -46,28 +48,53 @@ var banner string = `
 
 `
 
+func setLogLevel(level string) {
+	var lv = log.LEVEL_INFO
+	switch strings.ToUpper(level) {
+	case "error":
+		lv = log.LEVEL_ERROR
+	case "warn", "warning":
+		lv = log.LEVEL_WARN
+	case "debug":
+		lv = log.LEVEL_DEBUG
+	case "info":
+		fallthrough
+	default:
+		lv = log.LEVEL_INFO
+	}
+	log.SetLevel(lv)
+	log.Infof("set log level to %s", lv)
+}
+
+func setCrashLog(file string) {
+	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.InfoErrorf(err, "cannot open crash log file: %s", file)
+	} else {
+		syscall.Dup2(int(f.Fd()), 2)
+	}
+}
+
 func handleSetLogLevel(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
-	level := r.Form.Get("level")
-	log.SetLevelByString(level)
-	log.Info("set log level to", level)
+	setLogLevel(r.Form.Get("level"))
 }
 
 func checkUlimit(min int) {
 	ulimitN, err := exec.Command("/bin/sh", "-c", "ulimit -n").Output()
 	if err != nil {
-		log.Warning("get ulimit failed", err)
+		log.WarnErrorf(err, "get ulimit failed")
 	}
 
 	n, err := strconv.Atoi(strings.TrimSpace(string(ulimitN)))
 	if err != nil || n < min {
-		log.Fatalf("ulimit too small: %d, should be at least %d", n, min)
+		log.Panicf("ulimit too small: %d, should be at least %d", n, min)
 	}
 }
 
 func main() {
 	fmt.Print(banner)
-	log.SetLevelByString("info")
+	log.SetLevel(log.LEVEL_INFO)
 
 	args, err := docopt.Parse(usage, nil, true, "codis proxy v0.1", true)
 	if err != nil {
@@ -80,20 +107,28 @@ func main() {
 	}
 
 	// set output log file
-	if args["-L"] != nil {
-		log.SetOutputByName(args["-L"].(string))
+	if s, ok := args["-L"].(string); ok && s != "" {
+		const maxFileFrag = 10
+		const maxFragSize = 1024 * 1024 * 32
+		f, err := log.NewRollingFile(s, maxFileFrag, maxFragSize)
+		if err != nil {
+			log.PanicErrorf(err, "open rolling log file failed: %s", s)
+		} else {
+			defer f.Close()
+			log.StdLog = log.New(f, "")
+		}
 	}
 
 	// set log level
-	if args["--log-level"] != nil {
-		log.SetLevelByString(args["--log-level"].(string))
+	if s, ok := args["--log-level"].(string); ok && s != "" {
+		setLogLevel(s)
 	}
 
 	// set cpu
 	if args["--cpu"] != nil {
 		cpus, err = strconv.Atoi(args["--cpu"].(string))
 		if err != nil {
-			log.Fatal(err)
+			log.PanicErrorf(err, "parse cpu number failed")
 		}
 	}
 
@@ -110,7 +145,7 @@ func main() {
 	dumppath := utils.GetExecutorPath()
 
 	log.Info("dump file path:", dumppath)
-	log.CrashLog(path.Join(dumppath, "codis-proxy.dump"))
+	setCrashLog(path.Join(dumppath, "codis-proxy.dump"))
 
 	checkUlimit(1024)
 	runtime.GOMAXPROCS(cpus)
@@ -120,7 +155,7 @@ func main() {
 	log.Info("running on ", addr)
 	conf, err := router.LoadConf(configFile)
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "load config failed")
 	}
 	router.Serve(addr, httpAddr, conf)
 	panic("exit")

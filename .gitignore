@@ -3,6 +3,7 @@
 *.swp
 *.out
 *.dump
+*.log.*
 
 martini_log
 _workspace
