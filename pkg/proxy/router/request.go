@@ -44,15 +44,6 @@ func (r *Request) String() string {
 	return string(b)
 }
 
-func (r *Request) SetResponse(resp *redis.Resp, err error) error {
-	r.Response.Resp, r.Response.Err = resp, err
-	r.wait.Done()
-	if r.slot != nil {
-		r.slot.jobs.Done()
-	}
-	return err
-}
-
 func (r *Request) Wait() {
 	r.wait.Wait()
 }

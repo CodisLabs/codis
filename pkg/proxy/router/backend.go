@@ -60,7 +60,7 @@ func (bc *BackendConn) discard(err error, max int) int {
 			if !ok {
 				return n
 			}
-			r.SetResponse(nil, err)
+			bc.setResponse(r, nil, err)
 			n++
 		default:
 		}
@@ -73,13 +73,13 @@ func (bc *BackendConn) loopWriter() error {
 	if ok {
 		c, tasks, err := bc.newBackendReader()
 		if err != nil {
-			return r.SetResponse(nil, err)
+			return bc.setResponse(r, nil, err)
 		}
 		defer close(tasks)
 		for ok {
 			if err := c.Writer.Encode(r.Resp, r.Flush || len(bc.input) == 0); err != nil {
 				c.Close()
-				return r.SetResponse(nil, err)
+				return bc.setResponse(r, nil, err)
 			}
 			tasks <- r
 			r, ok = <-bc.input
@@ -100,8 +100,16 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 	go func() {
 		defer c.Close()
 		for r := range tasks {
-			r.SetResponse(c.Reader.Decode())
+			resp, err := c.Reader.Decode()
+			bc.setResponse(r, resp, err)
 		}
 	}()
 	return c, tasks, nil
+}
+
+func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) error {
+	r.Response.Resp, r.Response.Err = resp, err
+	r.wait.Done()
+	r.slot.jobs.Done()
+	return err
 }

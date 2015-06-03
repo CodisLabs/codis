@@ -27,8 +27,10 @@ func TestBackend(t *testing.T) {
 			r := &Request{
 				Flush: true,
 				Resp:  resp,
+				slot:  &Slot{},
 				wait:  &sync.WaitGroup{},
 			}
+			r.slot.jobs.Add(1)
 			r.wait.Add(1)
 			bc.PushBack(r)
 			reqc <- r
