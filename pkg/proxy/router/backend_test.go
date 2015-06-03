@@ -25,10 +25,9 @@ func TestBackend(t *testing.T) {
 		var resp = redis.NewBulkBytes(make([]byte, 4096))
 		for i := 0; i < cap(reqc); i++ {
 			r := &Request{
-				Flush: true,
-				Resp:  resp,
-				slot:  &Slot{},
-				wait:  &sync.WaitGroup{},
+				Resp: resp,
+				slot: &Slot{},
+				wait: &sync.WaitGroup{},
 			}
 			r.slot.jobs.Add(1)
 			r.wait.Add(1)

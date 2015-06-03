@@ -15,7 +15,6 @@ type Request struct {
 	Sid   int64
 	Seq   int64
 	OpStr string
-	Flush bool
 
 	Resp *redis.Resp
 
@@ -34,10 +33,9 @@ func (r *Request) String() string {
 		Sid    int64
 		Seq    int64
 		OpStr  string
-		Flush  bool
 		SlotId int
 	}{
-		r.Sid, r.Seq, r.OpStr, r.Flush, -1,
+		r.Sid, r.Seq, r.OpStr, -1,
 	}
 	if r.slot != nil {
 		o.SlotId = r.slot.Id

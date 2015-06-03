@@ -83,7 +83,7 @@ func (bc *BackendConn) loopWriter() error {
 		}
 		defer close(tasks)
 		for ok {
-			if err := c.Writer.Encode(r.Resp, r.Flush || len(bc.input) == 0); err != nil {
+			if err := c.Writer.Encode(r.Resp, true); err != nil {
 				c.Close()
 				return bc.setResponse(r, nil, err)
 			}

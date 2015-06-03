@@ -107,7 +107,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) error {
 		if err != nil {
 			return err
 		}
-		if err := s.Writer.Encode(resp, r.Flush || len(tasks) == 0); err != nil {
+		if err := s.Writer.Encode(resp, true); err != nil {
 			return err
 		}
 	}
