@@ -45,7 +45,7 @@ func isNotAllowed(opstr string) bool {
 
 var (
 	ErrBadRespType = errors.New("bad resp type for command")
-	ErrBadOpStrLen = errors.New("bad opstr length, too short or too lang")
+	ErrBadOpStrLen = errors.New("bad command length, too short or too long")
 )
 
 func getOpStr(resp *redis.Resp) (string, error) {

@@ -111,7 +111,7 @@ func (s *Session) handleRequest(resp *redis.Resp) (*Request, error) {
 		return nil, err
 	}
 	if isNotAllowed(opstr) {
-		return nil, errors.New(fmt.Sprintf("<%s> is not allowed", opstr))
+		return nil, errors.New(fmt.Sprintf("command <%s> is not allowed", opstr))
 	}
 
 	s.SeqId++
