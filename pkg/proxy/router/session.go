@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,7 +19,7 @@ type Session struct {
 	*redis.Conn
 
 	Sid    int64
-	SeqId  int64
+	Seq    int64
 	Closed bool
 
 	CreateUnix int64
@@ -27,11 +28,11 @@ type Session struct {
 func (s *Session) String() string {
 	o := &struct {
 		Sid        int64
-		SeqId      int64
+		Seq        int64
 		CreateUnix int64
 		RemoteAddr string
 	}{
-		s.Sid, s.SeqId, s.CreateUnix,
+		s.Sid, s.Seq, s.CreateUnix,
 		s.Conn.Sock.RemoteAddr().String(),
 	}
 	b, _ := json.Marshal(o)
@@ -51,11 +52,10 @@ func (s *Session) Close() {
 	s.Conn.Close()
 }
 
-func (s *Session) Serve() {
+func (s *Session) Serve(d Dispatcher) {
 	var errlist errors.ErrorList
 	defer func() {
-		var err = errlist.First()
-		if err != nil {
+		if err := errlist.First(); err != nil {
 			log.Infof("session [%p] closed, session = %s, error = %s", s, s, err)
 		} else {
 			log.Infof("session [%p] closed, session = %s, quit", s, s)
@@ -64,28 +64,37 @@ func (s *Session) Serve() {
 
 	tasks := make(chan *Request, 256)
 	go func() {
+		defer func() {
+			s.Close()
+			for _ = range tasks {
+			}
+		}()
 		if err := s.loopWriter(tasks); err != nil {
 			errlist.PushBack(err)
-		}
-		s.Close()
-		for _ = range tasks {
 		}
 	}()
 
 	defer close(tasks)
+	if err := s.loopReader(tasks, d); err != nil {
+		errlist.PushBack(err)
+	}
+}
+
+func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
+	if d == nil {
+		return errors.New("nil dispatcher")
+	}
 	for {
 		resp, err := s.Reader.Decode()
 		if err != nil {
-			errlist.PushBack(err)
-			return
+			return err
 		}
-		r, err := s.handleRequest(resp)
+		r, err := s.handleRequest(resp, d)
 		if err != nil {
-			errlist.PushBack(err)
-			return
+			return err
 		}
 		if r == nil {
-			return
+			return nil
 		} else {
 			tasks <- r
 		}
@@ -95,17 +104,36 @@ func (s *Session) Serve() {
 func (s *Session) loopWriter(tasks <-chan *Request) error {
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
-		if resp != nil {
-			err = s.Writer.Encode(resp, r.Flush || len(tasks) == 0)
-		}
 		if err != nil {
+			return err
+		}
+		if err := s.Writer.Encode(resp, r.Flush || len(tasks) == 0); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Session) handleRequest(resp *redis.Resp) (*Request, error) {
+var ErrRespIsRequired = errors.New("resp is required")
+
+func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
+	r.Wait()
+	if r.Callback != nil {
+		if err := r.Callback(); err != nil {
+			return nil, err
+		}
+	}
+	resp, err := r.Response.Resp, r.Response.Err
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, ErrRespIsRequired
+	}
+	return resp, nil
+}
+
+func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error) {
 	opstr, err := getOpStr(resp)
 	if err != nil {
 		return nil, err
@@ -114,20 +142,160 @@ func (s *Session) handleRequest(resp *redis.Resp) (*Request, error) {
 		return nil, errors.New(fmt.Sprintf("command <%s> is not allowed", opstr))
 	}
 
-	s.SeqId++
+	s.Seq++
 	r := &Request{
-		Sid: s.Sid, SeqId: s.SeqId,
-		Resp: resp, OpStr: opstr,
+		Sid:   s.Sid,
+		Seq:   s.Seq,
+		OpStr: opstr,
+		Resp:  resp,
+		wait:  &sync.WaitGroup{},
 	}
-	_ = r
 
-	panic("todo")
-	// if success then r.wait.Add(1)
+	switch opstr {
+	case "AUTH", "SELECT":
+		r.Response.Resp = redis.NewString([]byte("OK"))
+		return r, nil
+	case "QUIT":
+		return nil, nil
+	case "MGET":
+		return s.handleRequestMGet(r, d)
+	case "MSET":
+		return s.handleRequestMSet(r, d)
+	case "DEL":
+		return s.handleRequestMDel(r, d)
+	}
+	return r, d.Dispatch(r)
 }
 
-func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
-	r.Wait()
-	panic("todo")
+func (s *Session) handleRequestMGet(r *Request, d Dispatcher) (*Request, error) {
+	nkeys := len(r.Resp.Array) - 1
+	if nkeys <= 1 {
+		return r, d.Dispatch(r)
+	}
+	var sub = make([]*Request, nkeys)
+	for i := 0; i < len(sub); i++ {
+		sub[i] = &Request{
+			Sid:   -r.Sid,
+			Seq:   -r.Seq,
+			OpStr: r.OpStr,
+			Resp: redis.NewArray([]*redis.Resp{
+				r.Resp.Array[0],
+				r.Resp.Array[i+1],
+			}),
+			wait: r.wait,
+		}
+		if err := d.Dispatch(sub[i]); err != nil {
+			return nil, err
+		}
+	}
+	r.Callback = func() error {
+		var array = make([]*redis.Resp, len(sub))
+		for i, x := range sub {
+			if err := x.Response.Err; err != nil {
+				return err
+			}
+			resp := x.Response.Resp
+			if resp == nil {
+				return ErrRespIsRequired
+			}
+			if !resp.IsArray() || len(resp.Array) != 1 {
+				return errors.New(fmt.Sprintf("bad mget resp: %s array.len = %d", resp.Type, len(resp.Array)))
+			}
+			array[i] = resp.Array[0]
+		}
+		r.Response.Resp = redis.NewArray(array)
+		return nil
+	}
+	return r, nil
+}
+
+func (s *Session) handleRequestMSet(r *Request, d Dispatcher) (*Request, error) {
+	nblks := len(r.Resp.Array) - 1
+	if nblks <= 1 {
+		return r, d.Dispatch(r)
+	}
+	if nblks%2 != 0 {
+		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for MSET"))
+		return r, nil
+	}
+	var sub = make([]*Request, nblks/2)
+	for i := 0; i < len(sub); i++ {
+		sub[i] = &Request{
+			Sid:   -r.Sid,
+			Seq:   -r.Seq,
+			OpStr: r.OpStr,
+			Resp: redis.NewArray([]*redis.Resp{
+				r.Resp.Array[0],
+				r.Resp.Array[i*2+1],
+				r.Resp.Array[i*2+2],
+			}),
+			wait: r.wait,
+		}
+		if err := d.Dispatch(sub[i]); err != nil {
+			return nil, err
+		}
+	}
+	r.Callback = func() error {
+		for _, x := range sub {
+			if err := x.Response.Err; err != nil {
+				return err
+			}
+			resp := x.Response.Resp
+			if resp == nil {
+				return ErrRespIsRequired
+			}
+			if !resp.IsString() {
+				return errors.New(fmt.Sprintf("bad mset resp: %s value.len = %d", resp.Type, len(resp.Value)))
+			}
+			r.Response.Resp = resp
+		}
+		return nil
+	}
+	return r, nil
+}
+
+func (s *Session) handleRequestMDel(r *Request, d Dispatcher) (*Request, error) {
+	nkeys := len(r.Resp.Array) - 1
+	if nkeys <= 1 {
+		return r, d.Dispatch(r)
+	}
+	var sub = make([]*Request, nkeys)
+	for i := 0; i < len(sub); i++ {
+		sub[i] = &Request{
+			Sid:   -r.Sid,
+			Seq:   -r.Seq,
+			OpStr: r.OpStr,
+			Resp: redis.NewArray([]*redis.Resp{
+				r.Resp.Array[0],
+				r.Resp.Array[i+1],
+			}),
+			wait: r.wait,
+		}
+		if err := d.Dispatch(sub[i]); err != nil {
+			return nil, err
+		}
+	}
+	r.Callback = func() error {
+		var n int
+		for _, x := range sub {
+			if err := x.Response.Err; err != nil {
+				return err
+			}
+			resp := x.Response.Resp
+			if resp == nil {
+				return ErrRespIsRequired
+			}
+			if !resp.IsInt() || len(resp.Value) != 1 {
+				return errors.New(fmt.Sprintf("bad mdel resp: %s value.len = %d", resp.Type, len(resp.Value)))
+			}
+			if resp.Value[0] != '0' {
+				n++
+			}
+		}
+		r.Response.Resp = redis.NewInt([]byte(strconv.Itoa(n)))
+		return nil
+	}
+	return r, nil
 }
 
 var sessions struct {

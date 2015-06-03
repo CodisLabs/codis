@@ -7,14 +7,19 @@ import (
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
 )
 
+type Dispatcher interface {
+	Dispatch(r *Request) error
+}
+
 type Request struct {
 	Sid   int64
-	SeqId int64
+	Seq   int64
 	OpStr string
 	Flush bool
 
 	Resp *redis.Resp
 
+	Callback func() error
 	Response struct {
 		Resp *redis.Resp
 		Err  error
@@ -27,12 +32,12 @@ type Request struct {
 func (r *Request) String() string {
 	o := &struct {
 		Sid    int64
-		SeqId  int64
+		Seq    int64
 		OpStr  string
 		Flush  bool
 		SlotId int
 	}{
-		r.Sid, r.SeqId, r.OpStr,
+		r.Sid, r.Seq, r.OpStr,
 		r.Flush, r.slot.Id,
 	}
 	b, _ := json.Marshal(o)
@@ -41,17 +46,13 @@ func (r *Request) String() string {
 
 func (r *Request) SetResponse(resp *redis.Resp, err error) error {
 	r.Response.Resp, r.Response.Err = resp, err
+	r.wait.Done()
 	if r.slot != nil {
 		r.slot.jobs.Done()
-	}
-	if r.wait != nil {
-		r.wait.Done()
 	}
 	return err
 }
 
 func (r *Request) Wait() {
-	if r.wait != nil {
-		r.wait.Wait()
-	}
+	r.wait.Wait()
 }

@@ -49,14 +49,11 @@ var (
 )
 
 func getOpStr(resp *redis.Resp) (string, error) {
-	if resp.Type != redis.TypeArray {
-		return "", ErrBadRespType
-	}
-	if len(resp.Array) == 0 {
+	if !resp.IsArray() || len(resp.Array) == 0 {
 		return "", ErrBadRespType
 	}
 	for _, r := range resp.Array {
-		if r.Type == redis.TypeBulkBytes {
+		if r.IsBulkBytes() {
 			continue
 		}
 		return "", ErrBadRespType

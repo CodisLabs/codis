@@ -537,6 +537,10 @@ func (s *Server) RegisterAndWait() {
 	s.waitOnline()
 }
 
+func (s *Server) Dispatch(r *Request) error {
+	panic("todo")
+}
+
 func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 	log.Infof("start proxy with config: %+v", conf)
 	s := &Server{
@@ -610,7 +614,7 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 			if err != nil {
 				log.InfoErrorf(err, "accept conn failed")
 			}
-			go NewSession(c).Serve()
+			go NewSession(c).Serve(s)
 		}
 	}()
 	return s
