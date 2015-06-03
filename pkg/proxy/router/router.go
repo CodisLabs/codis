@@ -148,144 +148,6 @@ func (s *Server) fillSlot(i int, force bool) {
 	log.Infof("fill slot %d, force %v, addr = %s, from = %+v", i, force, addr, from)
 }
 
-/*
-func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
-	panic("todo")
-		shd := s.slots[slotIndex]
-		if shd.slotInfo.State.Status != models.SLOT_STATUS_MIGRATE {
-			return nil
-		}
-
-		if shd.migrateFrom == nil {
-			log.Fatalf("migrateFrom not exist %+v", shd)
-		}
-
-		if shd.dst.Master() == shd.migrateFrom.Master() {
-			log.Fatalf("the same migrate src and dst, %+v", shd)
-		}
-
-		redisConn, err := s.pools.GetConn(shd.migrateFrom.Master())
-		if err != nil {
-			return errors.Trace(err)
-		}
-
-		defer s.pools.ReleaseConn(redisConn)
-
-		redisReader := redisConn.(*redispool.PooledConn).BufioReader()
-
-		err = WriteMigrateKeyCmd(redisConn.(*redispool.PooledConn), shd.dst.Master(), 30*1000, key)
-		if err != nil {
-			redisConn.Close()
-			log.Warningf("migrate key %s error, from %s to %s",
-				string(key), shd.migrateFrom.Master(), shd.dst.Master())
-			return errors.Trace(err)
-		}
-
-		//handle migrate result
-		resp, err := parser.Parse(redisReader)
-		if err != nil {
-			redisConn.Close()
-			return errors.Trace(err)
-		}
-
-		result, err := resp.Bytes()
-
-		log.Debug("migrate", string(key), "from", shd.migrateFrom.Master(), "to", shd.dst.Master(),
-			string(result))
-
-		if resp.Type == parser.ErrorResp {
-			redisConn.Close()
-			log.Error(string(key), string(resp.Raw), "migrateFrom", shd.migrateFrom.Master())
-			return errors.New(string(resp.Raw))
-		}
-
-		s.counter.Add("Migrate", 1)
-		return nil
-}
-*/
-
-/*
-func (s *Server) sendBack(c *session, op []byte, keys [][]byte, resp *parser.Resp, result []byte) {
-	c.pipelineSeq++
-	pr := &PipelineRequest{
-		op:    op,
-		keys:  keys,
-		seq:   c.pipelineSeq,
-		backQ: c.backQ,
-		req:   resp,
-	}
-
-	resp, err := parser.Parse(bufio.NewReader(bytes.NewReader(result)))
-	//just send to backQ
-	c.backQ <- &PipelineResponse{ctx: pr, err: err, resp: resp}
-}
-
-func (s *Server) redisTunnel(c *session) error {
-	resp, op, keys, err := getRespOpKeys(c)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	k := keys[0]
-
-	opstr := strings.ToUpper(string(op))
-	buf, next, err := filter(opstr, keys, c, s.conf.netTimeout)
-	if err != nil {
-		if len(buf) > 0 { //quit command
-			s.sendBack(c, op, keys, resp, buf)
-		}
-		return errors.Trace(err)
-	}
-
-	start := time.Now()
-	defer func() {
-		recordResponseTime(s.counter, time.Since(start)/1000/1000)
-	}()
-
-	s.counter.Add(opstr, 1)
-	s.counter.Add("ops", 1)
-	if !next {
-		s.sendBack(c, op, keys, resp, buf)
-		return nil
-	}
-
-	if isMulOp(opstr) {
-		if len(keys) > 1 { //can not send to redis directly
-			var result []byte
-			err := s.moper.handleMultiOp(opstr, keys, &result)
-			if err != nil {
-				return errors.Trace(err)
-			}
-
-			s.sendBack(c, op, keys, resp, result)
-			return nil
-		}
-	}
-
-	i := mapKey2Slot(k)
-
-	//pipeline
-	c.pipelineSeq++
-	pr := &PipelineRequest{
-		slotIdx: i,
-		op:      op,
-		keys:    keys,
-		seq:     c.pipelineSeq,
-		backQ:   c.backQ,
-		req:     resp,
-		wg:      &sync.WaitGroup{},
-	}
-	pr.wg.Add(1)
-
-	s.reqCh <- pr
-	pr.wg.Wait()
-
-	return nil
-}
-*/
-
-/*
- */
-
 func (s *Server) OnSlotRangeChange(param *models.SlotMultiSetParam) {
 	log.Warnf("slotRangeChange %+v", param)
 	if !s.isValidSlot(param.From) || !s.isValidSlot(param.To) {
@@ -448,23 +310,6 @@ func (s *Server) processAction(e interface{}) {
 	s.lastActionSeq = seqs[len(seqs)-1]
 }
 
-/*
-func (s *Server) dispatch(r *PipelineRequest) {
-		s.handleMigrateState(r.slotIdx, r.keys[0])
-		tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
-		if !ok {
-			//try recreate taskrunner
-			if err := s.createTaskRunner(s.slots[r.slotIdx]); err != nil {
-				r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
-				return
-			}
-
-			tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
-		}
-		tr.in <- r
-}
-*/
-
 func (s *Server) handleTopoEvent() {
 	for {
 		e := <-s.evtbus
@@ -535,10 +380,6 @@ func (s *Server) RegisterAndWait() {
 	}
 	s.registerSignal()
 	s.waitOnline()
-}
-
-func (s *Server) Dispatch(r *Request) error {
-	panic("todo")
 }
 
 func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
@@ -619,3 +460,161 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 	}()
 	return s
 }
+
+func (s *Server) Dispatch(r *Request) error {
+	hkey := getHashKey(r.Resp, r.OpStr)
+	slot := s.slots[hashSlot(hkey)]
+	return slot.forward(r)
+}
+
+/*
+func (s *Server) dispatch(r *PipelineRequest) {
+		s.handleMigrateState(r.slotIdx, r.keys[0])
+		tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
+		if !ok {
+			//try recreate taskrunner
+			if err := s.createTaskRunner(s.slots[r.slotIdx]); err != nil {
+				r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
+				return
+			}
+
+			tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
+		}
+		tr.in <- r
+}
+*/
+
+/*
+func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
+	panic("todo")
+		shd := s.slots[slotIndex]
+		if shd.slotInfo.State.Status != models.SLOT_STATUS_MIGRATE {
+			return nil
+		}
+
+		if shd.migrateFrom == nil {
+			log.Fatalf("migrateFrom not exist %+v", shd)
+		}
+
+		if shd.dst.Master() == shd.migrateFrom.Master() {
+			log.Fatalf("the same migrate src and dst, %+v", shd)
+		}
+
+		redisConn, err := s.pools.GetConn(shd.migrateFrom.Master())
+		if err != nil {
+			return errors.Trace(err)
+		}
+
+		defer s.pools.ReleaseConn(redisConn)
+
+		redisReader := redisConn.(*redispool.PooledConn).BufioReader()
+
+		err = WriteMigrateKeyCmd(redisConn.(*redispool.PooledConn), shd.dst.Master(), 30*1000, key)
+		if err != nil {
+			redisConn.Close()
+			log.Warningf("migrate key %s error, from %s to %s",
+				string(key), shd.migrateFrom.Master(), shd.dst.Master())
+			return errors.Trace(err)
+		}
+
+		//handle migrate result
+		resp, err := parser.Parse(redisReader)
+		if err != nil {
+			redisConn.Close()
+			return errors.Trace(err)
+		}
+
+		result, err := resp.Bytes()
+
+		log.Debug("migrate", string(key), "from", shd.migrateFrom.Master(), "to", shd.dst.Master(),
+			string(result))
+
+		if resp.Type == parser.ErrorResp {
+			redisConn.Close()
+			log.Error(string(key), string(resp.Raw), "migrateFrom", shd.migrateFrom.Master())
+			return errors.New(string(resp.Raw))
+		}
+
+		s.counter.Add("Migrate", 1)
+		return nil
+}
+*/
+
+/*
+func (s *Server) sendBack(c *session, op []byte, keys [][]byte, resp *parser.Resp, result []byte) {
+	c.pipelineSeq++
+	pr := &PipelineRequest{
+		op:    op,
+		keys:  keys,
+		seq:   c.pipelineSeq,
+		backQ: c.backQ,
+		req:   resp,
+	}
+
+	resp, err := parser.Parse(bufio.NewReader(bytes.NewReader(result)))
+	//just send to backQ
+	c.backQ <- &PipelineResponse{ctx: pr, err: err, resp: resp}
+}
+
+func (s *Server) redisTunnel(c *session) error {
+	resp, op, keys, err := getRespOpKeys(c)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	k := keys[0]
+
+	opstr := strings.ToUpper(string(op))
+	buf, next, err := filter(opstr, keys, c, s.conf.netTimeout)
+	if err != nil {
+		if len(buf) > 0 { //quit command
+			s.sendBack(c, op, keys, resp, buf)
+		}
+		return errors.Trace(err)
+	}
+
+	start := time.Now()
+	defer func() {
+		recordResponseTime(s.counter, time.Since(start)/1000/1000)
+	}()
+
+	s.counter.Add(opstr, 1)
+	s.counter.Add("ops", 1)
+	if !next {
+		s.sendBack(c, op, keys, resp, buf)
+		return nil
+	}
+
+	if isMulOp(opstr) {
+		if len(keys) > 1 { //can not send to redis directly
+			var result []byte
+			err := s.moper.handleMultiOp(opstr, keys, &result)
+			if err != nil {
+				return errors.Trace(err)
+			}
+
+			s.sendBack(c, op, keys, resp, result)
+			return nil
+		}
+	}
+
+	i := mapKey2Slot(k)
+
+	//pipeline
+	c.pipelineSeq++
+	pr := &PipelineRequest{
+		slotIdx: i,
+		op:      op,
+		keys:    keys,
+		seq:     c.pipelineSeq,
+		backQ:   c.backQ,
+		req:     resp,
+		wg:      &sync.WaitGroup{},
+	}
+	pr.wg.Add(1)
+
+	s.reqCh <- pr
+	pr.wg.Wait()
+
+	return nil
+}
+*/
