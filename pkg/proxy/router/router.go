@@ -35,8 +35,7 @@ type Server struct {
 
 	lastActionSeq int
 
-	counter   *stats.Counters
-	OnSuicide func() error
+	counter *stats.Counters
 }
 
 func getEventPath(evt interface{}) string {
@@ -250,13 +249,7 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 
 func (s *Server) handleMarkOffline() {
 	s.topo.Close(s.info.Id)
-	if s.OnSuicide == nil {
-		s.OnSuicide = func() error {
-			log.Panicf("suicide %+v", s.info)
-			return nil
-		}
-	}
-	s.OnSuicide()
+	log.Panicf("proxy exit: %+v", s.info)
 }
 
 func (s *Server) processAction(e interface{}) {
@@ -388,7 +381,7 @@ func (s *Server) RegisterAndWait() {
 	s.waitOnline()
 }
 
-func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
+func Serve(addr string, debugVarAddr string, conf *Config) {
 	log.Infof("start proxy with config: %+v", conf)
 	s := &Server{
 		evtbus:        make(chan interface{}, 1000),
@@ -455,16 +448,13 @@ func NewServer(addr string, debugVarAddr string, conf *Config) *Server {
 
 	log.Info("proxy start ok")
 
-	go func() {
-		for {
-			c, err := l.Accept()
-			if err != nil {
-				log.InfoErrorf(err, "accept conn failed")
-			}
-			go NewSession(c).Serve(s)
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			log.InfoErrorf(err, "accept conn failed")
 		}
-	}()
-	return s
+		go NewSession(c).Serve(s)
+	}
 }
 
 func (s *Server) Dispatch(r *Request) error {

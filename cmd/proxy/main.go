@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"os/exec"
 	"path"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/wandoulabs/codis/pkg/proxy/router"
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -49,6 +51,18 @@ func handleSetLogLevel(w http.ResponseWriter, r *http.Request) {
 	level := r.Form.Get("level")
 	log.SetLevelByString(level)
 	log.Info("set log level to", level)
+}
+
+func checkUlimit(min int) {
+	ulimitN, err := exec.Command("/bin/sh", "-c", "ulimit -n").Output()
+	if err != nil {
+		log.Warning("get ulimit failed", err)
+	}
+
+	n, err := strconv.Atoi(strings.TrimSpace(string(ulimitN)))
+	if err != nil || n < min {
+		log.Fatalf("ulimit too small: %d, should be at least %d", n, min)
+	}
 }
 
 func main() {
@@ -98,7 +112,7 @@ func main() {
 	log.Info("dump file path:", dumppath)
 	log.CrashLog(path.Join(dumppath, "codis-proxy.dump"))
 
-	router.CheckUlimit(1024)
+	checkUlimit(1024)
 	runtime.GOMAXPROCS(cpus)
 
 	http.HandleFunc("/setloglevel", handleSetLogLevel)
@@ -108,7 +122,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s := router.NewServer(addr, httpAddr, conf)
-	s.Run()
-	log.Warning("exit")
+	router.Serve(addr, httpAddr, conf)
+	panic("exit")
 }
