@@ -254,12 +254,6 @@ func TestInvalidRedisCmdEcho(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	_, err = c.Do("echo")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 }
 
 //this should be the last test
@@ -305,11 +299,11 @@ func TestRedisRestart(t *testing.T) {
 	//close redis
 	redis1.Close()
 	redis2.Close()
-	_, err = c.Do("SET", "key1", "value1")
+	_, err = c.Do("SET", "key3", "value1")
 	if err == nil {
 		t.Fatal("should be error")
 	}
-	_, err = c.Do("SET", "key2", "value2")
+	_, err = c.Do("SET", "key4", "value2")
 	if err == nil {
 		t.Fatal("should be error")
 	}
@@ -319,10 +313,15 @@ func TestRedisRestart(t *testing.T) {
 	redis2.Restart()
 	time.Sleep(3 * time.Second)
 	//proxy should closed our connection
-	_, err = c.Do("SET", "key1", "value1")
+	_, err = c.Do("SET", "key5", "value3")
 	if err == nil {
 		t.Error("should be error")
 	}
+
+	// may error
+	c, err = redis.Dial("tcp", "localhost:19000")
+	c.Do("SET", "key6", "value6")
+	c.Close()
 
 	//now, proxy should recovered from connection error
 	c, err = redis.Dial("tcp", "localhost:19000")
@@ -331,7 +330,7 @@ func TestRedisRestart(t *testing.T) {
 	}
 	defer c.Close()
 
-	_, err = c.Do("SET", "key1", "value1")
+	_, err = c.Do("SET", "key7", "value7")
 	if err != nil {
 		t.Fatal(err)
 	}

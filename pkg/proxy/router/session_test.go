@@ -10,6 +10,9 @@ import (
 )
 
 func TestSessions(t *testing.T) {
+	cleanupSessions(time.Now().Unix() + 100000)
+	assert.Must(sessions.Len() == 0)
+
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.MustNoError(err)
 	defer l.Close()

@@ -36,7 +36,13 @@ func (bc *BackendConn) Run() {
 		if time.Now().Sub(starttime) < time.Second {
 			n = bc.discard(err, len(bc.input)/20+1)
 		}
-		log.InfoErrorf(err, "backend conn [%p] to %s, error break, discard next %d requests and restart [%d]", bc, bc.Addr, n, k)
+		if n != 0 {
+			log.InfoErrorf(err, "backend conn [%p] to %s, restart [%d], discard next %d requests",
+				bc, bc.Addr, k, n)
+		} else {
+			log.InfoErrorf(err, "backend conn [%p] to %s, restart [%d]",
+				bc, bc.Addr, k)
+		}
 		time.Sleep(time.Millisecond * 50)
 	}
 	log.Infof("backend conn [%p] to %s, stop and exit", bc, bc.Addr)
