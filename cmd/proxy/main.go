@@ -152,11 +152,18 @@ func main() {
 
 	http.HandleFunc("/setloglevel", handleSetLogLevel)
 	go http.ListenAndServe(httpAddr, nil)
+
 	log.Info("running on ", addr)
 	conf, err := router.LoadConf(configFile)
 	if err != nil {
 		log.PanicErrorf(err, "load config failed")
 	}
-	router.Serve(addr, httpAddr, conf)
+	s, err := router.NewServer(addr, httpAddr, conf)
+	if err != nil {
+		log.PanicErrorf(err, "create new server failed")
+	}
+	if err := s.Serve(); err != nil {
+		log.PanicErrorf(err, "serve failed")
+	}
 	panic("exit")
 }

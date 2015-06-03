@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/juju/errors"
 	topo "github.com/ngaut/go-zookeeper/zk"
 	stats "github.com/ngaut/gostats"
 
@@ -36,6 +37,9 @@ type Server struct {
 	lastActionSeq int
 
 	counter *stats.Counters
+
+	net.Listener
+	OnSuicide func() error
 }
 
 func getEventPath(evt interface{}) string {
@@ -249,7 +253,13 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 
 func (s *Server) handleMarkOffline() {
 	s.topo.Close(s.info.Id)
-	log.Panicf("proxy exit: %+v", s.info)
+	if s.OnSuicide == nil {
+		s.OnSuicide = func() error {
+			log.Panicf("proxy exit: %+v", s.info)
+			return nil
+		}
+	}
+	s.OnSuicide()
 }
 
 func (s *Server) processAction(e interface{}) {
@@ -381,7 +391,7 @@ func (s *Server) RegisterAndWait() {
 	s.waitOnline()
 }
 
-func Serve(addr string, debugVarAddr string, conf *Config) {
+func NewServer(addr string, debugVarAddr string, conf *Config) (*Server, error) {
 	log.Infof("start proxy with config: %+v", conf)
 	s := &Server{
 		evtbus:        make(chan interface{}, 1000),
@@ -395,13 +405,7 @@ func Serve(addr string, debugVarAddr string, conf *Config) {
 	}
 
 	proxyHost := strings.Split(addr, ":")[0]
-	if len(proxyHost) != 2 {
-		log.Panicf("invalid proxy host = %s", addr)
-	}
 	debugHost := strings.Split(debugVarAddr, ":")[0]
-	if len(debugHost) != 2 {
-		log.Panicf("invalid debug host = %s", debugVarAddr)
-	}
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -423,15 +427,15 @@ func Serve(addr string, debugVarAddr string, conf *Config) {
 
 	log.Infof("proxy info = %+v", s.info)
 
+	if l, err := net.Listen(conf.proto, addr); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		s.Listener = l
+	}
+
 	stats.Publish("evtbus", stats.StringFunc(func() string {
 		return strconv.Itoa(len(s.evtbus))
 	}))
-
-	l, err := net.Listen(conf.proto, addr)
-	if err != nil {
-		log.PanicErrorf(err, "open listener %s failed", addr)
-	}
-	log.Infof("proxy now listening on %s", l.Addr().String())
 
 	s.RegisterAndWait()
 
@@ -448,10 +452,14 @@ func Serve(addr string, debugVarAddr string, conf *Config) {
 
 	log.Info("proxy start ok")
 
+	return s, nil
+}
+
+func (s *Server) Serve() error {
 	for {
-		c, err := l.Accept()
+		c, err := s.Listener.Accept()
 		if err != nil {
-			log.InfoErrorf(err, "accept conn failed")
+			return errors.Trace(err)
 		}
 		go NewSession(c).Serve(s)
 	}
