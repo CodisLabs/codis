@@ -87,7 +87,9 @@ func (bc *BackendConn) loopWriter() error {
 		var lastflush time.Time
 		for ok {
 			var flush bool
-			if len(bc.input) == 0 || nbuffered >= len(tasks) {
+			if len(bc.input) == 0 {
+				flush = true
+			} else if nbuffered >= 64 || nbuffered >= len(tasks) {
 				flush = true
 			} else if time.Since(lastflush) >= time.Microsecond*300 {
 				flush = true
