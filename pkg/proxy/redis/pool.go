@@ -98,7 +98,7 @@ func SlotsMgrtTagOne(addr string, host []byte, port []byte, key []byte) (int, er
 		NewBulkBytes(mgrttagone),
 		NewBulkBytes(host),
 		NewBulkBytes(port),
-		NewBulkBytes(itob(1000)),
+		NewBulkBytes(itob(3000)),
 		NewBulkBytes(key),
 	})
 	if err := c.Writer.Encode(resp, true); err != nil {
