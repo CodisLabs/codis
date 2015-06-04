@@ -50,7 +50,7 @@ const banner string = `
 
 func setLogLevel(level string) {
 	var lv = log.LEVEL_INFO
-	switch strings.ToUpper(level) {
+	switch strings.ToLower(level) {
 	case "error":
 		lv = log.LEVEL_ERROR
 	case "warn", "warning":
