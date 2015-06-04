@@ -83,10 +83,13 @@ func (bc *BackendConn) loopWriter() error {
 		}
 		defer close(tasks)
 
-		var nwrite, nflush int
+		var nbuffered int
+		var lastflush time.Time
 		for ok {
 			var flush bool
-			if len(bc.input) == 0 || nwrite-nflush >= len(tasks) {
+			if len(bc.input) == 0 || nbuffered >= len(tasks) {
+				flush = true
+			} else if time.Since(lastflush) >= time.Millisecond*100 {
 				flush = true
 			}
 
@@ -96,9 +99,10 @@ func (bc *BackendConn) loopWriter() error {
 			}
 			tasks <- r
 
-			nwrite = nwrite + 1
 			if flush {
-				nflush = nwrite
+				nbuffered, lastflush = 0, time.Now()
+			} else {
+				nbuffered++
 			}
 
 			r, ok = <-bc.input

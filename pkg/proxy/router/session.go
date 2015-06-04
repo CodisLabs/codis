@@ -102,13 +102,26 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
 }
 
 func (s *Session) loopWriter(tasks <-chan *Request) error {
+	var lastflush time.Time
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
 		if err != nil {
 			return err
 		}
-		if err := s.Writer.Encode(resp, len(tasks) == 0); err != nil {
+
+		var flush bool
+		if len(tasks) == 0 {
+			flush = true
+		} else if time.Since(lastflush) >= time.Millisecond*100 {
+			flush = true
+		}
+
+		if err := s.Writer.Encode(resp, flush); err != nil {
 			return err
+		}
+
+		if flush {
+			lastflush = time.Now()
 		}
 	}
 	return nil
