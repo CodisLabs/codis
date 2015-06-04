@@ -20,21 +20,21 @@ type Session struct {
 
 	Sid    int64
 	Seq    int64
+	Quit   bool
 	Closed bool
-
-	quit bool
 
 	CreateUnix int64
 }
 
 func (s *Session) String() string {
 	o := &struct {
-		Sid        int64
-		Seq        int64
-		CreateUnix int64
-		RemoteAddr string
+		Sid          int64
+		Seq          int64
+		Quit, Closed bool
+		CreateUnix   int64
+		RemoteAddr   string
 	}{
-		s.Sid, s.Seq, s.CreateUnix,
+		s.Sid, s.Seq, s.Quit, s.Closed, s.CreateUnix,
 		s.Conn.Sock.RemoteAddr().String(),
 	}
 	b, _ := json.Marshal(o)
@@ -86,7 +86,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
 	if d == nil {
 		return errors.New("nil dispatcher")
 	}
-	for !s.quit {
+	for !s.Quit {
 		resp, err := s.Reader.Decode()
 		if err != nil {
 			return err
@@ -153,7 +153,7 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 
 	switch opstr {
 	case "QUIT":
-		s.quit = true
+		s.Quit = true
 		fallthrough
 	case "AUTH", "SELECT":
 		r.Response.Resp = redis.NewString([]byte("OK"))
