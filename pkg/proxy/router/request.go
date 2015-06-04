@@ -43,7 +43,3 @@ func (r *Request) String() string {
 	b, _ := json.Marshal(o)
 	return string(b)
 }
-
-func (r *Request) Wait() {
-	r.wait.Wait()
-}

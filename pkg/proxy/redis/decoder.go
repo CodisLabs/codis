@@ -107,11 +107,11 @@ func (d *Decoder) decodeTextString() (string, error) {
 }
 
 func (d *Decoder) decodeInt() (int64, error) {
-	b, err := d.decodeTextString()
+	s, err := d.decodeTextString()
 	if err != nil {
 		return 0, err
 	}
-	if n, err := strconv.ParseInt(string(b), 10, 64); err != nil {
+	if n, err := strconv.ParseInt(s, 10, 64); err != nil {
 		return 0, errors.Trace(err)
 	} else {
 		return n, nil

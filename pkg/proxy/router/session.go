@@ -130,7 +130,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) error {
 var ErrRespIsRequired = errors.New("resp is required")
 
 func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
-	r.Wait()
+	r.wait.Wait()
 	if r.Callback != nil {
 		if err := r.Callback(); err != nil {
 			return nil, err
