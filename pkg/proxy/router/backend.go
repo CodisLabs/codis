@@ -95,14 +95,14 @@ func (bc *BackendConn) loopWriter() error {
 }
 
 func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) {
-	c, err := redis.DialTimeout(bc.Addr, time.Second)
+	c, err := redis.DialTimeout(bc.Addr, 1024*512, time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
 	c.ReaderTimeout = time.Minute
 	c.WriterTimeout = time.Minute
 
-	tasks := make(chan *Request, 1024)
+	tasks := make(chan *Request, 4096)
 	go func() {
 		defer c.Close()
 		for r := range tasks {

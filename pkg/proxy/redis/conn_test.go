@@ -17,6 +17,8 @@ func newConnPair() (*Conn, *Conn) {
 	assert.MustNoError(err)
 	defer l.Close()
 
+	const bufsize = 128 * 1024
+
 	cc := make(chan *Conn, 1)
 	go func() {
 		defer close(cc)
@@ -25,11 +27,11 @@ func newConnPair() (*Conn, *Conn) {
 			if err != nil {
 				return
 			}
-			cc <- NewConn(c)
+			cc <- NewConnSize(c, bufsize)
 		}
 	}()
 
-	conn1, err := DialTimeout(l.Addr().String(), time.Millisecond*50)
+	conn1, err := DialTimeout(l.Addr().String(), bufsize, time.Millisecond*50)
 	assert.MustNoError(err)
 
 	conn2, ok := <-cc

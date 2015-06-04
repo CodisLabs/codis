@@ -74,7 +74,7 @@ func getPoolConn(addr string) (*Conn, error) {
 	if c != nil {
 		return c, nil
 	}
-	c, err := DialTimeout(addr, time.Second)
+	c, err := DialTimeout(addr, 1024*64, time.Second)
 	if err != nil {
 		return nil, err
 	}

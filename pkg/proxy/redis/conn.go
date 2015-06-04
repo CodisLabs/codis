@@ -20,15 +20,19 @@ type Conn struct {
 	Writer *Encoder
 }
 
-func DialTimeout(addr string, timeout time.Duration) (*Conn, error) {
+func DialTimeout(addr string, bufsize int, timeout time.Duration) (*Conn, error) {
 	c, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	return NewConn(c), nil
+	return NewConnSize(c, bufsize), nil
 }
 
 func NewConn(sock net.Conn) *Conn {
+	return NewConnSize(sock, 1024*64)
+}
+
+func NewConnSize(sock net.Conn, bufsize int) *Conn {
 	var currtime = time.Now().Unix()
 	conn := &Conn{
 		Sock: sock,
@@ -36,8 +40,6 @@ func NewConn(sock net.Conn) *Conn {
 		ReaderLastUnix: currtime,
 		WriterLastUnix: currtime,
 	}
-
-	var bufsize = 1024 * 512
 	conn.Reader = NewDecoderSize(&connReader{Conn: conn}, bufsize)
 	conn.Writer = NewEncoderSize(&connWriter{Conn: conn}, bufsize)
 	return conn

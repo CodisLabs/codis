@@ -45,7 +45,7 @@ func NewSession(c net.Conn) *Session {
 	s := &Session{Sid: sessions.sid.Incr(), CreateUnix: time.Now().Unix()}
 	s.Conn = redis.NewConn(c)
 	s.Conn.ReaderTimeout = time.Minute * 30
-	s.Conn.WriterTimeout = time.Minute
+	s.Conn.WriterTimeout = time.Second * 30
 	return addToSessions(s)
 }
 
