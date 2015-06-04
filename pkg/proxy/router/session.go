@@ -102,6 +102,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
 }
 
 func (s *Session) loopWriter(tasks <-chan *Request) error {
+	var nbuffered int
 	var lastflush time.Time
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
@@ -112,6 +113,8 @@ func (s *Session) loopWriter(tasks <-chan *Request) error {
 		var flush bool
 		if len(tasks) == 0 {
 			flush = true
+		} else if nbuffered >= 32 {
+			flush = true
 		} else if time.Since(lastflush) >= time.Microsecond*300 {
 			flush = true
 		}
@@ -121,7 +124,9 @@ func (s *Session) loopWriter(tasks <-chan *Request) error {
 		}
 
 		if flush {
-			lastflush = time.Now()
+			nbuffered, lastflush = 0, time.Now()
+		} else {
+			nbuffered++
 		}
 	}
 	return nil
