@@ -82,12 +82,25 @@ func (bc *BackendConn) loopWriter() error {
 			return bc.setResponse(r, nil, err)
 		}
 		defer close(tasks)
+
+		var nwrite, nflush int
 		for ok {
-			if err := c.Writer.Encode(r.Resp, true); err != nil {
+			var flush bool
+			if len(bc.input) == 0 || nwrite-nflush >= len(tasks) {
+				flush = true
+			}
+
+			if err := c.Writer.Encode(r.Resp, flush); err != nil {
 				c.Close()
 				return bc.setResponse(r, nil, err)
 			}
 			tasks <- r
+
+			nwrite = nwrite + 1
+			if flush {
+				nflush = nwrite
+			}
+
 			r, ok = <-bc.input
 		}
 	}
