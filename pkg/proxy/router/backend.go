@@ -33,7 +33,7 @@ func (bc *BackendConn) Run() {
 			break
 		}
 		var n int
-		if time.Now().Sub(starttime) < time.Second {
+		if time.Since(starttime) < time.Second {
 			n = bc.discard(err, len(bc.input)/20+1)
 		}
 		if n != 0 {
@@ -89,7 +89,7 @@ func (bc *BackendConn) loopWriter() error {
 			var flush bool
 			if len(bc.input) == 0 || nbuffered >= len(tasks) {
 				flush = true
-			} else if time.Since(lastflush) >= time.Millisecond*100 {
+			} else if time.Since(lastflush) >= time.Microsecond*300 {
 				flush = true
 			}
 

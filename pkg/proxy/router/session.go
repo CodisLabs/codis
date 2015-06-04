@@ -112,7 +112,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) error {
 		var flush bool
 		if len(tasks) == 0 {
 			flush = true
-		} else if time.Since(lastflush) >= time.Millisecond*100 {
+		} else if time.Since(lastflush) >= time.Microsecond*300 {
 			flush = true
 		}
 
