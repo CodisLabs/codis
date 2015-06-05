@@ -76,7 +76,7 @@ func (s *Slot) prepare(r *Request, key []byte) (*BackendConn, error) {
 			s.Id, s.from, s.addr.full, key)
 		return nil, ErrSlotIsNotReady
 	}
-	if len(s.from) != 0 {
+	if len(key) != 0 && len(s.from) != 0 {
 		if n, err := redis.SlotsMgrtTagOne(s.from, s.addr.host, s.addr.port, key); err != nil {
 			log.InfoErrorf(err, "slot-%04d slotsmgrttagone from %s to %s error, key = %s",
 				s.Id, s.from, s.addr.full, key)
