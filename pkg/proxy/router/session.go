@@ -18,23 +18,23 @@ import (
 type Session struct {
 	*redis.Conn
 
-	Sid    int64
-	Seq    int64
-	Quit   bool
-	Closed bool
+	Sid int64
+	Seq atomic2.Int64
+
+	quit bool
 
 	CreateUnix int64
 }
 
 func (s *Session) String() string {
 	o := &struct {
-		Sid          int64
-		Seq          int64
-		Quit, Closed bool
-		CreateUnix   int64
-		RemoteAddr   string
+		Sid        int64
+		Seq        int64
+		Closed     bool
+		CreateUnix int64
+		RemoteAddr string
 	}{
-		s.Sid, s.Seq, s.Quit, s.Closed, s.CreateUnix,
+		s.Sid, s.Seq.Get(), s.IsClosed(), s.CreateUnix,
 		s.Conn.Sock.RemoteAddr().String(),
 	}
 	b, _ := json.Marshal(o)
@@ -47,11 +47,6 @@ func NewSession(c net.Conn) *Session {
 	s.Conn.ReaderTimeout = time.Minute * 30
 	s.Conn.WriterTimeout = time.Second * 30
 	return addToSessions(s)
-}
-
-func (s *Session) Close() {
-	s.Closed = true
-	s.Conn.Close()
 }
 
 func (s *Session) Serve(d Dispatcher) {
@@ -86,7 +81,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
 	if d == nil {
 		return errors.New("nil dispatcher")
 	}
-	for !s.Quit {
+	for !s.quit {
 		resp, err := s.Reader.Decode()
 		if err != nil {
 			return err
@@ -160,10 +155,9 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 		return nil, errors.New(fmt.Sprintf("command <%s> is not allowed", opstr))
 	}
 
-	s.Seq++
 	r := &Request{
 		Sid:   s.Sid,
-		Seq:   s.Seq,
+		Seq:   s.Seq.Incr(),
 		OpStr: opstr,
 		Resp:  resp,
 		wait:  &sync.WaitGroup{},
@@ -171,7 +165,7 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 
 	switch opstr {
 	case "QUIT":
-		s.Quit = true
+		s.quit = true
 		fallthrough
 	case "AUTH", "SELECT":
 		r.Response.Resp = redis.NewString([]byte("OK"))
@@ -346,10 +340,10 @@ func cleanupSessions(lastunix int64) {
 	for i := sessions.Len(); i != 0; i-- {
 		e := sessions.Front()
 		s := e.Value.(*Session)
-		if s.Closed {
+		if s.IsClosed() {
 			sessions.Remove(e)
 		} else if s.IsTimeout(lastunix) {
-			log.Infof("session [%p] killed, due to timeout, sid = %d", s, s.Sid)
+			log.Infof("session [%p] killed, due to timeout, sid = %d, seq = %d", s, s.Sid, s.Seq.Get())
 			s.Close()
 			sessions.Remove(e)
 		} else {
