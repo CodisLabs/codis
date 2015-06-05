@@ -48,6 +48,10 @@ const banner string = `
 
 `
 
+func init() {
+	log.SetLevel(log.LEVEL_INFO)
+}
+
 func setLogLevel(level string) {
 	var lv = log.LEVEL_INFO
 	switch strings.ToLower(level) {
@@ -94,11 +98,11 @@ func checkUlimit(min int) {
 
 func main() {
 	fmt.Print(banner)
-	log.SetLevel(log.LEVEL_INFO)
 
 	args, err := docopt.Parse(usage, nil, true, "codis proxy v0.1", true)
 	if err != nil {
-		log.Error(err)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	// set config file
@@ -118,6 +122,7 @@ func main() {
 			log.StdLog = log.New(f, "")
 		}
 	}
+	log.SetLevel(log.LEVEL_INFO)
 
 	// set log level
 	if s, ok := args["--log-level"].(string); ok && s != "" {
