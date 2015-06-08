@@ -24,10 +24,11 @@ func (tc *ExtraDelTestCase) init() {
 func (tc *ExtraDelTestCase) main() {
 	c := NewConn(tc.proxy)
 	defer c.Close()
+	var tags = NewZeroTags(10000)
 	for n := 10; n <= 100*10000; n *= 10 {
 		us := UnitSlice(make([]*Unit, n))
 		for i := 0; i < len(us); i++ {
-			key := fmt.Sprintf("extra_del_%d", i)
+			key := fmt.Sprintf("extra_del_%d_tag{%s}", i, tags.Get(i))
 			us[i] = NewUnit(key)
 		}
 		for _, u := range us {

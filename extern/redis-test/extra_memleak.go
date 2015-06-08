@@ -40,16 +40,17 @@ func (tc *ExtraMemleakTestCase) main() {
 	}()
 	tg := &TestGroup{}
 	tg.Reset()
+	var tags = NewZeroTags(10000)
 	for g := 0; g < tc.group; g++ {
 		tg.AddPlayer()
-		go tc.player(g, tg)
+		go tc.player(g, tg, tags)
 	}
 	tg.Start()
 	tg.Wait()
 	fmt.Println("done")
 }
 
-func (tc *ExtraMemleakTestCase) player(gid int, tg *TestGroup) {
+func (tc *ExtraMemleakTestCase) player(gid int, tg *TestGroup, tags *ZeroTags) {
 	tg.PlayerWait()
 	defer tg.PlayerDone()
 	c := NewConn(tc.proxy)
@@ -57,7 +58,7 @@ func (tc *ExtraMemleakTestCase) player(gid int, tg *TestGroup) {
 	r := &Rand{time.Now().UnixNano()}
 	us := UnitSlice(make([]*Unit, tc.nkeys))
 	for i := 0; i < len(us); i++ {
-		key := fmt.Sprintf("extra_memleak_%d_%d_%d", gid, i, r.Next())
+		key := fmt.Sprintf("extra_memleak_%d_%d_%d_tag{%s}", gid, i, r.Next(), tags.Get(i))
 		us[i] = NewUnit(key)
 	}
 	us.Del(c, false)
