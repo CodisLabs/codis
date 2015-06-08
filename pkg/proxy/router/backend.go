@@ -99,7 +99,6 @@ func (bc *BackendConn) loopWriter() error {
 			}
 
 			if err := c.Writer.Encode(r.Resp, flush); err != nil {
-				c.Close()
 				return bc.setResponse(r, nil, err)
 			}
 			tasks <- r
