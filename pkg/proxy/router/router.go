@@ -14,13 +14,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/juju/errors"
 	topo "github.com/ngaut/go-zookeeper/zk"
 	stats "github.com/ngaut/gostats"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
