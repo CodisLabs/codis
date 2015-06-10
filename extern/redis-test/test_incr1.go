@@ -6,7 +6,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"time"
 )
 
 type TestIncr1TestCase struct {
@@ -28,13 +27,6 @@ func (tc *TestIncr1TestCase) init() {
 }
 
 func (tc *TestIncr1TestCase) main() {
-	go func() {
-		c := NewConn(tc.proxy)
-		for {
-			time.Sleep(time.Second * 5)
-			c.Check()
-		}
-	}()
 	tg := &TestGroup{}
 	tg.Reset()
 	var tags = NewZeroTags(10000)

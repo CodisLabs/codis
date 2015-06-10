@@ -31,13 +31,6 @@ func (tc *ExtraMemleakTestCase) main() {
 - compile : make MALLOC=libc -j4
 - run     : valgrind --leak-check=full
 `)
-	go func() {
-		c := NewConn(tc.proxy)
-		for {
-			time.Sleep(time.Second * 5)
-			c.Check()
-		}
-	}()
 	tg := &TestGroup{}
 	tg.Reset()
 	var tags = NewZeroTags(10000)

@@ -30,13 +30,6 @@ func (tc *TestMsetTestCase) init() {
 }
 
 func (tc *TestMsetTestCase) main() {
-	go func() {
-		c := NewConn(tc.proxy)
-		for {
-			time.Sleep(time.Second * 5)
-			c.Check()
-		}
-	}()
 	tg := &TestGroup{}
 	tg.Reset()
 	var tags = NewZeroTags(tc.ntags)

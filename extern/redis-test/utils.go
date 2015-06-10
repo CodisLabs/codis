@@ -84,12 +84,6 @@ func (c *Conn) Values(rsp interface{}, size int) []interface{} {
 	}
 }
 
-func (c *Conn) Check() {
-	if _, err := c.Do("slotscheck"); err != nil {
-		Panic("slotscheck: c = %s, error = '%s'", c.Addr(), err)
-	}
-}
-
 func (c *Conn) DelSlot(slot int) {
 	var rsp interface{}
 	defer func() {

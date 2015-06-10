@@ -40,13 +40,6 @@ func (tc *ExtraIncrTestCase) init() {
 }
 
 func (tc *ExtraIncrTestCase) main() {
-	go func() {
-		c := NewConn(tc.proxy)
-		for {
-			time.Sleep(time.Second * 5)
-			c.Check()
-		}
-	}()
 	tg := &TestGroup{}
 	tg.Reset()
 	var tags = NewZeroTags(tc.ntags)
@@ -97,7 +90,6 @@ func (tc *ExtraIncrTestCase) player(gid int, tg *TestGroup, tags *ZeroTags) {
 		u.Del(c, true)
 		ops.Incr()
 	}
-	c.Check()
 }
 
 func (tc *ExtraIncrTestCase) groupfetch(c1, c2 redis.Conn, key string) int {
