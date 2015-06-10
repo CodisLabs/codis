@@ -36,8 +36,6 @@ type Server struct {
 
 	lastActionSeq int
 
-	counter *stats.Counters
-
 	net.Listener
 	OnSuicide func() error
 }
@@ -153,7 +151,6 @@ func (s *Server) fillSlot(i int, force bool) {
 		slot.unblock()
 	}
 
-	s.counter.Add("FillSlot", 1)
 	log.Infof("fill slot %d, force %v, addr = %s, from = %+v", i, force, addr, from)
 }
 
@@ -397,7 +394,6 @@ func NewServer(addr string, debugVarAddr string, conf *Config) (*Server, error) 
 		evtbus:        make(chan interface{}, 1000),
 		conf:          conf,
 		topo:          topology.NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider),
-		counter:       stats.NewCounters("router"),
 		lastActionSeq: -1,
 	}
 	for i := 0; i < MaxSlotNum; i++ {
@@ -436,6 +432,14 @@ func NewServer(addr string, debugVarAddr string, conf *Config) (*Server, error) 
 	stats.Publish("evtbus", stats.StringFunc(func() string {
 		return strconv.Itoa(len(s.evtbus))
 	}))
+
+	stats.PublishJSONFunc("router", func() string {
+		var m = make(map[string]interface{})
+		m["ops"] = cmdstats.requests.Get()
+		m["cmds"] = getAllOpStats()
+		b, _ := json.Marshal(m)
+		return string(b)
+	})
 
 	s.RegisterAndWait()
 

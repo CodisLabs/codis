@@ -33,11 +33,10 @@ func (s *Session) String() string {
 	o := &struct {
 		Sid        int64
 		Seq        int64
-		Closed     bool
 		CreateUnix int64
 		RemoteAddr string
 	}{
-		s.Sid, s.Seq.Get(), s.IsClosed(), s.CreateUnix,
+		s.Sid, s.Seq.Get(), s.CreateUnix,
 		s.Conn.Sock.RemoteAddr().String(),
 	}
 	b, _ := json.Marshal(o)
@@ -146,6 +145,7 @@ func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
 	if resp == nil {
 		return nil, ErrRespIsRequired
 	}
+	r.incrStats()
 	return resp, nil
 }
 
@@ -162,6 +162,7 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 		Sid:   s.Sid,
 		Seq:   s.Seq.Incr(),
 		OpStr: opstr,
+		Start: time.Now(),
 		Resp:  resp,
 		wait:  &sync.WaitGroup{},
 	}

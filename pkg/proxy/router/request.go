@@ -6,6 +6,7 @@ package router
 import (
 	"encoding/json"
 	"sync"
+	"time"
 
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
 )
@@ -18,6 +19,7 @@ type Request struct {
 	Sid   int64
 	Seq   int64
 	OpStr string
+	Start time.Time
 
 	Resp *redis.Resp
 
@@ -45,4 +47,9 @@ func (r *Request) String() string {
 	}
 	b, _ := json.Marshal(o)
 	return string(b)
+}
+
+func (r *Request) incrStats() {
+	usecs := int64(time.Since(r.Start) / time.Microsecond)
+	incrOpStats(r.OpStr, usecs)
 }
