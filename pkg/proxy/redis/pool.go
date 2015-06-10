@@ -21,13 +21,14 @@ var connPool struct {
 type connPoolElem struct {
 	addr string
 	conn *Conn
+	unix int64
 }
 
 func init() {
 	go func() {
 		for {
 			time.Sleep(time.Second * 5)
-			lastunix := time.Now().Unix() - 10
+			lastunix := time.Now().Add(-time.Second * 10).Unix()
 			cleanupPool(lastunix)
 		}
 	}()
@@ -37,10 +38,11 @@ func cleanupPool(lastunix int64) {
 	connPool.Lock()
 	for i := connPool.Len(); i != 0; i-- {
 		e := connPool.Front()
-		c := e.Value.(*connPoolElem).conn
-		if c.IsTimeout(lastunix) {
-			c.Close()
+		x := e.Value.(*connPoolElem)
+		c := x.conn
+		if x.unix < lastunix {
 			log.Infof("pool conn: [%p] to %s, closed due to timeout", c, c.Sock.RemoteAddr())
+			c.Close()
 			connPool.Remove(e)
 		} else {
 			connPool.MoveToBack(e)
@@ -57,6 +59,7 @@ func putPoolConn(c *Conn, addr string) {
 		connPool.Lock()
 		connPool.PushFront(&connPoolElem{
 			addr: addr, conn: c,
+			unix: time.Now().Unix(),
 		})
 		connPool.Unlock()
 	}

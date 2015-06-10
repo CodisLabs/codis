@@ -24,19 +24,22 @@ type Session struct {
 	Sid int64
 	Seq atomic2.Int64
 
-	quit bool
-
+	LastOpUnix atomic2.Int64
 	CreateUnix int64
+
+	quit   bool
+	closed atomic2.Bool
 }
 
 func (s *Session) String() string {
 	o := &struct {
 		Sid        int64
 		Seq        int64
+		LastOpUnix int64
 		CreateUnix int64
 		RemoteAddr string
 	}{
-		s.Sid, s.Seq.Get(), s.CreateUnix,
+		s.Sid, s.Seq.Get(), s.LastOpUnix.Get(), s.CreateUnix,
 		s.Conn.Sock.RemoteAddr().String(),
 	}
 	b, _ := json.Marshal(o)
@@ -49,6 +52,14 @@ func NewSession(c net.Conn) *Session {
 	s.Conn.ReaderTimeout = time.Minute * 30
 	s.Conn.WriterTimeout = time.Second * 30
 	return addToSessions(s)
+}
+
+func (s *Session) IsClosed() bool {
+	return s.closed.Get()
+}
+
+func (s *Session) IsTimeout(lastunix int64) bool {
+	return s.LastOpUnix.Get() < lastunix && s.CreateUnix < lastunix
 }
 
 func (s *Session) Serve(d Dispatcher) {
@@ -67,6 +78,7 @@ func (s *Session) Serve(d Dispatcher) {
 			s.Close()
 			for _ = range tasks {
 			}
+			s.closed.Set(true)
 		}()
 		if err := s.loopWriter(tasks); err != nil {
 			errlist.PushBack(err)
@@ -166,6 +178,8 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 		Resp:  resp,
 		wait:  &sync.WaitGroup{},
 	}
+
+	s.LastOpUnix.Set(r.Start.Unix())
 
 	switch opstr {
 	case "QUIT":

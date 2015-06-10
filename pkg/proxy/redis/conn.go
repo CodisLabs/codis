@@ -5,7 +5,6 @@ package redis
 
 import (
 	"net"
-	"sync/atomic"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/utils/errors"
@@ -16,10 +15,6 @@ type Conn struct {
 
 	ReaderTimeout time.Duration
 	WriterTimeout time.Duration
-
-	readerLastUnix int64
-	writerLastUnix int64
-	closed         int64
 
 	Reader *Decoder
 	Writer *Encoder
@@ -38,34 +33,14 @@ func NewConn(sock net.Conn) *Conn {
 }
 
 func NewConnSize(sock net.Conn, bufsize int) *Conn {
-	unixtime := time.Now().Unix()
 	conn := &Conn{Sock: sock}
-	conn.readerLastUnix = unixtime
-	conn.writerLastUnix = unixtime
 	conn.Reader = NewDecoderSize(&connReader{Conn: conn}, bufsize)
 	conn.Writer = NewEncoderSize(&connWriter{Conn: conn}, bufsize)
 	return conn
 }
 
 func (c *Conn) Close() error {
-	atomic.StoreInt64(&c.closed, 1)
 	return c.Sock.Close()
-}
-
-func (c *Conn) IsClosed() bool {
-	return atomic.LoadInt64(&c.closed) != 0
-}
-
-func (c *Conn) ReaderLastUnix() int64 {
-	return atomic.LoadInt64(&c.readerLastUnix)
-}
-
-func (c *Conn) WriterLastUnix() int64 {
-	return atomic.LoadInt64(&c.writerLastUnix)
-}
-
-func (c *Conn) IsTimeout(lastunix int64) bool {
-	return c.ReaderLastUnix() < lastunix && c.WriterLastUnix() < lastunix
 }
 
 type connReader struct {
@@ -89,7 +64,6 @@ func (r *connReader) Read(b []byte) (int, error) {
 	if err != nil {
 		err = errors.Trace(err)
 	}
-	atomic.StoreInt64(&r.readerLastUnix, time.Now().Unix())
 	return n, err
 }
 
@@ -114,7 +88,6 @@ func (w *connWriter) Write(b []byte) (int, error) {
 	if err != nil {
 		err = errors.Trace(err)
 	}
-	atomic.StoreInt64(&w.writerLastUnix, time.Now().Unix())
 	return n, err
 }
 
