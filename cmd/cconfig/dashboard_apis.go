@@ -49,10 +49,11 @@ func apiGetProxyDebugVars() (int, string) {
 
 func apiOverview() (int, string) {
 	// get all server groups
+	lockZkConn.RLock()
 	groups, err := models.ServerGroups(zkConnForHighFrequncyUsage, globalEnv.ProductName())
+	lockZkConn.RUnlock()
 	if err != nil && !zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
-		zkConnForHighFrequncyUsage.Close()
-		zkConnForHighFrequncyUsage = CreateZkConn()
+		refreshZkConnForHighFrequncyUsage()
 		return 500, err.Error()
 	}
 
