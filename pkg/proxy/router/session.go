@@ -112,7 +112,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
 
 func (s *Session) loopWriter(tasks <-chan *Request) error {
 	var nbuffered int
-	var lastflush time.Time
+	var lastflush int64
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
 		if err != nil {
@@ -124,7 +124,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) error {
 			flush = true
 		} else if nbuffered >= 32 {
 			flush = true
-		} else if time.Since(lastflush) >= time.Microsecond*300 {
+		} else if microseconds()-lastflush >= 300 {
 			flush = true
 		}
 
@@ -133,7 +133,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) error {
 		}
 
 		if flush {
-			nbuffered, lastflush = 0, time.Now()
+			nbuffered, lastflush = 0, microseconds()
 		} else {
 			nbuffered++
 		}
@@ -157,7 +157,7 @@ func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
 	if resp == nil {
 		return nil, ErrRespIsRequired
 	}
-	r.incrStats()
+	incrOpStats(r.OpStr, microseconds()-r.Start)
 	return resp, nil
 }
 
@@ -170,16 +170,17 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 		return nil, errors.New(fmt.Sprintf("command <%s> is not allowed", opstr))
 	}
 
+	usnow := microseconds()
+	s.LastOpUnix.Set(usnow / 1e6)
+
 	r := &Request{
 		Sid:   s.Sid,
 		Seq:   s.Seq.Incr(),
 		OpStr: opstr,
-		Start: time.Now(),
+		Start: usnow,
 		Resp:  resp,
 		wait:  &sync.WaitGroup{},
 	}
-
-	s.LastOpUnix.Set(r.Start.Unix())
 
 	switch opstr {
 	case "QUIT":
@@ -369,4 +370,8 @@ func cleanupSessions(lastunix int64) {
 		}
 	}
 	sessions.Unlock()
+}
+
+func microseconds() int64 {
+	return time.Now().UnixNano() / int64(time.Microsecond)
 }

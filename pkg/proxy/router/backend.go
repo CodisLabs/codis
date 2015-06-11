@@ -87,14 +87,14 @@ func (bc *BackendConn) loopWriter() error {
 		defer close(tasks)
 
 		var nbuffered int
-		var lastflush time.Time
+		var lastflush int64
 		for ok {
 			var flush bool
 			if len(bc.input) == 0 {
 				flush = true
 			} else if nbuffered >= 64 || nbuffered >= len(tasks) {
 				flush = true
-			} else if time.Since(lastflush) >= time.Microsecond*300 {
+			} else if microseconds()-lastflush >= 300 {
 				flush = true
 			}
 
@@ -104,7 +104,7 @@ func (bc *BackendConn) loopWriter() error {
 			tasks <- r
 
 			if flush {
-				nbuffered, lastflush = 0, time.Now()
+				nbuffered, lastflush = 0, microseconds()
 			} else {
 				nbuffered++
 			}
