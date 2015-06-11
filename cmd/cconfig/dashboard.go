@@ -59,6 +59,8 @@ options:
 
 var proxiesSpeed int64
 
+var zkConnForHighFrequncyUsage zkhelper.Conn
+
 func CreateZkConn() zkhelper.Conn {
 	conn, err := globalEnv.NewZkConn()
 	if err != nil {
@@ -90,11 +92,11 @@ func jsonRetSucc() (int, string) {
 }
 
 func getAllProxyOps() int64 {
-	conn := CreateZkConn()
-	defer conn.Close()
-	proxies, err := models.ProxyList(conn, globalEnv.ProductName(), nil)
+	proxies, err := models.ProxyList(zkConnForHighFrequncyUsage, globalEnv.ProductName(), nil)
 	if err != nil {
 		log.Warning(err)
+		zkConnForHighFrequncyUsage.Close()
+		zkConnForHighFrequncyUsage = CreateZkConn()
 		return -1
 	}
 
@@ -270,6 +272,7 @@ func runDashboard(addr string, httpLogFile string) {
 	globalMigrateManager = NewMigrateManager(conn, globalEnv.ProductName(), preMigrateCheck)
 	defer globalMigrateManager.removeNode()
 
+	zkConnForHighFrequncyUsage = CreateZkConn()
 	go func() {
 		c := getProxySpeedChan()
 		for {
