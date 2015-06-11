@@ -35,15 +35,12 @@ type Request struct {
 
 func (r *Request) String() string {
 	o := &struct {
-		Sid    int64
-		Seq    int64
-		OpStr  string
-		SlotId int
+		Sid   int64  `json:"sid"`
+		Seq   int64  `json:"seq"`
+		OpStr string `json:"opstr"`
+		Start int64  `json:"start"`
 	}{
-		r.Sid, r.Seq, r.OpStr, -1,
-	}
-	if r.slot != nil {
-		o.SlotId = r.slot.Id
+		r.Sid, r.Seq, r.OpStr, r.Start,
 	}
 	b, _ := json.Marshal(o)
 	return string(b)

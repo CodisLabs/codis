@@ -33,11 +33,11 @@ type Session struct {
 
 func (s *Session) String() string {
 	o := &struct {
-		Sid        int64
-		Seq        int64
-		LastOpUnix int64
-		CreateUnix int64
-		RemoteAddr string
+		Sid        int64  `json:"sid"`
+		Seq        int64  `json:"seq"`
+		LastOpUnix int64  `json:"lastop"`
+		CreateUnix int64  `json:"create"`
+		RemoteAddr string `json:"remote"`
 	}{
 		s.Sid, s.Seq.Get(), s.LastOpUnix.Get(), s.CreateUnix,
 		s.Conn.Sock.RemoteAddr().String(),
