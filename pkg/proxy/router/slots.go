@@ -68,7 +68,6 @@ func (s *Slot) forward(r *Request, key []byte) error {
 	if err != nil {
 		return err
 	} else {
-		r.wait.Add(1)
 		bc.PushBack(r)
 		return nil
 	}
@@ -91,7 +90,8 @@ func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 				s.Id, s.migrate.from, s.backend.addr, n, key)
 		}
 	}
-	s.jobs.Add(1)
 	r.slot = s
+	s.jobs.Add(1)
+	r.Wait.Add(1)
 	return s.backend.bc, nil
 }

@@ -140,8 +140,10 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 
 func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) error {
 	r.Response.Resp, r.Response.Err = resp, err
-	r.wait.Done()
-	r.slot.jobs.Done()
+	if s := r.slot; s != nil {
+		s.jobs.Done()
+	}
+	r.Wait.Done()
 	return err
 }
 

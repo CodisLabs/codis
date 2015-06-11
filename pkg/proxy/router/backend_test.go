@@ -29,11 +29,9 @@ func TestBackend(t *testing.T) {
 		for i := 0; i < cap(reqc); i++ {
 			r := &Request{
 				Resp: resp,
-				slot: &Slot{},
-				wait: &sync.WaitGroup{},
+				Wait: &sync.WaitGroup{},
 			}
-			r.slot.jobs.Add(1)
-			r.wait.Add(1)
+			r.Wait.Add(1)
 			bc.PushBack(r)
 			reqc <- r
 		}
@@ -55,7 +53,7 @@ func TestBackend(t *testing.T) {
 
 	var n int
 	for r := range reqc {
-		r.wait.Wait()
+		r.Wait.Wait()
 		assert.Must(string(r.Response.Resp.Value) == strconv.Itoa(n))
 		n++
 	}

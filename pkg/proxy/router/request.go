@@ -21,6 +21,7 @@ type Request struct {
 	Start int64
 	Flush bool
 
+	Wait *sync.WaitGroup
 	Resp *redis.Resp
 
 	Callback func() error
@@ -30,7 +31,6 @@ type Request struct {
 	}
 
 	slot *Slot
-	wait *sync.WaitGroup
 }
 
 func (r *Request) String() string {

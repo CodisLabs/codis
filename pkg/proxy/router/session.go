@@ -144,7 +144,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) error {
 var ErrRespIsRequired = errors.New("resp is required")
 
 func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
-	r.wait.Wait()
+	r.Wait.Wait()
 	if r.Callback != nil {
 		if err := r.Callback(); err != nil {
 			return nil, err
@@ -178,8 +178,8 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 		Seq:   s.Seq.Incr(),
 		OpStr: opstr,
 		Start: usnow,
+		Wait:  &sync.WaitGroup{},
 		Resp:  resp,
-		wait:  &sync.WaitGroup{},
 	}
 
 	switch opstr {
@@ -210,11 +210,11 @@ func (s *Session) handleRequestMGet(r *Request, d Dispatcher) (*Request, error) 
 			Sid:   -r.Sid,
 			Seq:   -r.Seq,
 			OpStr: r.OpStr,
+			Wait:  r.Wait,
 			Resp: redis.NewArray([]*redis.Resp{
 				r.Resp.Array[0],
 				r.Resp.Array[i+1],
 			}),
-			wait: r.wait,
 		}
 		if err := d.Dispatch(sub[i]); err != nil {
 			return nil, err
@@ -256,12 +256,12 @@ func (s *Session) handleRequestMSet(r *Request, d Dispatcher) (*Request, error) 
 			Sid:   -r.Sid,
 			Seq:   -r.Seq,
 			OpStr: r.OpStr,
+			Wait:  r.Wait,
 			Resp: redis.NewArray([]*redis.Resp{
 				r.Resp.Array[0],
 				r.Resp.Array[i*2+1],
 				r.Resp.Array[i*2+2],
 			}),
-			wait: r.wait,
 		}
 		if err := d.Dispatch(sub[i]); err != nil {
 			return nil, err
@@ -297,11 +297,11 @@ func (s *Session) handleRequestMDel(r *Request, d Dispatcher) (*Request, error) 
 			Sid:   -r.Sid,
 			Seq:   -r.Seq,
 			OpStr: r.OpStr,
+			Wait:  r.Wait,
 			Resp: redis.NewArray([]*redis.Resp{
 				r.Resp.Array[0],
 				r.Resp.Array[i+1],
 			}),
-			wait: r.wait,
 		}
 		if err := d.Dispatch(sub[i]); err != nil {
 			return nil, err
