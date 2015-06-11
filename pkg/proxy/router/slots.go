@@ -4,11 +4,11 @@
 package router
 
 import (
-	"errors"
 	"sync"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -75,23 +75,65 @@ func (s *Slot) forward(r *Request, key []byte) error {
 
 var ErrSlotIsNotReady = errors.New("slot is not ready, may be offline")
 
+const SlotsMgrtTagOne = "SLOTSMGRTTAGONE"
+
 func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 	if s.backend.bc == nil {
 		log.Infof("slot-%04d is not ready: key = %s", s.Id, key)
 		return nil, ErrSlotIsNotReady
 	}
-	if len(key) != 0 && s.migrate.bc != nil {
-		if n, err := redis.SlotsMgrtTagOne(s.migrate.from, s.backend.host, s.backend.port, key); err != nil {
-			log.InfoErrorf(err, "slot-%04d slotsmgrttagone from %s to %s error, key = %s",
-				s.Id, s.migrate.from, s.backend.addr, key)
-			return nil, err
-		} else {
-			log.Debugf("slot-%04d slotsmgrttagone from %s to %s: n = %d, key = %s",
-				s.Id, s.migrate.from, s.backend.addr, n, key)
-		}
+	if err := s.trymigrate(r, key); err != nil {
+		log.Infof("slot-%04d migrate from = %s to %s failed: key = %s, error = %s",
+			s.Id, s.migrate.from, s.backend.addr, key, err)
+		return nil, err
+	} else {
+		r.slot = s
+		r.Wait.Add(1)
+		s.jobs.Add(1)
+		return s.backend.bc, nil
 	}
-	r.slot = s
-	s.jobs.Add(1)
-	r.Wait.Add(1)
-	return s.backend.bc, nil
+}
+
+func (s *Slot) trymigrate(r *Request, key []byte) error {
+	if len(key) == 0 || s.migrate.bc == nil {
+		return nil
+	}
+	m := &Request{
+		Sid:   -r.Sid,
+		Seq:   -r.Seq,
+		OpStr: SlotsMgrtTagOne,
+		Start: r.Start,
+		Flush: true,
+		Wait:  &sync.WaitGroup{},
+		Resp: redis.NewArray([]*redis.Resp{
+			redis.NewBulkBytes([]byte(SlotsMgrtTagOne)),
+			redis.NewBulkBytes(s.backend.host),
+			redis.NewBulkBytes(s.backend.port),
+			redis.NewBulkBytes([]byte("3000")),
+			redis.NewBulkBytes(key),
+		}),
+	}
+	m.Wait.Add(1)
+
+	s.migrate.bc.PushBack(m)
+
+	m.Wait.Wait()
+
+	resp, err := m.Response.Resp, m.Response.Err
+	if err != nil {
+		return err
+	}
+	if resp == nil {
+		return errors.Errorf("error resp: resp is nil")
+	}
+	if resp.IsError() {
+		return errors.Errorf("error resp: %s", resp.Value)
+	}
+	if resp.IsInt() {
+		log.Debugf("slot-%04d migrate from %s to %s: key = %s, resp = %s",
+			s.Id, s.migrate.from, s.backend.addr, key, resp.Value)
+		return nil
+	} else {
+		return errors.Errorf("error resp: should be integer, but got %s", resp.Type)
+	}
 }

@@ -210,6 +210,7 @@ func (s *Session) handleRequestMGet(r *Request, d Dispatcher) (*Request, error) 
 			Sid:   -r.Sid,
 			Seq:   -r.Seq,
 			OpStr: r.OpStr,
+			Start: r.Start,
 			Wait:  r.Wait,
 			Resp: redis.NewArray([]*redis.Resp{
 				r.Resp.Array[0],
@@ -256,6 +257,7 @@ func (s *Session) handleRequestMSet(r *Request, d Dispatcher) (*Request, error) 
 			Sid:   -r.Sid,
 			Seq:   -r.Seq,
 			OpStr: r.OpStr,
+			Start: r.Start,
 			Wait:  r.Wait,
 			Resp: redis.NewArray([]*redis.Resp{
 				r.Resp.Array[0],
@@ -297,6 +299,7 @@ func (s *Session) handleRequestMDel(r *Request, d Dispatcher) (*Request, error) 
 			Sid:   -r.Sid,
 			Seq:   -r.Seq,
 			OpStr: r.OpStr,
+			Start: r.Start,
 			Wait:  r.Wait,
 			Resp: redis.NewArray([]*redis.Resp{
 				r.Resp.Array[0],
