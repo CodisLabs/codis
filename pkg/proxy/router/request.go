@@ -19,6 +19,7 @@ type Request struct {
 	Seq   int64
 	OpStr string
 	Start int64
+	Flush bool
 
 	Resp *redis.Resp
 

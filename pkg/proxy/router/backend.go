@@ -94,7 +94,7 @@ func (bc *BackendConn) loopWriter() error {
 		var lastflush int64
 		for ok {
 			var flush bool
-			if len(bc.input) == 0 {
+			if len(bc.input) == 0 || r.Flush {
 				flush = true
 			} else if nbuffered >= 64 || nbuffered >= len(tasks) {
 				flush = true
