@@ -20,6 +20,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -437,6 +438,11 @@ func NewServer(addr string, debugVarAddr string, conf *Config) (*Server, error) 
 		var m = make(map[string]interface{})
 		m["ops"] = cmdstats.requests.Get()
 		m["cmds"] = getAllOpStats()
+		m["info"] = s.info
+		m["build"] = map[string]interface{}{
+			"version": utils.Version,
+			"compile": utils.Compile,
+		}
 		b, _ := json.Marshal(m)
 		return string(b)
 	})
