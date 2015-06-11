@@ -12,7 +12,7 @@ import (
 )
 
 type BackendConn struct {
-	Addr string
+	addr string
 	stop sync.Once
 
 	input chan *Request
@@ -20,7 +20,7 @@ type BackendConn struct {
 
 func NewBackendConn(addr string) *BackendConn {
 	bc := &BackendConn{
-		Addr:  addr,
+		addr:  addr,
 		input: make(chan *Request, 1024),
 	}
 	go bc.Run()
@@ -28,7 +28,7 @@ func NewBackendConn(addr string) *BackendConn {
 }
 
 func (bc *BackendConn) Run() {
-	log.Infof("backend conn [%p] to %s, start service", bc, bc.Addr)
+	log.Infof("backend conn [%p] to %s, start service", bc, bc.addr)
 	for k := 0; ; k++ {
 		starttime := time.Now()
 		err := bc.loopWriter()
@@ -41,14 +41,18 @@ func (bc *BackendConn) Run() {
 		}
 		if n != 0 {
 			log.InfoErrorf(err, "backend conn [%p] to %s, restart [%d], discard next %d requests",
-				bc, bc.Addr, k, n)
+				bc, bc.addr, k, n)
 		} else {
 			log.InfoErrorf(err, "backend conn [%p] to %s, restart [%d]",
-				bc, bc.Addr, k)
+				bc, bc.addr, k)
 		}
 		time.Sleep(time.Millisecond * 50)
 	}
-	log.Infof("backend conn [%p] to %s, stop and exit", bc, bc.Addr)
+	log.Infof("backend conn [%p] to %s, stop and exit", bc, bc.addr)
+}
+
+func (bc *BackendConn) Addr() string {
+	return bc.addr
 }
 
 func (bc *BackendConn) Close() {
@@ -116,7 +120,7 @@ func (bc *BackendConn) loopWriter() error {
 }
 
 func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) {
-	c, err := redis.DialTimeout(bc.Addr, 1024*512, time.Second)
+	c, err := redis.DialTimeout(bc.addr, 1024*512, time.Second)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -139,4 +143,37 @@ func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) erro
 	r.wait.Done()
 	r.slot.jobs.Done()
 	return err
+}
+
+type SharedBackendConn struct {
+	*BackendConn
+	mu sync.Mutex
+
+	refcnt int
+}
+
+func NewSharedBackendConn(addr string) *SharedBackendConn {
+	return &SharedBackendConn{BackendConn: NewBackendConn(addr), refcnt: 1}
+}
+
+func (s *SharedBackendConn) Close() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.refcnt <= 0 {
+		log.Panicf("shared backend conn has been closed, close too many times")
+	}
+	if s.refcnt == 1 {
+		s.BackendConn.Close()
+	}
+	s.refcnt--
+	return s.refcnt == 0
+}
+
+func (s *SharedBackendConn) IncrRefcnt() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.refcnt == 0 {
+		log.Panicf("shared backend conn has been closed")
+	}
+	s.refcnt++
 }

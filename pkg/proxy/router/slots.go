@@ -17,13 +17,16 @@ type Slot struct {
 	Info  *models.Slot
 	Group *models.ServerGroup
 
-	bc   *BackendConn
-	addr struct {
+	backend struct {
+		addr string
 		host []byte
 		port []byte
-		full string
+		bc   *SharedBackendConn
 	}
-	from string
+	migrate struct {
+		from string
+		bc   *SharedBackendConn
+	}
 
 	jobs sync.WaitGroup
 	lock struct {
@@ -48,14 +51,14 @@ func (s *Slot) unblock() {
 	s.lock.Unlock()
 }
 
-func (s *Slot) reset() (bc *BackendConn) {
+func (s *Slot) reset() {
 	s.Info, s.Group = nil, nil
-	s.bc, bc = nil, s.bc
-	s.addr.host = nil
-	s.addr.port = nil
-	s.addr.full = ""
-	s.from = ""
-	return bc
+	s.backend.addr = ""
+	s.backend.host = nil
+	s.backend.port = nil
+	s.backend.bc = nil
+	s.migrate.from = ""
+	s.migrate.bc = nil
 }
 
 func (s *Slot) forward(r *Request, key []byte) error {
@@ -73,23 +76,22 @@ func (s *Slot) forward(r *Request, key []byte) error {
 
 var ErrSlotIsNotReady = errors.New("slot is not ready, may be offline")
 
-func (s *Slot) prepare(r *Request, key []byte) (*BackendConn, error) {
-	if s.bc == nil {
-		log.Infof("slot-%04d is not ready: from = %s, addr = %s, key = %s",
-			s.Id, s.from, s.addr.full, key)
+func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
+	if s.backend.bc == nil {
+		log.Infof("slot-%04d is not ready: key = %s", s.Id, key)
 		return nil, ErrSlotIsNotReady
 	}
-	if len(key) != 0 && len(s.from) != 0 {
-		if n, err := redis.SlotsMgrtTagOne(s.from, s.addr.host, s.addr.port, key); err != nil {
+	if len(key) != 0 && s.migrate.bc != nil {
+		if n, err := redis.SlotsMgrtTagOne(s.migrate.from, s.backend.host, s.backend.port, key); err != nil {
 			log.InfoErrorf(err, "slot-%04d slotsmgrttagone from %s to %s error, key = %s",
-				s.Id, s.from, s.addr.full, key)
+				s.Id, s.migrate.from, s.backend.addr, key)
 			return nil, err
 		} else {
 			log.Debugf("slot-%04d slotsmgrttagone from %s to %s: n = %d, key = %s",
-				s.Id, s.from, s.addr.full, n, key)
+				s.Id, s.migrate.from, s.backend.addr, n, key)
 		}
 	}
 	s.jobs.Add(1)
 	r.slot = s
-	return s.bc, nil
+	return s.backend.bc, nil
 }

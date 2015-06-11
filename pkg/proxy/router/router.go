@@ -34,6 +34,7 @@ type Server struct {
 	conf *Config
 	topo *topology.Topology
 	info models.ProxyInfo
+	pool map[string]*SharedBackendConn
 
 	lastActionSeq int
 
@@ -66,25 +67,21 @@ func (s *Server) isValidSlot(i int) bool {
 	return i >= 0 && i < MaxSlotNum
 }
 
-func (s *Server) getBackendConn(addr string) *BackendConn {
-	for _, slot := range s.slots {
-		if slot.bc != nil && slot.bc.Addr == addr {
-			return slot.bc
-		}
+func (s *Server) getBackendConn(addr string) *SharedBackendConn {
+	bc := s.pool[addr]
+	if bc != nil {
+		bc.IncrRefcnt()
+	} else {
+		bc = NewSharedBackendConn(addr)
+		s.pool[addr] = bc
 	}
-	return NewBackendConn(addr)
+	return bc
 }
 
-func (s *Server) putBackendConn(bc *BackendConn) {
-	if bc == nil {
-		return
+func (s *Server) putBackendConn(bc *SharedBackendConn) {
+	if bc != nil && bc.Close() {
+		delete(s.pool, bc.Addr())
 	}
-	for _, slot := range s.slots {
-		if slot.bc == bc {
-			return
-		}
-	}
-	bc.Close()
 }
 
 func (s *Server) clearSlot(i int) {
@@ -94,8 +91,9 @@ func (s *Server) clearSlot(i int) {
 	slot := s.slots[i]
 	slot.blockAndWait()
 
-	bc := slot.reset()
-	s.putBackendConn(bc)
+	s.putBackendConn(slot.backend.bc)
+	s.putBackendConn(slot.migrate.bc)
+	slot.reset()
 
 	slot.unblock()
 }
@@ -105,7 +103,7 @@ func (s *Server) fillSlot(i int, force bool) {
 		return
 	}
 	slot := s.slots[i]
-	if !force && slot.bc != nil {
+	if !force && slot.backend.bc != nil {
 		log.Panicf("slot %d already filled, slot: %+v", i, slot)
 	}
 
@@ -129,30 +127,38 @@ func (s *Server) fillSlot(i int, force bool) {
 
 	slot.blockAndWait()
 
-	bc := slot.reset()
-	s.putBackendConn(bc)
+	s.putBackendConn(slot.backend.bc)
+	s.putBackendConn(slot.migrate.bc)
+	slot.reset()
 
 	slot.Info, slot.Group = slotInfo, slotGroup
-	if len(from) != 0 {
-		slot.from = from
-	}
 	if len(addr) != 0 {
-		slot.addr.full = addr
 		xx := strings.Split(addr, ":")
 		if len(xx) >= 1 {
-			slot.addr.host = []byte(xx[0])
+			slot.backend.host = []byte(xx[0])
 		}
 		if len(xx) >= 2 {
-			slot.addr.port = []byte(xx[1])
+			slot.backend.port = []byte(xx[1])
 		}
-		slot.bc = s.getBackendConn(addr)
+		slot.backend.addr = addr
+		slot.backend.bc = s.getBackendConn(addr)
+	}
+	if len(from) != 0 {
+		slot.migrate.from = from
+		slot.migrate.bc = s.getBackendConn(from)
 	}
 
 	if slotInfo.State.Status != models.SLOT_STATUS_PRE_MIGRATE {
 		slot.unblock()
 	}
 
-	log.Infof("fill slot %d, force %v, addr = %s, from = %+v", i, force, addr, from)
+	if slot.migrate.bc != nil {
+		log.Infof("fill slot %d, force %v, backend.addr = %s, migrate.from = %s",
+			i, force, slot.backend.addr, slot.migrate.from)
+	} else {
+		log.Infof("fill slot %d, force %v, backend.addr = %s",
+			i, force, slot.backend.addr)
+	}
 }
 
 func (s *Server) OnSlotRangeChange(param *models.SlotMultiSetParam) {
@@ -395,6 +401,7 @@ func NewServer(addr string, debugVarAddr string, conf *Config) (*Server, error) 
 		evtbus:        make(chan interface{}, 1000),
 		conf:          conf,
 		topo:          topology.NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider),
+		pool:          make(map[string]*SharedBackendConn),
 		lastActionSeq: -1,
 	}
 	for i := 0; i < MaxSlotNum; i++ {
