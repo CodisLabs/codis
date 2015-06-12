@@ -28,8 +28,8 @@ type Session struct {
 	CreateUnix int64
 
 	quit   bool
+	zombie atomic2.Bool
 	closed atomic2.Bool
-	bcerrs atomic2.Bool
 }
 
 func (s *Session) String() string {
@@ -53,6 +53,14 @@ func NewSession(c net.Conn) *Session {
 	s.Conn.ReaderTimeout = time.Minute * 30
 	s.Conn.WriterTimeout = time.Second * 30
 	return addToSessions(s)
+}
+
+func (s *Session) MarkZombie() {
+	s.zombie.Set(true)
+}
+
+func (s *Session) IsZombie() bool {
+	return s.zombie.Get()
 }
 
 func (s *Session) IsClosed() bool {
@@ -84,6 +92,7 @@ func (s *Session) Serve(d Dispatcher) {
 		if err := s.loopWriter(tasks); err != nil {
 			errlist.PushBack(err)
 		}
+		s.MarkZombie()
 	}()
 
 	defer close(tasks)

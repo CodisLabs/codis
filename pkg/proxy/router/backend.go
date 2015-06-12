@@ -55,7 +55,7 @@ func (bc *BackendConn) PushBack(r *Request) {
 	bc.input <- r
 }
 
-var ErrRespIsDiscarded = errors.New("resp is discarded")
+var ErrZombieRequest = errors.New("request from zombie session")
 
 func (bc *BackendConn) loopWriter() error {
 	r, ok := <-bc.input
@@ -72,17 +72,17 @@ func (bc *BackendConn) loopWriter() error {
 			MaxInterval: 300,
 		}
 		for ok {
-			var force = len(bc.input) == 0
+			var flush = len(bc.input) == 0
 			if bc.canForward(r) {
-				if err := p.Encode(r.Resp, force); err != nil {
+				if err := p.Encode(r.Resp, flush); err != nil {
 					return bc.setResponse(r, nil, err)
 				}
 				tasks <- r
 			} else {
-				if err := p.TryFlush(force); err != nil {
+				if err := p.Flush(flush); err != nil {
 					return bc.setResponse(r, nil, err)
 				}
-				bc.setResponse(r, nil, ErrRespIsDiscarded)
+				bc.setResponse(r, nil, ErrZombieRequest)
 			}
 
 			r, ok = <-bc.input
@@ -111,7 +111,7 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 }
 
 func (bc *BackendConn) canForward(r *Request) bool {
-	return r.Owner == nil || !r.Owner.bcerrs.Get()
+	return r.Owner == nil || !r.Owner.IsZombie()
 }
 
 func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) error {
@@ -120,7 +120,7 @@ func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) erro
 		s.jobs.Done()
 	}
 	if err != nil && r.Owner != nil {
-		r.Owner.bcerrs.Set(true)
+		r.Owner.MarkZombie()
 	}
 	r.Wait.Done()
 	return err
@@ -169,7 +169,7 @@ type FlushPolicy struct {
 	lastflush int64
 }
 
-func (p *FlushPolicy) need() bool {
+func (p *FlushPolicy) needFlush() bool {
 	if p.nbuffered != 0 {
 		if p.nbuffered > p.MaxBuffered {
 			return true
@@ -181,8 +181,8 @@ func (p *FlushPolicy) need() bool {
 	return false
 }
 
-func (p *FlushPolicy) TryFlush(force bool) error {
-	if force || p.need() {
+func (p *FlushPolicy) Flush(force bool) error {
+	if force || p.needFlush() {
 		if err := p.Encoder.Flush(); err != nil {
 			return err
 		}
@@ -197,6 +197,6 @@ func (p *FlushPolicy) Encode(resp *redis.Resp, force bool) error {
 		return err
 	} else {
 		p.nbuffered++
-		return p.TryFlush(force)
+		return p.Flush(force)
 	}
 }
