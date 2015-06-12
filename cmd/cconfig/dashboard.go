@@ -26,6 +26,7 @@ import (
 	"github.com/martini-contrib/cors"
 
 	log "github.com/ngaut/logging"
+	"sync"
 )
 
 func cmdDashboard(argv []string) (err error) {
@@ -52,7 +53,18 @@ options:
 	return nil
 }
 
-var proxiesSpeed int64
+var (
+	proxiesSpeed               int64
+	zkConnForHighFrequncyUsage zkhelper.Conn
+	lockZkConn                 sync.RWMutex
+)
+
+func refreshZkConnForHighFrequncyUsage() {
+	lockZkConn.Lock()
+	zkConnForHighFrequncyUsage.Close()
+	zkConnForHighFrequncyUsage = CreateZkConn()
+	lockZkConn.Unlock()
+}
 
 func CreateZkConn() zkhelper.Conn {
 	conn, err := globalEnv.NewZkConn()
@@ -85,11 +97,12 @@ func jsonRetSucc() (int, string) {
 }
 
 func getAllProxyOps() int64 {
-	conn := CreateZkConn()
-	defer conn.Close()
-	proxies, err := models.ProxyList(conn, globalEnv.ProductName(), nil)
+	lockZkConn.RLock()
+	proxies, err := models.ProxyList(zkConnForHighFrequncyUsage, globalEnv.ProductName(), nil)
+	lockZkConn.RUnlock()
 	if err != nil {
 		log.Warning(err)
+		refreshZkConnForHighFrequncyUsage()
 		return -1
 	}
 
@@ -264,6 +277,7 @@ func runDashboard(addr string, httpLogFile string) {
 	globalMigrateManager = NewMigrateManager(conn, globalEnv.ProductName(), preMigrateCheck)
 	defer globalMigrateManager.removeNode()
 
+	zkConnForHighFrequncyUsage = CreateZkConn()
 	go func() {
 		c := getProxySpeedChan()
 		for {
