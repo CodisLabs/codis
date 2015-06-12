@@ -15,8 +15,8 @@ type Dispatcher interface {
 }
 
 type Request struct {
-	Sid   int64
-	Seq   int64
+	Owner *Session
+	OpSeq int64
 	OpStr string
 	Start int64
 	Flush bool
@@ -36,11 +36,14 @@ type Request struct {
 func (r *Request) String() string {
 	o := &struct {
 		Sid   int64  `json:"sid"`
-		Seq   int64  `json:"seq"`
+		OpSeq int64  `json:"opseq"`
 		OpStr string `json:"opstr"`
 		Start int64  `json:"start"`
 	}{
-		r.Sid, r.Seq, r.OpStr, r.Start,
+		0, r.OpSeq, r.OpStr, r.Start,
+	}
+	if r.Owner != nil {
+		o.Sid = r.Owner.Sid
 	}
 	b, _ := json.Marshal(o)
 	return string(b)

@@ -100,8 +100,8 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 		return nil
 	}
 	m := &Request{
-		Sid:   -r.Sid,
-		Seq:   -r.Seq,
+		Owner: r.Owner,
+		OpSeq: -r.OpSeq,
 		OpStr: SlotsMgrtTagOne,
 		Start: r.Start,
 		Wait:  &sync.WaitGroup{},

@@ -22,7 +22,7 @@ type Session struct {
 	*redis.Conn
 
 	Sid int64
-	Seq atomic2.Int64
+	Ops atomic2.Int64
 
 	LastOpUnix atomic2.Int64
 	CreateUnix int64
@@ -34,12 +34,12 @@ type Session struct {
 func (s *Session) String() string {
 	o := &struct {
 		Sid        int64  `json:"sid"`
-		Seq        int64  `json:"seq"`
+		Ops        int64  `json:"ops"`
 		LastOpUnix int64  `json:"lastop"`
 		CreateUnix int64  `json:"create"`
 		RemoteAddr string `json:"remote"`
 	}{
-		s.Sid, s.Seq.Get(), s.LastOpUnix.Get(), s.CreateUnix,
+		s.Sid, s.Ops.Get(), s.LastOpUnix.Get(), s.CreateUnix,
 		s.Conn.Sock.RemoteAddr().String(),
 	}
 	b, _ := json.Marshal(o)
@@ -174,8 +174,8 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 	s.LastOpUnix.Set(usnow / 1e6)
 
 	r := &Request{
-		Sid:   s.Sid,
-		Seq:   s.Seq.Incr(),
+		Owner: s,
+		OpSeq: s.Ops.Incr(),
 		OpStr: opstr,
 		Start: usnow,
 		Wait:  &sync.WaitGroup{},
@@ -207,8 +207,8 @@ func (s *Session) handleRequestMGet(r *Request, d Dispatcher) (*Request, error) 
 	var sub = make([]*Request, nkeys)
 	for i := 0; i < len(sub); i++ {
 		sub[i] = &Request{
-			Sid:   -r.Sid,
-			Seq:   -r.Seq,
+			Owner: r.Owner,
+			OpSeq: -r.OpSeq,
 			OpStr: r.OpStr,
 			Start: r.Start,
 			Wait:  r.Wait,
@@ -254,8 +254,8 @@ func (s *Session) handleRequestMSet(r *Request, d Dispatcher) (*Request, error) 
 	var sub = make([]*Request, nblks/2)
 	for i := 0; i < len(sub); i++ {
 		sub[i] = &Request{
-			Sid:   -r.Sid,
-			Seq:   -r.Seq,
+			Owner: r.Owner,
+			OpSeq: -r.OpSeq,
 			OpStr: r.OpStr,
 			Start: r.Start,
 			Wait:  r.Wait,
@@ -296,8 +296,8 @@ func (s *Session) handleRequestMDel(r *Request, d Dispatcher) (*Request, error) 
 	var sub = make([]*Request, nkeys)
 	for i := 0; i < len(sub); i++ {
 		sub[i] = &Request{
-			Sid:   -r.Sid,
-			Seq:   -r.Seq,
+			Owner: r.Owner,
+			OpSeq: -r.OpSeq,
 			OpStr: r.OpStr,
 			Start: r.Start,
 			Wait:  r.Wait,
@@ -365,7 +365,7 @@ func cleanupSessions(lastunix int64) {
 		if s.IsClosed() {
 			sessions.Remove(e)
 		} else if s.IsTimeout(lastunix) {
-			log.Infof("session [%p] killed, due to timeout, sid = %d, seq = %d", s, s.Sid, s.Seq.Get())
+			log.Infof("session [%p] killed, due to timeout, sid = %d, ops = %d", s, s.Sid, s.Ops.Get())
 			s.Close()
 			sessions.Remove(e)
 		} else {
