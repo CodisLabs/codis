@@ -66,38 +66,23 @@ func (bc *BackendConn) loopWriter() error {
 		}
 		defer close(tasks)
 
-		var nbuffered int
-		var lastflush int64
+		p := &FlushPolicy{
+			Encoder:     c.Writer,
+			MaxBuffered: 64,
+			MaxInterval: 300,
+		}
 		for ok {
-			var flush bool
-			if len(bc.input) == 0 {
-				flush = true
-			} else if nbuffered >= 64 {
-				flush = true
-			} else if microseconds()-lastflush >= 300 {
-				flush = true
-			}
-
+			var force = len(bc.input) == 0
 			if bc.canForward(r) {
-				if err := c.Writer.Encode(r.Resp, flush); err != nil {
+				if err := p.Encode(r.Resp, force); err != nil {
 					return bc.setResponse(r, nil, err)
 				}
 				tasks <- r
-
-				if flush {
-					nbuffered, lastflush = 0, microseconds()
-				} else {
-					nbuffered++
-				}
 			} else {
-				bc.setResponse(r, nil, ErrRespIsDiscarded)
-
-				if flush {
-					if err := c.Writer.Flush(); err != nil {
-						return err
-					}
-					nbuffered, lastflush = 0, microseconds()
+				if err := p.TryFlush(force); err != nil {
+					return bc.setResponse(r, nil, err)
 				}
+				bc.setResponse(r, nil, ErrRespIsDiscarded)
 			}
 
 			r, ok = <-bc.input
@@ -172,4 +157,46 @@ func (s *SharedBackendConn) IncrRefcnt() {
 		log.Panicf("shared backend conn has been closed")
 	}
 	s.refcnt++
+}
+
+type FlushPolicy struct {
+	*redis.Encoder
+
+	MaxBuffered int
+	MaxInterval int64
+
+	nbuffered int
+	lastflush int64
+}
+
+func (p *FlushPolicy) need() bool {
+	if p.nbuffered != 0 {
+		if p.nbuffered > p.MaxBuffered {
+			return true
+		}
+		if microseconds()-p.lastflush > p.MaxInterval {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *FlushPolicy) TryFlush(force bool) error {
+	if force || p.need() {
+		if err := p.Encoder.Flush(); err != nil {
+			return err
+		}
+		p.nbuffered = 0
+		p.lastflush = microseconds()
+	}
+	return nil
+}
+
+func (p *FlushPolicy) Encode(resp *redis.Resp, force bool) error {
+	if err := p.Encoder.Encode(resp, false); err != nil {
+		return err
+	} else {
+		p.nbuffered++
+		return p.TryFlush(force)
+	}
 }

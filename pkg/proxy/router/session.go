@@ -112,31 +112,18 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
 }
 
 func (s *Session) loopWriter(tasks <-chan *Request) error {
-	var nbuffered int
-	var lastflush int64
+	p := &FlushPolicy{
+		Encoder:     s.Writer,
+		MaxBuffered: 32,
+		MaxInterval: 300,
+	}
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
 		if err != nil {
 			return err
 		}
-
-		var flush bool
-		if len(tasks) == 0 {
-			flush = true
-		} else if nbuffered >= 32 {
-			flush = true
-		} else if microseconds()-lastflush >= 300 {
-			flush = true
-		}
-
-		if err := s.Writer.Encode(resp, flush); err != nil {
+		if err := p.Encode(resp, len(tasks) == 0); err != nil {
 			return err
-		}
-
-		if flush {
-			nbuffered, lastflush = 0, microseconds()
-		} else {
-			nbuffered++
 		}
 	}
 	return nil
