@@ -4,6 +4,7 @@
 package router
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -82,8 +83,8 @@ func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 		log.Infof("slot-%04d is not ready: key = %s", s.Id, key)
 		return nil, ErrSlotIsNotReady
 	}
-	if err := s.trymigrate(r, key); err != nil {
-		log.Infof("slot-%04d migrate from = %s to %s failed: key = %s, error = %s",
+	if err := s.slotsmgrt(r, key); err != nil {
+		log.Warnf("slot-%04d migrate from = %s to %s failed: key = %s, error = %s",
 			s.Id, s.migrate.from, s.backend.addr, key, err)
 		return nil, err
 	} else {
@@ -94,7 +95,7 @@ func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 	}
 }
 
-func (s *Slot) trymigrate(r *Request, key []byte) error {
+func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 	if len(key) == 0 || s.migrate.bc == nil {
 		return nil
 	}
@@ -103,7 +104,6 @@ func (s *Slot) trymigrate(r *Request, key []byte) error {
 		Seq:   -r.Seq,
 		OpStr: SlotsMgrtTagOne,
 		Start: r.Start,
-		Flush: true,
 		Wait:  &sync.WaitGroup{},
 		Resp: redis.NewArray([]*redis.Resp{
 			redis.NewBulkBytes([]byte(SlotsMgrtTagOne)),
@@ -112,6 +112,7 @@ func (s *Slot) trymigrate(r *Request, key []byte) error {
 			redis.NewBulkBytes([]byte("3000")),
 			redis.NewBulkBytes(key),
 		}),
+		Flush: true,
 	}
 	m.Wait.Add(1)
 
@@ -124,16 +125,16 @@ func (s *Slot) trymigrate(r *Request, key []byte) error {
 		return err
 	}
 	if resp == nil {
-		return errors.Errorf("error resp: resp is nil")
+		return ErrRespIsRequired
 	}
 	if resp.IsError() {
-		return errors.Errorf("error resp: %s", resp.Value)
+		return errors.New(fmt.Sprintf("error resp: %s", resp.Value))
 	}
 	if resp.IsInt() {
 		log.Debugf("slot-%04d migrate from %s to %s: key = %s, resp = %s",
 			s.Id, s.migrate.from, s.backend.addr, key, resp.Value)
 		return nil
 	} else {
-		return errors.Errorf("error resp: should be integer, but got %s", resp.Type)
+		return errors.New(fmt.Sprintf("error resp: should be integer, but got %s", resp.Type))
 	}
 }
