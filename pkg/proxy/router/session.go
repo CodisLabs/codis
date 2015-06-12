@@ -29,6 +29,7 @@ type Session struct {
 
 	quit   bool
 	closed atomic2.Bool
+	bcerrs atomic2.Bool
 }
 
 func (s *Session) String() string {
@@ -66,9 +67,9 @@ func (s *Session) Serve(d Dispatcher) {
 	var errlist errors.ErrorList
 	defer func() {
 		if err := errlist.First(); err != nil {
-			log.Infof("session [%p] closed, session = %s, error = %s", s, s, err)
+			log.Infof("session [%p] closed: %s, error = %s", s, s, err)
 		} else {
-			log.Infof("session [%p] closed, session = %s, quit", s, s)
+			log.Infof("session [%p] closed: %s, quit", s, s)
 		}
 	}()
 

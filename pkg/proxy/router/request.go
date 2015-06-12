@@ -19,7 +19,6 @@ type Request struct {
 	OpSeq int64
 	OpStr string
 	Start int64
-	Flush bool
 
 	Wait *sync.WaitGroup
 	Resp *redis.Resp

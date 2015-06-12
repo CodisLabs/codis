@@ -112,7 +112,6 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 			redis.NewBulkBytes([]byte("3000")),
 			redis.NewBulkBytes(key),
 		}),
-		Flush: true,
 	}
 	m.Wait.Add(1)
 

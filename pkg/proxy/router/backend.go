@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -30,22 +31,11 @@ func NewBackendConn(addr string) *BackendConn {
 func (bc *BackendConn) Run() {
 	log.Infof("backend conn [%p] to %s, start service", bc, bc.addr)
 	for k := 0; ; k++ {
-		starttime := time.Now()
 		err := bc.loopWriter()
 		if err == nil {
 			break
 		}
-		var n int
-		if time.Since(starttime) < time.Second {
-			n = bc.discard(err, len(bc.input)/20+1)
-		}
-		if n != 0 {
-			log.InfoErrorf(err, "backend conn [%p] to %s, restart [%d], discard next %d requests",
-				bc, bc.addr, k, n)
-		} else {
-			log.InfoErrorf(err, "backend conn [%p] to %s, restart [%d]",
-				bc, bc.addr, k)
-		}
+		log.WarnErrorf(err, "backend conn [%p] to %s, restart [%d]", bc, bc.addr, k)
 		time.Sleep(time.Millisecond * 50)
 	}
 	log.Infof("backend conn [%p] to %s, stop and exit", bc, bc.addr)
@@ -65,21 +55,7 @@ func (bc *BackendConn) PushBack(r *Request) {
 	bc.input <- r
 }
 
-func (bc *BackendConn) discard(err error, max int) int {
-	var n int
-	for i := 0; i < max; i++ {
-		select {
-		case r, ok := <-bc.input:
-			if !ok {
-				return n
-			}
-			bc.setResponse(r, nil, err)
-			n++
-		default:
-		}
-	}
-	return n
-}
+var ErrRespIsDiscarded = errors.New("resp is discarded")
 
 func (bc *BackendConn) loopWriter() error {
 	r, ok := <-bc.input
@@ -94,23 +70,34 @@ func (bc *BackendConn) loopWriter() error {
 		var lastflush int64
 		for ok {
 			var flush bool
-			if len(bc.input) == 0 || r.Flush {
+			if len(bc.input) == 0 {
 				flush = true
-			} else if nbuffered >= 64 || nbuffered >= len(tasks) {
+			} else if nbuffered >= 64 {
 				flush = true
 			} else if microseconds()-lastflush >= 300 {
 				flush = true
 			}
 
-			if err := c.Writer.Encode(r.Resp, flush); err != nil {
-				return bc.setResponse(r, nil, err)
-			}
-			tasks <- r
+			if bc.canForward(r) {
+				if err := c.Writer.Encode(r.Resp, flush); err != nil {
+					return bc.setResponse(r, nil, err)
+				}
+				tasks <- r
 
-			if flush {
-				nbuffered, lastflush = 0, microseconds()
+				if flush {
+					nbuffered, lastflush = 0, microseconds()
+				} else {
+					nbuffered++
+				}
 			} else {
-				nbuffered++
+				bc.setResponse(r, nil, ErrRespIsDiscarded)
+
+				if flush {
+					if err := c.Writer.Flush(); err != nil {
+						return err
+					}
+					nbuffered, lastflush = 0, microseconds()
+				}
 			}
 
 			r, ok = <-bc.input
@@ -138,10 +125,17 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 	return c, tasks, nil
 }
 
+func (bc *BackendConn) canForward(r *Request) bool {
+	return r.Owner == nil || !r.Owner.bcerrs.Get()
+}
+
 func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) error {
 	r.Response.Resp, r.Response.Err = resp, err
 	if s := r.slot; s != nil {
 		s.jobs.Done()
+	}
+	if err != nil && r.Owner != nil {
+		r.Owner.bcerrs.Set(true)
 	}
 	r.Wait.Done()
 	return err
