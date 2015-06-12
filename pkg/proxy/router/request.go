@@ -24,7 +24,7 @@ type Request struct {
 	Wait *sync.WaitGroup
 	Resp *redis.Resp
 
-	Callback func() error
+	Coalesce func() error
 	Response struct {
 		Resp *redis.Resp
 		Err  error

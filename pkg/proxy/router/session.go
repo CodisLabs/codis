@@ -145,8 +145,8 @@ var ErrRespIsRequired = errors.New("resp is required")
 
 func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
 	r.Wait.Wait()
-	if r.Callback != nil {
-		if err := r.Callback(); err != nil {
+	if r.Coalesce != nil {
+		if err := r.Coalesce(); err != nil {
 			return nil, err
 		}
 	}
@@ -221,7 +221,7 @@ func (s *Session) handleRequestMGet(r *Request, d Dispatcher) (*Request, error) 
 			return nil, err
 		}
 	}
-	r.Callback = func() error {
+	r.Coalesce = func() error {
 		var array = make([]*redis.Resp, len(sub))
 		for i, x := range sub {
 			if err := x.Response.Err; err != nil {
@@ -269,7 +269,7 @@ func (s *Session) handleRequestMSet(r *Request, d Dispatcher) (*Request, error) 
 			return nil, err
 		}
 	}
-	r.Callback = func() error {
+	r.Coalesce = func() error {
 		for _, x := range sub {
 			if err := x.Response.Err; err != nil {
 				return err
@@ -310,7 +310,7 @@ func (s *Session) handleRequestMDel(r *Request, d Dispatcher) (*Request, error) 
 			return nil, err
 		}
 	}
-	r.Callback = func() error {
+	r.Coalesce = func() error {
 		var n int
 		for _, x := range sub {
 			if err := x.Response.Err; err != nil {
