@@ -50,13 +50,13 @@ Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz
 
 MemTotal: 16 GB
 
-Redis:
-  nohup codis-server 6380.conf &
-  nohup codis-server 6381.conf &
-  nohup codis-server 6382.conf &
-  nohup codis-server 6383.conf &
+Redis:  
+  nohup codis-server 6380.conf &  
+  nohup codis-server 6381.conf &  
+  nohup codis-server 6382.conf &  
+  nohup codis-server 6383.conf &  
 
-Twemproxy:
+Twemproxy:  
   redis-benchmark -p 22120 -c $clients -n 5000000 -P 100 -r 1048576 -d 256 -t get,set,mset
   
 Codis:  
