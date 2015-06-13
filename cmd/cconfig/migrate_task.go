@@ -134,8 +134,7 @@ func (t *MigrateTask) stop() error {
 // migrate multi slots
 func (t *MigrateTask) run() error {
 	// create zk conn on demand
-	t.zkConn = CreateZkConn()
-	defer t.zkConn.Close()
+	t.zkConn = zkBuilder.GetSafeConn()
 
 	to := t.NewGroupId
 	t.Status = MIGRATE_TASK_MIGRATING
@@ -158,8 +157,7 @@ func (t *MigrateTask) run() error {
 }
 
 func preMigrateCheck(t *MigrateTask) (bool, error) {
-	conn := CreateZkConn()
-	defer conn.Close()
+	conn := zkBuilder.GetSafeConn()
 
 	slots, err := models.GetMigratingSlots(conn, t.productName)
 

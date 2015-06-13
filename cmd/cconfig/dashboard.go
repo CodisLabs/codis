@@ -26,7 +26,7 @@ import (
 	"github.com/martini-contrib/cors"
 
 	log "github.com/ngaut/logging"
-	"sync"
+	"github.com/wandoulabs/codis/pkg/utils"
 )
 
 func cmdDashboard(argv []string) (err error) {
@@ -59,25 +59,9 @@ options:
 }
 
 var (
-	proxiesSpeed               int64
-	zkConnForHighFrequncyUsage zkhelper.Conn
-	lockZkConn                 sync.RWMutex
+	proxiesSpeed int64
+	zkBuilder    utils.ConnBuilder
 )
-
-func refreshZkConnForHighFrequncyUsage() {
-	lockZkConn.Lock()
-	zkConnForHighFrequncyUsage.Close()
-	zkConnForHighFrequncyUsage = CreateZkConn()
-	lockZkConn.Unlock()
-}
-
-func CreateZkConn() zkhelper.Conn {
-	conn, err := globalEnv.NewZkConn()
-	if err != nil {
-		Fatal("Failed to create zk connection: " + err.Error())
-	}
-	return conn
-}
 
 func jsonRet(output map[string]interface{}) (int, string) {
 	b, err := json.Marshal(output)
@@ -102,12 +86,10 @@ func jsonRetSucc() (int, string) {
 }
 
 func getAllProxyOps() int64 {
-	lockZkConn.RLock()
-	proxies, err := models.ProxyList(zkConnForHighFrequncyUsage, globalEnv.ProductName(), nil)
-	lockZkConn.RUnlock()
+	conn := zkBuilder.GetUnsafeConn()
+	proxies, err := models.ProxyList(conn, globalEnv.ProductName(), nil)
 	if err != nil {
 		log.Warning(err)
-		refreshZkConnForHighFrequncyUsage()
 		return -1
 	}
 
@@ -124,8 +106,7 @@ func getAllProxyOps() int64 {
 
 // for debug
 func getAllProxyDebugVars() map[string]map[string]interface{} {
-	conn := CreateZkConn()
-	defer conn.Close()
+	conn := zkBuilder.GetUnsafeConn()
 	proxies, err := models.ProxyList(conn, globalEnv.ProductName(), nil)
 	if err != nil {
 		log.Warning(err)
@@ -164,8 +145,7 @@ func pageSlots(r render.Render) {
 }
 
 func createDashboardNode() error {
-	conn := CreateZkConn()
-	defer conn.Close()
+	conn := zkBuilder.GetSafeConn()
 
 	// make sure root dir is exists
 	rootDir := fmt.Sprintf("/zk/codis/db_%s", globalEnv.ProductName())
@@ -188,8 +168,7 @@ func createDashboardNode() error {
 }
 
 func releaseDashboardNode() {
-	conn := CreateZkConn()
-	defer conn.Close()
+	conn := zkBuilder.GetSafeConn()
 
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/dashboard", globalEnv.ProductName())
 	if exists, _, _ := conn.Exists(zkPath); exists {
@@ -276,14 +255,12 @@ func runDashboard(addr string, httpLogFile string) {
 		Fatal(err)
 	}
 	defer releaseDashboardNode()
-
+	zkBuilder = utils.NewConnBuilder(globalEnv.NewZkConn)
 	// create long live migrate manager
-	conn := CreateZkConn()
-	defer conn.Close()
+	conn := zkBuilder.GetSafeConn()
 	globalMigrateManager = NewMigrateManager(conn, globalEnv.ProductName(), preMigrateCheck)
 	defer globalMigrateManager.removeNode()
 
-	zkConnForHighFrequncyUsage = CreateZkConn()
 	go func() {
 		c := getProxySpeedChan()
 		for {
