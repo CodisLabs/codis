@@ -241,7 +241,7 @@ func (s *Session) handleRequestMGet(r *Request, d Dispatcher) (*Request, error) 
 
 func (s *Session) handleRequestMSet(r *Request, d Dispatcher) (*Request, error) {
 	nblks := len(r.Resp.Array) - 1
-	if nblks <= 1 {
+	if nblks <= 2 {
 		return r, d.Dispatch(r)
 	}
 	if nblks%2 != 0 {
