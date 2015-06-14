@@ -11,8 +11,8 @@ Codis is engineered to elastically scale, Easily add or remove redis or proxy in
 
 Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia.com).
 
-
-
+##Major Changes in 2.0
+In Codis 2.0, we redesign the request dispatcher. Now pipeline and mget/mset requests are much faster than ever!
 
 ##Features
 * Auto rebalance
