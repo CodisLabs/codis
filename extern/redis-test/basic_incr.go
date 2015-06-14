@@ -41,7 +41,7 @@ func (tc *BasicIncrTestCase) player(gid int, tg *TestGroup) {
 	defer tg.PlayerDone()
 	c := NewConn(tc.proxy)
 	defer c.Close()
-	u := NewUnit(fmt.Sprintf("basic_incr_%d", gid))
+	u := NewUnit(fmt.Sprintf("basic_incr_%d_tag{%s}", gid, NewZeroTag()))
 	u.Del(c, false)
 	for i := 0; i < tc.round; i++ {
 		u.Incr(c)

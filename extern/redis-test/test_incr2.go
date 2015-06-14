@@ -34,16 +34,17 @@ func (tc *TestIncr2TestCase) init() {
 func (tc *TestIncr2TestCase) main() {
 	tg := &TestGroup{}
 	tg.Reset()
+	var tags = NewZeroTags(tc.ntags)
 	for g := 0; g < tc.group; g++ {
 		tg.AddPlayer()
-		go tc.player(g, tg)
+		go tc.player(g, tg, tags)
 	}
 	tg.Start()
 	tg.Wait()
 	fmt.Println("done")
 }
 
-func (tc *TestIncr2TestCase) player(gid int, tg *TestGroup) {
+func (tc *TestIncr2TestCase) player(gid int, tg *TestGroup, tags *ZeroTags) {
 	tg.PlayerWait()
 	defer tg.PlayerDone()
 	c1 := NewConn(tc.proxy1)
@@ -52,7 +53,7 @@ func (tc *TestIncr2TestCase) player(gid int, tg *TestGroup) {
 	defer c2.Close()
 	us := UnitSlice(make([]*Unit, tc.nkeys))
 	for i := 0; i < len(us); i++ {
-		key := fmt.Sprintf("test_incr2_%d_{%d}_%d", gid, i%tc.ntags, i)
+		key := fmt.Sprintf("test_incr2_%d_%d_tag{%s}", gid, i, tags.Get(i))
 		us[i] = NewUnit(key)
 	}
 	for _, u := range us {

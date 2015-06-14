@@ -40,32 +40,26 @@ func (tc *ExtraIncrTestCase) init() {
 }
 
 func (tc *ExtraIncrTestCase) main() {
-	go func() {
-		c := NewConn(tc.proxy)
-		for {
-			time.Sleep(time.Second * 5)
-			c.Check()
-		}
-	}()
 	tg := &TestGroup{}
 	tg.Reset()
+	var tags = NewZeroTags(tc.ntags)
 	for g := 0; g < tc.group; g++ {
 		tg.AddPlayer()
-		go tc.player(g, tg)
+		go tc.player(g, tg, tags)
 	}
 	tg.Start()
 	tg.Wait()
 	fmt.Println("done")
 }
 
-func (tc *ExtraIncrTestCase) player(gid int, tg *TestGroup) {
+func (tc *ExtraIncrTestCase) player(gid int, tg *TestGroup, tags *ZeroTags) {
 	tg.PlayerWait()
 	defer tg.PlayerDone()
 	c := NewConn(tc.proxy)
 	defer c.Close()
 	us := UnitSlice(make([]*Unit, tc.nkeys))
 	for i := 0; i < len(us); i++ {
-		key := fmt.Sprintf("extra_incr_%d_{%d}_%d", gid, i%tc.ntags, i)
+		key := fmt.Sprintf("extra_incr_%d_%d_tag{%s}", gid, i, tags.Get(i))
 		us[i] = NewUnit(key)
 	}
 	for _, u := range us {
@@ -96,7 +90,6 @@ func (tc *ExtraIncrTestCase) player(gid int, tg *TestGroup) {
 		u.Del(c, true)
 		ops.Incr()
 	}
-	c.Check()
 }
 
 func (tc *ExtraIncrTestCase) groupfetch(c1, c2 redis.Conn, key string) int {

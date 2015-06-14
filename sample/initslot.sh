@@ -4,7 +4,11 @@ echo "slots initializing..."
 echo "done"
 
 echo "set slot ranges to server groups..."
-../bin/codis-config -c  config.ini slot range-set 0 511 1 online
-../bin/codis-config -c  config.ini slot range-set 512 1023 2 online
+for ((i=0;i<4;i++)); do
+    let beg="256*i"
+    let end="256*i + 255"
+    let group="1+i"
+    ../bin/codis-config -c  config.ini slot range-set $beg $end $group online
+done
 echo "done"
 

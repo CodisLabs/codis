@@ -27,7 +27,7 @@ run_basic_hash() {
         basic_hash.go \
         utils.go -ncpu=8 \
         -proxy=$proxy1 \
-        -nkeys=$((press * 10000))
+        -nkeys=$((press * 1000))
 }
 
 run_basic_incr() {
@@ -36,7 +36,7 @@ run_basic_incr() {
         utils.go -ncpu=8 \
         -proxy=$proxy1 \
         -group=8 \
-        -round=$((press * 10000))
+        -round=$((press * 1000))
 }
 
 run_basic_mgrt() {
@@ -45,7 +45,7 @@ run_basic_mgrt() {
         utils.go -ncpu=8 \
         -master1=$master1 \
         -master2=$master2 \
-        -round=$((press * 10000))
+        -round=$((press * 1000))
 }
 
 run_test_mget() {
@@ -77,7 +77,7 @@ run_test_incr1() {
         -proxy=$proxy1 \
         -group=8 \
         -round=$((press * 2)) \
-        -nkeys=$((press * 10000))
+        -nkeys=$((press * 1000))
 }
 
 run_test_incr2() {
@@ -97,7 +97,7 @@ run_test_string() {
         test_string.go \
         utils.go -ncpu=8 \
         -proxy=$proxy1 \
-        -maxlen=$((press * press * 1000000))
+        -maxlen=$((press * press * 1000))
 }
 
 run_test_list() {
@@ -131,7 +131,7 @@ run_test_pttl() {
         -proxy=$proxy1 \
         -group=8 \
         -round=10 \
-        -nkeys=10000 \
+        -nkeys=1000 \
         -ntags=1000 \
         -expire=3
 }
@@ -142,7 +142,7 @@ run_extra_memleak() {
         utils.go -ncpu=8 \
         -proxy=$proxy1 \
         -group=8 \
-        -nkeys=100000
+        -nkeys=1000
 }
 
 run_extra_incr() {
@@ -156,7 +156,7 @@ run_extra_incr() {
         -slave2=$slave2 \
         -group=8 \
         -round=10 \
-        -nkeys=$((press * 10000)) \
+        -nkeys=$((press * 1000)) \
         -ntags=1000
 }
 

@@ -25,6 +25,7 @@ func (tc *ExtraMgetTestCase) main() {
 	c := NewConn(tc.proxy)
 	defer c.Close()
 	const max = 1000 * 1000 * 100
+	var tags = NewZeroTags(10000)
 	for n := 10; n <= max; n *= 10 {
 		for k := 100; k <= max/n; k *= 10 {
 			b := make([]byte, k)
@@ -34,7 +35,7 @@ func (tc *ExtraMgetTestCase) main() {
 			s := string(b)
 			us := UnitSlice(make([]*Unit, n))
 			for i := 0; i < len(us); i++ {
-				key := fmt.Sprintf("extra_del_%d", i)
+				key := fmt.Sprintf("extra_del_%d_tag{%s}", i, tags.Get(i))
 				us[i] = NewUnit(key)
 			}
 			for _, u := range us {

@@ -1,3 +1,6 @@
+// Copyright 2014 Wandoujia Inc. All Rights Reserved.
+// Licensed under the MIT (MIT-LICENSE.txt) license.
+
 package env
 
 import (
@@ -5,9 +8,10 @@ import (
 	"strings"
 
 	"github.com/c4pt0r/cfg"
-	errors "github.com/juju/errors"
-	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
+
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type Env interface {
@@ -25,28 +29,28 @@ type CodisEnv struct {
 
 func LoadCodisEnv(cfg *cfg.Cfg) Env {
 	if cfg == nil {
-		log.Fatal("config error")
+		log.Panicf("config is nil")
 	}
 
 	productName, err := cfg.ReadString("product", "test")
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "read product name failed")
 	}
 
 	zkAddr, err := cfg.ReadString("zk", "localhost:2181")
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "read zk address failed")
 	}
 
 	hostname, _ := os.Hostname()
 	dashboardAddr, err := cfg.ReadString("dashboard_addr", hostname+":18087")
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "read dashboard address failed")
 	}
 
 	provider, err := cfg.ReadString("coordinator", "zookeeper")
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "read coordinator failed")
 	}
 
 	return &CodisEnv{
@@ -76,6 +80,5 @@ func (e *CodisEnv) NewZkConn() (zkhelper.Conn, error) {
 		}
 		return zkhelper.NewEtcdConn(addr)
 	}
-
 	return nil, errors.Errorf("need coordinator in config file, %+v", e)
 }

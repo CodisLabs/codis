@@ -4,327 +4,169 @@
 package router
 
 import (
-	"bufio"
-	"io"
+	"encoding/json"
 	"net"
 	"os"
 	"os/signal"
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
-	topo "github.com/wandoulabs/codis/pkg/proxy/router/topology"
-
-	"bytes"
+	topo "github.com/ngaut/go-zookeeper/zk"
+	stats "github.com/ngaut/gostats"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/proxy/cachepool"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
-	"github.com/wandoulabs/codis/pkg/proxy/parser"
-	"github.com/wandoulabs/codis/pkg/proxy/redispool"
-
-	"container/list"
-
-	"github.com/juju/errors"
-	stats "github.com/ngaut/gostats"
-	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
+	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
+const MaxSlotNum = models.DEFAULT_SLOT_NUM
+
 type Server struct {
-	slots  [models.DEFAULT_SLOT_NUM]*Slot
-	top    *topo.Topology
+	slots  [MaxSlotNum]*Slot
 	evtbus chan interface{}
-	reqCh  chan *PipelineRequest
+
+	conf *Config
+	topo *topology.Topology
+	info models.ProxyInfo
+	pool map[string]*SharedBackendConn
 
 	lastActionSeq int
-	pi            models.ProxyInfo
-	startAt       time.Time
-	addr          string
 
-	moper       *MultiOperator
-	pools       *cachepool.CachePool
-	counter     *stats.Counters
-	OnSuicide   OnSuicideFun
-	bufferedReq *list.List
-	conf        *Conf
+	net.Listener
+	OnSuicide func() error
+}
 
-	pipeConns map[string]*taskRunner //redis->taskrunner
+func getEventPath(evt interface{}) string {
+	return evt.(topo.Event).Path
+}
+
+func needResponse(receivers []string, self models.ProxyInfo) bool {
+	var info models.ProxyInfo
+	for _, v := range receivers {
+		err := json.Unmarshal([]byte(v), &info)
+		if err != nil {
+			if v == self.Id {
+				return true
+			}
+			return false
+		}
+		if info.Id == self.Id && info.Pid == self.Pid && info.StartAt == self.StartAt {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) isValidSlot(i int) bool {
+	return i >= 0 && i < MaxSlotNum
+}
+
+func (s *Server) getBackendConn(addr string) *SharedBackendConn {
+	bc := s.pool[addr]
+	if bc != nil {
+		bc.IncrRefcnt()
+	} else {
+		bc = NewSharedBackendConn(addr)
+		s.pool[addr] = bc
+	}
+	return bc
+}
+
+func (s *Server) putBackendConn(bc *SharedBackendConn) {
+	if bc != nil && bc.Close() {
+		delete(s.pool, bc.Addr())
+	}
 }
 
 func (s *Server) clearSlot(i int) {
-	if !validSlot(i) {
+	if !s.isValidSlot(i) {
 		return
 	}
+	slot := s.slots[i]
+	slot.blockAndWait()
 
-	if s.slots[i] != nil {
-		s.slots[i].dst = nil
-		s.slots[i].migrateFrom = nil
-		s.slots[i] = nil
-	}
-}
+	s.putBackendConn(slot.backend.bc)
+	s.putBackendConn(slot.migrate.bc)
+	slot.reset()
 
-func (s *Server) stopTaskRunners() {
-	wg := &sync.WaitGroup{}
-	log.Warning("taskrunner count", len(s.pipeConns))
-	wg.Add(len(s.pipeConns))
-	for _, tr := range s.pipeConns {
-		tr.in <- wg
-	}
-	wg.Wait()
-
-	//remove all
-	for k, _ := range s.pipeConns {
-		delete(s.pipeConns, k)
-	}
+	slot.unblock()
 }
 
 func (s *Server) fillSlot(i int, force bool) {
-	if !validSlot(i) {
+	if !s.isValidSlot(i) {
 		return
 	}
-
-	if !force && s.slots[i] != nil { //check
-		log.Fatalf("slot %d already filled, slot: %+v", i, s.slots[i])
-		return
+	slot := s.slots[i]
+	if !force && slot.backend.bc != nil {
+		log.Panicf("slot %d already filled, slot: %+v", i, slot)
 	}
 
-	s.clearSlot(i)
-
-	slotInfo, groupInfo, err := s.top.GetSlotByIndex(i)
+	slotInfo, slotGroup, err := s.topo.GetSlotByIndex(i)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "get slot by index failed", i)
 	}
 
-	slot := &Slot{
-		slotInfo:  slotInfo,
-		dst:       group.NewGroup(*groupInfo),
-		groupInfo: groupInfo,
-	}
-
-	log.Infof("fill slot %d, force %v, %+v", i, force, slot.dst)
-
-	s.pools.AddPool(slot.dst.Master())
-
-	if slot.slotInfo.State.Status == models.SLOT_STATUS_MIGRATE {
-		//get migrate src group and fill it
-		from, err := s.top.GetGroup(slot.slotInfo.State.MigrateStatus.From)
-		if err != nil { //todo: retry ?
-			log.Fatal(err)
-		}
-		slot.migrateFrom = group.NewGroup(*from)
-		s.pools.AddPool(slot.migrateFrom.Master())
-	}
-
-	s.slots[i] = slot
-	s.counter.Add("FillSlot", 1)
-}
-
-func (s *Server) createTaskRunner(slot *Slot) error {
-	dst := slot.dst.Master()
-	if _, ok := s.pipeConns[dst]; !ok {
-		tr, err := NewTaskRunner(dst, s.conf.netTimeout)
+	var from string
+	var addr = group.NewGroup(*slotGroup).Master()
+	if slotInfo.State.Status == models.SLOT_STATUS_MIGRATE {
+		fromGroup, err := s.topo.GetGroup(slotInfo.State.MigrateStatus.From)
 		if err != nil {
-			return errors.Errorf("create task runner failed, %v,  %+v, %+v", err, slot.dst, slot.slotInfo)
-		} else {
-			s.pipeConns[dst] = tr
+			log.PanicErrorf(err, "get migrate from failed")
+		}
+		from = group.NewGroup(*fromGroup).Master()
+		if from == addr {
+			log.Panicf("set slot %d migrate from %s to %s", i, from, addr)
 		}
 	}
 
-	return nil
-}
+	slot.blockAndWait()
 
-func (s *Server) createTaskRunners() {
-	for _, slot := range s.slots {
-		if err := s.createTaskRunner(slot); err != nil {
-			log.Error(err)
-			return
+	s.putBackendConn(slot.backend.bc)
+	s.putBackendConn(slot.migrate.bc)
+	slot.reset()
+
+	slot.Info, slot.Group = slotInfo, slotGroup
+	if len(addr) != 0 {
+		xx := strings.Split(addr, ":")
+		if len(xx) >= 1 {
+			slot.backend.host = []byte(xx[0])
 		}
-	}
-}
-
-func (s *Server) handleMigrateState(slotIndex int, key []byte) error {
-	shd := s.slots[slotIndex]
-	if shd.slotInfo.State.Status != models.SLOT_STATUS_MIGRATE {
-		return nil
-	}
-
-	if shd.migrateFrom == nil {
-		log.Fatalf("migrateFrom not exist %+v", shd)
-	}
-
-	if shd.dst.Master() == shd.migrateFrom.Master() {
-		log.Fatalf("the same migrate src and dst, %+v", shd)
-	}
-
-	redisConn, err := s.pools.GetConn(shd.migrateFrom.Master())
-	if err != nil {
-		return errors.Trace(err)
-	}
-
-	defer s.pools.ReleaseConn(redisConn)
-
-	redisReader := redisConn.(*redispool.PooledConn).BufioReader()
-
-	err = WriteMigrateKeyCmd(redisConn.(*redispool.PooledConn), shd.dst.Master(), 30*1000, key)
-	if err != nil {
-		redisConn.Close()
-		log.Warningf("migrate key %s error, from %s to %s",
-			string(key), shd.migrateFrom.Master(), shd.dst.Master())
-		return errors.Trace(err)
-	}
-
-	//handle migrate result
-	resp, err := parser.Parse(redisReader)
-	if err != nil {
-		redisConn.Close()
-		return errors.Trace(err)
-	}
-
-	result, err := resp.Bytes()
-
-	log.Debug("migrate", string(key), "from", shd.migrateFrom.Master(), "to", shd.dst.Master(),
-		string(result))
-
-	if resp.Type == parser.ErrorResp {
-		redisConn.Close()
-		log.Error(string(key), string(resp.Raw), "migrateFrom", shd.migrateFrom.Master())
-		return errors.New(string(resp.Raw))
-	}
-
-	s.counter.Add("Migrate", 1)
-	return nil
-}
-
-func (s *Server) sendBack(c *session, op []byte, keys [][]byte, resp *parser.Resp, result []byte) {
-	c.pipelineSeq++
-	pr := &PipelineRequest{
-		op:    op,
-		keys:  keys,
-		seq:   c.pipelineSeq,
-		backQ: c.backQ,
-		req:   resp,
-	}
-
-	resp, err := parser.Parse(bufio.NewReader(bytes.NewReader(result)))
-	//just send to backQ
-	c.backQ <- &PipelineResponse{ctx: pr, err: err, resp: resp}
-}
-
-func (s *Server) redisTunnel(c *session) error {
-	resp, op, keys, err := getRespOpKeys(c)
-	if err != nil {
-		return errors.Trace(err)
-	}
-	k := keys[0]
-
-	opstr := strings.ToUpper(string(op))
-	buf, next, err := filter(opstr, keys, c, s.conf.netTimeout)
-	if err != nil {
-		if len(buf) > 0 { //quit command
-			s.sendBack(c, op, keys, resp, buf)
+		if len(xx) >= 2 {
+			slot.backend.port = []byte(xx[1])
 		}
-		return errors.Trace(err)
+		slot.backend.addr = addr
+		slot.backend.bc = s.getBackendConn(addr)
+	}
+	if len(from) != 0 {
+		slot.migrate.from = from
+		slot.migrate.bc = s.getBackendConn(from)
 	}
 
-	start := time.Now()
-	defer func() {
-		recordResponseTime(s.counter, time.Since(start)/1000/1000)
-	}()
-
-	s.counter.Add(opstr, 1)
-	s.counter.Add("ops", 1)
-	if !next {
-		s.sendBack(c, op, keys, resp, buf)
-		return nil
+	if slotInfo.State.Status != models.SLOT_STATUS_PRE_MIGRATE {
+		slot.unblock()
 	}
 
-	if isMulOp(opstr) {
-		if len(keys) > 1 { //can not send to redis directly
-			var result []byte
-			err := s.moper.handleMultiOp(opstr, keys, &result)
-			if err != nil {
-				return errors.Trace(err)
-			}
-
-			s.sendBack(c, op, keys, resp, result)
-			return nil
-		}
-	}
-
-	i := mapKey2Slot(k)
-
-	//pipeline
-	c.pipelineSeq++
-	pr := &PipelineRequest{
-		slotIdx: i,
-		op:      op,
-		keys:    keys,
-		seq:     c.pipelineSeq,
-		backQ:   c.backQ,
-		req:     resp,
-		wg:      &sync.WaitGroup{},
-	}
-	pr.wg.Add(1)
-
-	s.reqCh <- pr
-	pr.wg.Wait()
-
-	return nil
-}
-
-func (s *Server) handleConn(c net.Conn) {
-	log.Info("new connection", c.RemoteAddr())
-
-	s.counter.Add("connections", 1)
-	client := &session{
-		Conn:        c,
-		r:           bufio.NewReaderSize(c, 32*1024),
-		w:           bufio.NewWriterSize(c, 32*1024),
-		CreateAt:    time.Now(),
-		backQ:       make(chan *PipelineResponse, 1000),
-		closeSignal: &sync.WaitGroup{},
-	}
-	client.closeSignal.Add(1)
-
-	go client.WritingLoop()
-
-	var err error
-	defer func() {
-		client.closeSignal.Wait() //waiting for writer goroutine
-
-		if err != nil { //todo: fix this ugly error check
-			if GetOriginError(err.(*errors.Err)).Error() != io.EOF.Error() {
-				log.Warningf("close connection %v, %v", client, errors.ErrorStack(err))
-			} else {
-				log.Infof("close connection  %v", client)
-			}
-		} else {
-			log.Infof("close connection %v", client)
-		}
-
-		s.counter.Add("connections", -1)
-	}()
-
-	for {
-		err = s.redisTunnel(client)
-		if err != nil {
-			close(client.backQ)
-			return
-		}
-		client.Ops++
+	if slot.migrate.bc != nil {
+		log.Infof("fill slot %d, force %v, backend.addr = %s, migrate.from = %s",
+			i, force, slot.backend.addr, slot.migrate.from)
+	} else {
+		log.Infof("fill slot %d, force %v, backend.addr = %s",
+			i, force, slot.backend.addr)
 	}
 }
 
 func (s *Server) OnSlotRangeChange(param *models.SlotMultiSetParam) {
-	log.Warningf("slotRangeChange %+v", param)
-	if !validSlot(param.From) || !validSlot(param.To) {
+	log.Warnf("slotRangeChange %+v", param)
+	if !s.isValidSlot(param.From) || !s.isValidSlot(param.To) {
 		log.Errorf("invalid slot number, %+v", param)
 		return
 	}
-
 	for i := param.From; i <= param.To; i++ {
 		switch param.Status {
 		case models.SLOT_STATUS_OFFLINE:
@@ -338,13 +180,16 @@ func (s *Server) OnSlotRangeChange(param *models.SlotMultiSetParam) {
 }
 
 func (s *Server) OnGroupChange(groupId int) {
-	log.Warning("group changed", groupId)
-
+	log.Warnf("group changed %d", groupId)
 	for i, slot := range s.slots {
-		if slot.slotInfo.GroupId == groupId {
+		if slot.Info.GroupId == groupId {
 			s.fillSlot(i, true)
 		}
 	}
+}
+
+type killEvent struct {
+	done chan error
 }
 
 func (s *Server) registerSignal() {
@@ -359,60 +204,34 @@ func (s *Server) registerSignal() {
 	}()
 }
 
-func (s *Server) Run() {
-	log.Infof("listening %s on %s", s.conf.proto, s.addr)
-	listener, err := net.Listen(s.conf.proto, s.addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			log.Warning(errors.ErrorStack(err))
-			continue
-		}
-		go s.handleConn(conn)
-	}
-}
-
 func (s *Server) responseAction(seq int64) {
-	log.Info("send response", seq)
-	err := s.top.DoResponse(int(seq), &s.pi)
+	log.Infof("send response seq = %d", seq)
+	err := s.topo.DoResponse(int(seq), &s.info)
 	if err != nil {
-		log.Error(errors.ErrorStack(err))
+		log.InfoErrorf(err, "send response seq = %d failed", seq)
 	}
-}
-
-func (s *Server) getProxyInfo() models.ProxyInfo {
-	//todo:send request to evtbus, and get response
-	var pi = s.pi
-	return pi
 }
 
 func (s *Server) getActionObject(seq int, target interface{}) {
 	act := &models.Action{Target: target}
-	err := s.top.GetActionWithSeqObject(int64(seq), act)
+	err := s.topo.GetActionWithSeqObject(int64(seq), act)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "get action object failed, seq = %d", seq)
 	}
-
-	log.Infof("%+v", act)
+	log.Infof("action %+v", act)
 }
 
 func (s *Server) checkAndDoTopoChange(seq int) bool {
-	act, err := s.top.GetActionWithSeq(int64(seq))
+	act, err := s.topo.GetActionWithSeq(int64(seq))
 	if err != nil { //todo: error is not "not exist"
-		log.Fatal(errors.ErrorStack(err), "action seq", seq)
+		log.PanicErrorf(err, "action failed, seq = %d", seq)
 	}
 
-	if !needResponse(act.Receivers, s.pi) { //no need to response
+	if !needResponse(act.Receivers, s.info) { //no need to response
 		return false
 	}
 
-	log.Warningf("action %v receivers %v", seq, act.Receivers)
-
-	s.stopTaskRunners()
+	log.Warnf("action %v receivers %v", seq, act.Receivers)
 
 	switch act.Type {
 	case models.ACTION_TYPE_SLOT_MIGRATE, models.ACTION_TYPE_SLOT_CHANGED,
@@ -431,56 +250,46 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 		s.getActionObject(seq, param)
 		s.OnSlotRangeChange(param)
 	default:
-		log.Fatalf("unknown action %+v", act)
+		log.Panicf("unknown action %+v", act)
 	}
-
-	s.createTaskRunners()
-
 	return true
 }
 
 func (s *Server) handleMarkOffline() {
-	s.top.Close(s.pi.Id)
+	s.topo.Close(s.info.Id)
 	if s.OnSuicide == nil {
 		s.OnSuicide = func() error {
-			log.Fatalf("suicide %+v", s.pi)
+			log.Panicf("proxy exit: %+v", s.info)
 			return nil
 		}
 	}
-
 	s.OnSuicide()
 }
 
-func (s *Server) handleProxyCommand() {
-	pi, err := s.top.GetProxyInfo(s.pi.Id)
-	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
-	}
-
-	if pi.State == models.PROXY_STATE_MARK_OFFLINE {
-		s.handleMarkOffline()
-	}
-}
-
 func (s *Server) processAction(e interface{}) {
-	if strings.Index(GetEventPath(e), models.GetProxyPath(s.top.ProductName)) == 0 {
-		//proxy event, should be order for me to suicide
-		s.handleProxyCommand()
+	if strings.Index(getEventPath(e), models.GetProxyPath(s.topo.ProductName)) == 0 {
+		info, err := s.topo.GetProxyInfo(s.info.Id)
+		if err != nil {
+			log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
+		}
+		if info.State == models.PROXY_STATE_MARK_OFFLINE {
+			s.handleMarkOffline()
+		}
 		return
 	}
 
 	//re-watch
-	nodes, err := s.top.WatchChildren(models.GetWatchActionPath(s.top.ProductName), s.evtbus)
+	nodes, err := s.topo.WatchChildren(models.GetWatchActionPath(s.topo.ProductName), s.evtbus)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "rewatch children failed")
 	}
 
 	seqs, err := models.ExtraSeqList(nodes)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "get seq list failed")
 	}
 
-	if len(seqs) == 0 || !s.top.IsChildrenChangedEvent(e) {
+	if len(seqs) == 0 || !s.topo.IsChildrenChangedEvent(e) {
 		return
 	}
 
@@ -499,15 +308,13 @@ func (s *Server) processAction(e interface{}) {
 
 	actions := seqs[index:]
 	for _, seq := range actions {
-		exist, err := s.top.Exist(path.Join(s.top.GetActionResponsePath(seq), s.pi.Id))
+		exist, err := s.topo.Exist(path.Join(s.topo.GetActionResponsePath(seq), s.info.Id))
 		if err != nil {
-			log.Fatal(errors.ErrorStack(err))
+			log.PanicErrorf(err, "get action failed")
 		}
-
 		if exist {
 			continue
 		}
-
 		if s.checkAndDoTopoChange(seq) {
 			s.responseAction(int64(seq))
 		}
@@ -516,93 +323,51 @@ func (s *Server) processAction(e interface{}) {
 	s.lastActionSeq = seqs[len(seqs)-1]
 }
 
-func (s *Server) dispatch(r *PipelineRequest) {
-	s.handleMigrateState(r.slotIdx, r.keys[0])
-	tr, ok := s.pipeConns[s.slots[r.slotIdx].dst.Master()]
-	if !ok {
-		//try recreate taskrunner
-		if err := s.createTaskRunner(s.slots[r.slotIdx]); err != nil {
-			r.backQ <- &PipelineResponse{ctx: r, resp: nil, err: err}
-			return
-		}
-
-		tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
-	}
-	tr.in <- r
-
-}
-
 func (s *Server) handleTopoEvent() {
 	for {
-		select {
-		case r := <-s.reqCh:
-			if s.slots[r.slotIdx].slotInfo.State.Status == models.SLOT_STATUS_PRE_MIGRATE {
-				s.bufferedReq.PushBack(r)
-				continue
-			}
-
-			for e := s.bufferedReq.Front(); e != nil; {
-				next := e.Next()
-				blockedReq := e.Value.(*PipelineRequest)
-				if s.slots[blockedReq.slotIdx].slotInfo.State.Status != models.SLOT_STATUS_PRE_MIGRATE {
-					s.dispatch(r)
-					s.bufferedReq.Remove(e)
-				}
-				e = next
-			}
-
-			s.dispatch(r)
-		case e := <-s.evtbus:
-			switch e.(type) {
-			case *killEvent:
-				s.handleMarkOffline()
-				e.(*killEvent).done <- nil
-			default:
-				evtPath := GetEventPath(e)
-				log.Infof("got event %s, %v, lastActionSeq %d", s.pi.Id, e, s.lastActionSeq)
-				if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
-					seq, err := strconv.Atoi(path.Base(evtPath))
-					if err != nil {
-						log.Warning(err)
-					} else {
-						if seq < s.lastActionSeq {
-							log.Info("ignore", seq)
-							continue
-						}
+		e := <-s.evtbus
+		switch e.(type) {
+		case *killEvent:
+			s.handleMarkOffline()
+			e.(*killEvent).done <- nil
+		default:
+			evtPath := getEventPath(e)
+			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
+			if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
+				seq, err := strconv.Atoi(path.Base(evtPath))
+				if err != nil {
+					log.WarnErrorf(err, "parse action seq failed")
+				} else {
+					if seq < s.lastActionSeq {
+						log.Infof("ignore seq = %d", seq)
+						continue
 					}
-
 				}
-
-				log.Infof("got event %s, %v, lastActionSeq %d", s.pi.Id, e, s.lastActionSeq)
-				s.processAction(e)
 			}
+			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
+			s.processAction(e)
 		}
 	}
 }
 
 func (s *Server) waitOnline() {
 	for {
-		pi, err := s.top.GetProxyInfo(s.pi.Id)
+		info, err := s.topo.GetProxyInfo(s.info.Id)
 		if err != nil {
-			log.Fatal(errors.ErrorStack(err))
+			log.PanicErrorf(err, "get proxy info failed")
 		}
-
-		if pi.State == models.PROXY_STATE_MARK_OFFLINE {
+		switch info.State {
+		case models.PROXY_STATE_MARK_OFFLINE:
 			s.handleMarkOffline()
-		}
-
-		if pi.State == models.PROXY_STATE_ONLINE {
-			s.pi.State = pi.State
-			println("good, we are on line", s.pi.Id)
-			log.Info("we are online", s.pi.Id)
-			_, err := s.top.WatchNode(path.Join(models.GetProxyPath(s.top.ProductName), s.pi.Id), s.evtbus)
+		case models.PROXY_STATE_ONLINE:
+			s.info.State = info.State
+			log.Infof("we are online: %s", s.info.Id)
+			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
 			if err != nil {
-				log.Fatal(errors.ErrorStack(err))
+				log.PanicErrorf(err, "watch node failed")
 			}
-
 			return
 		}
-
 		select {
 		case e := <-s.evtbus:
 			switch e.(type) {
@@ -612,93 +377,113 @@ func (s *Server) waitOnline() {
 			}
 		default: //otherwise ignore it
 		}
-
-		println("wait to be online ", s.pi.Id)
-		log.Warning(s.pi.Id, "wait to be online")
-
+		log.Warnf("wait to be online: %s", s.info.Id)
 		time.Sleep(3 * time.Second)
 	}
 }
 
-func (s *Server) FillSlots() {
-	for i := 0; i < models.DEFAULT_SLOT_NUM; i++ {
-		s.fillSlot(i, false)
-	}
-}
-
 func (s *Server) RegisterAndWait() {
-	_, err := s.top.CreateProxyInfo(&s.pi)
+	_, err := s.topo.CreateProxyInfo(&s.info)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "create proxy node failed")
 	}
-
-	_, err = s.top.CreateProxyFenceNode(&s.pi)
+	_, err = s.topo.CreateProxyFenceNode(&s.info)
 	if err != nil {
-		log.Warning(errors.ErrorStack(err))
+		log.WarnErrorf(err, "create fence node failed")
 	}
-
 	s.registerSignal()
 	s.waitOnline()
 }
 
-func NewServer(addr string, debugVarAddr string, conf *Conf) *Server {
-	log.Infof("start with configuration: %+v", conf)
+func NewServer(addr string, debugVarAddr string, conf *Config) (*Server, error) {
+	log.Infof("start proxy with config: %+v", conf)
 	s := &Server{
-		conf:          conf,
 		evtbus:        make(chan interface{}, 1000),
-		top:           topo.NewTopo(conf.productName, conf.zkAddr, conf.f, conf.provider),
-		counter:       stats.NewCounters("router"),
+		conf:          conf,
+		topo:          topology.NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider),
+		pool:          make(map[string]*SharedBackendConn),
 		lastActionSeq: -1,
-		startAt:       time.Now(),
-		addr:          addr,
-		moper:         NewMultiOperator(addr),
-		reqCh:         make(chan *PipelineRequest, 1000),
-		pools:         cachepool.NewCachePool(),
-		pipeConns:     make(map[string]*taskRunner),
-		bufferedReq:   list.New(),
+	}
+	for i := 0; i < MaxSlotNum; i++ {
+		s.slots[i] = &Slot{Id: i}
 	}
 
-	s.pi.Id = conf.proxyId
-	s.pi.State = models.PROXY_STATE_OFFLINE
-	host := strings.Split(addr, ":")[0]
+	proxyHost := strings.Split(addr, ":")[0]
 	debugHost := strings.Split(debugVarAddr, ":")[0]
-	hname, err := os.Hostname()
+
+	hostname, err := os.Hostname()
 	if err != nil {
-		log.Fatal("get host name failed", err)
+		log.PanicErrorf(err, "get host name failed")
 	}
-	if host == "0.0.0.0" || strings.HasPrefix(host, "127.0.0.") {
-		host = hname
+	if proxyHost == "0.0.0.0" || strings.HasPrefix(proxyHost, "127.0.0.") {
+		proxyHost = hostname
 	}
 	if debugHost == "0.0.0.0" || strings.HasPrefix(debugHost, "127.0.0.") {
-		debugHost = hname
+		debugHost = hostname
 	}
-	s.pi.Addr = host + ":" + strings.Split(addr, ":")[1]
-	s.pi.DebugVarAddr = debugHost + ":" + strings.Split(debugVarAddr, ":")[1]
-	s.pi.Pid = os.Getpid()
-	s.pi.StartAt = time.Now().String()
 
-	log.Infof("proxy_info:%+v", s.pi)
+	s.info.Id = conf.proxyId
+	s.info.State = models.PROXY_STATE_OFFLINE
+	s.info.Addr = proxyHost + ":" + strings.Split(addr, ":")[1]
+	s.info.DebugVarAddr = debugHost + ":" + strings.Split(debugVarAddr, ":")[1]
+	s.info.Pid = os.Getpid()
+	s.info.StartAt = time.Now().String()
+
+	log.Infof("proxy info = %+v", s.info)
+
+	if l, err := net.Listen(conf.proto, addr); err != nil {
+		return nil, errors.Trace(err)
+	} else {
+		s.Listener = l
+	}
 
 	stats.Publish("evtbus", stats.StringFunc(func() string {
 		return strconv.Itoa(len(s.evtbus))
 	}))
-	stats.Publish("startAt", stats.StringFunc(func() string {
-		return s.startAt.String()
-	}))
+
+	stats.PublishJSONFunc("router", func() string {
+		var m = make(map[string]interface{})
+		m["ops"] = cmdstats.requests.Get()
+		m["cmds"] = getAllOpStats()
+		m["info"] = s.info
+		m["build"] = map[string]interface{}{
+			"version": utils.Version,
+			"compile": utils.Compile,
+		}
+		b, _ := json.Marshal(m)
+		return string(b)
+	})
 
 	s.RegisterAndWait()
 
-	_, err = s.top.WatchChildren(models.GetWatchActionPath(conf.productName), s.evtbus)
+	_, err = s.topo.WatchChildren(models.GetWatchActionPath(conf.productName), s.evtbus)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "watch children failed")
 	}
 
-	s.FillSlots()
+	for i := 0; i < MaxSlotNum; i++ {
+		s.fillSlot(i, false)
+	}
 
-	//start event handler
 	go s.handleTopoEvent()
 
 	log.Info("proxy start ok")
 
-	return s
+	return s, nil
+}
+
+func (s *Server) Serve() error {
+	for {
+		c, err := s.Listener.Accept()
+		if err != nil {
+			return errors.Trace(err)
+		}
+		go NewSession(c).Serve(s)
+	}
+}
+
+func (s *Server) Dispatch(r *Request) error {
+	hkey := getHashKey(r.Resp, r.OpStr)
+	slot := s.slots[hashSlot(hkey)]
+	return slot.forward(r, hkey)
 }
