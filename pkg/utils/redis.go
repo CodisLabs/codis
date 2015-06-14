@@ -9,54 +9,52 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
-	"github.com/juju/errors"
+
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
-var defaultTimeout = 1 * time.Second
+var defaultTimeout = time.Second
 
-// get redis's slot size
 func SlotsInfo(addr string, fromSlot, toSlot int) (map[int]int, error) {
 	c, err := redis.DialTimeout("tcp", addr, defaultTimeout, defaultTimeout, defaultTimeout)
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 	defer c.Close()
 
-	var reply []interface{}
-	var val []interface{}
-
-	reply, err = redis.Values(c.Do("SLOTSINFO", fromSlot, toSlot-fromSlot+1))
+	infos, err := redis.Values(c.Do("SLOTSINFO", fromSlot, toSlot-fromSlot+1))
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 
-	ret := make(map[int]int)
-	for {
-		if reply == nil || len(reply) == 0 {
-			break
+	slots := make(map[int]int)
+	if infos != nil {
+		for i := 0; i < len(infos); i++ {
+			info, err := redis.Values(infos[i], nil)
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+			var slotid, slotsize int
+			if _, err := redis.Scan(info, &slotid, &slotsize); err != nil {
+				return nil, errors.Trace(err)
+			} else {
+				slots[slotid] = slotsize
+			}
 		}
-		if reply, err = redis.Scan(reply, &val); err != nil {
-			return nil, err
-		}
-		var slot, keyCount int
-		_, err := redis.Scan(val, &slot, &keyCount)
-		if err != nil {
-			return nil, err
-		}
-		ret[slot] = keyCount
 	}
-	return ret, nil
+	return slots, nil
 }
 
 func GetRedisStat(addr string) (map[string]string, error) {
 	c, err := redis.DialTimeout("tcp", addr, defaultTimeout, defaultTimeout, defaultTimeout)
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 	defer c.Close()
+
 	ret, err := redis.String(c.Do("INFO"))
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 	m := make(map[string]string)
 	lines := strings.Split(ret, "\n")
@@ -68,11 +66,9 @@ func GetRedisStat(addr string) (map[string]string, error) {
 		}
 	}
 
-	var reply []string
-
-	reply, err = redis.Strings(c.Do("config", "get", "maxmemory"))
+	reply, err := redis.Strings(c.Do("config", "get", "maxmemory"))
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 	// we got result
 	if len(reply) == 2 {
@@ -82,19 +78,19 @@ func GetRedisStat(addr string) (map[string]string, error) {
 			m["maxmemory"] = "∞"
 		}
 	}
-
 	return m, nil
 }
 
 func GetRedisConfig(addr string, configName string) (string, error) {
 	c, err := redis.DialTimeout("tcp", addr, defaultTimeout, defaultTimeout, defaultTimeout)
 	if err != nil {
-		return "", err
+		return "", errors.Trace(err)
 	}
 	defer c.Close()
+
 	ret, err := redis.Strings(c.Do("config", "get", configName))
 	if err != nil {
-		return "", err
+		return "", errors.Trace(err)
 	}
 	if len(ret) == 2 {
 		return ret[1], nil
@@ -104,8 +100,9 @@ func GetRedisConfig(addr string, configName string) (string, error) {
 
 func SlaveOf(slave, master string) error {
 	if master == slave {
-		return errors.New("can not slave of itself")
+		return errors.Errorf("can not slave of itself")
 	}
+
 	c, err := redis.DialTimeout("tcp", slave, defaultTimeout, defaultTimeout, defaultTimeout)
 	if err != nil {
 		return errors.Trace(err)
@@ -117,11 +114,9 @@ func SlaveOf(slave, master string) error {
 		return errors.Trace(err)
 	}
 
-	_, err = c.Do("SLAVEOF", host, port)
-	if err != nil {
+	if _, err := c.Do("SLAVEOF", host, port); err != nil {
 		return errors.Trace(err)
 	}
-
 	return nil
 }
 
@@ -131,8 +126,8 @@ func SlaveNoOne(addr string) error {
 		return errors.Trace(err)
 	}
 	defer c.Close()
-	_, err = c.Do("SLAVEOF", "NO", "ONE")
-	if err != nil {
+
+	if _, err = c.Do("SLAVEOF", "NO", "ONE"); err != nil {
 		return errors.Trace(err)
 	}
 	return nil

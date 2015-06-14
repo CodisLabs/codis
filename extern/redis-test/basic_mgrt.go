@@ -29,7 +29,7 @@ func (tc *BasicMgrtTestCase) main() {
 	defer c1.Close()
 	c2 := NewConn(tc.master2)
 	defer c2.Close()
-	u := NewUnit("basic_mgrt")
+	u := NewUnit(fmt.Sprintf("basic_mgrt_tag{%s}", NewZeroTag()))
 	u.Del(c1, false)
 	u.Del(c2, false)
 	for i := 0; i < tc.round; i++ {

@@ -6,7 +6,7 @@ package group
 import (
 	"github.com/wandoulabs/codis/pkg/models"
 
-	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type Group struct {
@@ -26,7 +26,7 @@ func NewGroup(groupInfo models.ServerGroup) *Group {
 	for _, server := range groupInfo.Servers {
 		if server.Type == models.SERVER_TYPE_MASTER {
 			if len(g.master) > 0 {
-				log.Fatalf("two master not allowed: %+v", groupInfo)
+				log.Panicf("two master not allowed: %+v", groupInfo)
 			}
 
 			g.master = server.Addr
@@ -35,7 +35,7 @@ func NewGroup(groupInfo models.ServerGroup) *Group {
 	}
 
 	if len(g.master) == 0 {
-		log.Fatalf("master not found: %+v", groupInfo)
+		log.Panicf("master not found: %+v", groupInfo)
 	}
 
 	return g

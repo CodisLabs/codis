@@ -12,14 +12,14 @@ import (
 
 	"github.com/alicebob/miniredis"
 	"github.com/garyburd/redigo/redis"
-	"github.com/juju/errors"
-	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
+
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils/assert"
 )
 
 var (
-	conf       *Conf
+	conf       *Config
 	s          *Server
 	once       sync.Once
 	waitonce   sync.Once
@@ -32,27 +32,23 @@ var (
 func InitEnv() {
 	go once.Do(func() {
 		conn = zkhelper.NewConn()
-		conf = &Conf{
+		conf = &Config{
 			proxyId:     "proxy_test",
 			productName: "test",
 			zkAddr:      "localhost:2181",
 			netTimeout:  5,
-			f:           func(string) (zkhelper.Conn, error) { return conn, nil },
+			fact:        func(string) (zkhelper.Conn, error) { return conn, nil },
 			proto:       "tcp4",
 		}
 
 		//init action path
 		prefix := models.GetWatchActionPath(conf.productName)
 		err := models.CreateActionRootPath(conn, prefix)
-		if err != nil {
-			log.Fatal(err)
-		}
+		assert.MustNoError(err)
 
 		//init slot
 		err = models.InitSlotSet(conn, conf.productName, 1024)
-		if err != nil {
-			log.Fatal(err)
-		}
+		assert.MustNoError(err)
 
 		//init  server group
 		g1 := models.NewServerGroup(conf.productName, 1)
@@ -71,36 +67,27 @@ func InitEnv() {
 
 		//set slot range
 		err = models.SetSlotRange(conn, conf.productName, 0, 511, 1, models.SLOT_STATUS_ONLINE)
-		if err != nil {
-			log.Fatal(err)
-		}
+		assert.MustNoError(err)
 
 		err = models.SetSlotRange(conn, conf.productName, 512, 1023, 2, models.SLOT_STATUS_ONLINE)
-		if err != nil {
-			log.Fatal(err)
-		}
+		assert.MustNoError(err)
 
 		go func() { //set proxy online
 			time.Sleep(3 * time.Second)
 			err := models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_ONLINE)
-			if err != nil {
-				log.Fatal(errors.ErrorStack(err))
-			}
+			assert.MustNoError(err)
+
 			time.Sleep(2 * time.Second)
 			proxyMutex.Lock()
 			defer proxyMutex.Unlock()
-			pi := s.getProxyInfo()
-			if pi.State != models.PROXY_STATE_ONLINE {
-				log.Fatalf("should be online, we got %s", pi.State)
-			}
+			assert.Must(s.info.State == models.PROXY_STATE_ONLINE)
 		}()
 
 		proxyMutex.Lock()
-		s = NewServer(":19000", ":11000",
-			conf,
-		)
+		s, err = NewServer(":19000", ":11000", conf)
+		assert.MustNoError(err)
 		proxyMutex.Unlock()
-		s.Run()
+		s.Serve()
 	})
 
 	waitonce.Do(func() {
@@ -267,12 +254,6 @@ func TestInvalidRedisCmdEcho(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	_, err = c.Do("echo")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 }
 
 //this should be the last test
@@ -288,9 +269,7 @@ func TestMarkOffline(t *testing.T) {
 	proxyMutex.Unlock()
 
 	err := models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_MARK_OFFLINE)
-	if err != nil {
-		t.Fatal(errors.ErrorStack(err))
-	}
+	assert.MustNoError(err)
 
 	time.Sleep(3 * time.Second)
 
@@ -320,11 +299,11 @@ func TestRedisRestart(t *testing.T) {
 	//close redis
 	redis1.Close()
 	redis2.Close()
-	_, err = c.Do("SET", "key1", "value1")
+	_, err = c.Do("SET", "key3", "value1")
 	if err == nil {
 		t.Fatal("should be error")
 	}
-	_, err = c.Do("SET", "key2", "value2")
+	_, err = c.Do("SET", "key4", "value2")
 	if err == nil {
 		t.Fatal("should be error")
 	}
@@ -334,10 +313,15 @@ func TestRedisRestart(t *testing.T) {
 	redis2.Restart()
 	time.Sleep(3 * time.Second)
 	//proxy should closed our connection
-	_, err = c.Do("SET", "key1", "value1")
+	_, err = c.Do("SET", "key5", "value3")
 	if err == nil {
 		t.Error("should be error")
 	}
+
+	// may error
+	c, err = redis.Dial("tcp", "localhost:19000")
+	c.Do("SET", "key6", "value6")
+	c.Close()
 
 	//now, proxy should recovered from connection error
 	c, err = redis.Dial("tcp", "localhost:19000")
@@ -346,7 +330,7 @@ func TestRedisRestart(t *testing.T) {
 	}
 	defer c.Close()
 
-	_, err = c.Do("SET", "key1", "value1")
+	_, err = c.Do("SET", "key7", "value7")
 	if err != nil {
 		t.Fatal(err)
 	}

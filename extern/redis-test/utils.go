@@ -8,6 +8,7 @@ import (
 	"container/list"
 	"flag"
 	"fmt"
+	"hash/crc32"
 	"log"
 	"net"
 	"os"
@@ -83,12 +84,6 @@ func (c *Conn) Values(rsp interface{}, size int) []interface{} {
 	}
 }
 
-func (c *Conn) Check() {
-	if _, err := c.Do("slotscheck"); err != nil {
-		Panic("slotscheck: c = %s, error = '%s'", c.Addr(), err)
-	}
-}
-
 func (c *Conn) DelSlot(slot int) {
 	var rsp interface{}
 	defer func() {
@@ -154,6 +149,44 @@ func (c *Conn) MgrtTagSlot(dst *Conn, key string) int {
 		panic(err)
 	}
 	return c.Int(rsp)
+}
+
+var zerotagPool struct {
+	next int
+	sync.Mutex
+}
+
+func NewZeroTag() string {
+	zerotagPool.Lock()
+	defer zerotagPool.Unlock()
+	for {
+		v := zerotagPool.next
+		zerotagPool.next++
+		s := strconv.Itoa(v)
+		if 0 == HashSlot(s) {
+			return s
+		}
+	}
+}
+
+type ZeroTags struct {
+	tags []string
+}
+
+func NewZeroTags(size int) *ZeroTags {
+	tags := make([]string, size)
+	for i := 0; i < size; i++ {
+		tags[i] = NewZeroTag()
+	}
+	return &ZeroTags{tags}
+}
+
+func (z *ZeroTags) Get(i int) string {
+	return z.tags[uint(i)%uint(len(z.tags))]
+}
+
+func HashSlot(s string) uint32 {
+	return crc32.ChecksumIEEE([]byte(s)) % 1024
 }
 
 type Unit struct {

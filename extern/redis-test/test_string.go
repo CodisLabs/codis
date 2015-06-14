@@ -26,7 +26,7 @@ func (tc *TestStringTestCase) init() {
 func (tc *TestStringTestCase) main() {
 	c := NewConn(tc.proxy)
 	defer c.Close()
-	u := NewUnit("test_{string}_string")
+	u := NewUnit(fmt.Sprintf("test_string_tag{%s}", NewZeroTag()))
 	u.Del(c, false)
 	r := &Rand{time.Now().UnixNano()}
 	n := 0

@@ -46,25 +46,26 @@ Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia
 [English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_en.md)
 
 ## Performance (Benchmark)
-Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz
++ Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz
++ MemTotal: 16 GB
++ System:
+  - Linux: 4.0.5-1-ARCH #1 SMP PREEMPT Sat Jun 6 18:37:49 CEST 2015 x86_64 GNU/Linux
+  - Go: go version go1.4.2 linux/amd64
++ Redis:  
+    nohup codis-server 6380.conf &  
+    nohup codis-server 6381.conf &  
+    nohup codis-server 6382.conf &  
+    nohup codis-server 6383.conf &  
 
-MemTotal: 16376596 kB
-
-
-Twemproxy:  
-  redis-benchmark -p 22121 -c 500 -n 5000000 -P 100 -r 10000 -t get,set
++ Twemproxy:  
+    redis-benchmark -p 22120 -c $clients -n 5000000 -P 100 -r 1048576 -d 256 -t get,set,mset
   
-Codis:  
-  redis-benchmark -p 19000 -c 500 -n 5000000 -P 100 -r 10000 -t get,set
++ Codis:  
+    redis-benchmark -p 19000 -c $clients -n 5000000 -P 100 -r 1048576 -d 256 -t get,set,mset
 
-Result:  
++ Result:
 
-![main](doc/bench.png)  
-
-
-
-[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/benchmark_zh.md)  
-English (WIP)
+![main](doc/bench/bench.png)
 
 ## High Availability
 

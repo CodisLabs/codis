@@ -6,7 +6,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"hash/crc32"
 	"time"
 )
 
@@ -30,7 +29,7 @@ func (tc *BasicHashTestCase) main() {
 	r := &Rand{time.Now().UnixNano()}
 	for i := 0; i < tc.nkeys; i++ {
 		u := NewUnit(fmt.Sprintf("basic_hash_%d_%d", r.Next(), r.Next()))
-		h, e := uint32(u.HashKey(c)), crc32.ChecksumIEEE([]byte(u.key))%1024
+		h, e := uint32(u.HashKey(c)), HashSlot(u.key)
 		if h != e {
 			Panic("checksum key = '%s': return = %d, expect = %d", u.key, h, e)
 		}

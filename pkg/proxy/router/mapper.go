@@ -6,25 +6,99 @@ package router
 import (
 	"bytes"
 	"hash/crc32"
+	"strings"
 
-	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/proxy/redis"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
-const (
-	HASHTAG_START = '{'
-	HASHTAG_END   = '}'
-)
+var charmap [128]byte
 
-func mapKey2Slot(key []byte) int {
-	hashKey := key
-	//hash tag support
-	htagStart := bytes.IndexByte(key, HASHTAG_START)
-	if htagStart >= 0 {
-		htagEnd := bytes.IndexByte(key[htagStart:], HASHTAG_END)
-		if htagEnd >= 0 {
-			hashKey = key[htagStart+1 : htagStart+htagEnd]
+func init() {
+	for i := 0; i < len(charmap); i++ {
+		c := byte(i)
+		if c >= 'a' && c <= 'z' {
+			c = c - 'a' + 'A'
 		}
+		charmap[i] = c
+	}
+}
+
+var (
+	blacklist = make(map[string]bool)
+)
+
+func init() {
+	for _, s := range []string{
+		"KEYS", "MOVE", "OBJECT", "RENAME", "RENAMENX", "SORT", "SCAN", "BITOP", "MSETNX", "SCAN",
+		"BLPOP", "BRPOP", "BRPOPLPUSH", "PSUBSCRIBE，PUBLISH", "PUNSUBSCRIBE", "SUBSCRIBE", "RANDOMKEY",
+		"UNSUBSCRIBE", "DISCARD", "EXEC", "MULTI", "UNWATCH", "WATCH", "SCRIPT",
+		"BGREWRITEAOF", "BGSAVE", "CLIENT", "CONFIG", "DBSIZE", "DEBUG", "FLUSHALL", "FLUSHDB",
+		"LASTSAVE", "MONITOR", "SAVE", "SHUTDOWN", "SLAVEOF", "SLOWLOG", "SYNC", "TIME", "SLOTSMGRTONE", "SLOTSMGRT",
+		"SLOTSDEL", "SLOTSCHECK",
+	} {
+		blacklist[s] = true
+	}
+}
+
+func isNotAllowed(opstr string) bool {
+	return blacklist[opstr]
+}
+
+var (
+	ErrBadRespType = errors.New("bad resp type for command")
+	ErrBadOpStrLen = errors.New("bad command length, too short or too long")
+)
+
+func getOpStr(resp *redis.Resp) (string, error) {
+	if !resp.IsArray() || len(resp.Array) == 0 {
+		return "", ErrBadRespType
+	}
+	for _, r := range resp.Array {
+		if r.IsBulkBytes() {
+			continue
+		}
+		return "", ErrBadRespType
 	}
 
-	return int(crc32.ChecksumIEEE(hashKey) % models.DEFAULT_SLOT_NUM)
+	var upper [64]byte
+
+	var op = resp.Array[0].Value
+	if len(op) == 0 || len(op) > len(upper) {
+		return "", ErrBadOpStrLen
+	}
+	for i := 0; i < len(op); i++ {
+		c := uint8(op[i])
+		if k := int(c); k < len(charmap) {
+			upper[i] = charmap[k]
+		} else {
+			return strings.ToUpper(string(op)), nil
+		}
+	}
+	return string(upper[:len(op)]), nil
+}
+
+func hashSlot(key []byte) int {
+	const (
+		TagBeg = '{'
+		TagEnd = '}'
+	)
+	if beg := bytes.IndexByte(key, TagBeg); beg >= 0 {
+		if end := bytes.IndexByte(key[beg+1:], TagEnd); end >= 0 {
+			key = key[beg+1 : beg+1+end]
+		}
+	}
+	return int(crc32.ChecksumIEEE(key) % MaxSlotNum)
+}
+
+func getHashKey(resp *redis.Resp, opstr string) []byte {
+	var index = 1
+	switch opstr {
+	case "ZINTERSTORE", "ZUNIONSTORE", "EVAL", "EVALSHA":
+		index = 3
+	}
+	if index < len(resp.Array) {
+		return resp.Array[index].Value
+	}
+	return nil
 }
