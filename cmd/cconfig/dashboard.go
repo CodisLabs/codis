@@ -246,15 +246,16 @@ func runDashboard(addr string, httpLogFile string) {
 	m.Get("/", func(r render.Render) {
 		r.Redirect("/admin")
 	})
+	zkBuilder := utils.NewConnBuilder(globalEnv.NewZkConn)
+	safeZkConn = zkBuilder.GetSafeConn()
+	unsafeZkConn = zkBuilder.GetUnsafeConn()
 
 	// create temp node in ZK
 	if err := createDashboardNode(); err != nil {
 		Fatal(err)
 	}
 	defer releaseDashboardNode()
-	zkBuilder := utils.NewConnBuilder(globalEnv.NewZkConn)
-	safeZkConn = zkBuilder.GetSafeConn()
-	unsafeZkConn = zkBuilder.GetUnsafeConn()
+
 	// create long live migrate manager
 	globalMigrateManager = NewMigrateManager(safeZkConn, globalEnv.ProductName(), preMigrateCheck)
 	defer globalMigrateManager.removeNode()

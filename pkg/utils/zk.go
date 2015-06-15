@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-const retryMaxOnBuild = 5
 const retryMaxOnOps = 10
 
 type ConnBuilder interface {
@@ -27,6 +26,7 @@ type ConnBuilder interface {
 type connBuilder struct {
 	connection         zkhelper.Conn
 	builder            func() (zkhelper.Conn, error)
+	createdOn          time.Time
 	lock               sync.RWMutex
 	safeConnInstance   *safeConn
 	unsafeConnInstance *unsafeConn
@@ -48,22 +48,18 @@ func (b *connBuilder) resetConnection() {
 	if b.builder == nil {
 		log.Fatal("no connection builder")
 	}
+	if time.Now().Before(b.createdOn.Add(time.Second)) {
+		return
+	}
 	if b.connection != nil {
 		b.connection.Close()
 	}
 	var err error
-	b.connection, err = b.builder()
-	retry := 0
-	for err != nil && retry < retryMaxOnBuild {
-		log.Warning(err)
-		log.Warning("wait 5 seconds to retry")
-		time.Sleep(time.Second * 5)
-		b.connection, err = b.builder()
-		retry++
-	}
+	b.connection, err = b.builder() // this is asnyc
 	if err == nil {
 		b.safeConnInstance.Conn = b.connection
 		b.unsafeConnInstance.Conn = b.connection
+		b.createdOn = time.Now()
 		return
 	}
 	log.Fatal("can not build new zk session, exit")
