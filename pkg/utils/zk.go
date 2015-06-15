@@ -12,7 +12,7 @@ import (
 )
 
 const retryMaxOnBuild = 5
-const retryMaxOnOps = 1
+const retryMaxOnOps = 10
 
 type ConnBuilder interface {
 	// Get a conn that will retry automatically when getting error caused by connection issues.
