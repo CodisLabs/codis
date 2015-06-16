@@ -38,7 +38,7 @@ set xlabel "Number of Clients" offset 0,-0.5 font ",16"
 set bmargin at screen 0.72
 set tmargin at screen 0.96
 
-set title "SET+GET: DataSize=256B, Pipeline=Disabled" font ",20"
+set title "RedisBenchmark(SET+GET): DataSize=256B, Pipeline=Disabled" font ",20"
 set ytics 50000
 set ytic add ("50K" 50000, "100K" 100000, "150K" 150000, "200K" 200000)
 set y2range[0:8]
@@ -55,7 +55,7 @@ plot 'input1' \
 set bmargin at screen 0.39
 set tmargin at screen 0.63
 
-set title "SET+GET: DataSize=256B, Pipeline=100" font ",20"
+set title "RedisBenchmark(SET+GET): DataSize=256B, Pipeline=100" font ",20"
 set ytics 200000
 set ytic add ("200K" 200000, "400K" 400000, "600K" 600000, "800K" 800000, "1000K" 1000000)
 set yrange[0:1000000]
@@ -72,7 +72,7 @@ plot 'input2' \
 set bmargin at screen 0.06
 set tmargin at screen 0.30
 
-set title "MSET: DataSize=256B, Pipeline=100" font ",20"
+set title "RedisBenchmark(MSET): DataSize=256B, Pipeline=100" font ",20"
 set ytics 50000
 set ytic add ("50K" 50000, "100K" 100000, "150K" 150000, "200K" 200000)
 set yrange[0:150000]

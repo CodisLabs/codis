@@ -40,7 +40,7 @@ set xlabel "Number of Clients" offset 0,-0.5 font ",16"
 set bmargin at screen 0.83
 set tmargin at screen 0.98
 
-set title "SET+GET: DataSize=256B, Pipeline=Disabled" font ",20"
+set title "RedisBenchmark(SET+GET): DataSize=256B, Pipeline=Disabled" font ",20"
 set ytics 50000
 set ytic add ("50K" 50000, "100K" 100000, "150K" 150000, "200K" 200000)
 set y2range[0:14]
@@ -61,7 +61,7 @@ plot 'input1' \
 set bmargin at screen 0.63
 set tmargin at screen 0.78
 
-set title "SET+GET: DataSize=256B, Pipeline=100" font ",20"
+set title "RedisBenchmark(SET+GET): DataSize=256B, Pipeline=100" font ",20"
 set ytics 200000
 set ytic add ("200K" 200000, "400K" 400000, "600K" 600000, "800K" 800000, "1000K" 1000000, "1200K" 1200000)
 set yrange[0:1200000]
@@ -82,7 +82,7 @@ plot 'input2' \
 set bmargin at screen 0.43
 set tmargin at screen 0.58
 
-set title "MSET: DataSize=256B, Pipeline=100" font ",20"
+set title "RedisBenchmark(MSET): DataSize=256B, Pipeline=100" font ",20"
 set ytics 40000
 set ytic add ("40K" 40000, "80K" 80000, "120K" 120000, "160K" 160000, "200K" 200000)
 set yrange[0:160000]
@@ -111,7 +111,7 @@ set ytic add ("50K" 50000, "100K" 100000, "150K" 150000, "200K" 200000)
 set yrange[0:200000]
 set y2range[0:20]
 
-set ylabel "RPS_{mset}, 1K=10^3" offset 0.5,0 font ",16"
+set ylabel "RPS_{set+get}, 1K=10^3" offset 0.5,0 font ",16"
 
 plot 'input4' \
               using 1:2  title "1Core-Twemproxy " with linespoints ls 1, \
@@ -134,7 +134,7 @@ set ytic add ("400K" 400000, "800K" 800000, "1200K" 1200000)
 set yrange[0:1200000]
 set y2range[0:1200]
 
-set ylabel "RPS_{mset}, 1K=10^3" offset 0.5,0 font ",16"
+set ylabel "RPS_{set+get}, 1K=10^3" offset 0.5,0 font ",16"
 
 plot 'input5' \
               using 1:2  title "1Core-Twemproxy " with linespoints ls 1, \
