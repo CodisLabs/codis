@@ -81,13 +81,15 @@ alpha:
 
 + Codis - 4CPU:
 ```bash
-codis-proxy --cpu=4 -c config.ini -L proxy.log --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
+codis-proxy --cpu=4 -c config.ini -L proxy.log \
+  --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
 ```
 
 + RedisBenchmark - 1CPU:
 ```bash
 for clients in {1,2,4,8,16,32,64,100,200,300,500,800}; do
-    redis-benchmark -p $target -c $clients -n 5000000 -P 100 -r 1048576 -d 256 -t get,set,mset
+  redis-benchmark -p $target -c $clients -n 5000000 -P 100 \
+    -r 1048576 -d 256 -t get,set,mset
 done
 ```
 
@@ -134,17 +136,20 @@ alpha:
 
 + Codis - 4CPU or 8CPU:
 ```bash
-codis-proxy --cpu=4 -c config.ini -L proxy.log --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
+codis-proxy --cpu=4 -c config.ini -L proxy.log \
+  --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
 ```
 
 ```bash
-codis-proxy --cpu=8 -c config.ini -L proxy.log --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
+codis-proxy --cpu=8 -c config.ini -L proxy.log \
+  --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
 ```
 
 + RedisBenchmark - 1CPU:
 ```bash
 for clients in {1,2,4,8,16,32,64,100,200,300,500,800}; do
-  redis-benchmark -p $target -c $clients -n 5000000 -P 100 -r 1048576 -d 256 -t get,set,mset
+  redis-benchmark -p $target -c $clients -n 5000000 -P 100 \
+    -r 1048576 -d 256 -t get,set,mset
 done
 ```
 
