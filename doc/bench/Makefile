@@ -1,2 +1,0 @@
-all:
-	gnuplot bench.plot

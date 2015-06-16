@@ -47,7 +47,9 @@ plot 'input1' \
               using 1:2 title "1Core-Twemproxy " with linespoints ls 1, \
            '' using 1:4 title "4Core-Codis     " with linespoints ls 3, \
            '' using 1:5 notitle with points ls 1 pt 1 ps 0.7 axes x1y2, \
-           '' using 1:7 notitle with points ls 3 pt 1 ps 0.7 axes x1y2
+           '' using 1:7 notitle with points ls 3 pt 1 ps 0.7 axes x1y2, \
+         # '' using 1:3 title "4Core-Codis 1.9 " with linespoints ls 2, \
+         # '' using 1:6 notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
 
 
 set bmargin at screen 0.39
@@ -56,13 +58,16 @@ set tmargin at screen 0.63
 set title "SET+GET: DataSize=256B, Pipeline=100" font ",20"
 set ytics 200000
 set ytic add ("200K" 200000, "400K" 400000, "600K" 600000, "800K" 800000, "1000K" 1000000)
+set yrange[0:1000000]
 set y2range[0:350]
 
 plot 'input2' \
               using 1:2 title "1Core-Twemproxy " with linespoints ls 1, \
            '' using 1:4 title "4Core-Codis     " with linespoints ls 3, \
            '' using 1:5 notitle with points ls 1 pt 1 ps 0.7 axes x1y2, \
-           '' using 1:7 notitle with points ls 3 pt 1 ps 0.7 axes x1y2
+           '' using 1:7 notitle with points ls 3 pt 1 ps 0.7 axes x1y2, \
+         # '' using 1:3 title "4Core-Codis 1.9 " with linespoints ls 2, \
+         # '' using 1:6 notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
 
 set bmargin at screen 0.06
 set tmargin at screen 0.30
@@ -70,6 +75,7 @@ set tmargin at screen 0.30
 set title "MSET: DataSize=256B, Pipeline=100" font ",20"
 set ytics 50000
 set ytic add ("50K" 50000, "100K" 100000, "150K" 150000, "200K" 200000)
+set yrange[0:150000]
 set y2range[0:2000]
 
 set ylabel "RPS_{mset}, 1K=10^3" offset 0.5,0 font ",16"
@@ -78,6 +84,8 @@ plot 'input3' \
               using 1:2 title "1Core-Twemproxy " with linespoints ls 1, \
            '' using 1:4 title "4Core-Codis     " with linespoints ls 3, \
            '' using 1:5 notitle with points ls 1 pt 1 ps 0.7 axes x1y2, \
-           '' using 1:7 notitle with points ls 3 pt 1 ps 0.7 axes x1y2
+           '' using 1:7 notitle with points ls 3 pt 1 ps 0.7 axes x1y2, \
+         # '' using 1:3 title "4Core-Codis 1.9 " with linespoints ls 2, \
+         # '' using 1:6 notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
 
 unset multiplot

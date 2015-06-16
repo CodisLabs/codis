@@ -16,9 +16,9 @@ In Codis 2.0, we redesign the request dispatcher. Now pipeline and mget/mset req
 
 ##Features
 * Auto rebalance
-* Extremely simple to use 
+* Extremely simple to use
 * Support both redis or rocksdb transparently
-* GUI dashboard & admin tools 
+* GUI dashboard & admin tools
 * Supports most of Redis commands, Fully compatible with twemproxy(https://github.com/twitter/twemproxy)
 * Native Redis clients are supported
 * Safe and transparent data migration, Easily add or remove nodes on-demand.
@@ -37,40 +37,143 @@ In Codis 2.0, we redesign the request dispatcher. Now pipeline and mget/mset req
 
 ## Tutorial
 
-[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md)  
+[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md)
 [English](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md)
 
 ## FAQ
 
-[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_zh.md)  
+[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_zh.md)
 [English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_en.md)
 
 ## Performance (Benchmark)
-+ Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz
-+ MemTotal: 16 GB
-+ System:
-  - Linux: 4.0.5-1-ARCH #1 SMP PREEMPT Sat Jun 6 18:37:49 CEST 2015 x86_64 GNU/Linux
-  - Go: go version go1.4.2 linux/amd64
-+ Redis:  
-    nohup codis-server 6380.conf &  
-    nohup codis-server 6381.conf &  
-    nohup codis-server 6382.conf &  
-    nohup codis-server 6383.conf &  
+#### Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz x 1 + 16G RAM
++ Linux:
+  - Archlinux: 4.0.5-1-ARCH #1 SMP PREEMPT Sat Jun 6 18:37:49 CEST 2015 x86_64 GNU/Linux
 
-+ Twemproxy:  
-    redis-benchmark -p 22120 -c $clients -n 5000000 -P 100 -r 1048576 -d 256 -t get,set,mset
-  
-+ Codis:  
-    redis-benchmark -p 19000 -c $clients -n 5000000 -P 100 -r 1048576 -d 256 -t get,set,mset
++ Go: go version go1.4.2 linux/amd64
 
-+ Result:
++ Redis x 4:
 
-![main](doc/bench/bench.png)
+```bash
+  for i in {6380..6383}; do
+    nohup codis-server ${i}.conf &
+  done
+```
+
++ Twemproxy - 1CPU:
+  - nutcracker -c nutcracker.yml
+
+```yml
+alpha:
+  listen: 127.0.0.1:22120
+  hash: crc32a
+  hash_tag: "{}"
+  distribution: ketama
+  auto_eject_hosts: false
+  timeout: 400
+  redis: true
+  servers:
+   - 127.0.0.1:6380:1
+   - 127.0.0.1:6381:1
+   - 127.0.0.1:6382:1
+   - 127.0.0.1:6383:1
+```
+
++ Codis - 4CPU:
+```bash
+codis-proxy --cpu=4 -c config.ini -L proxy.log \
+  --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
+```
+
++ RedisBenchmark - 1CPU:
+```bash
+for clients in {1,2,4,8,16,32,64,100,200,300,500,800}; do
+  redis-benchmark -p $target -c $clients -n 5000000 -P 100 \
+    -r 1048576 -d 256 -t get,set,mset
+done
+```
+
++ Benchmark Results:
+
+![main](doc/bench1/bench.png)
+
+#### Intel(R) Xeon(R) CPU E5-2620 v2 @ 2.10GHz x 2 + 64G RAM
++ Linux:
+  - CentOS: 2.6.32-279.el6.x86_64 #1 SMP Fri Jun 22 12:19:21 UTC 2012 x86_64 x86_64 x86_64 GNU/Linux
+
++ Go: go version go1.4.2 linux/amd64
+
++ Redis x 8:
+
+```bash
+  for i in {6380..6387}; do
+    nohup codis-server ${i}.conf &
+  done
+```
+
++ Twemproxy - 1CPU:
+  - nutcracker -c nutcracker.yml
+
+```yml
+alpha:
+  listen: 127.0.0.1:22120
+  hash: crc32a
+  hash_tag: "{}"
+  distribution: ketama
+  auto_eject_hosts: false
+  timeout: 400
+  redis: true
+  servers:
+   - 127.0.0.1:6380:1
+   - 127.0.0.1:6381:1
+   - 127.0.0.1:6382:1
+   - 127.0.0.1:6383:1
+   - 127.0.0.1:6384:1
+   - 127.0.0.1:6385:1
+   - 127.0.0.1:6386:1
+   - 127.0.0.1:6387:1
+```
+
++ Codis - 4CPU or 8CPU:
+```bash
+codis-proxy --cpu=4 -c config.ini -L proxy.log \
+  --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
+```
+
+```bash
+codis-proxy --cpu=8 -c config.ini -L proxy.log \
+  --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
+```
+
++ RedisBenchmark - 1CPU:
+```bash
+for clients in {1,2,4,8,16,32,64,100,200,300,500,800}; do
+  redis-benchmark -p $target -c $clients -n 5000000 -P 100 \
+    -r 1048576 -d 256 -t get,set,mset
+done
+```
+
++ MemtierBenchmark - 4CPU:
+```bash
+for i in {1,2,4,8,16,32,64,100,200,300,500,800}; do
+  nthread=4
+  if [ $i -lt 4 ]; then
+    nthread=1
+  fi
+  let nclient="$i/$nthread"
+  memtier_benchmark -p $target -t $nthread -c $nclient \
+    --ratio=1:1 --test-time 30 -d 256 --key-pattern=S:S --pipeline=100
+done
+```
+
++ Benchmark Results:
+
+![main](doc/bench2/bench.png)
 
 ## High Availability
 
-[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#ha) 
-[English](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md#ha) 
+[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#ha)
+[English](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md#ha)
 
 ## Architecture
 
