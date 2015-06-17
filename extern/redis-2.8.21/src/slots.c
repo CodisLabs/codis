@@ -15,7 +15,9 @@ slots_tag(const sds s, int *plen) {
     if (j == n) {
         return NULL;
     }
-    *plen = j - i;
+    if (plen != NULL) {
+        *plen = j - i;
+    }
     return s + i;
 }
 
@@ -534,6 +536,18 @@ slotscheckCommand(redisClient *c) {
         sdsfree(bug);
         return;
     }
+    zskiplistNode *node = c->db->tagged_keys->header->level[0].forward;
+    while (node != NULL && bug == NULL) {
+        if (lookupKey(c->db, node->obj) == NULL) {
+            bug = sdsdup(node->obj->ptr);
+        }
+        node = node->level[0].forward;
+    }
+    if (bug != NULL) {
+        addReplyErrorFormat(c, "step 3, miss = '%s'", bug);
+        sdsfree(bug);
+        return;
+    }
     addReply(c, shared.ok);
 }
 
@@ -607,35 +621,6 @@ cleanup:
     zfree(ttls);
 }
 
-static void
-slotsScanSdsKeyTagCallback(void *privdata, const dictEntry *de) {
-    void **args = (void **)privdata;
-    list *l = (list *)args[0];
-    void *tag1 = args[1];
-    int taglen1 = *(int *)args[2];
-    void *vcrc = args[3];
-
-    if (vcrc != dictGetVal(de)) {
-        return;
-    }
-    sds skey = dictGetKey(de);
-
-    int taglen2;
-    void *tag2 = slots_tag(skey, &taglen2);
-    if (tag2 == NULL) {
-        return;
-    }
-    if (taglen2 != taglen1) {
-        return;
-    }
-    if (strncmp(tag1, tag2, taglen1) != 0) {
-        return;
-    }
-
-    robj *key = createStringObject(skey, sdslen(skey));
-    listAddNodeTail(l, key);
-}
-
 /* *
  * do migrate mutli key-value(s) for {slotsmgrt/slotsmgrtone}with tag commands
  * return value:
@@ -644,9 +629,7 @@ slotsScanSdsKeyTagCallback(void *privdata, const dictEntry *de) {
  * */
 static int
 slotsmgrttag_command(redisClient *c, sds host, sds port, int timeout, robj *key) {
-    int taglen;
-    void *tag = slots_tag(key->ptr, &taglen);
-    if (tag == NULL) {
+    if (slots_tag(key->ptr, NULL) == NULL) {
         return slotsmgrtone_command(c, host, port, timeout, key);
     }
 
@@ -655,18 +638,28 @@ slotsmgrttag_command(redisClient *c, sds host, sds port, int timeout, robj *key)
         return -1;
     }
 
+    uint32_t crc;
+    int slot = slots_num(key->ptr, &crc);
+    dict *d = c->db->hash_slots[slot];
+    if (dictSize(d) == 0) {
+        return 0;
+    }
+
+    zrangespec range;
+    range.min = (double)crc;
+    range.minex = 0;
+    range.max = (double)crc;
+    range.maxex = 0;
+
     list *l = listCreate();
     listSetFreeMethod(l, decrRefCountVoid);
-    do {
-        uint32_t crc;
-        int slot = slots_num(key->ptr, &crc);
-        dict *d = c->db->hash_slots[slot];
-        long long cursor = 0;
-        void *args[] = {l, tag, &taglen, (void *)(long)crc};
-        do {
-            cursor = dictScan(d, cursor, slotsScanSdsKeyTagCallback, args);
-        } while (cursor != 0);
-    } while (0);
+
+    zskiplistNode *node = zslFirstInRange(c->db->tagged_keys, &range);
+    while (node != NULL && node->score == (double)crc) {
+        listAddNodeTail(l, node->obj);
+        incrRefCount(node->obj);
+        node = node->level[0].forward;
+    }
 
     int max = listLength(l);
     if (max == 0) {
@@ -687,6 +680,7 @@ slotsmgrttag_command(redisClient *c, sds host, sds port, int timeout, robj *key)
             vals[n] = val;
             n ++;
             incrRefCount(key);
+            incrRefCount(val);
         }
         listDelNode(l, head);
     }
@@ -705,6 +699,7 @@ slotsmgrttag_command(redisClient *c, sds host, sds port, int timeout, robj *key)
     listRelease(l);
     for (int i = 0; i < n; i ++) {
         decrRefCount(keys[i]);
+        decrRefCount(vals[i]);
     }
     zfree(keys);
     zfree(vals);

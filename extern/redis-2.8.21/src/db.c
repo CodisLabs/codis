@@ -97,6 +97,10 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
         uint32_t crc;
         int slot = slots_num(key->ptr, &crc);
         dictAdd(db->hash_slots[slot], key->ptr, (void *)(long)crc);
+        if (slots_tag(key->ptr, NULL) != NULL) {
+            incrRefCount(key);
+            zslInsert(db->tagged_keys, (double)crc, key);
+        }
     } while (0);
  }
 
@@ -166,8 +170,13 @@ int dbDelete(redisDb *db, robj *key) {
     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
 
     do {
-        int slot = slots_num(key->ptr, NULL);
-        dictDelete(db->hash_slots[slot], key->ptr);
+        uint32_t crc;
+        int slot = slots_num(key->ptr, &crc);
+        if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK) {
+            if (slots_tag(key->ptr, NULL) != NULL) {
+                zslDelete(db->tagged_keys, (double)crc, key);
+            }
+        }
     } while (0);
 
     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
@@ -224,6 +233,10 @@ long long emptyDb(void(callback)(void*)) {
         for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
             dictEmpty(server.db[j].hash_slots[i], NULL);
         }
+        if (server.db[j].tagged_keys->length != 0) {
+            zslFree(server.db[j].tagged_keys);
+            server.db[j].tagged_keys = zslCreate();
+        }
         dictEmpty(server.db[j].dict,callback);
         dictEmpty(server.db[j].expires,callback);
     }
@@ -264,6 +277,10 @@ void flushdbCommand(redisClient *c) {
     signalFlushedDb(c->db->id);
     for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
         dictEmpty(c->db->hash_slots[i], NULL);
+    }
+    if (c->db->tagged_keys->length != 0) {
+        zslFree(c->db->tagged_keys);
+        c->db->tagged_keys = zslCreate();
     }
     dictEmpty(c->db->dict,NULL);
     dictEmpty(c->db->expires,NULL);
@@ -668,6 +685,7 @@ void shutdownCommand(redisClient *c) {
             for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
                 dictRelease(server.db[j].hash_slots[i]);
             }
+            zslFree(server.db[j].tagged_keys);
         }
         exit(0);
     }

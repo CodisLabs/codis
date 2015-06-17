@@ -1756,6 +1756,7 @@ void initServer(void) {
         for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
             server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
         }
+        server.db[j].tagged_keys = zslCreate();
     }
     server.pubsub_channels = dictCreate(&keylistDictType,NULL);
     server.pubsub_patterns = listCreate();

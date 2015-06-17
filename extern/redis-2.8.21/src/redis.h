@@ -427,6 +427,8 @@ uint32_t crc32_checksum(const char *buf, int len);
 #define HASH_SLOTS_MASK 0x000003ff
 #define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
 
+struct zskiplist;
+
 typedef struct redisDb {
     dict *dict;                 /* The keyspace for this DB */
     dict *expires;              /* Timeout of keys with a timeout set */
@@ -434,6 +436,7 @@ typedef struct redisDb {
     dict *ready_keys;           /* Blocked keys that received a PUSH */
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
     dict *hash_slots[HASH_SLOTS_SIZE];
+    struct zskiplist *tagged_keys;
     int id;
     long long avg_ttl;          /* Average TTL, just for stats */
 } redisDb;
