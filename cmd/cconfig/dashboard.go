@@ -220,12 +220,9 @@ func runDashboard(addr string, httpLogFile string) {
 
 	m.Get("/api/migrate/status", apiMigrateStatus)
 	m.Get("/api/migrate/tasks", apiGetMigrateTasks)
-	m.Delete("/api/migrate/pending_task/:id/remove", apiRemovePendingMigrateTask)
-	m.Delete("/api/migrate/task/:id/stop", apiStopMigratingTask)
 	m.Post("/api/migrate", binding.Json(MigrateTaskInfo{}), apiDoMigrate)
 
 	m.Post("/api/rebalance", apiRebalance)
-	m.Get("/api/rebalance/status", apiRebalanceStatus)
 
 	m.Get("/api/slot/list", apiGetSlots)
 	m.Get("/api/slot/:id", apiGetSingleSlot)
@@ -255,7 +252,7 @@ func runDashboard(addr string, httpLogFile string) {
 	defer releaseDashboardNode()
 
 	// create long live migrate manager
-	globalMigrateManager = NewMigrateManager(safeZkConn, globalEnv.ProductName(), preMigrateCheck)
+	globalMigrateManager = NewMigrateManager(safeZkConn, globalEnv.ProductName())
 
 	go func() {
 		c := getProxySpeedChan()

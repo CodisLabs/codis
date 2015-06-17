@@ -6,21 +6,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/go-martini/martini"
+	"github.com/juju/errors"
+	"github.com/ngaut/go-zookeeper/zk"
+	log "github.com/ngaut/logging"
+	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
-
-	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/utils"
-
-	"github.com/go-martini/martini"
-	"github.com/juju/errors"
-	"github.com/nu7hatch/gouuid"
-
-	"github.com/ngaut/go-zookeeper/zk"
-	log "github.com/ngaut/logging"
-	"github.com/ngaut/zkhelper"
 )
 
 var globalMigrateManager *MigrateManager
@@ -130,13 +126,7 @@ func apiDoMigrate(taskForm MigrateTaskInfo, param martini.Params) (int, string) 
 	// do migrate async
 	taskForm.Status = MIGRATE_TASK_PENDING
 	taskForm.CreateAt = strconv.FormatInt(time.Now().Unix(), 10)
-	u, err := uuid.NewV4()
-	if err != nil {
-		return 500, err.Error()
-	}
-	taskForm.Id = u.String()
-	task := NewMigrateTask(taskForm)
-	globalMigrateManager.PostTask(task)
+	globalMigrateManager.PostTask(&taskForm)
 	return jsonRetSucc()
 }
 
@@ -155,27 +145,13 @@ func isOnRebalancing() bool {
 	return isRebalancing
 }
 
-func apiRebalanceStatus(param martini.Params) (int, string) {
-	ret := map[string]interface{}{
-		"is_rebalancing": isRebalancing,
-	}
-	b, _ := json.MarshalIndent(ret, " ", "  ")
-	return 200, string(b)
-}
-
 func apiRebalance(param martini.Params) (int, string) {
-	if isOnRebalancing() {
-		return 500, "rebalancing..."
+	if len(globalMigrateManager.Tasks()) > 0 {
+		return 500, "there are migration tasks running, you should wait them done"
 	}
-
-	go func() {
-		changeRebalanceStat(true)
-		defer changeRebalanceStat(false)
-		if err := Rebalance(safeZkConn, 0); err != nil {
-			log.Warning(errors.ErrorStack(err))
-		}
-	}()
-
+	if err := Rebalance(); err != nil {
+		log.Warning(errors.ErrorStack(err))
+	}
 	return jsonRetSucc()
 }
 
@@ -183,21 +159,6 @@ func apiGetMigrateTasks() (int, string) {
 	tasks := globalMigrateManager.Tasks()
 	b, _ := json.MarshalIndent(tasks, " ", "  ")
 	return 200, string(b)
-}
-
-func apiRemovePendingMigrateTask(param martini.Params) (int, string) {
-	id := param["id"]
-	if err := globalMigrateManager.RemovePendingTask(id); err != nil {
-		return 500, "Error removing task: " + err.Error()
-	}
-	return jsonRetSucc()
-}
-
-func apiStopMigratingTask(param martini.Params) (int, string) {
-	if err := globalMigrateManager.StopRunningTask(); err != nil {
-		return 500, "Error stopping migrate task: " + err.Error()
-	}
-	return jsonRetSucc()
 }
 
 func apiGetServerGroup(param martini.Params) (int, string) {

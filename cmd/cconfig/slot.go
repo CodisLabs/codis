@@ -160,19 +160,19 @@ func runSlotSet(slotId int, groupId int, status string) error {
 }
 
 func runSlotMigrate(fromSlotId, toSlotId int, newGroupId int, delay int) error {
-	migrateInfo := &MigrateTaskInfo{
-		FromSlot:   fromSlotId,
-		ToSlot:     toSlotId,
-		NewGroupId: newGroupId,
-		Delay:      delay,
+	for slot := fromSlotId; slot <= toSlotId; slot++ {
+		migrateInfo := &MigrateTaskInfo{
+			SlotId:     slot,
+			NewGroupId: newGroupId,
+			Delay:      delay,
+		}
+		var v interface{}
+		err := callApi(METHOD_POST, "/api/migrate", migrateInfo, &v)
+		if err != nil {
+			return err
+		}
+		fmt.Println(jsonify(v))
 	}
-
-	var v interface{}
-	err := callApi(METHOD_POST, "/api/migrate", migrateInfo, &v)
-	if err != nil {
-		return err
-	}
-	fmt.Println(jsonify(v))
 	return nil
 }
 
