@@ -1444,8 +1444,7 @@ void slotscheckCommand(redisClient *c);
 void slotsrestoreCommand(redisClient *c);
 
 void slotsmgrt_cleanup();
-void *slots_tag(const sds s, int *plen);
-int slots_num(const sds s, uint32_t *pcrc);
+int slots_num(const sds s, uint32_t *pcrc, int *phastag);
 
 #if defined(__GNUC__)
 void *calloc(size_t count, size_t size) __attribute__ ((deprecated));

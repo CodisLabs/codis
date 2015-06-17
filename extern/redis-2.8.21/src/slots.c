@@ -3,7 +3,7 @@
 extern void createDumpPayload(rio *payload, robj *o);
 extern int verifyDumpPayload(unsigned char *p, size_t len);
 
-void *
+static void *
 slots_tag(const sds s, int *plen) {
     int i, j, n = sdslen(s);
     for (i = 0; i < n && s[i] != '{'; i ++) {}
@@ -22,15 +22,21 @@ slots_tag(const sds s, int *plen) {
 }
 
 int
-slots_num(const sds s, uint32_t *pcrc) {
+slots_num(const sds s, uint32_t *pcrc, int *phastag) {
     int taglen;
+    int hastag = 0;
     void *tag = slots_tag(s, &taglen);
     if (tag == NULL) {
         tag = s, taglen = sdslen(s);
+    } else {
+        hastag = 1;
     }
     uint32_t crc = crc32_checksum(tag, taglen);
     if (pcrc != NULL) {
         *pcrc = crc;
+    }
+    if (phastag != NULL) {
+        *phastag = hastag;
     }
     return crc & HASH_SLOTS_MASK;
 }
@@ -82,7 +88,7 @@ slotshashkeyCommand(redisClient *c) {
     addReplyMultiBulkLen(c, c->argc - 1);
     for (i = 1; i < c->argc; i ++) {
         robj *key = c->argv[i];
-        addReplyLongLong(c, slots_num(key->ptr, NULL));
+        addReplyLongLong(c, slots_num(key->ptr, NULL, NULL));
     }
 }
 
@@ -520,7 +526,7 @@ slotscheckCommand(redisClient *c) {
                     break;
                 }
                 robj *key = listNodeValue(head);
-                int slot = slots_num(key->ptr, NULL);
+                int slot = slots_num(key->ptr, NULL, NULL);
                 if (dictFind(c->db->hash_slots[slot], key->ptr) == NULL) {
                     if (bug == NULL) {
                         bug = sdsdup(key->ptr);
@@ -574,7 +580,7 @@ slotsrestoreCommand(redisClient *c) {
         robj *val = c->argv[i * 3 + 3];
         if (lookupKeyWrite(c->db, key) != NULL) {
             redisLog(REDIS_WARNING, "slotsrestore: slot = %d, key = '%s' already exists",
-                    slots_num(key->ptr, NULL), (char *)key->ptr);
+                    slots_num(key->ptr, NULL, NULL), (char *)key->ptr);
         }
         if (getLongLongFromObjectOrReply(c, ttl, &ttls[i], NULL) != REDIS_OK) {
             goto cleanup;
@@ -629,7 +635,10 @@ cleanup:
  * */
 static int
 slotsmgrttag_command(redisClient *c, sds host, sds port, int timeout, robj *key) {
-    if (slots_tag(key->ptr, NULL) == NULL) {
+    uint32_t crc;
+    int hastag;
+    int slot = slots_num(key->ptr, &crc, &hastag);
+    if (!hastag) {
         return slotsmgrtone_command(c, host, port, timeout, key);
     }
 
@@ -638,8 +647,6 @@ slotsmgrttag_command(redisClient *c, sds host, sds port, int timeout, robj *key)
         return -1;
     }
 
-    uint32_t crc;
-    int slot = slots_num(key->ptr, &crc);
     dict *d = c->db->hash_slots[slot];
     if (dictSize(d) == 0) {
         return 0;

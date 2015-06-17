@@ -95,9 +95,10 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
 
     do {
         uint32_t crc;
-        int slot = slots_num(key->ptr, &crc);
+        int hastag;
+        int slot = slots_num(key->ptr, &crc, &hastag);
         dictAdd(db->hash_slots[slot], key->ptr, (void *)(long)crc);
-        if (slots_tag(key->ptr, NULL) != NULL) {
+        if (hastag) {
             incrRefCount(key);
             zslInsert(db->tagged_keys, (double)crc, key);
         }
@@ -171,9 +172,10 @@ int dbDelete(redisDb *db, robj *key) {
 
     do {
         uint32_t crc;
-        int slot = slots_num(key->ptr, &crc);
+        int hastag;
+        int slot = slots_num(key->ptr, &crc, &hastag);
         if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK) {
-            if (slots_tag(key->ptr, NULL) != NULL) {
+            if (hastag) {
                 zslDelete(db->tagged_keys, (double)crc, key);
             }
         }
