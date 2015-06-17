@@ -9,6 +9,7 @@ import (
 	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/models"
+	"fmt"
 )
 
 const (
@@ -48,6 +49,7 @@ func NewMigrateManager(zkConn zkhelper.Conn, pn string, preTaskCheck MigrateTask
 		zkConn:       zkConn,
 		productName:  pn,
 	}
+	zkhelper.CreateRecursive(m.zkConn, fmt.Sprintf("/zk/codis/db_%s/migrate_tasks", m.productName), "", 0, zkhelper.DefaultDirACLs())
 	go m.loop()
 	return m
 }
