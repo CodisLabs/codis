@@ -421,12 +421,19 @@ typedef struct redisObject {
     _var.ptr = _ptr; \
 } while(0);
 
+void crc32_init();
+uint32_t crc32_checksum(const char *buf, int len);
+
+#define HASH_SLOTS_MASK 0x000003ff
+#define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
+
 typedef struct redisDb {
     dict *dict;                 /* The keyspace for this DB */
     dict *expires;              /* Timeout of keys with a timeout set */
     dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP) */
     dict *ready_keys;           /* Blocked keys that received a PUSH */
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
+    dict *hash_slots[HASH_SLOTS_SIZE];
     int id;
     long long avg_ttl;          /* Average TTL, just for stats */
 } redisDb;
@@ -634,6 +641,7 @@ struct redisServer {
     list *slaves, *monitors;    /* List of slaves and MONITORs */
     redisClient *current_client; /* Current client, only used on crash report */
     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
+    dict *slotsmgrt_cached_sockfds;
     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
     /* RDB / AOF loading information */
     int loading;                /* We are loading data from disk if true */
@@ -1422,6 +1430,19 @@ void pfcountCommand(redisClient *c);
 void pfmergeCommand(redisClient *c);
 void pfdebugCommand(redisClient *c);
 void latencyCommand(redisClient *c);
+void slotsinfoCommand(redisClient *c);
+void slotsdelCommand(redisClient *c);
+void slotsmgrtslotCommand(redisClient *c);
+void slotsmgrtoneCommand(redisClient *c);
+void slotsmgrttagslotCommand(redisClient *c);
+void slotsmgrttagoneCommand(redisClient *c);
+void slotshashkeyCommand(redisClient *c);
+void slotscheckCommand(redisClient *c);
+void slotsrestoreCommand(redisClient *c);
+
+void slotsmgrt_cleanup();
+void *slots_tag(const sds s, int *plen);
+int slots_num(const sds s, uint32_t *pcrc);
 
 #if defined(__GNUC__)
 void *calloc(size_t count, size_t size) __attribute__ ((deprecated));

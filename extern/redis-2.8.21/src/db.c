@@ -32,9 +32,6 @@
 #include <signal.h>
 #include <ctype.h>
 
-void SlotToKeyAdd(robj *key);
-void SlotToKeyDel(robj *key);
-
 /*-----------------------------------------------------------------------------
  * C-level DB API
  *----------------------------------------------------------------------------*/
@@ -90,7 +87,14 @@ robj *lookupKeyWriteOrReply(redisClient *c, robj *key, robj *reply) {
  * The program is aborted if the key already exists. */
 void dbAdd(redisDb *db, robj *key, robj *val) {
     sds copy = sdsdup(key->ptr);
+
     int retval = dictAdd(db->dict, copy, val);
+
+    do {
+        uint32_t crc;
+        int slot = slots_num(key->ptr, &crc);
+        dictAdd(db->hash_slots[slot], sdsdup(key->ptr), (void *)(long)crc);
+    } while (0);
 
     redisAssertWithInfo(NULL,key,retval == REDIS_OK);
     if (val->type == REDIS_LIST) signalListAsReady(db, key);
@@ -160,6 +164,12 @@ int dbDelete(redisDb *db, robj *key) {
     /* Deleting an entry from the expires dict will not free the sds of
      * the key, because it is shared with the main dictionary. */
     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
+
+    do {
+        int slot = slots_num(key->ptr, NULL);
+        dictDelete(db->hash_slots[slot], key->ptr);
+    } while (0);
+
     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
         return 1;
     } else {
@@ -206,11 +216,14 @@ robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
 }
 
 long long emptyDb(void(callback)(void*)) {
-    int j;
+    int i, j;
     long long removed = 0;
-
+    
     for (j = 0; j < server.dbnum; j++) {
         removed += dictSize(server.db[j].dict);
+        for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
+            dictEmpty(server.db[j].hash_slots[i], NULL);
+        }
         dictEmpty(server.db[j].dict,callback);
         dictEmpty(server.db[j].expires,callback);
     }
@@ -246,8 +259,12 @@ void signalFlushedDb(int dbid) {
  *----------------------------------------------------------------------------*/
 
 void flushdbCommand(redisClient *c) {
+    int i;
     server.dirty += dictSize(c->db->dict);
     signalFlushedDb(c->db->id);
+    for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
+        dictEmpty(c->db->hash_slots[i], NULL);
+    }
     dictEmpty(c->db->dict,NULL);
     dictEmpty(c->db->expires,NULL);
     addReply(c,shared.ok);
@@ -646,7 +663,14 @@ void shutdownCommand(redisClient *c) {
      * Also when in Sentinel mode clear the SAVE flag and force NOSAVE. */
     if (server.loading || server.sentinel_mode)
         flags = (flags & ~REDIS_SHUTDOWN_SAVE) | REDIS_SHUTDOWN_NOSAVE;
-    if (prepareForShutdown(flags) == REDIS_OK) exit(0);
+    if (prepareForShutdown(flags) == REDIS_OK) {
+        for (int j = 0; j < server.dbnum; j ++) {
+            for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
+                dictRelease(server.db[j].hash_slots[i]);
+            }
+        }
+        exit(0);
+    }
     addReplyError(c,"Errors trying to SHUTDOWN. Check logs.");
 }
 

@@ -274,7 +274,16 @@ struct redisCommand redisCommandTable[] = {
     {"pfcount",pfcountCommand,-2,"r",0,NULL,1,1,1,0,0},
     {"pfmerge",pfmergeCommand,-2,"wm",0,NULL,1,-1,1,0,0},
     {"pfdebug",pfdebugCommand,-3,"w",0,NULL,0,0,0,0,0},
-    {"latency",latencyCommand,-2,"arslt",0,NULL,0,0,0,0,0}
+    {"latency",latencyCommand,-2,"arslt",0,NULL,0,0,0,0,0},
+    {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
+    {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
+    {"slotsmgrtslot",slotsmgrtslotCommand,5,"aw",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone",slotsmgrtoneCommand,5,"aw",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"aw",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"aw",0,NULL,0,0,0,0,0},
+    {"slotshashkey",slotshashkeyCommand,-1,"rF",0,NULL,0,0,0,0,0},
+    {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
+    {"slotsrestore",slotsrestoreCommand,-4,"awm",0,NULL,1,1,1,0,0},
 };
 
 /*============================ Utility functions ============================ */
@@ -531,6 +540,15 @@ dictType dbDictType = {
     dictRedisObjectDestructor   /* val destructor */
 };
 
+dictType hashSlotType = {
+    dictSdsHash,                /* hash function */
+    NULL,                       /* key dup */
+    NULL,                       /* val dup */
+    dictSdsKeyCompare,          /* key compare */
+    dictSdsDestructor,          /* key destructor */
+    NULL                        /* val destructor */
+};
+
 /* server.lua_scripts sha (as sds string) -> scripts (as robj) cache. */
 dictType shaScriptObjectDictType = {
     dictSdsCaseHash,            /* hash function */
@@ -595,6 +613,15 @@ dictType replScriptCacheDictType = {
     NULL                        /* val destructor */
 };
 
+dictType migrateCacheDictType = {
+    dictSdsHash,                /* hash function */
+    NULL,                       /* key dup */
+    NULL,                       /* val dup */
+    dictSdsKeyCompare,          /* key compare */
+    dictSdsDestructor,          /* key destructor */
+    NULL                        /* val destructor */
+};
+
 int htNeedsResize(dict *dict) {
     long long size, used;
 
@@ -607,8 +634,15 @@ int htNeedsResize(dict *dict) {
 /* If the percentage of used slots in the HT reaches REDIS_HT_MINFILL
  * we resize the hash table to save memory */
 void tryResizeHashTables(int dbid) {
-    if (htNeedsResize(server.db[dbid].dict))
+    if (htNeedsResize(server.db[dbid].dict)) {
         dictResize(server.db[dbid].dict);
+        for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
+            dict *d = server.db[dbid].hash_slots[i];
+            if (htNeedsResize(d)) {
+                dictResize(d);
+            }
+        }
+    }
     if (htNeedsResize(server.db[dbid].expires))
         dictResize(server.db[dbid].expires);
 }
@@ -624,6 +658,12 @@ int incrementallyRehash(int dbid) {
     /* Keys dictionary */
     if (dictIsRehashing(server.db[dbid].dict)) {
         dictRehashMilliseconds(server.db[dbid].dict,1);
+        for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
+            dict *d = server.db[dbid].hash_slots[i];
+            if (dictIsRehashing(d)) {
+                dictRehashMilliseconds(d, 1);
+            }
+        }
         return 1; /* already used our millisecond for this loop... */
     }
     /* Expires */
@@ -1179,6 +1219,10 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
         if (server.sentinel_mode) sentinelTimer();
     }
 
+    run_with_period(1000) {
+        slotsmgrt_cleanup();
+    }
+
     server.cronloops++;
     return 1000/server.hz;
 }
@@ -1384,6 +1428,8 @@ void initServerConfig(void) {
     server.lua_timedout = 0;
     server.next_client_id = 1; /* Client IDs, start from 1 .*/
     server.loading_process_events_interval_bytes = (1024*1024*2);
+
+    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
 
     updateLRUClock();
     resetServerSaveParams();
@@ -1648,11 +1694,13 @@ void resetServerStats(void) {
 }
 
 void initServer(void) {
-    int j;
+    int i, j;
 
     signal(SIGHUP, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
     setupSignalHandlers();
+
+    crc32_init();
 
     if (server.syslog_enabled) {
         openlog(server.syslog_ident, LOG_PID | LOG_NDELAY | LOG_NOWAIT,
@@ -1705,6 +1753,9 @@ void initServer(void) {
         server.db[j].watched_keys = dictCreate(&keylistDictType,NULL);
         server.db[j].id = j;
         server.db[j].avg_ttl = 0;
+        for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
+            server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
+        }
     }
     server.pubsub_channels = dictCreate(&keylistDictType,NULL);
     server.pubsub_patterns = listCreate();

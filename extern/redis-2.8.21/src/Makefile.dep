@@ -20,6 +20,7 @@ config.o: config.c redis.h fmacros.h config.h ../deps/lua/src/lua.h \
   ../deps/lua/src/luaconf.h ae.h sds.h dict.h adlist.h zmalloc.h anet.h \
   ziplist.h intset.h version.h util.h latency.h sparkline.h rdb.h rio.h
 crc64.o: crc64.c
+crc32.o: crc32.c
 db.o: db.c redis.h fmacros.h config.h ../deps/lua/src/lua.h \
   ../deps/lua/src/luaconf.h ae.h sds.h dict.h adlist.h zmalloc.h anet.h \
   ziplist.h intset.h version.h util.h latency.h sparkline.h rdb.h rio.h
@@ -40,6 +41,7 @@ latency.o: latency.c redis.h fmacros.h config.h ../deps/lua/src/lua.h \
 lzf_c.o: lzf_c.c lzfP.h
 lzf_d.o: lzf_d.c lzfP.h
 memtest.o: memtest.c config.h
+slots.o: slots.c redis.h
 migrate.o: migrate.c redis.h fmacros.h config.h ../deps/lua/src/lua.h \
   ../deps/lua/src/luaconf.h ae.h sds.h dict.h adlist.h zmalloc.h anet.h \
   ziplist.h intset.h version.h util.h latency.h sparkline.h rdb.h rio.h \
