@@ -47,8 +47,7 @@ In Codis 2.0, we redesign the request dispatcher. Now pipeline and mget/mset req
 
 ## Performance (Benchmark)
 #### Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz x 1 + 16G RAM
-+ Linux:
-  - Archlinux: 4.0.5-1-ARCH #1 SMP PREEMPT Sat Jun 6 18:37:49 CEST 2015 x86_64 GNU/Linux
++ Archlinux: 4.0.5-1-ARCH #1 SMP PREEMPT Sat Jun 6 18:37:49 CEST 2015 x86_64 GNU/Linux
 
 + Go: go version go1.4.2 linux/amd64
 
@@ -98,10 +97,9 @@ done
 ![main](doc/bench1/bench.png)
 
 #### Intel(R) Xeon(R) CPU E5-2620 v2 @ 2.10GHz x 2 + 64G RAM
-+ Linux:
-  - CentOS: 2.6.32-279.el6.x86_64 #1 SMP Fri Jun 22 12:19:21 UTC 2012 x86_64 x86_64 x86_64 GNU/Linux
++ CentOS: 2.6.32-279.el6.x86_64 #1 SMP Fri Jun 22 12:19:21 UTC 2012 x86_64 x86_64 x86_64 GNU/Linux
 
-+ Go: go version go1.4.2 linux/amd64
++ Go: go version go1.3.3 linux/amd64
 
 + Redis x 8:
 
