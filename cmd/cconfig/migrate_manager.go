@@ -89,13 +89,15 @@ func (m *MigrateManager) NextTask() *MigrateTaskInfo {
 	return info
 }
 
-func (m *MigrateManager) Tasks() (res []MigrateTaskInfo) {
+func (m *MigrateManager) Tasks() []MigrateTaskInfo {
+	res:=[]MigrateTaskInfo{}
 	tasks, _, _ := safeZkConn.Children(getMigrateTasksPath(m.productName))
 	for _, id := range tasks {
 		data, _, _ := safeZkConn.Get(getMigrateTasksPath(m.productName) + "/" + id)
 		info := new(MigrateTaskInfo)
 		json.Unmarshal(data, info)
+		info.Id=id
 		res = append(res, *info)
 	}
-	return
+	return res
 }

@@ -164,7 +164,6 @@ func createDashboardNode() error {
 }
 
 func releaseDashboardNode() {
-
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/dashboard", globalEnv.ProductName())
 	if exists, _, _ := safeZkConn.Exists(zkPath); exists {
 		log.Info("removing dashboard node")

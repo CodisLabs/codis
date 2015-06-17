@@ -40,7 +40,6 @@ codisControllers.factory('MigrateStatusFactory', ['$resource', function ($resour
         doMigrate : { method:'POST', url:'http://localhost:18087/api/migrate'},
         removePendingTask : {method : 'DELETE', url: 'http://localhost:18087/api/migrate/pending_task/:id/remove', params : { id : '@id'} },
         stopRunningTask : {method : 'DELETE', url: 'http://localhost:18087/api/migrate/task/:id/stop', params : { id : '@id'} },
-        rebalanceStatus : { method:'GET', url: 'http://localhost:18087/api/rebalance/status'},
         doRebalance: {method:'POST', url: 'http://localhost:18087/api/rebalance'},
     });
 }]);
@@ -208,7 +207,6 @@ codisControllers.controller('codisMigrateCtl', ['$scope', '$http', '$modal', 'Mi
 function($scope, $http, $modal, MigrateStatusFactory) {
     $scope.migrate_status = MigrateStatusFactory.query();
     $scope.migrate_tasks = MigrateStatusFactory.tasks();
-    $scope.rebalance_status = MigrateStatusFactory.rebalanceStatus();
 
     $scope.migrate = function() {
         var modalInstance = $modal.open({
@@ -263,7 +261,6 @@ function($scope, $http, $modal, MigrateStatusFactory) {
     $scope.refresh = function() {
         $scope.migrate_status = MigrateStatusFactory.query();
         $scope.migrate_tasks = MigrateStatusFactory.tasks();
-        $scope.rebalance_status = MigrateStatusFactory.rebalanceStatus();
     }
 }]);
 
