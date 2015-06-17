@@ -15,7 +15,6 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 )
 
@@ -128,21 +127,6 @@ func apiDoMigrate(taskForm MigrateTaskInfo, param martini.Params) (int, string) 
 	taskForm.CreateAt = strconv.FormatInt(time.Now().Unix(), 10)
 	globalMigrateManager.PostTask(&taskForm)
 	return jsonRetSucc()
-}
-
-var isRebalancing bool
-var rebalanceLck = sync.Mutex{}
-
-func changeRebalanceStat(b bool) {
-	rebalanceLck.Lock()
-	defer rebalanceLck.Unlock()
-	isRebalancing = b
-}
-
-func isOnRebalancing() bool {
-	rebalanceLck.Lock()
-	defer rebalanceLck.Unlock()
-	return isRebalancing
 }
 
 func apiRebalance(param martini.Params) (int, string) {
