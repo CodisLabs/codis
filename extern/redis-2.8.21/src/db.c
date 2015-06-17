@@ -90,14 +90,14 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
 
     int retval = dictAdd(db->dict, copy, val);
 
+    redisAssertWithInfo(NULL,key,retval == REDIS_OK);
+    if (val->type == REDIS_LIST) signalListAsReady(db, key);
+
     do {
         uint32_t crc;
         int slot = slots_num(key->ptr, &crc);
-        dictAdd(db->hash_slots[slot], sdsdup(key->ptr), (void *)(long)crc);
+        dictAdd(db->hash_slots[slot], key->ptr, (void *)(long)crc);
     } while (0);
-
-    redisAssertWithInfo(NULL,key,retval == REDIS_OK);
-    if (val->type == REDIS_LIST) signalListAsReady(db, key);
  }
 
 /* Overwrite an existing key with a new value. Incrementing the reference
