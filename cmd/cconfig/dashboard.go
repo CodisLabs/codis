@@ -157,8 +157,7 @@ func createDashboardNode() error {
 	}
 
 	content := fmt.Sprintf(`{"addr": "%v", "pid": %v}`, globalEnv.DashboardAddr(), os.Getpid())
-	pathCreated, err := safeZkConn.Create(zkPath, []byte(content),
-		zk.FlagEphemeral, zkhelper.DefaultFileACLs())
+	pathCreated, err := safeZkConn.Create(zkPath, []byte(content), 0, zkhelper.DefaultFileACLs())
 
 	log.Info("dashboard node created:", pathCreated, string(content))
 
@@ -252,7 +251,7 @@ func runDashboard(addr string, httpLogFile string) {
 
 	// create temp node in ZK
 	if err := createDashboardNode(); err != nil {
-		Fatal(err)
+		log.Fatal(err) // do not release dashborad node here
 	}
 	defer releaseDashboardNode()
 
