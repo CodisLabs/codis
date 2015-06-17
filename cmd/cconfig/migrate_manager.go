@@ -2,12 +2,10 @@ package main
 
 import (
 	"container/list"
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/juju/errors"
-	"github.com/ngaut/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/models"
@@ -43,34 +41,12 @@ type MigrateManager struct {
 	lck         sync.RWMutex
 }
 
-func getManagerPath(productName string) string {
-	return fmt.Sprintf("/zk/codis/db_%s/migrate_manager", productName)
-}
-
-func (m *MigrateManager) createNode() error {
-	zkhelper.CreateRecursive(m.zkConn, fmt.Sprintf("/zk/codis/db_%s/migrate_tasks", m.productName), "", 0, zkhelper.DefaultDirACLs())
-	_, err := m.zkConn.Create(getManagerPath(m.productName),
-		[]byte(""), zk.FlagEphemeral, zkhelper.DefaultFileACLs())
-	if err != nil {
-		log.Error("dashboard already exists! err: ", err)
-	}
-	return nil
-}
-
-func (m *MigrateManager) removeNode() error {
-	return zkhelper.DeleteRecursive(m.zkConn, getManagerPath(m.productName), 0)
-}
-
 func NewMigrateManager(zkConn zkhelper.Conn, pn string, preTaskCheck MigrateTaskCheckFunc) *MigrateManager {
 	m := &MigrateManager{
 		pendingTasks: list.New(),
 		preCheck:     preTaskCheck,
 		zkConn:       zkConn,
 		productName:  pn,
-	}
-	err := m.createNode()
-	if err != nil {
-		Fatal("another codis-config exists? shut it down and try again")
 	}
 	go m.loop()
 	return m

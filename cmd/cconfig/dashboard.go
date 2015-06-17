@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/juju/errors"
-	"github.com/ngaut/go-zookeeper/zk"
 	"github.com/ngaut/zkhelper"
 	"github.com/wandoulabs/codis/pkg/models"
 
@@ -257,7 +256,6 @@ func runDashboard(addr string, httpLogFile string) {
 
 	// create long live migrate manager
 	globalMigrateManager = NewMigrateManager(safeZkConn, globalEnv.ProductName(), preMigrateCheck)
-	defer globalMigrateManager.removeNode()
 
 	go func() {
 		c := getProxySpeedChan()

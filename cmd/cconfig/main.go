@@ -54,9 +54,6 @@ commands:
 func Fatal(msg interface{}) {
 	// cleanup
 	releaseDashboardNode()
-	if globalMigrateManager != nil {
-		globalMigrateManager.removeNode()
-	}
 
 	switch msg.(type) {
 	case string:
