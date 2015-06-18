@@ -19,6 +19,7 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/proxy/router"
 	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/bytesize"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -29,12 +30,13 @@ var (
 	configFile = "config.ini"
 )
 
-var usage = `usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
+var usage = `usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--log-filesize=<filesize>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
 
 options:
    -c	set config file
    -L	set output log file, default is stdout
    --log-level=<loglevel>	set log level: info, warn, error, debug [default: info]
+   --log-filesize=<maxsize>  set max log file size, suffixes "KB", "MB", "GB" are allowed, 1KB=1024 bytes, etc. Default is 1GB.
    --cpu=<cpu_num>		num of cpu cores that proxy can use
    --addr=<proxy_listen_addr>		proxy listen address, example: 0.0.0.0:9000
    --http-addr=<debug_http_server_addr>		debug vars http server
@@ -110,10 +112,18 @@ func main() {
 		configFile = args["-c"].(string)
 	}
 
+	var maxFileFrag = 10
+	var maxFragSize int64 = bytesize.GB * 1
+	if s, ok := args["--log-filesize"].(string); ok && s != "" {
+		v, err := bytesize.Parse(s)
+		if err != nil {
+			log.PanicErrorf(err, "invalid max log file size = %s", s)
+		}
+		maxFragSize = v
+	}
+
 	// set output log file
 	if s, ok := args["-L"].(string); ok && s != "" {
-		const maxFileFrag = 10
-		const maxFragSize = 1024 * 1024 * 32
 		f, err := log.NewRollingFile(s, maxFileFrag, maxFragSize)
 		if err != nil {
 			log.PanicErrorf(err, "open rolling log file failed: %s", s)
