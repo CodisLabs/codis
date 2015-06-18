@@ -131,7 +131,7 @@ func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 }
 
 func (t *MigrateTask) run() error {
-	log.Infof("migration start: %+v\n", t.MigrateTaskInfo)
+	log.Infof("migration start: %+v", t.MigrateTaskInfo)
 	to := t.NewGroupId
 	t.UpdateStatus(MIGRATE_TASK_MIGRATING)
 	err := t.migrateSingleSlot(t.SlotId, to)
@@ -141,7 +141,7 @@ func (t *MigrateTask) run() error {
 		return err
 	}
 	t.UpdateFinish()
-	log.Infof("migration finished: %+v\n", t.MigrateTaskInfo)
+	log.Infof("migration finished: %+v", t.MigrateTaskInfo)
 	return nil
 }
 

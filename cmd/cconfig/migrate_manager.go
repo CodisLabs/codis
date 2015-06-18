@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/ngaut/go-zookeeper/zk"
 	"github.com/ngaut/zkhelper"
-	"github.com/wandoulabs/tentacles/pkg/utils/log"
 	"path"
 	"sort"
 	"time"
+	log "github.com/ngaut/logging"
 )
 
 const (
@@ -71,11 +71,11 @@ func (m *MigrateManager) loop() error {
 		t := GetMigrateTask(*info)
 		err := t.preMigrateCheck()
 		if err != nil {
-			log.Warn(err)
+			log.Warning(err)
 		}
 		err = t.run()
 		if err != nil {
-			log.Warn(err)
+			log.Warning(err)
 		}
 	}
 }
