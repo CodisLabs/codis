@@ -6,7 +6,7 @@ package models
 import (
 	"testing"
 
-	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/zkhelper"
 )
 
 func TestSlots(t *testing.T) {

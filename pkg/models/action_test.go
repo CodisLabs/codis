@@ -14,7 +14,7 @@ import (
 	log "github.com/ngaut/logging"
 
 	"github.com/juju/errors"
-	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/utils"
 )

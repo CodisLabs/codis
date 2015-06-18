@@ -13,10 +13,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ngaut/zkhelper"
-
+	"github.com/wandoulabs/zkhelper"
 	"github.com/juju/errors"
-	"github.com/ngaut/go-zookeeper/zk"
+	"github.com/wandoulabs/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
 )
 

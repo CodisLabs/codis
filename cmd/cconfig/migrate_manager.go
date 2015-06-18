@@ -3,9 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ngaut/go-zookeeper/zk"
+	"github.com/wandoulabs/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
-	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/zkhelper"
 	"path"
 	"sort"
 	"time"

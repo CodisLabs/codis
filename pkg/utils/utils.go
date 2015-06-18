@@ -10,7 +10,7 @@ import (
 
 	log "github.com/ngaut/logging"
 
-	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/zkhelper"
 
 	"github.com/c4pt0r/cfg"
 )

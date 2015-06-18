@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	log "github.com/ngaut/logging"
-	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/zkhelper"
 
 	"github.com/wandoulabs/codis/pkg/utils"
 

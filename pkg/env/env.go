@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/c4pt0r/cfg"
-	errors "github.com/juju/errors"
+	"github.com/juju/errors"
 	log "github.com/ngaut/logging"
-	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/zkhelper"
 )
 
 type Env interface {

@@ -12,7 +12,7 @@ import (
 
 	"github.com/juju/errors"
 
-	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/zkhelper"
 )
 
 var (
