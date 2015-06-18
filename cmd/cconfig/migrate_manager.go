@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ngaut/go-zookeeper/zk"
+	log "github.com/ngaut/logging"
 	"github.com/ngaut/zkhelper"
 	"path"
 	"sort"
 	"time"
-	log "github.com/ngaut/logging"
 )
 
 const (

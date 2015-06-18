@@ -82,7 +82,8 @@ type safeConn conn
 type unsafeConn conn
 
 func isConnectionError(e error) bool {
-	return !zkhelper.ZkErrorEqual(zk.ErrNoNode, e) && !zkhelper.ZkErrorEqual(zk.ErrNodeExists, e)
+	return !zkhelper.ZkErrorEqual(zk.ErrNoNode, e) && !zkhelper.ZkErrorEqual(zk.ErrNodeExists, e) &&
+		!zkhelper.ZkErrorEqual(zk.ErrNodeExists, e) && !zkhelper.ZkErrorEqual(zk.ErrNotEmpty, e)
 }
 
 func (c *safeConn) Get(path string) (data []byte, stat zk.Stat, err error) {
