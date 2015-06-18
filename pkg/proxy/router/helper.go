@@ -12,21 +12,16 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	"github.com/wandoulabs/codis/pkg/utils"
-
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
-
 	log "github.com/ngaut/logging"
-
 	"github.com/juju/errors"
 	topo "github.com/ngaut/go-zookeeper/zk"
 	stats "github.com/ngaut/gostats"
-
-	respcoding "github.com/ngaut/resp"
+	"github.com/xiam/resp"
 )
 
 var blackList = []string{
@@ -76,10 +71,44 @@ func WriteMigrateKeyCmd(w io.Writer, addr string, timeoutMs int, key []byte) err
 	if len(hostPort) != 2 {
 		return errors.Errorf("invalid address " + addr)
 	}
-	respW := respcoding.NewRESPWriter(w)
+	respW := NewRESPWriter(w)
 	err := respW.WriteCommand("slotsmgrttagone", hostPort[0], hostPort[1],
 		strconv.Itoa(int(timeoutMs)), string(key))
 	return errors.Trace(err)
+}
+
+var (
+	arrayPrefixSlice      = []byte{'*'}
+	bulkStringPrefixSlice = []byte{'$'}
+	lineEndingSlice       = []byte{'\r', '\n'}
+)
+
+type RESPWriter struct {
+	*bufio.Writer
+}
+
+func NewRESPWriter(writer io.Writer) *RESPWriter {
+	return &RESPWriter{
+		Writer: bufio.NewWriter(writer),
+	}
+}
+
+func (w *RESPWriter) WriteCommand(args ...string) (err error) {
+	// Write the array prefix and the number of arguments in the array.
+	_, err = w.Write(arrayPrefixSlice)
+	_, err = w.WriteString(strconv.Itoa(len(args)))
+	_, err = w.Write(lineEndingSlice)
+
+	// Write a bulk string for each argument.
+	for _, arg := range args {
+		w.Write(bulkStringPrefixSlice)
+		w.WriteString(strconv.Itoa(len(arg)))
+		w.Write(lineEndingSlice)
+		w.WriteString(arg)
+		_, err = w.Write(lineEndingSlice)
+	}
+
+	return w.Flush()
 }
 
 type DeadlineReadWriter interface {
@@ -104,7 +133,7 @@ func handleSpecCommand(cmd string, keys [][]byte, timeout int) ([]byte, bool, bo
 	case "ECHO":
 		if len(keys) > 0 {
 			var err error
-			b, err = respcoding.Marshal(string(keys[0]))
+			b, err = resp.Marshal(string(keys[0]))
 			if err != nil {
 				return nil, true, false, errors.Trace(err)
 			}
