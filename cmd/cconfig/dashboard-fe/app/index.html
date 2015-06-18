@@ -284,8 +284,8 @@
                 <button class="btn btn-default btn-sm" ng-click="migrate()"><span class="glyphicon glyphicon-plane"></span> Migrate Slot(s) </button>
               </div>
             </p>
-            <table ng-if="migrate_status.migrate_task != null" class="table table-bordered">
-              <h5 ng-if="migrate_status.migrate_task != null" class="text-muted"> Migrate Task Info </h5>
+            <table class="table table-bordered" ng-if="migrate_tasks.length>0">
+              <h5 class="text-muted"> Migrate Task Info </h5>
               <thead>
                 <tr>
                   <th>Migrate Slot</th>
@@ -293,7 +293,6 @@
                   <th>Create At</th>
                   <th>Status</th>
                   <th>Percent</th>
-                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -303,10 +302,6 @@
                   <td> [[ task.create_at * 1000| date:'yyyy-MM-dd HH:mm:ss Z']]</td>
                   <td> [[ task.status]]</td>
                   <td> [[ task.percent ]] % </td>
-                  <td>
-                      <button ng-if="task.status == 'pending'" class="btn btn-sm btn-default" ng-click=""> Remove </button>
-                      <button ng-if="task.status == 'migrating'" class="btn btn-default btn-sm btn-danger" ng-click=""> Stop </button>
-                  </td>
                 </tr>
               </tbody>  
             </table>

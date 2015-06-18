@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/ngaut/go-zookeeper/zk"
 	"github.com/ngaut/zkhelper"
+	"github.com/wandoulabs/tentacles/pkg/utils/log"
 	"path"
+	"sort"
 	"time"
 )
 
@@ -69,35 +71,47 @@ func (m *MigrateManager) loop() error {
 		t := GetMigrateTask(*info)
 		err := t.preMigrateCheck()
 		if err != nil {
-			Fatal(err)
+			log.Warn(err)
 		}
 		err = t.run()
 		if err != nil {
-			Fatal(err)
+			log.Warn(err)
 		}
 	}
 }
 
 func (m *MigrateManager) NextTask() *MigrateTaskInfo {
-	tasks, _, _ := safeZkConn.Children(getMigrateTasksPath(m.productName))
-	if len(tasks) == 0 {
+	ts := m.Tasks()
+	if len(ts) == 0 {
 		return nil
 	}
-	data, _, _ := safeZkConn.Get(getMigrateTasksPath(m.productName) + "/" + tasks[0])
-	info := new(MigrateTaskInfo)
-	json.Unmarshal(data, info)
-	return info
+	return &ts[0]
 }
 
 func (m *MigrateManager) Tasks() []MigrateTaskInfo {
-	res:=[]MigrateTaskInfo{}
+	res := Tasks{}
 	tasks, _, _ := safeZkConn.Children(getMigrateTasksPath(m.productName))
 	for _, id := range tasks {
 		data, _, _ := safeZkConn.Get(getMigrateTasksPath(m.productName) + "/" + id)
 		info := new(MigrateTaskInfo)
 		json.Unmarshal(data, info)
-		info.Id=id
+		info.Id = id
 		res = append(res, *info)
 	}
+	sort.Sort(res)
 	return res
+}
+
+type Tasks []MigrateTaskInfo
+
+func (t Tasks) Len() int {
+	return len(t)
+}
+
+func (t Tasks) Less(i, j int) bool {
+	return t[i].Id <= t[j].Id
+}
+
+func (t Tasks) Swap(i, j int) {
+	t[i], t[j] = t[j], t[i]
 }

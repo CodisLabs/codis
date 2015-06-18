@@ -121,11 +121,26 @@ func apiRedisStat(param martini.Params) (int, string) {
 	return 200, string(b)
 }
 
-func apiDoMigrate(taskForm MigrateTaskInfo, param martini.Params) (int, string) {
+type migrateTaskForm struct {
+	From  int `json:"from"`
+	To    int `json:"to"`
+	Group int `json:"new_group"`
+	Delay int `json:"delay"`
+}
+
+func apiDoMigrate(form migrateTaskForm) (int, string) {
+	log.Info(form)
+	for i := form.From; i <= form.To; i++ {
+		task := MigrateTaskInfo{
+			SlotId:     i,
+			Delay:      form.Delay,
+			NewGroupId: form.Group,
+			Status:     MIGRATE_TASK_PENDING,
+			CreateAt:   strconv.FormatInt(time.Now().Unix(), 10),
+		}
+		globalMigrateManager.PostTask(&task)
+	}
 	// do migrate async
-	taskForm.Status = MIGRATE_TASK_PENDING
-	taskForm.CreateAt = strconv.FormatInt(time.Now().Unix(), 10)
-	globalMigrateManager.PostTask(&taskForm)
 	return jsonRetSucc()
 }
 

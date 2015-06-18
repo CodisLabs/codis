@@ -219,7 +219,7 @@ func runDashboard(addr string, httpLogFile string) {
 
 	m.Get("/api/migrate/status", apiMigrateStatus)
 	m.Get("/api/migrate/tasks", apiGetMigrateTasks)
-	m.Post("/api/migrate", binding.Json(MigrateTaskInfo{}), apiDoMigrate)
+	m.Post("/api/migrate", binding.Json(migrateTaskForm{}), apiDoMigrate)
 
 	m.Post("/api/rebalance", apiRebalance)
 

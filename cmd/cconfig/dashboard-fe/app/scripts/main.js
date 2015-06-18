@@ -35,11 +35,8 @@ codisControllers.factory('RedisStatusFactory', ['$resource', function ($resource
 
 codisControllers.factory('MigrateStatusFactory', ['$resource', function ($resource) {
     return $resource('http://localhost:18087/api/migrate/status', {}, {
-        query: { method: 'GET' },
         tasks: { method: 'GET', url: 'http://localhost:18087/api/migrate/tasks', isArray: true},
         doMigrate : { method:'POST', url:'http://localhost:18087/api/migrate'},
-        removePendingTask : {method : 'DELETE', url: 'http://localhost:18087/api/migrate/pending_task/:id/remove', params : { id : '@id'} },
-        stopRunningTask : {method : 'DELETE', url: 'http://localhost:18087/api/migrate/task/:id/stop', params : { id : '@id'} },
         doRebalance: {method:'POST', url: 'http://localhost:18087/api/rebalance'},
     });
 }]);
@@ -203,9 +200,8 @@ function($scope, $http, $modal, SlotFactory) {
     }
 }]);
 
-codisControllers.controller('codisMigrateCtl', ['$scope', '$http', '$modal', 'MigrateStatusFactory',
-function($scope, $http, $modal, MigrateStatusFactory) {
-    $scope.migrate_status = MigrateStatusFactory.query();
+codisControllers.controller('codisMigrateCtl', ['$scope', '$http', '$modal', 'MigrateStatusFactory', '$timeout',
+function($scope, $http, $modal, MigrateStatusFactory, $timeout) {
     $scope.migrate_tasks = MigrateStatusFactory.tasks();
 
     $scope.migrate = function() {
@@ -232,7 +228,7 @@ function($scope, $http, $modal, MigrateStatusFactory) {
                 })
             }
         });
-    }
+    };
 
     $scope.rebalance = function() {
         MigrateStatusFactory.doRebalance(function() {
@@ -240,28 +236,16 @@ function($scope, $http, $modal, MigrateStatusFactory) {
         }, function (failedData) {
             alert(failedData.data);
         })
-    }
-
-    $scope.removePendingTask = function(task) {
-        MigrateStatusFactory.removePendingTask(task, function() {
-            $scope.refresh();
-        }, function (failedData) {
-            alert(failedData.data);
-        });
-    }
-
-    $scope.stopRunningTask = function(task) {
-        MigrateStatusFactory.stopRunningTask(task, function() {
-            $scope.refresh()
-        }, function (failedData) {
-            alert(failedData.data);
-        })
-    }
+    };
 
     $scope.refresh = function() {
-        $scope.migrate_status = MigrateStatusFactory.query();
         $scope.migrate_tasks = MigrateStatusFactory.tasks();
-    }
+    };
+
+    (function autoUpdate() {
+        $timeout(autoUpdate, 1000*10);
+        $scope.refresh();
+    }());
 }]);
 
 codisControllers.controller('redisCtl', ['$scope', 'RedisStatusFactory',

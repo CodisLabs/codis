@@ -56,6 +56,10 @@ func (t *MigrateTask) UpdateStatus(status string) {
 	t.zkConn.Set(getMigrateTasksPath(t.productName)+"/"+t.Id, b, -1)
 }
 
+func (t *MigrateTask) UpdateFinish() {
+	t.Status = MIGRATE_TASK_FINISHED
+	t.zkConn.Delete(getMigrateTasksPath(t.productName)+"/"+t.Id, -1)
+}
 func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 	// set slot status
 	s, err := models.GetSlot(t.zkConn, t.productName, slotId)
@@ -127,6 +131,7 @@ func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 }
 
 func (t *MigrateTask) run() error {
+	log.Infof("migration start: %+v\n", t.MigrateTaskInfo)
 	to := t.NewGroupId
 	t.UpdateStatus(MIGRATE_TASK_MIGRATING)
 	err := t.migrateSingleSlot(t.SlotId, to)
@@ -135,8 +140,8 @@ func (t *MigrateTask) run() error {
 		t.UpdateStatus(MIGRATE_TASK_ERR)
 		return err
 	}
-	t.UpdateStatus(MIGRATE_TASK_FINISHED)
-	log.Info("migration finished")
+	t.UpdateFinish()
+	log.Infof("migration finished: %+v\n", t.MigrateTaskInfo)
 	return nil
 }
 
