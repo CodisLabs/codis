@@ -6,9 +6,9 @@ package bytesize_test
 import (
 	"testing"
 
-	"github.com/spinlock/go-libs/assert"
-	. "github.com/spinlock/go-libs/bytesize"
-	"github.com/spinlock/go-libs/errors"
+	"github.com/wandoulabs/codis/pkg/utils/assert"
+	. "github.com/wandoulabs/codis/pkg/utils/bytesize"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
 func TestBytesize(t *testing.T) {

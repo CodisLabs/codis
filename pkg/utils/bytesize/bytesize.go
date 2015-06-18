@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/spinlock/go-libs/errors"
-	"github.com/spinlock/go-libs/log"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 const (
