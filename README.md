@@ -9,7 +9,7 @@ Codis supports multiple stateless proxy with multiple redis instances.
 
 Codis is engineered to elastically scale, Easily add or remove redis or proxy instances on-demand/dynamicly.
 
-Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia.com).
+Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia.com). You can see [Codis Releases](https://github.com/wandoulabs/codis/releases) for latest and most stable realeases.
 
 ##Major Changes in 2.0
 In Codis 2.0, we:
