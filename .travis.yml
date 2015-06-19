@@ -12,5 +12,3 @@ before_script:
 
 script: 
     - ./bootstrap.sh
-    - make gotest
-    
