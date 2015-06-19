@@ -44,6 +44,26 @@ In Codis 2.0, we:
 [简体中文](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_zh.md)
 [English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/FAQ_en.md)
 
+## High Availability
+
+[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#ha)
+[English](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md#ha)
+
+## Architecture
+
+![architecture](doc/pictures/architecture.png)
+
+## Snapshots
+
+Dashboard
+![main](doc/pictures/snapshot.png)
+
+Migrate
+![migrate](doc/pictures/snapshot_migrate.png)
+
+Slots
+![slots](doc/pictures/slots.png)
+
 ## Performance (Benchmark)
 #### Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz x 1 + 16G RAM
 + Archlinux: 4.0.5-1-ARCH #1 SMP PREEMPT Sat Jun 6 18:37:49 CEST 2015 x86_64 GNU/Linux
@@ -162,26 +182,6 @@ for i in {1,2,4,8,16,32,64,100,200,300,500,800}; do
     --ratio=1:1 --test-time 30 -d 256 --key-pattern=S:S --pipeline=100
 done
 ```
-
-## High Availability
-
-[简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#ha)
-[English](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md#ha)
-
-## Architecture
-
-![architecture](doc/pictures/architecture.png)
-
-## Snapshots
-
-Dashboard
-![main](doc/pictures/snapshot.png)
-
-Migrate
-![migrate](doc/pictures/snapshot_migrate.png)
-
-Slots
-![slots](doc/pictures/slots.png)
 
 + Benchmark Results:
 
