@@ -3,13 +3,9 @@
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/wandoulabs/codis?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/wandoulabs/codis.svg)](https://travis-ci.org/wandoulabs/codis)
 
-Codis is a proxy based high performance Redis cluster solution written in Go/C, an alternative to Twemproxy.
+Codis is a proxy based high performance Redis cluster solution written in Go/C, an alternative to Twemproxy. It supports multiple stateless proxy with multiple redis instances and is engineered to elastically scale, Easily add or remove redis or proxy instances on-demand/dynamicly.
 
-Codis supports multiple stateless proxy with multiple redis instances.
-
-Codis is engineered to elastically scale, Easily add or remove redis or proxy instances on-demand/dynamicly.
-
-Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia.com). You can see [Codis Releases](https://github.com/wandoulabs/codis/releases) for latest and most stable realeases.
+Codis is production-ready and widely used at [wandoujia.com](http://wandoujia.com) and many companies. You can see [Codis Releases](https://github.com/wandoulabs/codis/releases) for latest and most stable realeases.
 
 ##Major Changes in 2.0
 In Codis 2.0, we:
@@ -35,7 +31,6 @@ In Codis 2.0, we:
 * go get -d github.com/wandoulabs/codis
 * cd $GOPATH/src/github.com/wandoulabs/codis
 * ./bootstrap.sh
-* make gotest
 * cd sample
 * follow instructions in usage.md
 
@@ -168,10 +163,6 @@ for i in {1,2,4,8,16,32,64,100,200,300,500,800}; do
 done
 ```
 
-+ Benchmark Results:
-
-![main](doc/bench2/bench.png)
-
 ## High Availability
 
 [简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#ha)
@@ -191,6 +182,10 @@ Migrate
 
 Slots
 ![slots](doc/pictures/slots.png)
+
++ Benchmark Results:
+
+![main](doc/bench2/bench.png)
 
 ## Authors
 
