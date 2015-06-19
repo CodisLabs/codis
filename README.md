@@ -12,7 +12,11 @@ Codis is engineered to elastically scale, Easily add or remove redis or proxy in
 Codis is production-ready and is widely used by [wandoujia.com](http://wandoujia.com).
 
 ##Major Changes in 2.0
-In Codis 2.0, we redesign the request dispatcher. Now pipeline and mget/mset requests are much faster than ever!
+In Codis 2.0, we:
+* Redesign the request dispatcher, now pipeline and mget/mset requests are much faster than ever!
+* Codis-server (forked redis) is upgrated to 2.8.21. It brings bugfix from upstream redis and also has optimizations, for example, lower memory consumption and faster migration.
+* Optimize the zk connection, it is more stable now. 
+* Migration (and autorebalance) tasks are saved on zk, it will be continued automatically when the dashborad is restarted.
 
 ##Features
 * Auto rebalance
