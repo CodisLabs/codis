@@ -13,15 +13,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/juju/errors"
+	stats "github.com/ngaut/gostats"
+	log "github.com/ngaut/logging"
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
-	log "github.com/ngaut/logging"
-	"github.com/juju/errors"
+	"github.com/wandoulabs/codis/pkg/utils"
 	topo "github.com/wandoulabs/go-zookeeper/zk"
-	stats "github.com/ngaut/gostats"
 
 	respcoding "github.com/ngaut/resp"
 )

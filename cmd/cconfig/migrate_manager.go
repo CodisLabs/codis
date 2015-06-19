@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/wandoulabs/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/go-zookeeper/zk"
 	"github.com/wandoulabs/zkhelper"
 	"path"
 	"sort"
@@ -49,8 +49,7 @@ func NewMigrateManager(zkConn zkhelper.Conn, pn string) *MigrateManager {
 
 // if there are tasks that is not pending, process them.
 func (m *MigrateManager) mayRecover() error {
-	// TODO
-
+	// It may be not need to do anything now.
 	return nil
 }
 

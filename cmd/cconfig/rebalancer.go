@@ -9,9 +9,9 @@ import (
 
 	"github.com/juju/errors"
 	log "github.com/ngaut/logging"
-	"github.com/wandoulabs/zkhelper"
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/zkhelper"
 )
 
 type NodeInfo struct {

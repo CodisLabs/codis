@@ -12,8 +12,8 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 
 	"github.com/juju/errors"
-	topo "github.com/wandoulabs/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
+	topo "github.com/wandoulabs/go-zookeeper/zk"
 )
 
 type TopoUpdate interface {

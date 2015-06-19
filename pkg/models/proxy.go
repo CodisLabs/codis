@@ -13,8 +13,8 @@ import (
 	"github.com/wandoulabs/zkhelper"
 
 	"github.com/juju/errors"
-	"github.com/wandoulabs/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/go-zookeeper/zk"
 )
 
 const (
