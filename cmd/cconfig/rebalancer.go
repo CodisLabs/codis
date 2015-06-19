@@ -9,10 +9,9 @@ import (
 
 	"github.com/juju/errors"
 	log "github.com/ngaut/logging"
-	"github.com/ngaut/zkhelper"
-	"github.com/nu7hatch/gouuid"
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/zkhelper"
 )
 
 type NodeInfo struct {
@@ -101,12 +100,12 @@ func getQuotaMap(zkConn zkhelper.Conn) (map[int]int, error) {
 }
 
 // experimental simple auto rebalance :)
-func Rebalance(zkConn zkhelper.Conn, delay int) error {
-	targetQuota, err := getQuotaMap(zkConn)
+func Rebalance() error {
+	targetQuota, err := getQuotaMap(safeZkConn)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	livingNodes, err := getLivingNodeInfos(zkConn)
+	livingNodes, err := getLivingNodeInfos(safeZkConn)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -117,37 +116,21 @@ func Rebalance(zkConn zkhelper.Conn, delay int) error {
 				if dest.GroupId != node.GroupId && len(dest.CurSlots) < targetQuota[dest.GroupId] {
 					slot := node.CurSlots[len(node.CurSlots)-1]
 					// create a migration task
-					t := NewMigrateTask(MigrateTaskInfo{
-						Delay:      delay,
-						FromSlot:   slot,
-						ToSlot:     slot,
+					info := &MigrateTaskInfo{
+						Delay:      0,
+						SlotId:     slot,
 						NewGroupId: dest.GroupId,
-						Status:     MIGRATE_TASK_MIGRATING,
+						Status:     MIGRATE_TASK_PENDING,
 						CreateAt:   strconv.FormatInt(time.Now().Unix(), 10),
-					})
-					u, err := uuid.NewV4()
-					if err != nil {
-						return errors.Trace(err)
 					}
-					t.Id = u.String()
+					globalMigrateManager.PostTask(info)
 
-					if ok, err := preMigrateCheck(t); ok {
-						// do migrate
-						err := t.run()
-						if err != nil {
-							log.Warning(err)
-							return errors.Trace(err)
-						}
-					} else {
-						log.Warning(err)
-						return errors.Trace(err)
-					}
 					node.CurSlots = node.CurSlots[0 : len(node.CurSlots)-1]
 					dest.CurSlots = append(dest.CurSlots, slot)
 				}
 			}
 		}
 	}
-	log.Info("rebalance finish")
+	log.Info("rebalance tasks submit finish")
 	return nil
 }

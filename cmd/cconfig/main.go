@@ -54,9 +54,6 @@ commands:
 func Fatal(msg interface{}) {
 	// cleanup
 	releaseDashboardNode()
-	if globalMigrateManager != nil {
-		globalMigrateManager.removeNode()
-	}
 
 	switch msg.(type) {
 	case string:
@@ -108,11 +105,13 @@ func main() {
 		configFile = args["-c"].(string)
 		config, err = utils.InitConfigFromFile(configFile)
 		if err != nil {
+			log.Warning("load config file error")
 			Fatal(err)
 		}
 	} else {
 		config, err = utils.InitConfig()
 		if err != nil {
+			log.Warning("load config file error")
 			Fatal(err)
 		}
 	}

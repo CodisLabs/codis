@@ -1,16 +1,14 @@
 package main
 
 import (
-	"container/list"
+	"encoding/json"
 	"fmt"
-	"sync"
-	"time"
-
-	"github.com/juju/errors"
-	"github.com/ngaut/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
-	"github.com/ngaut/zkhelper"
-	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/go-zookeeper/zk"
+	"github.com/wandoulabs/zkhelper"
+	"path"
+	"sort"
+	"time"
 )
 
 const (
@@ -24,157 +22,95 @@ const (
 	MIGRATE_TASK_ERR       string = "error"
 )
 
-type SlotMigrator interface {
-	Migrate(slot *models.Slot, fromGroup, toGroup int, task *MigrateTask, onProgress func(SlotMigrateProgress)) error
-}
-
 // check if migrate task is valid
 type MigrateTaskCheckFunc func(t *MigrateTask) (bool, error)
 
 // migrate task will store on zk
 type MigrateManager struct {
-	// pre migrate check functions
-	preCheck     MigrateTaskCheckFunc
-	pendingTasks *list.List
-	runningTask  *MigrateTask
-	// zkConn
+	runningTask *MigrateTask
 	zkConn      zkhelper.Conn
 	productName string
-	lck         sync.RWMutex
 }
 
-func getManagerPath(productName string) string {
-	return fmt.Sprintf("/zk/codis/db_%s/migrate_manager", productName)
+func getMigrateTasksPath(product string) string {
+	return fmt.Sprintf("/zk/codis/db_%s/migrate_tasks", product)
 }
 
-func (m *MigrateManager) createNode() error {
-	zkhelper.CreateRecursive(m.zkConn, fmt.Sprintf("/zk/codis/db_%s/migrate_tasks", m.productName), "", 0, zkhelper.DefaultDirACLs())
-	_, err := m.zkConn.Create(getManagerPath(m.productName),
-		[]byte(""), zk.FlagEphemeral, zkhelper.DefaultFileACLs())
-	if err != nil {
-		log.Error("dashboard already exists! err: ", err)
-	}
-	return nil
-}
-
-func (m *MigrateManager) removeNode() error {
-	return zkhelper.DeleteRecursive(m.zkConn, getManagerPath(m.productName), 0)
-}
-
-func NewMigrateManager(zkConn zkhelper.Conn, pn string, preTaskCheck MigrateTaskCheckFunc) *MigrateManager {
+func NewMigrateManager(zkConn zkhelper.Conn, pn string) *MigrateManager {
 	m := &MigrateManager{
-		pendingTasks: list.New(),
-		preCheck:     preTaskCheck,
-		zkConn:       zkConn,
-		productName:  pn,
+		zkConn:      zkConn,
+		productName: pn,
 	}
-	err := m.createNode()
-	if err != nil {
-		Fatal("another codis-config exists? shut it down and try again")
-	}
+	zkhelper.CreateRecursive(m.zkConn, getMigrateTasksPath(m.productName), "", 0, zkhelper.DefaultDirACLs())
+	m.mayRecover()
 	go m.loop()
 	return m
 }
 
-func (m *MigrateManager) PostTask(t *MigrateTask) {
-	m.lck.Lock()
-	m.pendingTasks.PushBack(t)
-	m.lck.Unlock()
+// if there are tasks that is not pending, process them.
+func (m *MigrateManager) mayRecover() error {
+	// It may be not need to do anything now.
+	return nil
+}
+
+//add a new task to zk
+func (m *MigrateManager) PostTask(info *MigrateTaskInfo) {
+	b, _ := json.Marshal(info)
+	p, _ := safeZkConn.Create(getMigrateTasksPath(m.productName)+"/", b, zk.FlagSequence, zkhelper.DefaultFileACLs())
+	_, info.Id = path.Split(p)
 }
 
 func (m *MigrateManager) loop() error {
 	for {
-		m.lck.RLock()
-		ele := m.pendingTasks.Front()
-		m.lck.RUnlock()
-		if ele == nil {
-			time.Sleep(500 * time.Millisecond)
+		time.Sleep(time.Second)
+		info := m.NextTask()
+		if info == nil {
 			continue
 		}
-
-		// get pending task, and run
-		m.lck.Lock()
-		m.pendingTasks.Remove(ele)
-		m.lck.Unlock()
-
-		t := ele.Value.(*MigrateTask)
-		t.zkConn = m.zkConn
-		t.productName = m.productName
-
-		m.runningTask = t
-		if m.preCheck != nil {
-			log.Info("start migration pre-check")
-			if ok, err := m.preCheck(t); !ok {
-				if err != nil {
-					log.Error(err)
-				}
-				log.Error("migration pre-check error", t)
-				continue
-			}
-		}
-		log.Info("migration pre-check done")
-		// do migrate
-		err := t.run()
+		t := GetMigrateTask(*info)
+		err := t.preMigrateCheck()
 		if err != nil {
-			log.Error(err)
+			log.Warning(err)
 		}
-
-		// reset runningtask
-		m.lck.Lock()
-		m.runningTask = nil
-		m.lck.Unlock()
-	}
-}
-
-func (m *MigrateManager) RemovePendingTask(taskId string) error {
-	m.lck.Lock()
-	defer m.lck.Unlock()
-
-	for e := m.pendingTasks.Front(); e != nil; e = e.Next() {
-		t := e.Value.(*MigrateTask)
-		if t.Id == taskId && t.Status == MIGRATE_TASK_PENDING {
-			m.pendingTasks.Remove(e)
-			return nil
+		err = t.run()
+		if err != nil {
+			log.Warning(err)
 		}
 	}
-	return errors.NotFoundf("task: %s", taskId)
 }
 
-func (m *MigrateManager) StopRunningTask() error {
-	m.lck.Lock()
-	defer m.lck.Unlock()
-
-	err := m.runningTask.stop()
-	if err != nil {
-		return errors.Trace(err)
+func (m *MigrateManager) NextTask() *MigrateTaskInfo {
+	ts := m.Tasks()
+	if len(ts) == 0 {
+		return nil
 	}
-	m.runningTask = nil
-	return nil
+	return &ts[0]
 }
 
-func (m *MigrateManager) Tasks() []*MigrateTask {
-	m.lck.RLock()
-	defer m.lck.RUnlock()
-
-	var tasks = make([]*MigrateTask, 0)
-	for e := m.pendingTasks.Front(); e != nil; e = e.Next() {
-		tasks = append(tasks, e.Value.(*MigrateTask))
+func (m *MigrateManager) Tasks() []MigrateTaskInfo {
+	res := Tasks{}
+	tasks, _, _ := safeZkConn.Children(getMigrateTasksPath(m.productName))
+	for _, id := range tasks {
+		data, _, _ := safeZkConn.Get(getMigrateTasksPath(m.productName) + "/" + id)
+		info := new(MigrateTaskInfo)
+		json.Unmarshal(data, info)
+		info.Id = id
+		res = append(res, *info)
 	}
-
-	return tasks
+	sort.Sort(res)
+	return res
 }
 
-func (m *MigrateManager) getTaskById(taskId string) *MigrateTask {
-	// if running task is target
-	if m.runningTask.Id == taskId {
-		return m.runningTask
-	}
+type Tasks []MigrateTaskInfo
 
-	for e := m.pendingTasks.Front(); e != nil; e = e.Next() {
-		if e.Value.(*MigrateTask).Id == taskId {
-			return e.Value.(*MigrateTask)
-		}
-	}
+func (t Tasks) Len() int {
+	return len(t)
+}
 
-	return nil
+func (t Tasks) Less(i, j int) bool {
+	return t[i].Id <= t[j].Id
+}
+
+func (t Tasks) Swap(i, j int) {
+	t[i], t[j] = t[j], t[i]
 }

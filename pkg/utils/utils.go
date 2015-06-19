@@ -9,10 +9,9 @@ import (
 	"path/filepath"
 
 	"github.com/c4pt0r/cfg"
-	"github.com/ngaut/zkhelper"
-
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/wandoulabs/zkhelper"
 )
 
 func InitConfig() (*cfg.Cfg, error) {

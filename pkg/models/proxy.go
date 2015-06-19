@@ -6,15 +6,13 @@ package models
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/wandoulabs/go-zookeeper/zk"
+	"github.com/wandoulabs/zkhelper"
 	"io/ioutil"
 	"net/http"
 	"path"
-
-	"github.com/ngaut/go-zookeeper/zk"
-	"github.com/ngaut/zkhelper"
-
-	"github.com/wandoulabs/codis/pkg/utils/errors"
-	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 const (

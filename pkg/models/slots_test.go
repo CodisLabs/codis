@@ -4,11 +4,9 @@
 package models
 
 import (
-	"testing"
-
-	"github.com/ngaut/zkhelper"
-
 	"github.com/wandoulabs/codis/pkg/utils/assert"
+	"github.com/wandoulabs/zkhelper"
+	"testing"
 )
 
 func TestSlots(t *testing.T) {

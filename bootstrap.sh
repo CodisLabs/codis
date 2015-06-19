@@ -29,13 +29,13 @@ go get -u github.com/go-martini/martini
 go get -u github.com/juju/errors
 go get -u github.com/martini-contrib/cors
 go get -u github.com/ngaut/deadline
-go get -u github.com/ngaut/go-zookeeper/zk
+go get -u github.com/wandoulabs/go-zookeeper/zk
 go get -u github.com/ngaut/gostats
 go get -u github.com/ngaut/logging
 go get -u github.com/ngaut/pools
 go get -u github.com/ngaut/resp
 go get -u github.com/ngaut/sync2
-go get -u github.com/ngaut/zkhelper
+go get -u github.com/wandoulabs/zkhelper
 go get -u github.com/nu7hatch/gouuid
 
 make || exit $?

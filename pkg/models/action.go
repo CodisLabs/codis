@@ -7,17 +7,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/wandoulabs/go-zookeeper/zk"
+	"github.com/wandoulabs/zkhelper"
 	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"time"
-
-	"github.com/ngaut/go-zookeeper/zk"
-	"github.com/ngaut/zkhelper"
-
-	"github.com/wandoulabs/codis/pkg/utils/errors"
-	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type ActionType string

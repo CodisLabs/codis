@@ -6,9 +6,6 @@ package main
 import (
 	"errors"
 	"strings"
-	"time"
-
-	"github.com/wandoulabs/codis/pkg/models"
 
 	"github.com/garyburd/redigo/redis"
 	_ "github.com/juju/errors"
@@ -40,70 +37,4 @@ func sendRedisMigrateCmd(c redis.Conn, slotId int, toAddr string) (int, int, err
 		return -1, -1, err
 	}
 	return succ, remain, nil
-}
-
-// Migrator Implement
-type CodisSlotMigrator struct{}
-
-func (m *CodisSlotMigrator) Migrate(slot *models.Slot, fromGroup, toGroup int, task *MigrateTask, onProgress func(SlotMigrateProgress)) (err error) {
-	groupFrom, err := models.GetGroup(task.zkConn, task.productName, fromGroup)
-	if err != nil {
-		return err
-	}
-	groupTo, err := models.GetGroup(task.zkConn, task.productName, toGroup)
-	if err != nil {
-		return err
-	}
-
-	fromMaster, err := groupFrom.Master(task.zkConn)
-	if err != nil {
-		return err
-	}
-
-	toMaster, err := groupTo.Master(task.zkConn)
-	if err != nil {
-		return err
-	}
-
-	if fromMaster == nil || toMaster == nil {
-		return ErrGroupMasterNotFound
-	}
-
-	c, err := redis.Dial("tcp", fromMaster.Addr)
-	if err != nil {
-		return err
-	}
-
-	defer c.Close()
-
-	_, remain, err := sendRedisMigrateCmd(c, slot.Id, toMaster.Addr)
-	if err != nil {
-		return err
-	}
-
-	for remain > 0 {
-		if task.Delay > 0 {
-			time.Sleep(time.Duration(task.Delay) * time.Millisecond)
-		}
-		if task.stopChan != nil {
-			select {
-			case <-task.stopChan:
-				return ErrStopMigrateByUser
-			default:
-			}
-		}
-		_, remain, err = sendRedisMigrateCmd(c, slot.Id, toMaster.Addr)
-		if remain >= 0 {
-			onProgress(SlotMigrateProgress{
-				SlotId:    slot.Id,
-				FromGroup: fromGroup,
-				ToGroup:   toGroup,
-				Remain:    remain,
-			})
-		}
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

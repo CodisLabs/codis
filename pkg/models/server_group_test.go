@@ -5,14 +5,12 @@ package models
 
 import (
 	"bufio"
+	"github.com/wandoulabs/codis/pkg/utils/assert"
+	"github.com/wandoulabs/zkhelper"
 	"net"
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/ngaut/zkhelper"
-
-	"github.com/wandoulabs/codis/pkg/utils/assert"
 )
 
 var (

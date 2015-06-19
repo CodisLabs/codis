@@ -9,16 +9,13 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/exec"
-	"path"
 	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/docopt/docopt-go"
-
 	"github.com/wandoulabs/codis/pkg/proxy/router"
-	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/bytesize"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -156,11 +153,6 @@ func main() {
 	if args["--http-addr"] != nil {
 		httpAddr = args["--http-addr"].(string)
 	}
-
-	dumppath := utils.GetExecutorPath()
-
-	log.Info("dump file path:", dumppath)
-	setCrashLog(path.Join(dumppath, "codis-proxy.dump"))
 
 	checkUlimit(1024)
 	runtime.GOMAXPROCS(cpus)

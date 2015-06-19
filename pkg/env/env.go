@@ -4,14 +4,12 @@
 package env
 
 import (
-	"os"
-	"strings"
-
 	"github.com/c4pt0r/cfg"
-	"github.com/ngaut/zkhelper"
-
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/wandoulabs/zkhelper"
+	"os"
+	"strings"
 )
 
 type Env interface {
