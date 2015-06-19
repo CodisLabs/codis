@@ -4,9 +4,10 @@
 package models
 
 import (
+	"testing"
+
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 	"github.com/wandoulabs/zkhelper"
-	"testing"
 )
 
 func TestProxy(t *testing.T) {

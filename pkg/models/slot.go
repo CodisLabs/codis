@@ -8,9 +8,8 @@ import (
 	"fmt"
 	"path"
 
-	"github.com/wandoulabs/zkhelper"
-
 	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/zkhelper"
 )
 
 type SlotStatus string

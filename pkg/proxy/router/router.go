@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	topo "github.com/wandoulabs/go-zookeeper/zk"
 	stats "github.com/ngaut/gostats"
+	topo "github.com/wandoulabs/go-zookeeper/zk"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/group"

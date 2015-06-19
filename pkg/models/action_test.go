@@ -6,14 +6,15 @@ package models
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/utils/assert"
-	"github.com/wandoulabs/codis/pkg/utils/log"
-	"github.com/wandoulabs/zkhelper"
 	"path"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/assert"
+	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/wandoulabs/zkhelper"
 )
 
 var (

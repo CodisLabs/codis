@@ -7,10 +7,11 @@ import (
 	"encoding/json"
 	"path"
 
+	topo "github.com/wandoulabs/go-zookeeper/zk"
+
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
-	topo "github.com/wandoulabs/go-zookeeper/zk"
 	"github.com/wandoulabs/zkhelper"
 )
 
