@@ -55,6 +55,26 @@ func (bc *BackendConn) PushBack(r *Request) {
 	bc.input <- r
 }
 
+func (bc *BackendConn) KeepAlive() bool {
+	if len(bc.input) != 0 {
+		return false
+	}
+	r := &Request{
+		Wait: &sync.WaitGroup{},
+		Resp: redis.NewArray([]*redis.Resp{
+			redis.NewBulkBytes([]byte("PING")),
+		}),
+	}
+	r.Wait.Add(1)
+
+	select {
+	case bc.input <- r:
+		return true
+	default:
+		return false
+	}
+}
+
 var ErrZombieRequest = errors.New("request from zombie session")
 
 func (bc *BackendConn) loopWriter() error {

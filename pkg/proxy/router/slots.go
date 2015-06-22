@@ -76,8 +76,6 @@ func (s *Slot) forward(r *Request, key []byte) error {
 
 var ErrSlotIsNotReady = errors.New("slot is not ready, may be offline")
 
-const SlotsMgrtTagOne = "SLOTSMGRTTAGONE"
-
 func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 	if s.backend.bc == nil {
 		log.Infof("slot-%04d is not ready: key = %s", s.Id, key)
@@ -101,12 +99,9 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 	}
 	m := &Request{
 		Owner: r.Owner,
-		OpSeq: -r.OpSeq,
-		OpStr: SlotsMgrtTagOne,
-		Start: r.Start,
 		Wait:  &sync.WaitGroup{},
 		Resp: redis.NewArray([]*redis.Resp{
-			redis.NewBulkBytes([]byte(SlotsMgrtTagOne)),
+			redis.NewBulkBytes([]byte("SLOTSMGRTTAGONE")),
 			redis.NewBulkBytes(s.backend.host),
 			redis.NewBulkBytes(s.backend.port),
 			redis.NewBulkBytes([]byte("3000")),

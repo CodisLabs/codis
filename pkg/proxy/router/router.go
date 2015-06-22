@@ -189,7 +189,6 @@ func (s *Server) OnGroupChange(groupId int) {
 }
 
 type killEvent struct {
-	done chan error
 }
 
 func (s *Server) registerSignal() {
@@ -198,9 +197,7 @@ func (s *Server) registerSignal() {
 	go func() {
 		<-c
 		log.Info("ctrl-c or SIGTERM found, mark offline server")
-		done := make(chan error)
-		s.evtbus <- &killEvent{done: done}
-		<-done
+		s.evtbus <- &killEvent{}
 	}()
 }
 
@@ -324,28 +321,35 @@ func (s *Server) processAction(e interface{}) {
 }
 
 func (s *Server) handleTopoEvent() {
+	ticker := time.NewTicker(time.Second * 5)
+	defer ticker.Stop()
 	for {
-		e := <-s.evtbus
-		switch e.(type) {
-		case *killEvent:
-			s.handleMarkOffline()
-			e.(*killEvent).done <- nil
-		default:
-			evtPath := getEventPath(e)
-			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
-			if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
-				seq, err := strconv.Atoi(path.Base(evtPath))
-				if err != nil {
-					log.WarnErrorf(err, "parse action seq failed")
-				} else {
-					if seq < s.lastActionSeq {
-						log.Infof("ignore seq = %d", seq)
-						continue
+		select {
+		case e := <-s.evtbus:
+			switch e.(type) {
+			case *killEvent:
+				s.handleMarkOffline()
+			default:
+				evtPath := getEventPath(e)
+				log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
+				if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
+					seq, err := strconv.Atoi(path.Base(evtPath))
+					if err != nil {
+						log.WarnErrorf(err, "parse action seq failed")
+					} else {
+						if seq < s.lastActionSeq {
+							log.Infof("ignore seq = %d", seq)
+							continue
+						}
 					}
 				}
+				log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
+				s.processAction(e)
 			}
-			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
-			s.processAction(e)
+		case <-ticker.C:
+			for _, bc := range s.pool {
+				bc.KeepAlive()
+			}
 		}
 	}
 }
@@ -373,7 +377,6 @@ func (s *Server) waitOnline() {
 			switch e.(type) {
 			case *killEvent:
 				s.handleMarkOffline()
-				e.(*killEvent).done <- nil
 			}
 		default: //otherwise ignore it
 		}
