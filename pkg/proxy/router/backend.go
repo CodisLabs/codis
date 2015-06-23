@@ -34,6 +34,11 @@ func (bc *BackendConn) Run() {
 		err := bc.loopWriter()
 		if err == nil {
 			break
+		} else {
+			for i := len(bc.input); i != 0; i-- {
+				r := <-bc.input
+				bc.setResponse(r, nil, err)
+			}
 		}
 		log.WarnErrorf(err, "backend conn [%p] to %s, restart [%d]", bc, bc.addr, k)
 		time.Sleep(time.Millisecond * 50)
