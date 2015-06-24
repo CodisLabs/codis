@@ -52,6 +52,7 @@ func NewSession(c net.Conn) *Session {
 	s.Conn = redis.NewConn(c)
 	s.Conn.ReaderTimeout = time.Minute * 30
 	s.Conn.WriterTimeout = time.Second * 30
+	log.Infof("session [%p] create: %s", s, s)
 	return addToSessions(s)
 }
 
@@ -350,7 +351,6 @@ func addToSessions(s *Session) *Session {
 	sessions.Lock()
 	sessions.PushBack(s)
 	sessions.Unlock()
-	log.Infof("session [%p] created, sid = %d", s, s.Sid)
 	return s
 }
 
