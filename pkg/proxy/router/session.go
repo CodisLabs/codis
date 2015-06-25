@@ -28,7 +28,7 @@ type Session struct {
 	CreateUnix int64
 
 	quit   bool
-	zombie atomic2.Bool
+	failed atomic2.Bool
 	closed atomic2.Bool
 }
 
@@ -56,12 +56,10 @@ func NewSession(c net.Conn) *Session {
 	return addToSessions(s)
 }
 
-func (s *Session) MarkZombie() {
-	s.zombie.Set(true)
-}
-
-func (s *Session) IsZombie() bool {
-	return s.zombie.Get()
+func (s *Session) Close() error {
+	s.failed.Set(true)
+	s.closed.Set(true)
+	return s.Conn.Close()
 }
 
 func (s *Session) IsClosed() bool {
@@ -88,12 +86,10 @@ func (s *Session) Serve(d Dispatcher) {
 			s.Close()
 			for _ = range tasks {
 			}
-			s.closed.Set(true)
 		}()
 		if err := s.loopWriter(tasks); err != nil {
 			errlist.PushBack(err)
 		}
-		s.MarkZombie()
 	}()
 
 	defer close(tasks)
@@ -170,14 +166,14 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 
 	usnow := microseconds()
 	s.LastOpUnix.Set(usnow / 1e6)
+	s.Ops.Incr()
 
 	r := &Request{
-		Owner: s,
-		OpSeq: s.Ops.Incr(),
-		OpStr: opstr,
-		Start: usnow,
-		Wait:  &sync.WaitGroup{},
-		Resp:  resp,
+		OpStr:  opstr,
+		Start:  usnow,
+		Resp:   resp,
+		Wait:   &sync.WaitGroup{},
+		Failed: &s.failed,
 	}
 
 	switch opstr {
@@ -205,15 +201,14 @@ func (s *Session) handleRequestMGet(r *Request, d Dispatcher) (*Request, error) 
 	var sub = make([]*Request, nkeys)
 	for i := 0; i < len(sub); i++ {
 		sub[i] = &Request{
-			Owner: r.Owner,
-			OpSeq: -r.OpSeq,
 			OpStr: r.OpStr,
 			Start: r.Start,
-			Wait:  r.Wait,
 			Resp: redis.NewArray([]*redis.Resp{
 				r.Resp.Array[0],
 				r.Resp.Array[i+1],
 			}),
+			Wait:   r.Wait,
+			Failed: r.Failed,
 		}
 		if err := d.Dispatch(sub[i]); err != nil {
 			return nil, err
@@ -252,16 +247,15 @@ func (s *Session) handleRequestMSet(r *Request, d Dispatcher) (*Request, error) 
 	var sub = make([]*Request, nblks/2)
 	for i := 0; i < len(sub); i++ {
 		sub[i] = &Request{
-			Owner: r.Owner,
-			OpSeq: -r.OpSeq,
 			OpStr: r.OpStr,
 			Start: r.Start,
-			Wait:  r.Wait,
 			Resp: redis.NewArray([]*redis.Resp{
 				r.Resp.Array[0],
 				r.Resp.Array[i*2+1],
 				r.Resp.Array[i*2+2],
 			}),
+			Wait:   r.Wait,
+			Failed: r.Failed,
 		}
 		if err := d.Dispatch(sub[i]); err != nil {
 			return nil, err
@@ -294,15 +288,14 @@ func (s *Session) handleRequestMDel(r *Request, d Dispatcher) (*Request, error) 
 	var sub = make([]*Request, nkeys)
 	for i := 0; i < len(sub); i++ {
 		sub[i] = &Request{
-			Owner: r.Owner,
-			OpSeq: -r.OpSeq,
 			OpStr: r.OpStr,
 			Start: r.Start,
-			Wait:  r.Wait,
 			Resp: redis.NewArray([]*redis.Resp{
 				r.Resp.Array[0],
 				r.Resp.Array[i+1],
 			}),
+			Wait:   r.Wait,
+			Failed: r.Failed,
 		}
 		if err := d.Dispatch(sub[i]); err != nil {
 			return nil, err

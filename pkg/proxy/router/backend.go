@@ -57,6 +57,9 @@ func (bc *BackendConn) Close() {
 }
 
 func (bc *BackendConn) PushBack(r *Request) {
+	if r.Wait != nil {
+		r.Wait.Add(1)
+	}
 	bc.input <- r
 }
 
@@ -65,12 +68,10 @@ func (bc *BackendConn) KeepAlive() bool {
 		return false
 	}
 	r := &Request{
-		Wait: &sync.WaitGroup{},
 		Resp: redis.NewArray([]*redis.Resp{
 			redis.NewBulkBytes([]byte("PING")),
 		}),
 	}
-	r.Wait.Add(1)
 
 	select {
 	case bc.input <- r:
@@ -80,7 +81,7 @@ func (bc *BackendConn) KeepAlive() bool {
 	}
 }
 
-var ErrZombieRequest = errors.New("request from zombie session")
+var ErrFailedRequest = errors.New("discard failed request")
 
 func (bc *BackendConn) loopWriter() error {
 	r, ok := <-bc.input
@@ -107,7 +108,7 @@ func (bc *BackendConn) loopWriter() error {
 				if err := p.Flush(flush); err != nil {
 					return bc.setResponse(r, nil, err)
 				}
-				bc.setResponse(r, nil, ErrZombieRequest)
+				bc.setResponse(r, nil, ErrFailedRequest)
 			}
 
 			r, ok = <-bc.input
@@ -136,18 +137,24 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 }
 
 func (bc *BackendConn) canForward(r *Request) bool {
-	return r.Owner == nil || !r.Owner.IsZombie()
+	if r.Failed != nil && r.Failed.Get() {
+		return false
+	} else {
+		return true
+	}
 }
 
 func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) error {
 	r.Response.Resp, r.Response.Err = resp, err
-	if s := r.slot; s != nil {
-		s.jobs.Done()
+	if err != nil && r.Failed != nil {
+		r.Failed.Set(true)
 	}
-	if err != nil && r.Owner != nil {
-		r.Owner.MarkZombie()
+	if r.Wait != nil {
+		r.Wait.Done()
 	}
-	r.Wait.Done()
+	if r.slot != nil {
+		r.slot.Done()
+	}
 	return err
 }
 
