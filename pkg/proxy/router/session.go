@@ -4,7 +4,6 @@
 package router
 
 import (
-	"container/list"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -21,10 +20,9 @@ import (
 type Session struct {
 	*redis.Conn
 
-	Sid int64
-	Ops atomic2.Int64
+	Ops int64
 
-	LastOpUnix atomic2.Int64
+	LastOpUnix int64
 	CreateUnix int64
 
 	quit   bool
@@ -34,13 +32,12 @@ type Session struct {
 
 func (s *Session) String() string {
 	o := &struct {
-		Sid        int64  `json:"sid"`
 		Ops        int64  `json:"ops"`
 		LastOpUnix int64  `json:"lastop"`
 		CreateUnix int64  `json:"create"`
 		RemoteAddr string `json:"remote"`
 	}{
-		s.Sid, s.Ops.Get(), s.LastOpUnix.Get(), s.CreateUnix,
+		s.Ops, s.LastOpUnix, s.CreateUnix,
 		s.Conn.Sock.RemoteAddr().String(),
 	}
 	b, _ := json.Marshal(o)
@@ -48,12 +45,12 @@ func (s *Session) String() string {
 }
 
 func NewSession(c net.Conn) *Session {
-	s := &Session{Sid: sessions.sid.Incr(), CreateUnix: time.Now().Unix()}
+	s := &Session{CreateUnix: time.Now().Unix()}
 	s.Conn = redis.NewConn(c)
 	s.Conn.ReaderTimeout = time.Minute * 30
 	s.Conn.WriterTimeout = time.Second * 30
 	log.Infof("session [%p] create: %s", s, s)
-	return addToSessions(s)
+	return s
 }
 
 func (s *Session) Close() error {
@@ -64,10 +61,6 @@ func (s *Session) Close() error {
 
 func (s *Session) IsClosed() bool {
 	return s.closed.Get()
-}
-
-func (s *Session) IsTimeout(lastunix int64) bool {
-	return s.LastOpUnix.Get() < lastunix && s.CreateUnix < lastunix
 }
 
 func (s *Session) Serve(d Dispatcher) {
@@ -165,8 +158,8 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 	}
 
 	usnow := microseconds()
-	s.LastOpUnix.Set(usnow / 1e6)
-	s.Ops.Incr()
+	s.LastOpUnix = usnow / 1e6
+	s.Ops++
 
 	r := &Request{
 		OpStr:  opstr,
@@ -322,47 +315,6 @@ func (s *Session) handleRequestMDel(r *Request, d Dispatcher) (*Request, error) 
 		return nil
 	}
 	return r, nil
-}
-
-var sessions struct {
-	sid atomic2.Int64
-	list.List
-	sync.Mutex
-}
-
-func init() {
-	go func() {
-		for {
-			time.Sleep(time.Minute)
-			lastunix := time.Now().Add(-time.Minute * 45).Unix()
-			cleanupSessions(lastunix)
-		}
-	}()
-}
-
-func addToSessions(s *Session) *Session {
-	sessions.Lock()
-	sessions.PushBack(s)
-	sessions.Unlock()
-	return s
-}
-
-func cleanupSessions(lastunix int64) {
-	sessions.Lock()
-	for i := sessions.Len(); i != 0; i-- {
-		e := sessions.Front()
-		s := e.Value.(*Session)
-		if s.IsClosed() {
-			sessions.Remove(e)
-		} else if s.IsTimeout(lastunix) {
-			log.Infof("session [%p] killed, due to timeout, sid = %d, ops = %d", s, s.Sid, s.Ops.Get())
-			s.Close()
-			sessions.Remove(e)
-		} else {
-			sessions.MoveToBack(e)
-		}
-	}
-	sessions.Unlock()
 }
 
 func microseconds() int64 {
