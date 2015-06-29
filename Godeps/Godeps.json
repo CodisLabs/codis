@@ -74,16 +74,12 @@
 			"Rev": "553b9208d353a39b0850c02355f478ba020c86d7"
 		},
 		{
-			"ImportPath": "github.com/ngaut/deadline",
-			"Rev": "fae8f9dfd7048de16575b9d4c255278e38c28a4f"
-		},
-		{
-			"ImportPath": "github.com/ngaut/go-zookeeper/zk",
-			"Rev": "1599cf098337e4fb38d4b3f9aafbf95bd6ddfda7"
-		},
-		{
 			"ImportPath": "github.com/ngaut/gostats",
 			"Rev": "faefc939c0359a8930e92767bfa425546a38f69a"
+		},
+		{
+			"ImportPath": "github.com/ngaut/log",
+			"Rev": "a370e11a897352d792b9a6cba4db829368271c41"
 		},
 		{
 			"ImportPath": "github.com/ngaut/logging",
@@ -94,20 +90,16 @@
 			"Rev": "6352e005618615ffaf1cb1c6622b8e91435751fe"
 		},
 		{
-			"ImportPath": "github.com/ngaut/resp",
-			"Rev": "ff222cdd80bd7c6d1e05539ffe90000288c70678"
-		},
-		{
 			"ImportPath": "github.com/ngaut/sync2",
 			"Rev": "7a24ed77b2efb460c1468b7dc917821c66e80e55"
 		},
 		{
-			"ImportPath": "github.com/ngaut/zkhelper",
-			"Rev": "3a524319d1767ebfe58237e0ab6b763df986941f"
+			"ImportPath": "github.com/wandoulabs/go-zookeeper/zk",
+			"Rev": "3ba92e986ed7d490e9efe63d89ca8d02f3823ae1"
 		},
 		{
-			"ImportPath": "github.com/nu7hatch/gouuid",
-			"Rev": "179d4d0c4d8d407a32af483c2354df1d2c91e6c3"
+			"ImportPath": "github.com/wandoulabs/zkhelper",
+			"Rev": "ecac4d74e8357848e01790a123233c0a60592157"
 		}
 	]
 }
