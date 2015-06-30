@@ -129,7 +129,6 @@ type migrateTaskForm struct {
 }
 
 func apiDoMigrate(form migrateTaskForm) (int, string) {
-	log.Info(form)
 	for i := form.From; i <= form.To; i++ {
 		task := MigrateTaskInfo{
 			SlotId:     i,
