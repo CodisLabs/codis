@@ -52,9 +52,6 @@ commands:
 `
 
 func Fatal(msg interface{}) {
-	// cleanup
-	releaseDashboardNode()
-
 	switch msg.(type) {
 	case string:
 		log.Fatal(msg)
