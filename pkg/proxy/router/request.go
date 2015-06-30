@@ -4,10 +4,10 @@
 package router
 
 import (
-	"encoding/json"
 	"sync"
 
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
+	"github.com/wandoulabs/codis/pkg/utils/atomic2"
 )
 
 type Dispatcher interface {
@@ -15,12 +15,9 @@ type Dispatcher interface {
 }
 
 type Request struct {
-	Owner *Session
-	OpSeq int64
 	OpStr string
 	Start int64
 
-	Wait *sync.WaitGroup
 	Resp *redis.Resp
 
 	Coalesce func() error
@@ -29,21 +26,8 @@ type Request struct {
 		Err  error
 	}
 
-	slot *Slot
-}
+	Wait *sync.WaitGroup
+	slot *sync.WaitGroup
 
-func (r *Request) String() string {
-	o := &struct {
-		Sid   int64  `json:"sid"`
-		OpSeq int64  `json:"opseq"`
-		OpStr string `json:"opstr"`
-		Start int64  `json:"start"`
-	}{
-		0, r.OpSeq, r.OpStr, r.Start,
-	}
-	if r.Owner != nil {
-		o.Sid = r.Owner.Sid
-	}
-	b, _ := json.Marshal(o)
-	return string(b)
+	Failed *atomic2.Bool
 }

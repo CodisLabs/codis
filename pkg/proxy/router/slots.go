@@ -29,7 +29,7 @@ type Slot struct {
 		bc   *SharedBackendConn
 	}
 
-	jobs sync.WaitGroup
+	wait sync.WaitGroup
 	lock struct {
 		hold bool
 		sync.RWMutex
@@ -41,7 +41,7 @@ func (s *Slot) blockAndWait() {
 		s.lock.hold = true
 		s.lock.Lock()
 	}
-	s.jobs.Wait()
+	s.wait.Wait()
 }
 
 func (s *Slot) unblock() {
@@ -86,9 +86,8 @@ func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 			s.Id, s.migrate.from, s.backend.addr, key, err)
 		return nil, err
 	} else {
-		r.slot = s
-		r.Wait.Add(1)
-		s.jobs.Add(1)
+		r.slot = &s.wait
+		r.slot.Add(1)
 		return s.backend.bc, nil
 	}
 }
@@ -98,8 +97,6 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 		return nil
 	}
 	m := &Request{
-		Owner: r.Owner,
-		Wait:  &sync.WaitGroup{},
 		Resp: redis.NewArray([]*redis.Resp{
 			redis.NewBulkBytes([]byte("SLOTSMGRTTAGONE")),
 			redis.NewBulkBytes(s.backend.host),
@@ -107,9 +104,8 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 			redis.NewBulkBytes([]byte("3000")),
 			redis.NewBulkBytes(key),
 		}),
+		Wait: &sync.WaitGroup{},
 	}
-	m.Wait.Add(1)
-
 	s.migrate.bc.PushBack(m)
 
 	m.Wait.Wait()

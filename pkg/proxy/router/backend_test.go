@@ -31,7 +31,6 @@ func TestBackend(t *testing.T) {
 				Resp: resp,
 				Wait: &sync.WaitGroup{},
 			}
-			r.Wait.Add(1)
 			bc.PushBack(r)
 			reqc <- r
 		}
