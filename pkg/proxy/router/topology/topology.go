@@ -44,11 +44,6 @@ func (top *Topology) GetSlotByIndex(i int) (*models.Slot, *models.ServerGroup, e
 		return nil, nil, errors.Trace(err)
 	}
 
-	log.Debugf("get slot %d : %+v", i, slot)
-	if slot.State.Status != models.SLOT_STATUS_ONLINE && slot.State.Status != models.SLOT_STATUS_MIGRATE {
-		log.Errorf("slot not online, %+v", slot)
-	}
-
 	groupServer, err := models.GetGroup(top.zkConn, top.ProductName, slot.GroupId)
 	if err != nil {
 		return nil, nil, errors.Trace(err)
