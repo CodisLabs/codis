@@ -104,7 +104,7 @@ func (s *Server) fillSlot(i int, force bool) {
 	}
 	slot := s.slots[i]
 	if !force && slot.backend.bc != nil {
-		log.Panicf("slot %d already filled, slot: %+v", i, slot)
+		log.Panicf("slot %04d already filled, slot: %+v", i, slot)
 	}
 
 	slotInfo, slotGroup, err := s.topo.GetSlotByIndex(i)
@@ -121,7 +121,7 @@ func (s *Server) fillSlot(i int, force bool) {
 		}
 		from = group.NewGroup(*fromGroup).Master()
 		if from == addr {
-			log.Panicf("set slot %d migrate from %s to %s", i, from, addr)
+			log.Panicf("set slot %04d migrate from %s to %s", i, from, addr)
 		}
 	}
 
@@ -153,10 +153,10 @@ func (s *Server) fillSlot(i int, force bool) {
 	}
 
 	if slot.migrate.bc != nil {
-		log.Infof("fill slot %d, force %v, backend.addr = %s, migrate.from = %s",
+		log.Infof("fill slot %04d, force %v, backend.addr = %s, migrate.from = %s",
 			i, force, slot.backend.addr, slot.migrate.from)
 	} else {
-		log.Infof("fill slot %d, force %v, backend.addr = %s",
+		log.Infof("fill slot %04d, force %v, backend.addr = %s",
 			i, force, slot.backend.addr)
 	}
 }
@@ -321,8 +321,10 @@ func (s *Server) processAction(e interface{}) {
 }
 
 func (s *Server) handleTopoEvent() {
-	ticker := time.NewTicker(time.Second * 5)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+
+	var tick int = 0
 	for {
 		select {
 		case e := <-s.evtbus:
@@ -347,8 +349,13 @@ func (s *Server) handleTopoEvent() {
 				s.processAction(e)
 			}
 		case <-ticker.C:
-			for _, bc := range s.pool {
-				bc.KeepAlive()
+			if maxTick := s.conf.pingPeriod; maxTick != 0 {
+				if tick++; tick >= maxTick {
+					for _, bc := range s.pool {
+						bc.KeepAlive()
+					}
+					tick = 0
+				}
 			}
 		}
 	}
@@ -476,12 +483,22 @@ func NewServer(addr string, debugVarAddr string, conf *Config) (*Server, error) 
 }
 
 func (s *Server) Serve() error {
+	ch := make(chan net.Conn, 4096)
+	defer close(ch)
+
+	go func() {
+		for c := range ch {
+			x := NewSessionSize(c, s.conf.maxBufSize, s.conf.maxTimeout)
+			go x.Serve(s, s.conf.maxPipeline)
+		}
+	}()
+
 	for {
 		c, err := s.Listener.Accept()
 		if err != nil {
 			return errors.Trace(err)
 		}
-		go NewSession(c).Serve(s)
+		ch <- c
 	}
 }
 

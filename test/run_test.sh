@@ -6,7 +6,7 @@ trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
 
 ########################################
 # cleanup
-rm -f *.log *.log.* *.out
+rm -f *.log *.log.* *.out *.rdb
 
 ########################################
 # rebuild codis-*
@@ -67,7 +67,7 @@ run_gc 2>&1 | tee -a config.log &
 
 ../bin/codis-proxy -c config1.ini -L proxy1.log --addr=0.0.0.0:9000 --http-addr=0.0.0.0:10000 &
 ../bin/codis-proxy -c config2.ini -L proxy2.log --addr=0.0.0.0:9001 --http-addr=0.0.0.0:10001 &
-../bin/codis-proxy -c config3.ini -L proxy3.log --addr=0.0.0.0:9002 --http-addr=0.0.0.0:10001 &
+../bin/codis-proxy -c config3.ini -L proxy3.log --addr=0.0.0.0:9002 --http-addr=0.0.0.0:10002 &
 
 sleep 2
 

@@ -16,9 +16,13 @@ type Config struct {
 	productName string
 	zkAddr      string
 	fact        topology.ZkFactory
-	netTimeout  int    //seconds
 	proto       string //tcp or tcp4
 	provider    string
+
+	pingPeriod  int // seconds
+	maxTimeout  int // seconds
+	maxBufSize  int
+	maxPipeline int
 }
 
 func LoadConf(configFile string) (*Config, error) {
@@ -43,8 +47,20 @@ func LoadConf(configFile string) (*Config, error) {
 		log.Panicf("invalid config: need proxy_id entry is missing in %s", configFile)
 	}
 
-	conf.netTimeout, _ = c.ReadInt("net_timeout", 5)
 	conf.proto, _ = c.ReadString("proto", "tcp")
 	conf.provider, _ = c.ReadString("coordinator", "zookeeper")
+
+	loadConfInt := func(entry string, defInt int) int {
+		v, _ := c.ReadInt(entry, defInt)
+		if v < 0 {
+			log.Panicf("invalid config: read %s = %d", entry, v)
+		}
+		return v
+	}
+
+	conf.pingPeriod = loadConfInt("backend_ping_period", 5)
+	conf.maxTimeout = loadConfInt("session_max_timeout", 1800)
+	conf.maxBufSize = loadConfInt("session_max_bufsize", 1024*32)
+	conf.maxPipeline = loadConfInt("session_max_pipeline", 128)
 	return conf, nil
 }

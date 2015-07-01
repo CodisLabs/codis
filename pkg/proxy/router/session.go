@@ -45,9 +45,13 @@ func (s *Session) String() string {
 }
 
 func NewSession(c net.Conn) *Session {
+	return NewSessionSize(c, 1024*32, 1800)
+}
+
+func NewSessionSize(c net.Conn, bufsize int, timeout int) *Session {
 	s := &Session{CreateUnix: time.Now().Unix()}
-	s.Conn = redis.NewConn(c)
-	s.Conn.ReaderTimeout = time.Minute * 30
+	s.Conn = redis.NewConnSize(c, bufsize)
+	s.Conn.ReaderTimeout = time.Second * time.Duration(timeout)
 	s.Conn.WriterTimeout = time.Second * 30
 	log.Infof("session [%p] create: %s", s, s)
 	return s
@@ -63,7 +67,7 @@ func (s *Session) IsClosed() bool {
 	return s.closed.Get()
 }
 
-func (s *Session) Serve(d Dispatcher) {
+func (s *Session) Serve(d Dispatcher, maxPipeline int) {
 	var errlist errors.ErrorList
 	defer func() {
 		if err := errlist.First(); err != nil {
@@ -73,7 +77,7 @@ func (s *Session) Serve(d Dispatcher) {
 		}
 	}()
 
-	tasks := make(chan *Request, 256)
+	tasks := make(chan *Request, maxPipeline)
 	go func() {
 		defer func() {
 			s.Close()

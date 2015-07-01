@@ -35,7 +35,6 @@ func InitEnv() {
 			proxyId:     "proxy_test",
 			productName: "test",
 			zkAddr:      "localhost:2181",
-			netTimeout:  5,
 			fact:        func(string) (zkhelper.Conn, error) { return conn, nil },
 			proto:       "tcp4",
 		}

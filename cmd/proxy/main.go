@@ -130,6 +130,7 @@ func main() {
 		}
 	}
 	log.SetLevel(log.LEVEL_INFO)
+	log.SetFlags(log.Flags() | log.Lshortfile)
 
 	// set log level
 	if s, ok := args["--log-level"].(string); ok && s != "" {
