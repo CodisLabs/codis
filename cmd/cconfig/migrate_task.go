@@ -67,8 +67,8 @@ func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 		log.Error(err)
 		return err
 	}
-	if s.State.Status != models.SLOT_STATUS_ONLINE && s.State.Status != models.SLOT_STATUS_MIGRATE {
-		log.Warning("status is not online && migrate", s)
+	if s.State.Status == models.SLOT_STATUS_OFFLINE {
+		log.Warning("status is offline", s)
 		return nil
 	}
 
