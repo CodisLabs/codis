@@ -529,7 +529,6 @@ func (s *Server) dispatch(r *PipelineRequest) {
 		tr = s.pipeConns[s.slots[r.slotIdx].dst.Master()]
 	}
 	tr.in <- r
-
 }
 
 func (s *Server) handleTopoEvent() {
@@ -540,7 +539,6 @@ func (s *Server) handleTopoEvent() {
 				s.bufferedReq.PushBack(r)
 				continue
 			}
-
 			for e := s.bufferedReq.Front(); e != nil; {
 				next := e.Next()
 				blockedReq := e.Value.(*PipelineRequest)
@@ -550,7 +548,6 @@ func (s *Server) handleTopoEvent() {
 				}
 				e = next
 			}
-
 			s.dispatch(r)
 		case e := <-s.evtbus:
 			switch e.(type) {
@@ -570,9 +567,7 @@ func (s *Server) handleTopoEvent() {
 							continue
 						}
 					}
-
 				}
-
 				log.Infof("got event %s, %v, lastActionSeq %d", s.pi.Id, e, s.lastActionSeq)
 				s.processAction(e)
 			}

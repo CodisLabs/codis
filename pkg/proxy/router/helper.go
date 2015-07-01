@@ -12,15 +12,17 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/wandoulabs/codis/pkg/utils"
+
+	topo "github.com/ngaut/go-zookeeper/zk"
+	stats "github.com/ngaut/gostats"
+	log "github.com/ngaut/logging"
+
+	"github.com/juju/errors"
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/group"
 	"github.com/wandoulabs/codis/pkg/proxy/parser"
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
-	log "github.com/ngaut/logging"
-	"github.com/juju/errors"
-	topo "github.com/ngaut/go-zookeeper/zk"
-	stats "github.com/ngaut/gostats"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/xiam/resp"
 )
 

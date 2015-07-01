@@ -102,7 +102,7 @@ func GetMigratingSlots(conn zkhelper.Conn, productName string) ([]*Slot, error) 
 	}
 
 	for _, slot := range slots {
-		if slot.State.Status == SLOT_STATUS_MIGRATE {
+		if slot.State.Status == SLOT_STATUS_MIGRATE || slot.State.Status == SLOT_STATUS_PRE_MIGRATE {
 			migrateSlots = append(migrateSlots, slot)
 		}
 	}
@@ -246,17 +246,19 @@ func (s *Slot) SetMigrateStatus(zkConn zkhelper.Conn, fromGroup, toGroup int) er
 		return errors.Errorf("invalid group id, from %d, to %d", fromGroup, toGroup)
 	}
 	// wait until all proxy confirmed
-	err := NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_PREMIGRATE, s, "", true)
+	s.State.Status = SLOT_STATUS_PRE_MIGRATE
+	err := s.Update(zkConn)
 	if err != nil {
 		return errors.Trace(err)
 	}
-
+	err = NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_PREMIGRATE, s, "", true)
+	if err != nil {
+		return errors.Trace(err)
+	}
 	s.State.Status = SLOT_STATUS_MIGRATE
 	s.State.MigrateStatus.From = fromGroup
 	s.State.MigrateStatus.To = toGroup
-
 	s.GroupId = toGroup
-
 	return s.Update(zkConn)
 }
 
