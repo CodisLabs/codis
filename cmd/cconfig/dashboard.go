@@ -152,7 +152,7 @@ func createDashboardNode() error {
 
 	content := fmt.Sprintf(`{"addr": "%v", "pid": %v}`, globalEnv.DashboardAddr(), os.Getpid())
 	pathCreated, err := safeZkConn.Create(zkPath, []byte(content), 0, zkhelper.DefaultFileACLs())
-
+	createdDashboardNode = true
 	log.Info("dashboard node created:", pathCreated, string(content))
 
 	return errors.Trace(err)
@@ -243,7 +243,6 @@ func runDashboard(addr string, httpLogFile string) {
 	if err := createDashboardNode(); err != nil {
 		log.Fatal(err) // do not release dashborad node here
 	}
-	defer releaseDashboardNode()
 
 	// create long live migrate manager
 	globalMigrateManager = NewMigrateManager(safeZkConn, globalEnv.ProductName())

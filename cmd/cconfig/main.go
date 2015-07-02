@@ -23,8 +23,9 @@ import (
 
 // global objects
 var (
-	globalEnv  env.Env
-	livingNode string
+	globalEnv            env.Env
+	livingNode           string
+	createdDashboardNode bool
 )
 
 type Command struct {
@@ -87,6 +88,9 @@ func main() {
 	signal.Notify(c, syscall.SIGTERM)
 	go func() {
 		<-c
+		if createdDashboardNode {
+			releaseDashboardNode()
+		}
 		Fatal("ctrl-c or SIGTERM found, exit")
 	}()
 
