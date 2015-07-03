@@ -435,7 +435,17 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 	}
 
 	s.createTaskRunners()
-
+	if act.Type == models.ACTION_TYPE_SLOT_MIGRATE {
+		for e := s.bufferedReq.Front(); e != nil; {
+			next := e.Next()
+			blockedReq := e.Value.(*PipelineRequest)
+			if s.slots[blockedReq.slotIdx].slotInfo.State.Status != models.SLOT_STATUS_PRE_MIGRATE {
+				s.dispatch(blockedReq)
+				s.bufferedReq.Remove(e)
+			}
+			e = next
+		}
+	}
 	return true
 }
 
@@ -538,15 +548,6 @@ func (s *Server) handleTopoEvent() {
 			if s.slots[r.slotIdx].slotInfo.State.Status == models.SLOT_STATUS_PRE_MIGRATE {
 				s.bufferedReq.PushBack(r)
 				continue
-			}
-			for e := s.bufferedReq.Front(); e != nil; {
-				next := e.Next()
-				blockedReq := e.Value.(*PipelineRequest)
-				if s.slots[blockedReq.slotIdx].slotInfo.State.Status != models.SLOT_STATUS_PRE_MIGRATE {
-					s.dispatch(r)
-					s.bufferedReq.Remove(e)
-				}
-				e = next
 			}
 			s.dispatch(r)
 		case e := <-s.evtbus:
