@@ -192,6 +192,7 @@ done
 * [@goroutine](https://github.com/ngaut)
 * [@c4pt0r](https://github.com/c4pt0r)
 * [@spinlock9](https://github.com/spinlock)
+* [@yangzhe1991](https://github.com/yangzhe1991)
 
 Thanks:
 
