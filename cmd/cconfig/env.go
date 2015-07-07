@@ -9,7 +9,8 @@ import (
 
 	"github.com/c4pt0r/cfg"
 	"github.com/juju/errors"
-	"github.com/wandoulabs/codis/pkg/utils/log"
+	log "github.com/ngaut/logging"
+
 	"github.com/wandoulabs/zkhelper"
 )
 
@@ -28,28 +29,28 @@ type CodisEnv struct {
 
 func LoadCodisEnv(cfg *cfg.Cfg) Env {
 	if cfg == nil {
-		log.Panicf("config is nil")
+		log.Fatal("config is nil")
 	}
 
 	productName, err := cfg.ReadString("product", "test")
 	if err != nil {
-		log.PanicErrorf(err, "read product name failed")
+		log.Fatal(err)
 	}
 
 	zkAddr, err := cfg.ReadString("zk", "localhost:2181")
 	if err != nil {
-		log.PanicErrorf(err, "read zk address failed")
+		log.Fatal(err)
 	}
 
 	hostname, _ := os.Hostname()
 	dashboardAddr, err := cfg.ReadString("dashboard_addr", hostname+":18087")
 	if err != nil {
-		log.PanicErrorf(err, "read dashboard address failed")
+		log.Fatal(err)
 	}
 
 	provider, err := cfg.ReadString("coordinator", "zookeeper")
 	if err != nil {
-		log.PanicErrorf(err, "read coordinator failed")
+		log.Fatal(err)
 	}
 
 	return &CodisEnv{
