@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/c4pt0r/cfg"
-	"github.com/wandoulabs/codis/pkg/env"
 	"github.com/wandoulabs/codis/pkg/utils"
 
 	"net/http"
@@ -23,7 +22,7 @@ import (
 
 // global objects
 var (
-	globalEnv            env.Env
+	globalEnv            Env
 	livingNode           string
 	createdDashboardNode bool
 )
@@ -118,7 +117,7 @@ func main() {
 	}
 
 	// load global vars
-	globalEnv = env.LoadCodisEnv(config)
+	globalEnv = LoadCodisEnv(config)
 
 	// set output log file
 	if args["-L"] != nil {

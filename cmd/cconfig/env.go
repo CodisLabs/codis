@@ -1,14 +1,14 @@
 // Copyright 2014 Wandoujia Inc. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package env
+package main
 
 import (
 	"os"
 	"strings"
 
 	"github.com/c4pt0r/cfg"
-	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/juju/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/zkhelper"
 )
