@@ -4,6 +4,7 @@
 package router
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -16,12 +17,14 @@ type BackendConn struct {
 	addr string
 	stop sync.Once
 
+	passwd string
+
 	input chan *Request
 }
 
-func NewBackendConn(addr string) *BackendConn {
+func NewBackendConn(addr, passwd string) *BackendConn {
 	bc := &BackendConn{
-		addr:  addr,
+		addr: addr, passwd: passwd,
 		input: make(chan *Request, 1024),
 	}
 	go bc.Run()
@@ -125,6 +128,11 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 	c.ReaderTimeout = time.Minute
 	c.WriterTimeout = time.Minute
 
+	if err := bc.verifyAuth(c); err != nil {
+		c.Close()
+		return nil, nil, err
+	}
+
 	tasks := make(chan *Request, 4096)
 	go func() {
 		defer c.Close()
@@ -134,6 +142,36 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 		}
 	}()
 	return c, tasks, nil
+}
+
+func (bc *BackendConn) verifyAuth(c *redis.Conn) error {
+	if bc.passwd == "" {
+		return nil
+	}
+	resp := redis.NewArray([]*redis.Resp{
+		redis.NewBulkBytes([]byte("AUTH")),
+		redis.NewBulkBytes([]byte(bc.passwd)),
+	})
+
+	if err := c.Writer.Encode(resp, true); err != nil {
+		return err
+	}
+
+	resp, err := c.Reader.Decode()
+	if err != nil {
+		return err
+	}
+	if resp == nil {
+		return errors.New(fmt.Sprintf("error resp: nil response"))
+	}
+	if resp.IsError() {
+		return errors.New(fmt.Sprintf("error resp: %s", resp.Value))
+	}
+	if resp.IsString() {
+		return nil
+	} else {
+		return errors.New(fmt.Sprintf("error resp: should be string, but got %s", resp.Type))
+	}
 }
 
 func (bc *BackendConn) canForward(r *Request) bool {
@@ -165,8 +203,8 @@ type SharedBackendConn struct {
 	refcnt int
 }
 
-func NewSharedBackendConn(addr string) *SharedBackendConn {
-	return &SharedBackendConn{BackendConn: NewBackendConn(addr), refcnt: 1}
+func NewSharedBackendConn(addr, passwd string) *SharedBackendConn {
+	return &SharedBackendConn{BackendConn: NewBackendConn(addr, passwd), refcnt: 1}
 }
 
 func (s *SharedBackendConn) Close() bool {

@@ -15,6 +15,7 @@ type Config struct {
 	proxyId     string
 	productName string
 	zkAddr      string
+	passwd      string
 	fact        topology.ZkFactory
 	proto       string //tcp or tcp4
 	provider    string
@@ -41,6 +42,7 @@ func LoadConf(configFile string) (*Config, error) {
 		log.Panicf("invalid config: need zk entry is missing in %s", configFile)
 	}
 	conf.zkAddr = strings.TrimSpace(conf.zkAddr)
+	conf.passwd, _ = c.ReadString("requirepass", "")
 
 	conf.proxyId, _ = c.ReadString("proxy_id", "")
 	if len(conf.proxyId) == 0 {
