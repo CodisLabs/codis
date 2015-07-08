@@ -42,7 +42,7 @@ func LoadConf(configFile string) (*Config, error) {
 		log.Panicf("invalid config: need zk entry is missing in %s", configFile)
 	}
 	conf.zkAddr = strings.TrimSpace(conf.zkAddr)
-	conf.passwd, _ = c.ReadString("requirepass", "")
+	conf.passwd, _ = c.ReadString("password", "")
 
 	conf.proxyId, _ = c.ReadString("proxy_id", "")
 	if len(conf.proxyId) == 0 {
