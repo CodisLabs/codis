@@ -15,12 +15,9 @@ build-config:
 
 build-server:
 	@mkdir -p bin
-	make -j4 -C extern/redis-2.8.13/
-	@cp -f extern/redis-2.8.13/src/redis-server bin/codis-server-2.8.13
 	make -j4 -C extern/redis-2.8.21/
-	@cp -f extern/redis-2.8.21/src/redis-server bin/codis-server-2.8.21
 	@rm -f bin/codis-server
-	ln -s codis-server-2.8.21 bin/codis-server
+	@cp -f extern/redis-2.8.21/src/redis-server bin/codis-server
 
 clean:
 	@rm -rf bin
@@ -30,7 +27,6 @@ clean:
 	@if [ -d test ]; then cd test && rm -f *.out *.log *.rdb; fi
 
 distclean: clean
-	@make --no-print-directory --quiet -C extern/redis-2.8.13 clean
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
 
 gotest:
