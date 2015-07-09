@@ -6,12 +6,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/garyburd/redigo/redis"
+	"time"
+
 	"github.com/juju/errors"
 	log "github.com/ngaut/logging"
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/zkhelper"
-	"time"
 )
 
 type MigrateTaskInfo struct {
@@ -170,7 +171,7 @@ func (task *MigrateTask) Migrate(slot *models.Slot, fromGroup, toGroup int, onPr
 		return ErrGroupMasterNotFound
 	}
 
-	c, err := redis.Dial("tcp", fromMaster.Addr)
+	c, err := utils.DialTo(fromMaster.Addr, globalEnv.Password())
 	if err != nil {
 		return err
 	}

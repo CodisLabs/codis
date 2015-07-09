@@ -13,12 +13,24 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
-var defaultTimeout = time.Second
-
-func SlotsInfo(addr string, fromSlot, toSlot int) (map[int]int, error) {
-	c, err := redis.DialTimeout("tcp", addr, defaultTimeout, defaultTimeout, defaultTimeout)
+func DialTo(addr string, passwd string) (redis.Conn, error) {
+	c, err := redis.DialTimeout("tcp", addr, time.Second, time.Second, time.Second)
 	if err != nil {
 		return nil, errors.Trace(err)
+	}
+	if passwd != "" {
+		if _, err := c.Do("AUTH", passwd); err != nil {
+			c.Close()
+			return nil, errors.Trace(err)
+		}
+	}
+	return c, nil
+}
+
+func SlotsInfo(addr, passwd string, fromSlot, toSlot int) (map[int]int, error) {
+	c, err := DialTo(addr, passwd)
+	if err != nil {
+		return nil, err
 	}
 	defer c.Close()
 
@@ -45,10 +57,10 @@ func SlotsInfo(addr string, fromSlot, toSlot int) (map[int]int, error) {
 	return slots, nil
 }
 
-func GetRedisStat(addr string) (map[string]string, error) {
-	c, err := redis.DialTimeout("tcp", addr, defaultTimeout, defaultTimeout, defaultTimeout)
+func GetRedisStat(addr, passwd string) (map[string]string, error) {
+	c, err := DialTo(addr, passwd)
 	if err != nil {
-		return nil, errors.Trace(err)
+		return nil, err
 	}
 	defer c.Close()
 
@@ -81,10 +93,10 @@ func GetRedisStat(addr string) (map[string]string, error) {
 	return m, nil
 }
 
-func GetRedisConfig(addr string, configName string) (string, error) {
-	c, err := redis.DialTimeout("tcp", addr, defaultTimeout, defaultTimeout, defaultTimeout)
+func GetRedisConfig(addr, passwd string, configName string) (string, error) {
+	c, err := DialTo(addr, passwd)
 	if err != nil {
-		return "", errors.Trace(err)
+		return "", err
 	}
 	defer c.Close()
 
@@ -98,14 +110,14 @@ func GetRedisConfig(addr string, configName string) (string, error) {
 	return "", nil
 }
 
-func SlaveOf(slave, master string) error {
+func SlaveOf(slave, passwd string, master string) error {
 	if master == slave {
 		return errors.Errorf("can not slave of itself")
 	}
 
-	c, err := redis.DialTimeout("tcp", slave, defaultTimeout, defaultTimeout, defaultTimeout)
+	c, err := DialTo(slave, passwd)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 	defer c.Close()
 
@@ -120,10 +132,10 @@ func SlaveOf(slave, master string) error {
 	return nil
 }
 
-func SlaveNoOne(addr string) error {
-	c, err := redis.DialTimeout("tcp", addr, defaultTimeout, defaultTimeout, defaultTimeout)
+func SlaveNoOne(addr, passwd string) error {
+	c, err := DialTo(addr, passwd)
 	if err != nil {
-		return errors.Trace(err)
+		return err
 	}
 	defer c.Close()
 

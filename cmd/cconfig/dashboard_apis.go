@@ -6,6 +6,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/go-martini/martini"
 	"github.com/juju/errors"
 	log "github.com/ngaut/logging"
@@ -13,9 +17,6 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/go-zookeeper/zk"
 	"github.com/wandoulabs/zkhelper"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 var globalMigrateManager *MigrateManager
@@ -67,7 +68,7 @@ func apiOverview() (int, string) {
 
 	if len(instances) > 0 {
 		for _, instance := range instances {
-			info, err := utils.GetRedisStat(instance)
+			info, err := utils.GetRedisStat(instance, globalEnv.Password())
 			if err != nil {
 				log.Error(err)
 			}
@@ -113,7 +114,7 @@ func apiInitSlots(r *http.Request) (int, string) {
 
 func apiRedisStat(param martini.Params) (int, string) {
 	addr := param["addr"]
-	info, err := utils.GetRedisStat(addr)
+	info, err := utils.GetRedisStat(addr, globalEnv.Password())
 	if err != nil {
 		return 500, err.Error()
 	}
@@ -195,7 +196,7 @@ func apiGetRedisSlotInfo(param martini.Params) (int, string) {
 		log.Warning(err)
 		return 500, err.Error()
 	}
-	slotInfo, err := utils.SlotsInfo(addr, slotId, slotId)
+	slotInfo, err := utils.SlotsInfo(addr, globalEnv.Password(), slotId, slotId)
 	if err != nil {
 		log.Warning(err)
 		return 500, err.Error()
@@ -234,7 +235,7 @@ func apiGetRedisSlotInfoFromGroupId(param martini.Params) (int, string) {
 		return 500, "master not found"
 	}
 
-	slotInfo, err := utils.SlotsInfo(s.Addr, slotId, slotId)
+	slotInfo, err := utils.SlotsInfo(s.Addr, globalEnv.Password(), slotId, slotId)
 	if err != nil {
 		log.Warning(err)
 		return 500, err.Error()
@@ -328,7 +329,7 @@ func apiAddServerToGroup(server models.Server, param martini.Params) (int, strin
 		}
 	}
 
-	if err := serverGroup.AddServer(safeZkConn, &server); err != nil {
+	if err := serverGroup.AddServer(safeZkConn, &server, globalEnv.Password()); err != nil {
 		log.Warning(errors.ErrorStack(err))
 		return 500, err.Error()
 	}
@@ -351,7 +352,7 @@ func apiPromoteServer(server models.Server, param martini.Params) (int, string) 
 		log.Warning(err)
 		return 500, err.Error()
 	}
-	err = group.Promote(safeZkConn, server.Addr)
+	err = group.Promote(safeZkConn, server.Addr, globalEnv.Password())
 	if err != nil {
 		log.Warning(errors.ErrorStack(err))
 		log.Warning(err)

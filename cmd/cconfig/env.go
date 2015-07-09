@@ -16,12 +16,14 @@ import (
 
 type Env interface {
 	ProductName() string
+	Password() string
 	DashboardAddr() string
 	NewZkConn() (zkhelper.Conn, error)
 }
 
 type CodisEnv struct {
 	zkAddr        string
+	passwd        string
 	dashboardAddr string
 	productName   string
 	provider      string
@@ -53,8 +55,14 @@ func LoadCodisEnv(cfg *cfg.Cfg) Env {
 		log.Fatal(err)
 	}
 
+	passwd, err := cfg.ReadString("password", "")
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	return &CodisEnv{
 		zkAddr:        zkAddr,
+		passwd:        passwd,
 		dashboardAddr: dashboardAddr,
 		productName:   productName,
 		provider:      provider,
@@ -63,6 +71,10 @@ func LoadCodisEnv(cfg *cfg.Cfg) Env {
 
 func (e *CodisEnv) ProductName() string {
 	return e.productName
+}
+
+func (e *CodisEnv) Password() string {
+	return e.passwd
 }
 
 func (e *CodisEnv) DashboardAddr() string {
