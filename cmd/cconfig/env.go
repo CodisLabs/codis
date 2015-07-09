@@ -55,10 +55,7 @@ func LoadCodisEnv(cfg *cfg.Cfg) Env {
 		log.Fatal(err)
 	}
 
-	passwd, err := cfg.ReadString("password", "")
-	if err != nil {
-		log.Fatal(err)
-	}
+	passwd, _ := cfg.ReadString("password", "")
 
 	return &CodisEnv{
 		zkAddr:        zkAddr,
