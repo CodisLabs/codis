@@ -13,6 +13,7 @@ In Codis 2.0, we:
 * Codis-server (forked redis) is upgrated to 2.8.21. It brings bugfix from upstream redis and also has optimizations, for example, lower memory consumption and faster migration.
 * Optimize the zk connection, it is more stable now. 
 * Migration (and autorebalance) tasks are saved on zk, it will be continued automatically when the dashborad is restarted.
+* Support AUTH command.
 
 ##Features
 * Auto rebalance
