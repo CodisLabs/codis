@@ -29,7 +29,7 @@ func TestProxy(t *testing.T) {
 
 	s1 := NewServer(SERVER_TYPE_MASTER, "localhost:1111")
 
-	g.AddServer(fakeZkConn, s1)
+	g.AddServer(fakeZkConn, s1, "")
 
 	err = InitSlotSet(fakeZkConn, productName, 1024)
 	assert.MustNoError(err)
