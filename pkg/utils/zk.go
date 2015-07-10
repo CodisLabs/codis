@@ -4,11 +4,13 @@
 package utils
 
 import (
-	log "github.com/ngaut/logging"
-	"github.com/wandoulabs/go-zookeeper/zk"
-	"github.com/wandoulabs/zkhelper"
 	"sync"
 	"time"
+
+	"github.com/wandoulabs/go-zookeeper/zk"
+	"github.com/wandoulabs/zkhelper"
+
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 const retryMaxOnOps = 10
@@ -46,7 +48,7 @@ func (b *connBuilder) resetConnection() {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	if b.builder == nil {
-		log.Fatal("no connection builder")
+		log.Panicf("no connection builder")
 	}
 	if time.Now().Before(b.createdOn.Add(time.Second)) {
 		return
@@ -62,7 +64,7 @@ func (b *connBuilder) resetConnection() {
 		b.createdOn = time.Now()
 		return
 	}
-	log.Fatal("can not build new zk session, exit")
+	log.Panicf("can not build new zk session, exit")
 }
 
 func (b *connBuilder) GetSafeConn() zkhelper.Conn {
@@ -96,8 +98,7 @@ func (c *safeConn) Get(path string) (data []byte, stat zk.Stat, err error) {
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -111,8 +112,7 @@ func (c *safeConn) GetW(path string) (data []byte, stat zk.Stat, watch <-chan zk
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -126,8 +126,7 @@ func (c *safeConn) Children(path string) (children []string, stat zk.Stat, err e
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -141,8 +140,7 @@ func (c *safeConn) ChildrenW(path string) (children []string, stat zk.Stat, watc
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -156,8 +154,7 @@ func (c *safeConn) Exists(path string) (exist bool, stat zk.Stat, err error) {
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -171,8 +168,7 @@ func (c *safeConn) ExistsW(path string) (exist bool, stat zk.Stat, watch <-chan 
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -186,8 +182,7 @@ func (c *safeConn) Create(path string, value []byte, flags int32, aclv []zk.ACL)
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -201,8 +196,7 @@ func (c *safeConn) Set(path string, value []byte, version int32) (stat zk.Stat, 
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -216,13 +210,12 @@ func (c *safeConn) Delete(path string, version int32) (err error) {
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
 func (c *safeConn) Close() {
-	log.Fatal("do not close zk connection by yourself")
+	log.Panicf("do not close zk connection by yourself")
 }
 
 func (c *safeConn) GetACL(path string) (acl []zk.ACL, stat zk.Stat, err error) {
@@ -235,8 +228,7 @@ func (c *safeConn) GetACL(path string) (acl []zk.ACL, stat zk.Stat, err error) {
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -250,8 +242,7 @@ func (c *safeConn) SetACL(path string, aclv []zk.ACL, version int32) (stat zk.St
 		}
 		c.builder.resetConnection()
 	}
-	log.Warning(err)
-	log.Fatal("zk error after retries")
+	log.PanicErrorf(err, "zk error after retries")
 	return
 }
 
@@ -350,7 +341,7 @@ func (c *unsafeConn) Delete(path string, version int32) (err error) {
 }
 
 func (c *unsafeConn) Close() {
-	log.Fatal("do not close zk connection by yourself")
+	log.Panicf("do not close zk connection by yourself")
 }
 
 func (c *unsafeConn) GetACL(path string) (acl []zk.ACL, stat zk.Stat, err error) {

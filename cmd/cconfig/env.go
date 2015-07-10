@@ -8,10 +8,11 @@ import (
 	"strings"
 
 	"github.com/c4pt0r/cfg"
-	"github.com/juju/errors"
-	log "github.com/ngaut/logging"
 
 	"github.com/wandoulabs/zkhelper"
+
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type Env interface {
@@ -31,28 +32,28 @@ type CodisEnv struct {
 
 func LoadCodisEnv(cfg *cfg.Cfg) Env {
 	if cfg == nil {
-		log.Fatal("config is nil")
+		log.Panicf("config is nil")
 	}
 
 	productName, err := cfg.ReadString("product", "test")
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "config: 'product' not found")
 	}
 
 	zkAddr, err := cfg.ReadString("zk", "localhost:2181")
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "config: 'zk' not found")
 	}
 
 	hostname, _ := os.Hostname()
 	dashboardAddr, err := cfg.ReadString("dashboard_addr", hostname+":18087")
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "config: 'dashboard_addr' not found")
 	}
 
 	provider, err := cfg.ReadString("coordinator", "zookeeper")
 	if err != nil {
-		log.Fatal(err)
+		log.PanicErrorf(err, "config: 'coordinator' not found")
 	}
 
 	passwd, _ := cfg.ReadString("password", "")
@@ -89,5 +90,5 @@ func (e *CodisEnv) NewZkConn() (zkhelper.Conn, error) {
 		}
 		return zkhelper.NewEtcdConn(addr)
 	}
-	return nil, errors.Errorf("need coordinator in config file, %+v", e)
+	return nil, errors.Errorf("need coordinator in config file, %s", e)
 }

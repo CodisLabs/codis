@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/go-martini/martini"
-	"github.com/juju/errors"
-	log "github.com/ngaut/logging"
-	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/utils"
+
 	"github.com/wandoulabs/go-zookeeper/zk"
 	"github.com/wandoulabs/zkhelper"
+
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var globalMigrateManager *MigrateManager
@@ -36,7 +37,7 @@ func apiGetProxyDebugVars() (int, string) {
 
 	b, err := json.MarshalIndent(m, " ", "  ")
 	if err != nil {
-		log.Warning(err)
+		log.WarnErrorf(err, "to json failed")
 		return 500, err.Error()
 	}
 
@@ -70,7 +71,7 @@ func apiOverview() (int, string) {
 		for _, instance := range instances {
 			info, err := utils.GetRedisStat(instance, globalEnv.Password())
 			if err != nil {
-				log.Error(err)
+				log.ErrorErrorf(err, "get redis stat failed")
 			}
 			redisInfos = append(redisInfos, info)
 		}
@@ -84,7 +85,7 @@ func apiOverview() (int, string) {
 func apiGetServerGroupList() (int, string) {
 	groups, err := models.ServerGroups(safeZkConn, globalEnv.ProductName())
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get server groups failed")
 		return 500, err.Error()
 	}
 	b, err := json.MarshalIndent(groups, " ", "  ")
@@ -106,7 +107,7 @@ func apiInitSlots(r *http.Request) (int, string) {
 	}
 
 	if err := models.InitSlotSet(safeZkConn, globalEnv.ProductName(), models.DEFAULT_SLOT_NUM); err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "init slot set failed")
 		return 500, err.Error()
 	}
 	return jsonRetSucc()
@@ -149,7 +150,8 @@ func apiRebalance(param martini.Params) (int, string) {
 		return 500, "there are migration tasks running, you should wait them done"
 	}
 	if err := Rebalance(); err != nil {
-		log.Warning(errors.ErrorStack(err))
+		log.ErrorErrorf(err, "rebalance failed")
+		return 500, err.Error()
 	}
 	return jsonRetSucc()
 }
@@ -164,12 +166,12 @@ func apiGetServerGroup(param martini.Params) (int, string) {
 	id := param["id"]
 	groupId, err := strconv.Atoi(id)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "parse groupid failed")
 		return 500, err.Error()
 	}
 	group, err := models.GetGroup(safeZkConn, globalEnv.ProductName(), groupId)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get group %d failed", groupId)
 		return 500, err.Error()
 	}
 	b, err := json.MarshalIndent(group, " ", "  ")
@@ -193,12 +195,12 @@ func apiGetRedisSlotInfo(param martini.Params) (int, string) {
 	addr := param["addr"]
 	slotId, err := strconv.Atoi(param["id"])
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "parse slotid failed")
 		return 500, err.Error()
 	}
 	slotInfo, err := utils.SlotsInfo(addr, globalEnv.Password(), slotId, slotId)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get slot info %d failed", slotId)
 		return 500, err.Error()
 	}
 	out, _ := json.MarshalIndent(map[string]interface{}{
@@ -211,23 +213,23 @@ func apiGetRedisSlotInfo(param martini.Params) (int, string) {
 func apiGetRedisSlotInfoFromGroupId(param martini.Params) (int, string) {
 	groupId, err := strconv.Atoi(param["group_id"])
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "parse groupid failed")
 		return 500, err.Error()
 	}
 	slotId, err := strconv.Atoi(param["slot_id"])
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "parse slotid failed")
 		return 500, err.Error()
 	}
 	g, err := models.GetGroup(safeZkConn, globalEnv.ProductName(), groupId)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get group %d failed", groupId)
 		return 500, err.Error()
 	}
 
 	s, err := g.Master(safeZkConn)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get master of group %d failed", groupId)
 		return 500, err.Error()
 	}
 
@@ -237,7 +239,7 @@ func apiGetRedisSlotInfoFromGroupId(param martini.Params) (int, string) {
 
 	slotInfo, err := utils.SlotsInfo(s.Addr, globalEnv.Password(), slotId, slotId)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get slot info %d failed", slotId)
 		return 500, err.Error()
 	}
 
@@ -258,14 +260,14 @@ func apiRemoveServerGroup(param martini.Params) (int, string) {
 	defer func() {
 		err := lock.Unlock()
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
 
 	groupId, _ := strconv.Atoi(param["id"])
 	serverGroup := models.NewServerGroup(globalEnv.ProductName(), groupId)
 	if err := serverGroup.Remove(safeZkConn); err != nil {
-		log.Error(errors.ErrorStack(err))
+		log.ErrorErrorf(err, "remove server group failed")
 		return 500, err.Error()
 	}
 
@@ -280,7 +282,7 @@ func apiAddServerGroup(newGroup models.ServerGroup) (int, string) {
 	defer func() {
 		err := lock.Unlock()
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
 
@@ -288,7 +290,7 @@ func apiAddServerGroup(newGroup models.ServerGroup) (int, string) {
 
 	exists, err := newGroup.Exists(safeZkConn)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "check group exits failed")
 		return 500, err.Error()
 	}
 	if exists {
@@ -296,7 +298,7 @@ func apiAddServerGroup(newGroup models.ServerGroup) (int, string) {
 	}
 	err = newGroup.Create(safeZkConn)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "create node for new group failed")
 		return 500, err.Error()
 	}
 	return jsonRetSucc()
@@ -310,7 +312,7 @@ func apiAddServerToGroup(server models.Server, param martini.Params) (int, strin
 	defer func() {
 		err := lock.Unlock()
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
 	// check group exists first
@@ -318,7 +320,7 @@ func apiAddServerToGroup(server models.Server, param martini.Params) (int, strin
 
 	exists, err := serverGroup.Exists(safeZkConn)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "check group exits failed")
 		return 500, err.Error()
 	}
 
@@ -330,7 +332,7 @@ func apiAddServerToGroup(server models.Server, param martini.Params) (int, strin
 	}
 
 	if err := serverGroup.AddServer(safeZkConn, &server, globalEnv.Password()); err != nil {
-		log.Warning(errors.ErrorStack(err))
+		log.ErrorErrorf(err, "add server to group failed")
 		return 500, err.Error()
 	}
 
@@ -343,19 +345,18 @@ func apiPromoteServer(server models.Server, param martini.Params) (int, string) 
 	defer func() {
 		err := lock.Unlock()
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
 
 	group, err := models.GetGroup(safeZkConn, globalEnv.ProductName(), server.GroupId)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get group %d failed", server.GroupId)
 		return 500, err.Error()
 	}
 	err = group.Promote(safeZkConn, server.Addr, globalEnv.Password())
 	if err != nil {
-		log.Warning(errors.ErrorStack(err))
-		log.Warning(err)
+		log.ErrorErrorf(err, "promote group %d failed", server.GroupId)
 		return 500, err.Error()
 	}
 
@@ -369,14 +370,14 @@ func apiRemoveServerFromGroup(server models.Server, param martini.Params) (int, 
 	defer func() {
 		err := lock.Unlock()
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
 
 	serverGroup := models.NewServerGroup(globalEnv.ProductName(), groupId)
 	err := serverGroup.RemoveServer(safeZkConn, server.Addr)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "remove group %d failed", groupId)
 		return 500, err.Error()
 	}
 	return jsonRetSucc()
@@ -389,7 +390,7 @@ func apiSetProxyStatus(proxy models.ProxyInfo, param martini.Params) (int, strin
 		if proxy.State == models.PROXY_STATE_MARK_OFFLINE && zkhelper.ZkErrorEqual(err, zk.ErrNoNode) {
 			return jsonRetSucc()
 		}
-		log.Warning(errors.ErrorStack(err))
+		log.ErrorErrorf(err, "set proxy states failed: %+v", proxy)
 		return 500, err.Error()
 	}
 	return jsonRetSucc()
@@ -398,7 +399,7 @@ func apiSetProxyStatus(proxy models.ProxyInfo, param martini.Params) (int, strin
 func apiGetProxyList(param martini.Params) (int, string) {
 	proxies, err := models.ProxyList(safeZkConn, globalEnv.ProductName(), nil)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get proxy list failed")
 		return 500, err.Error()
 	}
 	b, err := json.MarshalIndent(proxies, " ", "  ")
@@ -413,7 +414,7 @@ func apiGetSingleSlot(param martini.Params) (int, string) {
 
 	slot, err := models.GetSlot(safeZkConn, globalEnv.ProductName(), id)
 	if err != nil {
-		log.Warning(errors.Trace(err))
+		log.ErrorErrorf(err, "get slot %d failed", id)
 		return 500, err.Error()
 	}
 
@@ -424,7 +425,7 @@ func apiGetSingleSlot(param martini.Params) (int, string) {
 func apiGetSlots() (int, string) {
 	slots, err := models.Slots(safeZkConn, globalEnv.ProductName())
 	if err != nil {
-		log.Warning("Error getting slot info, try init slots first? err: ", err)
+		log.ErrorErrorf(err, "Error getting slot info, try init slots first?")
 		return 500, err.Error()
 	}
 	b, err := json.MarshalIndent(slots, " ", "  ")
@@ -437,7 +438,7 @@ func apiSlotRangeSet(task RangeSetTask) (int, string) {
 	defer func() {
 		err := lock.Unlock()
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
 
@@ -448,7 +449,7 @@ func apiSlotRangeSet(task RangeSetTask) (int, string) {
 
 	err := models.SetSlotRange(safeZkConn, globalEnv.ProductName(), task.FromSlot, task.ToSlot, task.NewGroupId, models.SlotStatus(task.Status))
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "set slot range [%d,%d] failed", task.FromSlot, task.ToSlot)
 		return 500, err.Error()
 	}
 
@@ -465,7 +466,7 @@ func apiActionGC(r *http.Request) (int, string) {
 	defer func() {
 		err := lock.Unlock()
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
 
@@ -484,7 +485,7 @@ func apiActionGC(r *http.Request) (int, string) {
 func apiForceRemoveLocks() (int, string) {
 	err := models.ForceRemoveLock(safeZkConn, globalEnv.ProductName())
 	if err != nil {
-		log.Warning(errors.ErrorStack(err))
+		log.ErrorErrorf(err, "force remove lock failed")
 		return 500, err.Error()
 	}
 	return jsonRetSucc()
@@ -493,7 +494,7 @@ func apiForceRemoveLocks() (int, string) {
 func apiRemoveFence() (int, string) {
 	err := models.ForceRemoveDeadFence(safeZkConn, globalEnv.ProductName())
 	if err != nil {
-		log.Warning(errors.ErrorStack(err))
+		log.ErrorErrorf(err, "force remove fence failed")
 		return 500, err.Error()
 	}
 	return jsonRetSucc()

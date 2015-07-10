@@ -57,6 +57,30 @@ func SlotsInfo(addr, passwd string, fromSlot, toSlot int) (map[int]int, error) {
 	return slots, nil
 }
 
+var (
+	ErrInvalidAddr       = errors.New("invalid addr")
+	ErrStopMigrateByUser = errors.New("migration stopped by user")
+)
+
+func SlotsMgrtTagSlot(c redis.Conn, slotId int, toAddr string) (int, int, error) {
+	addrParts := strings.Split(toAddr, ":")
+	if len(addrParts) != 2 {
+		return -1, -1, errors.Trace(ErrInvalidAddr)
+	}
+
+	reply, err := redis.Values(c.Do("SLOTSMGRTTAGSLOT", addrParts[0], addrParts[1], 30000, slotId))
+	if err != nil {
+		return -1, -1, errors.Trace(err)
+	}
+
+	var succ, remain int
+	if _, err := redis.Scan(reply, &succ, &remain); err != nil {
+		return -1, -1, errors.Trace(err)
+	} else {
+		return succ, remain, nil
+	}
+}
+
 func GetRedisStat(addr, passwd string) (map[string]string, error) {
 	c, err := DialTo(addr, passwd)
 	if err != nil {

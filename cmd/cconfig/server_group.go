@@ -8,8 +8,9 @@ import (
 	"strconv"
 
 	"github.com/docopt/docopt-go"
-	log "github.com/ngaut/logging"
+
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 // codis redis instance manage tool
@@ -25,10 +26,10 @@ func cmdServer(argv []string) (err error) {
 `
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "parse args failed")
 		return err
 	}
-	log.Debug(args)
+	log.Debugf("parse args = {%+v}", args)
 
 	if args["list"].(bool) {
 		return runListServerGroup()
@@ -36,7 +37,7 @@ func cmdServer(argv []string) (err error) {
 
 	groupId, err := strconv.Atoi(args["<group_id>"].(string))
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "parse <group_id> failed")
 		return err
 	}
 

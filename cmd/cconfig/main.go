@@ -5,19 +5,21 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
-	"github.com/c4pt0r/cfg"
-	"github.com/wandoulabs/codis/pkg/utils"
-
-	"net/http"
 	_ "net/http/pprof"
 
-	docopt "github.com/docopt/docopt-go"
-	"github.com/juju/errors"
-	log "github.com/ngaut/logging"
+	"github.com/c4pt0r/cfg"
+	"github.com/docopt/docopt-go"
+
+	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 // global objects
@@ -51,13 +53,26 @@ commands:
 	proxy
 `
 
-func Fatal(msg interface{}) {
-	switch msg.(type) {
-	case string:
-		log.Fatal(msg)
-	case error:
-		log.Fatal(errors.ErrorStack(msg.(error)))
+func init() {
+	log.SetLevel(log.LEVEL_INFO)
+}
+
+func setLogLevel(level string) {
+	var lv = log.LEVEL_INFO
+	switch strings.ToLower(level) {
+	case "error":
+		lv = log.LEVEL_ERROR
+	case "warn", "warning":
+		lv = log.LEVEL_WARN
+	case "debug":
+		lv = log.LEVEL_DEBUG
+	case "info":
+		fallthrough
+	default:
+		lv = log.LEVEL_INFO
 	}
+	log.SetLevel(lv)
+	log.Infof("set log level to %s", lv)
 }
 
 func runCommand(cmd string, args []string) (err error) {
@@ -80,8 +95,6 @@ func runCommand(cmd string, args []string) (err error) {
 }
 
 func main() {
-	log.SetLevelByString("info")
-
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	signal.Notify(c, syscall.SIGTERM)
@@ -90,12 +103,31 @@ func main() {
 		if createdDashboardNode {
 			releaseDashboardNode()
 		}
-		Fatal("ctrl-c or SIGTERM found, exit")
+		log.Panicf("ctrl-c or SIGTERM found, exit")
 	}()
 
 	args, err := docopt.Parse(usage, nil, true, "codis config v0.1", true)
 	if err != nil {
-		log.Error(err)
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	// set output log file
+	if s, ok := args["-L"].(string); ok && s != "" {
+		f, err := os.OpenFile(s, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
+		if err != nil {
+			log.PanicErrorf(err, "open log file failed: %s", s)
+		} else {
+			defer f.Close()
+			log.StdLog = log.New(f, "")
+		}
+	}
+	log.SetLevel(log.LEVEL_INFO)
+	log.SetFlags(log.Flags() | log.Lshortfile)
+
+	// set log level
+	if s, ok := args["--log-level"].(string); ok && s != "" {
+		setLogLevel(s)
 	}
 
 	// set config file
@@ -105,29 +137,17 @@ func main() {
 		configFile = args["-c"].(string)
 		config, err = utils.InitConfigFromFile(configFile)
 		if err != nil {
-			log.Warning("load config file error")
-			Fatal(err)
+			log.PanicErrorf(err, "load config file error")
 		}
 	} else {
 		config, err = utils.InitConfig()
 		if err != nil {
-			log.Warning("load config file error")
-			Fatal(err)
+			log.PanicErrorf(err, "load config file error")
 		}
 	}
 
 	// load global vars
 	globalEnv = LoadCodisEnv(config)
-
-	// set output log file
-	if args["-L"] != nil {
-		log.SetOutputByName(args["-L"].(string))
-	}
-
-	// set log level
-	if args["--log-level"] != nil {
-		log.SetLevelByString(args["--log-level"].(string))
-	}
 
 	cmd := args["<command>"].(string)
 	cmdArgs := args["<args>"].([]string)
@@ -135,6 +155,6 @@ func main() {
 	go http.ListenAndServe(":10086", nil)
 	err = runCommand(cmd, cmdArgs)
 	if err != nil {
-		log.Fatal(errors.ErrorStack(err))
+		log.PanicErrorf(err, "run sub-command failed")
 	}
 }

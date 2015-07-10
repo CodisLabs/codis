@@ -6,10 +6,10 @@ package main
 import (
 	"fmt"
 
-	"github.com/wandoulabs/codis/pkg/models"
-
 	"github.com/docopt/docopt-go"
-	log "github.com/ngaut/logging"
+
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 func cmdProxy(argv []string) (err error) {
@@ -20,10 +20,10 @@ func cmdProxy(argv []string) (err error) {
 `
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "parse args failed")
 		return err
 	}
-	log.Debug(args)
+	log.Debugf("parse args = {%+v}", args)
 
 	if args["list"].(bool) {
 		return runProxyList()

@@ -6,21 +6,24 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/codegangsta/martini-contrib/binding"
-	"github.com/codegangsta/martini-contrib/render"
-	"github.com/docopt/docopt-go"
-	"github.com/go-martini/martini"
-	"github.com/juju/errors"
-	"github.com/martini-contrib/cors"
-	log "github.com/ngaut/logging"
-	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/zkhelper"
-	stdlog "log"
 	"os"
 	"path/filepath"
 	"sync/atomic"
 	"time"
+
+	stdlog "log"
+
+	"github.com/codegangsta/martini-contrib/binding"
+	"github.com/codegangsta/martini-contrib/render"
+	"github.com/docopt/docopt-go"
+	"github.com/go-martini/martini"
+	"github.com/martini-contrib/cors"
+	"github.com/wandoulabs/zkhelper"
+
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 func cmdDashboard(argv []string) (err error) {
@@ -33,10 +36,10 @@ options:
 
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "parse args failed")
 		return err
 	}
-	log.Debug(args)
+	log.Debugf("parse args = {%+v}", args)
 
 	logFileName := "request.log"
 	if args["--http-log"] != nil {
@@ -61,7 +64,7 @@ var (
 func jsonRet(output map[string]interface{}) (int, string) {
 	b, err := json.Marshal(output)
 	if err != nil {
-		log.Warning(err)
+		log.WarnErrorf(err, "to json failed")
 	}
 	return 200, string(b)
 }
@@ -83,7 +86,7 @@ func jsonRetSucc() (int, string) {
 func getAllProxyOps() int64 {
 	proxies, err := models.ProxyList(unsafeZkConn, globalEnv.ProductName(), nil)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get proxy list failed")
 		return -1
 	}
 
@@ -91,7 +94,7 @@ func getAllProxyOps() int64 {
 	for _, p := range proxies {
 		i, err := p.Ops()
 		if err != nil {
-			log.Warning(err)
+			log.WarnErrorf(err, "get proxy ops failed")
 		}
 		total += i
 	}
@@ -102,7 +105,7 @@ func getAllProxyOps() int64 {
 func getAllProxyDebugVars() map[string]map[string]interface{} {
 	proxies, err := models.ProxyList(unsafeZkConn, globalEnv.ProductName(), nil)
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "get proxy list failed")
 		return nil
 	}
 
@@ -110,7 +113,7 @@ func getAllProxyDebugVars() map[string]map[string]interface{} {
 	for _, p := range proxies {
 		m, err := p.DebugVars()
 		if err != nil {
-			log.Warning(err)
+			log.WarnErrorf(err, "get proxy debug varsfailed")
 		}
 		ret[p.Id] = m
 	}
@@ -153,7 +156,7 @@ func createDashboardNode() error {
 	content := fmt.Sprintf(`{"addr": "%v", "pid": %v}`, globalEnv.DashboardAddr(), os.Getpid())
 	pathCreated, err := safeZkConn.Create(zkPath, []byte(content), 0, zkhelper.DefaultFileACLs())
 	createdDashboardNode = true
-	log.Info("dashboard node created:", pathCreated, string(content))
+	log.Infof("dashboard node created: %v, %s", pathCreated, string(content))
 
 	return errors.Trace(err)
 }
@@ -161,24 +164,24 @@ func createDashboardNode() error {
 func releaseDashboardNode() {
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/dashboard", globalEnv.ProductName())
 	if exists, _, _ := safeZkConn.Exists(zkPath); exists {
-		log.Info("removing dashboard node")
+		log.Infof("removing dashboard node")
 		safeZkConn.Delete(zkPath, 0)
 	}
 }
 
 func runDashboard(addr string, httpLogFile string) {
-	log.Info("dashboard listening on addr: ", addr)
+	log.Infof("dashboard listening on addr: %s", addr)
 	m := martini.Classic()
 	f, err := os.OpenFile(httpLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 	if err != nil {
-		Fatal(err)
+		log.PanicErrorf(err, "open http log file failed")
 	}
 	defer f.Close()
 
 	m.Map(stdlog.New(f, "[martini]", stdlog.LstdFlags))
 	binRoot, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
-		Fatal(err)
+		log.PanicErrorf(err, "get binroot path failed")
 	}
 
 	m.Use(martini.Static(filepath.Join(binRoot, "assets/statics")))
@@ -241,7 +244,7 @@ func runDashboard(addr string, httpLogFile string) {
 
 	// create temp node in ZK
 	if err := createDashboardNode(); err != nil {
-		log.Fatal(err) // do not release dashborad node here
+		log.PanicErrorf(err, "create zk node failed") // do not release dashborad node here
 	}
 
 	// create long live migrate manager

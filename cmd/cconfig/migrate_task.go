@@ -8,11 +8,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/juju/errors"
-	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/zkhelper"
+
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/zkhelper"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type MigrateTaskInfo struct {
@@ -65,11 +66,11 @@ func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 	// set slot status
 	s, err := models.GetSlot(t.zkConn, t.productName, slotId)
 	if err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "get slot info failed")
 		return err
 	}
 	if s.State.Status == models.SLOT_STATUS_OFFLINE {
-		log.Warning("status is offline", s)
+		log.Warnf("status is offline: %+v", s)
 		return nil
 	}
 
@@ -85,7 +86,7 @@ func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 	}
 	if !exists {
 		log.Errorf("src group %d not exist when migrate from %d to %d", from, from, to)
-		return errors.NotFoundf("group %d", from)
+		return errors.Errorf("group %d not found", from)
 	}
 
 	exists, err = models.GroupExists(t.zkConn, t.productName, to)
@@ -93,29 +94,29 @@ func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 		return errors.Trace(err)
 	}
 	if !exists {
-		return errors.NotFoundf("group %d", to)
+		return errors.Errorf("group %d not found", to)
 	}
 
 	// cannot migrate to itself, just ignore
 	if from == to {
-		log.Warning("from == to, ignore", s)
+		log.Warnf("from == to, ignore: %+v", s)
 		return nil
 	}
 
 	// modify slot status
 	if err := s.SetMigrateStatus(t.zkConn, from, to); err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "set migrate status failed")
 		return err
 	}
 
 	err = t.Migrate(s, from, to, func(p SlotMigrateProgress) {
 		// on migrate slot progress
 		if p.Remain%5000 == 0 {
-			log.Info(p)
+			log.Infof("%+v", p)
 		}
 	})
 	if err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "migrate slot failed")
 		return err
 	}
 
@@ -124,10 +125,9 @@ func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 	s.State.MigrateStatus.From = models.INVALID_ID
 	s.State.MigrateStatus.To = models.INVALID_ID
 	if err := s.Update(t.zkConn); err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "update zk status failed, should be: %+v", s)
 		return err
 	}
-
 	return nil
 }
 
@@ -137,7 +137,7 @@ func (t *MigrateTask) run() error {
 	t.UpdateStatus(MIGRATE_TASK_MIGRATING)
 	err := t.migrateSingleSlot(t.SlotId, to)
 	if err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "migrate single slot failed")
 		t.UpdateStatus(MIGRATE_TASK_ERR)
 		return err
 	}
@@ -145,6 +145,8 @@ func (t *MigrateTask) run() error {
 	log.Infof("migration finished: %+v", t.MigrateTaskInfo)
 	return nil
 }
+
+var ErrGroupMasterNotFound = errors.New("group master not found")
 
 // will block until all keys are migrated
 func (task *MigrateTask) Migrate(slot *models.Slot, fromGroup, toGroup int, onProgress func(SlotMigrateProgress)) (err error) {
@@ -168,7 +170,7 @@ func (task *MigrateTask) Migrate(slot *models.Slot, fromGroup, toGroup int, onPr
 	}
 
 	if fromMaster == nil || toMaster == nil {
-		return ErrGroupMasterNotFound
+		return errors.Trace(ErrGroupMasterNotFound)
 	}
 
 	c, err := utils.DialTo(fromMaster.Addr, globalEnv.Password())
@@ -178,7 +180,7 @@ func (task *MigrateTask) Migrate(slot *models.Slot, fromGroup, toGroup int, onPr
 
 	defer c.Close()
 
-	_, remain, err := sendRedisMigrateCmd(c, slot.Id, toMaster.Addr)
+	_, remain, err := utils.SlotsMgrtTagSlot(c, slot.Id, toMaster.Addr)
 	if err != nil {
 		return err
 	}
@@ -187,7 +189,7 @@ func (task *MigrateTask) Migrate(slot *models.Slot, fromGroup, toGroup int, onPr
 		if task.Delay > 0 {
 			time.Sleep(time.Duration(task.Delay) * time.Millisecond)
 		}
-		_, remain, err = sendRedisMigrateCmd(c, slot.Id, toMaster.Addr)
+		_, remain, err = utils.SlotsMgrtTagSlot(c, slot.Id, toMaster.Addr)
 		if remain >= 0 {
 			onProgress(SlotMigrateProgress{
 				SlotId:    slot.Id,
@@ -211,7 +213,7 @@ func (t *MigrateTask) preMigrateCheck() error {
 	}
 	// check if there is migrating slot
 	if len(slots) > 1 {
-		return errors.New("more than one slots are migrating, unknown error")
+		return errors.Errorf("more than one slots are migrating, unknown error")
 	}
 	if len(slots) == 1 {
 		slot := slots[0]
