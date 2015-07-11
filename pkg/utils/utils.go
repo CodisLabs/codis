@@ -27,14 +27,6 @@ func InitConfig() (*cfg.Cfg, error) {
 	}
 }
 
-func InitConfigFromFile(filename string) (*cfg.Cfg, error) {
-	ret := cfg.NewCfg(filename)
-	if err := ret.Load(); err != nil {
-		return nil, errors.Trace(err)
-	}
-	return ret, nil
-}
-
 func GetZkLock(zkConn zkhelper.Conn, productName string) zkhelper.ZLocker {
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/LOCK", productName)
 	return zkhelper.CreateMutex(zkConn, zkPath)

@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
-	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/c4pt0r/cfg"
 )
 
 type Config struct {
@@ -26,8 +26,8 @@ type Config struct {
 }
 
 func LoadConf(configFile string) (*Config, error) {
-	c, err := utils.InitConfigFromFile(configFile)
-	if err != nil {
+	c:= cfg.NewCfg(configFile)
+	if err:=c.Load();err != nil {
 		log.PanicErrorf(err, "load config '%s' failed", configFile)
 	}
 

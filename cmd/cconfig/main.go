@@ -11,7 +11,6 @@ import (
 
 	"github.com/c4pt0r/cfg"
 	"github.com/wandoulabs/codis/pkg/env"
-	"github.com/wandoulabs/codis/pkg/utils"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -101,20 +100,16 @@ func main() {
 
 	// set config file
 	var configFile string
-	var config *cfg.Cfg
 	if args["-c"] != nil {
 		configFile = args["-c"].(string)
-		config, err = utils.InitConfigFromFile(configFile)
-		if err != nil {
-			log.Warning("load config file error")
-			Fatal(err)
-		}
 	} else {
-		config, err = utils.InitConfig()
-		if err != nil {
-			log.Warning("load config file error")
-			Fatal(err)
-		}
+		configFile="config.ini"
+	}
+	config:= cfg.NewCfg(configFile)
+
+	if err:=config.Load();err != nil {
+		log.Warning("load config file error")
+		Fatal(err)
 	}
 
 	// load global vars
