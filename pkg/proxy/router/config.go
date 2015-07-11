@@ -6,9 +6,9 @@ package router
 import (
 	"strings"
 
+	"github.com/c4pt0r/cfg"
 	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
 	"github.com/wandoulabs/codis/pkg/utils/log"
-	"github.com/c4pt0r/cfg"
 )
 
 type Config struct {
@@ -20,15 +20,16 @@ type Config struct {
 	proto       string //tcp or tcp4
 	provider    string
 
-	pingPeriod  int // seconds
-	maxTimeout  int // seconds
-	maxBufSize  int
-	maxPipeline int
+	pingPeriod       int // seconds
+	maxTimeout       int // seconds
+	maxBufSize       int
+	maxPipeline      int
+	zkSessionTimeout int
 }
 
 func LoadConf(configFile string) (*Config, error) {
-	c:= cfg.NewCfg(configFile)
-	if err:=c.Load();err != nil {
+	c := cfg.NewCfg(configFile)
+	if err := c.Load(); err != nil {
 		log.PanicErrorf(err, "load config '%s' failed", configFile)
 	}
 
@@ -64,5 +65,6 @@ func LoadConf(configFile string) (*Config, error) {
 	conf.maxTimeout = loadConfInt("session_max_timeout", 1800)
 	conf.maxBufSize = loadConfInt("session_max_bufsize", 1024*32)
 	conf.maxPipeline = loadConfInt("session_max_pipeline", 128)
+	conf.zkSessionTimeout = loadConfInt("zk_session_timeout", 30)
 	return conf, nil
 }

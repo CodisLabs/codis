@@ -7,11 +7,11 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
-	_ "net/http/pprof"
 
 	"github.com/c4pt0r/cfg"
 	"github.com/docopt/docopt-go"
@@ -133,12 +133,12 @@ func main() {
 	if args["-c"] != nil {
 		configFile = args["-c"].(string)
 	} else {
-		configFile="config.ini"
+		configFile = "config.ini"
 	}
-	config:= cfg.NewCfg(configFile)
+	config := cfg.NewCfg(configFile)
 
-	if err:=config.Load();err != nil {
-		log.PanicErrorf(err,"load config file error")
+	if err := config.Load(); err != nil {
+		log.PanicErrorf(err, "load config file error")
 	}
 
 	// load global vars

@@ -82,13 +82,13 @@ func (e *CodisEnv) DashboardAddr() string {
 func (e *CodisEnv) NewZkConn() (zkhelper.Conn, error) {
 	switch e.provider {
 	case "zookeeper":
-		return zkhelper.ConnectToZk(e.zkAddr)
+		return zkhelper.ConnectToZk(e.zkAddr, 30)
 	case "etcd":
 		addr := strings.TrimSpace(e.zkAddr)
 		if !strings.HasPrefix(addr, "http://") {
 			addr = "http://" + addr
 		}
-		return zkhelper.NewEtcdConn(addr)
+		return zkhelper.NewEtcdConn(addr, 30)
 	}
 	return nil, errors.Errorf("need coordinator in config file, %s", e)
 }

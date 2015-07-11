@@ -20,14 +20,15 @@ type TopoUpdate interface {
 	OnSlotChange(slotId int)
 }
 
-type ZkFactory func(zkAddr string) (zkhelper.Conn, error)
+type ZkFactory func(zkAddr string, zkSessionTimeout int) (zkhelper.Conn, error)
 
 type Topology struct {
-	ProductName string
-	zkAddr      string
-	zkConn      zkhelper.Conn
-	fact        ZkFactory
-	provider    string
+	ProductName      string
+	zkAddr           string
+	zkConn           zkhelper.Conn
+	fact             ZkFactory
+	provider         string
+	zkSessionTimeout int
 }
 
 func (top *Topology) GetGroup(groupId int) (*models.ServerGroup, error) {
@@ -52,8 +53,8 @@ func (top *Topology) GetSlotByIndex(i int) (*models.Slot, *models.ServerGroup, e
 	return slot, groupServer, nil
 }
 
-func NewTopo(ProductName string, zkAddr string, f ZkFactory, provider string) *Topology {
-	t := &Topology{zkAddr: zkAddr, ProductName: ProductName, fact: f, provider: provider}
+func NewTopo(ProductName string, zkAddr string, f ZkFactory, provider string, zkSessionTimeout int) *Topology {
+	t := &Topology{zkAddr: zkAddr, ProductName: ProductName, fact: f, provider: provider, zkSessionTimeout: zkSessionTimeout}
 	if t.fact == nil {
 		switch t.provider {
 		case "etcd":
@@ -70,7 +71,7 @@ func NewTopo(ProductName string, zkAddr string, f ZkFactory, provider string) *T
 
 func (top *Topology) InitZkConn() {
 	var err error
-	top.zkConn, err = top.fact(top.zkAddr)
+	top.zkConn, err = top.fact(top.zkAddr, top.zkSessionTimeout)
 	if err != nil {
 		log.PanicErrorf(err, "init failed")
 	}

@@ -410,7 +410,7 @@ func NewServer(addr string, debugVarAddr string, conf *Config) (*Server, error) 
 	s := &Server{
 		evtbus:        make(chan interface{}, 1000),
 		conf:          conf,
-		topo:          topology.NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider),
+		topo:          topology.NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider, conf.zkSessionTimeout),
 		pool:          make(map[string]*SharedBackendConn),
 		lastActionSeq: -1,
 	}
