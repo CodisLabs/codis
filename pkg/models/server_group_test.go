@@ -51,7 +51,7 @@ func TestAddSlaveToEmptyGroup(t *testing.T) {
 	g.Create(conn)
 
 	s1 := NewServer(SERVER_TYPE_SLAVE, "127.0.0.1:1111")
-	err := g.AddServer(conn, s1)
+	err := g.AddServer(conn, s1, "")
 	assert.MustNoError(err)
 	assert.Must(g.Servers[0].Type == SERVER_TYPE_MASTER)
 }
@@ -78,20 +78,20 @@ func TestServerGroup(t *testing.T) {
 	s1 := NewServer(SERVER_TYPE_MASTER, "127.0.0.1:1111")
 	s2 := NewServer(SERVER_TYPE_MASTER, "127.0.0.1:2222")
 
-	err = g.AddServer(conn, s1)
+	err = g.AddServer(conn, s1, "")
 
 	servers, err := g.GetServers(conn)
 	assert.MustNoError(err)
 	assert.Must(len(servers) == 1)
 
-	g.AddServer(conn, s2)
+	g.AddServer(conn, s2, "")
 	assert.Must(len(g.Servers) == 1)
 
 	s2.Type = SERVER_TYPE_SLAVE
-	g.AddServer(conn, s2)
+	g.AddServer(conn, s2, "")
 	assert.Must(len(g.Servers) == 2)
 
-	err = g.Promote(conn, s2.Addr)
+	err = g.Promote(conn, s2.Addr, "")
 	assert.MustNoError(err)
 
 	s, err := g.Master(conn)

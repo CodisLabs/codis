@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/juju/errors"
-
 	"github.com/docopt/docopt-go"
-	log "github.com/ngaut/logging"
+
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 func cmdSlot(argv []string) (err error) {
@@ -25,10 +25,10 @@ func cmdSlot(argv []string) (err error) {
 
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "parse args failed")
 		return errors.Trace(err)
 	}
-	log.Debug(args)
+	log.Debugf("parse args = {%+v}", args)
 
 	// no need to lock here
 	// locked in runmigratetask
@@ -38,19 +38,19 @@ func cmdSlot(argv []string) (err error) {
 		if args["--delay"] != nil {
 			delay, err = strconv.Atoi(args["--delay"].(string))
 			if err != nil {
-				log.Warning(err)
+				log.ErrorErrorf(err, "parse <group_id> failed")
 				return errors.Trace(err)
 			}
 		}
 		slotFrom, err := strconv.Atoi(args["<slot_from>"].(string))
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "parse <slot_from> failed")
 			return errors.Trace(err)
 		}
 
 		slotTo, err := strconv.Atoi(args["<slot_to>"].(string))
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "parse <slot_to> failed")
 			return errors.Trace(err)
 		}
 		return runSlotMigrate(slotFrom, slotTo, groupId, delay)
@@ -60,7 +60,7 @@ func cmdSlot(argv []string) (err error) {
 		if args["--delay"] != nil {
 			delay, err = strconv.Atoi(args["--delay"].(string))
 			if err != nil {
-				log.Warning(err)
+				log.ErrorErrorf(err, "parse <delay> failed")
 				return errors.Trace(err)
 			}
 		}
@@ -75,7 +75,7 @@ func cmdSlot(argv []string) (err error) {
 	if args["info"].(bool) {
 		slotId, err := strconv.Atoi(args["<slot_id>"].(string))
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "parse <slot_id> failed")
 			return errors.Trace(err)
 		}
 		return runSlotInfo(slotId)
@@ -83,7 +83,7 @@ func cmdSlot(argv []string) (err error) {
 
 	groupId, err := strconv.Atoi(args["<group_id>"].(string))
 	if err != nil {
-		log.Warning(err)
+		log.ErrorErrorf(err, "parse <group_id> failed")
 		return errors.Trace(err)
 	}
 
@@ -91,7 +91,7 @@ func cmdSlot(argv []string) (err error) {
 		slotId, err := strconv.Atoi(args["<slot_id>"].(string))
 		status := args["<status>"].(string)
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "parse <slot_id> failed")
 			return errors.Trace(err)
 		}
 		return runSlotSet(slotId, groupId, status)
@@ -101,12 +101,12 @@ func cmdSlot(argv []string) (err error) {
 		status := args["<status>"].(string)
 		slotFrom, err := strconv.Atoi(args["<slot_from>"].(string))
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "parse <slot_from> failed")
 			return errors.Trace(err)
 		}
 		slotTo, err := strconv.Atoi(args["<slot_to>"].(string))
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "parse <slot_to> failed")
 			return errors.Trace(err)
 		}
 		return errors.Trace(runSlotRangeSet(slotFrom, slotTo, groupId, status))

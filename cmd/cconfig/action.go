@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/juju/errors"
+	"github.com/docopt/docopt-go"
 
-	docopt "github.com/docopt/docopt-go"
-	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 func cmdAction(argv []string) (err error) {
@@ -25,9 +25,10 @@ options:
 `
 	args, err := docopt.Parse(usage, argv, true, "", false)
 	if err != nil {
-		log.Error(err)
+		log.ErrorErrorf(err, "parse args failed")
 		return errors.Trace(err)
 	}
+	log.Debugf("parse args = {%+v}", args)
 
 	if args["remove-lock"].(bool) {
 		return errors.Trace(runRemoveLock())
@@ -41,14 +42,14 @@ options:
 		if args["-n"].(bool) {
 			n, err := strconv.Atoi(args["<num>"].(string))
 			if err != nil {
-				log.Warning(err)
+				log.ErrorErrorf(err, "parse <num> failed")
 				return err
 			}
 			return runGCKeepN(n)
 		} else if args["-s"].(bool) {
 			sec, err := strconv.Atoi(args["<seconds>"].(string))
 			if err != nil {
-				log.Warning(err)
+				log.ErrorErrorf(err, "parse <seconds> failed")
 				return errors.Trace(err)
 			}
 			return runGCKeepNSec(sec)

@@ -142,11 +142,13 @@ slotsinfoCommand(redisClient *c) {
 
 typedef struct {
     int fd;
+    int db;
+    int authorized;
     time_t lasttime;
 } slotsmgrt_sockfd;
 
-static int
-slotsmgrt_get_socket(redisClient *c, sds host, sds port, int timeout) {
+static slotsmgrt_sockfd *
+slotsmgrt_get_sockfd(redisClient *c, sds host, sds port, int timeout) {
     sds name = sdsempty();
     name = sdscatlen(name, host, sdslen(host));
     name = sdscatlen(name, ":", 1);
@@ -156,16 +158,16 @@ slotsmgrt_get_socket(redisClient *c, sds host, sds port, int timeout) {
     if (pfd != NULL) {
         sdsfree(name);
         pfd->lasttime = server.unixtime;
-        return pfd->fd;
+        return pfd;
     }
-    
+
     int fd = anetTcpNonBlockConnect(server.neterr, host, atoi(port));
     if (fd == -1) {
         redisLog(REDIS_WARNING, "slotsmgrt: connect to target %s:%s, error = '%s'",
                 host, port, server.neterr);
         sdsfree(name);
         addReplyErrorFormat(c,"Can't connect to target node: %s", server.neterr);
-        return -1;
+        return NULL;
     }
     anetEnableTcpNoDelay(server.neterr, fd);
     if ((aeWait(fd, AE_WRITABLE, timeout) & AE_WRITABLE) == 0) {
@@ -174,15 +176,17 @@ slotsmgrt_get_socket(redisClient *c, sds host, sds port, int timeout) {
         sdsfree(name);
         close(fd);
         addReplySds(c, sdsnew("-IOERR error or timeout connecting to the client\r\n"));
-        return -1;
+        return NULL;
     }
     redisLog(REDIS_WARNING, "slotsmgrt: connect to target %s:%s", host, port);
 
     pfd = zmalloc(sizeof(*pfd));
     pfd->fd = fd;
+    pfd->db = -1;
+    pfd->authorized = (server.requirepass == NULL) ? 1 : 0;
     pfd->lasttime = server.unixtime;
     dictAdd(server.slotsmgrt_cached_sockfds, name, pfd);
-    return fd;
+    return pfd;
 }
 
 static void
@@ -212,7 +216,7 @@ slotsmgrt_cleanup() {
     dictEntry *de;
     while((de = dictNext(di)) != NULL) {
         slotsmgrt_sockfd *pfd = dictGetVal(de);
-        if ((server.unixtime - pfd->lasttime) > 30) {
+        if ((server.unixtime - pfd->lasttime) > 15) {
             redisLog(REDIS_WARNING, "slotsmgrt: timeout target %s, lasttime = %ld, now = %ld",
                    (char *)dictGetKey(de), pfd->lasttime, server.unixtime);
             dictDelete(server.slotsmgrt_cached_sockfds, dictGetKey(de));
@@ -224,12 +228,25 @@ slotsmgrt_cleanup() {
 }
 
 static int
-slotsmgrt(redisClient *c, sds host, sds port, int fd, int dbid, int timeout, robj *keys[], robj *vals[], int n) {
+slotsmgrt(redisClient *c, sds host, sds port, slotsmgrt_sockfd *pfd, int db, int timeout, robj *keys[], robj *vals[], int n) {
     rio cmd;
     rioInitWithBuffer(&cmd, sdsempty());
-    redisAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 2));
-    redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "SELECT", 6));
-    redisAssertWithInfo(c, NULL, rioWriteBulkLongLong(&cmd, dbid));
+
+    int needauth = 0;
+    if (pfd->authorized == 0 && server.requirepass != NULL) {
+        needauth = 1;
+        redisAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 2));
+        redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "AUTH", 4));
+        redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, server.requirepass, strlen(server.requirepass)));
+    }
+
+    int selectdb = 0;
+    if (pfd->db != db) {
+        selectdb = 1;
+        redisAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 2));
+        redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "SELECT", 6));
+        redisAssertWithInfo(c, NULL, rioWriteBulkLongLong(&cmd, db));
+    }
 
     redisAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 1 + 3 * n));
     redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "SLOTSRESTORE", 12));
@@ -265,7 +282,7 @@ slotsmgrt(redisClient *c, sds host, sds port, int fd, int dbid, int timeout, rob
         int nwritten = 0;
         while ((towrite = sdslen(buf) - pos) > 0) {
             towrite = (towrite > (64 * 1024) ? (64 * 1024) : towrite);
-            nwritten = syncWrite(fd, buf + pos, towrite, timeout);
+            nwritten = syncWrite(pfd->fd, buf + pos, towrite, timeout);
             if (nwritten != (signed)towrite) {
                 redisLog(REDIS_WARNING, "slotsmgrt: writing to target %s:%s, error '%s', "
                         "nkeys = %d, onekey = '%s', cmd.len = %ld, pos = %ld, towrite = %ld",
@@ -280,23 +297,54 @@ slotsmgrt(redisClient *c, sds host, sds port, int fd, int dbid, int timeout, rob
     } while (0);
 
     do {
-        char buf1[1024];
-        char buf2[1024];
+        char buf[1024];
+        if (needauth) {
+            if (syncReadLine(pfd->fd, buf, sizeof(buf), timeout) <= 0) {
+                redisLog(REDIS_WARNING, "slotsmgrt: auth failed, reading from target %s:%s: nkeys = %d, onekey = '%s', error = '%s'",
+                        host, port, n, onekey, server.neterr);
+                addReplySds(c, sdsnew("-IOERR error or timeout reading from target\r\n"));
+                return -1;
+            }
+            if (buf[0] != '+') {
+                redisLog(REDIS_WARNING, "slotsmgrt: auth failed, reading from target %s:%s: nkeys = %d, onekey = '%s', response = '%s'",
+                        host, port, n, onekey, buf);
+                addReplyError(c, "error on slotsrestore, auth failed");
+                return -1;
+            }
+            pfd->authorized = 1;
+        }
 
-        if (syncReadLine(fd, buf1, sizeof(buf1), timeout) <= 0 ||
-                syncReadLine(fd, buf2, sizeof(buf2), timeout) <= 0) {
-            redisLog(REDIS_WARNING, "slotsmgrt: reading from target %s:%s, error '%s', nkeys = %d, onekey = '%s'",
-                    host, port, server.neterr, n, onekey);
+        if (selectdb) {
+            if (syncReadLine(pfd->fd, buf, sizeof(buf), timeout) <= 0) {
+                redisLog(REDIS_WARNING, "slotsmgrt: select failed, reading from target %s:%s: nkeys = %d, onekey = '%s', error = '%s'",
+                        host, port, n, onekey, server.neterr);
+                addReplySds(c, sdsnew("-IOERR error or timeout reading from target\r\n"));
+                return -1;
+            }
+            if (buf[0] != '+') {
+                redisLog(REDIS_WARNING, "slotsmgrt: select failed, reading from target %s:%s: nkeys = %d, onekey = '%s', response = '%s'",
+                        host, port, n, onekey, buf);
+                addReplyError(c, "error on slotsrestore, select failed");
+                return -1;
+            }
+            pfd->db = db;
+        }
+
+        if (syncReadLine(pfd->fd, buf, sizeof(buf), timeout) <= 0) {
+            redisLog(REDIS_WARNING, "slotsmgrt: migration failed, reading from target %s:%s: nkeys = %d, onekey = '%s', error = '%s'",
+                    host, port, n, onekey, server.neterr);
             addReplySds(c, sdsnew("-IOERR error or timeout reading from target\r\n"));
             return -1;
         }
-        if (buf1[0] == '-' || buf2[0] == '-') {
-            redisLog(REDIS_WARNING, "slotsmgrt: response from target %s:%s: rsp1 = '%s', rsp2 = '%s', nkeys = %d, onekey = '%s'",
-                    host, port, buf1, buf2, n, onekey);
-            addReplyError(c, "error on slotsrestore");
+        if (buf[0] == '-') {
+            redisLog(REDIS_WARNING, "slotsmgrt: migration failed, reading from target %s:%s: nkeys = %d, onekey = '%s', response = '%s'",
+                    host, port, n, onekey, buf);
+            addReplyError(c, "error on slotsrestore, migration failed");
             return -1;
         }
     } while (0);
+
+    pfd->lasttime = server.unixtime;
 
     redisLog(REDIS_VERBOSE, "slotsmgrt: migrate to %s:%s, nkeys = %d, onekey = '%s'", host, port, n, onekey);
     return 0;
@@ -337,8 +385,8 @@ slotsremove(redisClient *c, robj **keys, int n, int rewrite) {
  * */
 static int
 slotsmgrtone_command(redisClient *c, sds host, sds port, int timeout, robj *key) {
-    int fd = slotsmgrt_get_socket(c, host, port, timeout);
-    if (fd == -1) {
+    slotsmgrt_sockfd *pfd = slotsmgrt_get_sockfd(c, host, port, timeout);
+    if (pfd == NULL) {
         return -1;
     }
 
@@ -348,7 +396,7 @@ slotsmgrtone_command(redisClient *c, sds host, sds port, int timeout, robj *key)
     }
     robj *keys[] = {key};
     robj *vals[] = {val};
-    if (slotsmgrt(c, host, port, fd, c->db->id, timeout, keys, vals, 1) != 0) {
+    if (slotsmgrt(c, host, port, pfd, c->db->id, timeout, keys, vals, 1) != 0) {
         slotsmgrt_close_socket(host, port);
         return -1;
     }
@@ -642,8 +690,8 @@ slotsmgrttag_command(redisClient *c, sds host, sds port, int timeout, robj *key)
         return slotsmgrtone_command(c, host, port, timeout, key);
     }
 
-    int fd = slotsmgrt_get_socket(c, host, port, timeout);
-    if (fd == -1) {
+    slotsmgrt_sockfd *pfd = slotsmgrt_get_sockfd(c, host, port, timeout);
+    if (pfd == NULL) {
         return -1;
     }
 
@@ -694,7 +742,7 @@ slotsmgrttag_command(redisClient *c, sds host, sds port, int timeout, robj *key)
 
     int ret = 0;
     if (n != 0) {
-        if (slotsmgrt(c, host, port, fd, c->db->id, timeout, keys, vals, n) != 0) {
+        if (slotsmgrt(c, host, port, pfd, c->db->id, timeout, keys, vals, n) != 0) {
             slotsmgrt_close_socket(host, port);
             ret = -1;
         } else {

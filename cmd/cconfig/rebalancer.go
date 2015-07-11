@@ -7,11 +7,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/juju/errors"
-	log "github.com/ngaut/logging"
+	"github.com/wandoulabs/zkhelper"
+
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/zkhelper"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type NodeInfo struct {
@@ -41,7 +42,7 @@ func getLivingNodeInfos(zkConn zkhelper.Conn) ([]*NodeInfo, error) {
 		if master == nil {
 			return nil, errors.Errorf("group %d has no master", g.Id)
 		}
-		out, err := utils.GetRedisConfig(master.Addr, "maxmemory")
+		out, err := utils.GetRedisConfig(master.Addr, globalEnv.Password(), "maxmemory")
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -64,7 +65,7 @@ func getLivingNodeInfos(zkConn zkhelper.Conn) ([]*NodeInfo, error) {
 		cnt += len(info.CurSlots)
 	}
 	if cnt != models.DEFAULT_SLOT_NUM {
-		return nil, errors.New("not all slots are online")
+		return nil, errors.Errorf("not all slots are online")
 	}
 	return ret, nil
 }
@@ -109,7 +110,7 @@ func Rebalance() error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	log.Info("start rebalance")
+	log.Infof("start rebalance")
 	for _, node := range livingNodes {
 		for len(node.CurSlots) > targetQuota[node.GroupId] {
 			for _, dest := range livingNodes {
@@ -131,6 +132,6 @@ func Rebalance() error {
 			}
 		}
 	}
-	log.Info("rebalance tasks submit finish")
+	log.Infof("rebalance tasks submit finish")
 	return nil
 }

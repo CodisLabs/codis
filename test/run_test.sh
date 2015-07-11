@@ -6,18 +6,12 @@ trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
 
 ########################################
 # cleanup
-rm -f *.log *.log.* *.out *.rdb
+./cleanup.sh
 
 ########################################
 # rebuild codis-*
 
 make -C ../ build || exit $?
-
-########################################
-# stop previous tests
-
-pkill -9 codis-config 2>&1 >/dev/null
-pkill -9 codis-server
 
 # start dashboard
 ../bin/codis-config -c config.ini -L dashboard.log dashboard --addr=:18087 2>&1 >/dev/null &
@@ -28,8 +22,9 @@ sleep 1
 ########################################
 # restart codis-server
 
-for p in {6379,6380,6479,6480}; do
-    nohup ../bin/codis-server ../extern/redis-test/conf/${p}.conf &>nohup_${p}.out &
+for p in {56379,56380,56479,56480}; do
+    sed -e "s/6379/${p}/g" redis.temp > ${p}.cfg
+    nohup ../bin/codis-server ${p}.cfg &>nohup_${p}.out &
 done
 
 ########################################
@@ -38,9 +33,8 @@ done
 > config.log
 
 
-for i in {1,2,3}; do
-    ../bin/codis-config proxy offline proxy_${i} 2>&1 >/dev/null
-done
+../bin/codis-config proxy offline proxy_1 2>&1 >/dev/null
+../bin/codis-config proxy offline proxy_2 2>&1 >/dev/null
 
 ../bin/codis-config slot init -f 2>&1 | tee -a config.log
 
@@ -49,9 +43,9 @@ sleep 2
 ../bin/codis-config server remove-group 1 2>&1 | tee -a config.log
 ../bin/codis-config server remove-group 2 2>&1 | tee -a config.log
 
-../bin/codis-config server add 1 127.0.0.1:6379 master 2>&1 | tee -a config.log
-../bin/codis-config server add 2 127.0.0.1:6380 master 2>&1 | tee -a config.log
-../bin/codis-config slot range-set 0 1023 1 online     2>&1 | tee -a config.log
+../bin/codis-config server add 1 127.0.0.1:56379 master 2>&1 | tee -a config.log
+../bin/codis-config server add 2 127.0.0.1:56380 master 2>&1 | tee -a config.log
+../bin/codis-config slot range-set 0 1023 1 online      2>&1 | tee -a config.log
 
 run_gc() {
     for((i=1;i<=1000000;i++));do
@@ -67,13 +61,11 @@ run_gc 2>&1 | tee -a config.log &
 
 ../bin/codis-proxy -c config1.ini -L proxy1.log --addr=0.0.0.0:9000 --http-addr=0.0.0.0:10000 &
 ../bin/codis-proxy -c config2.ini -L proxy2.log --addr=0.0.0.0:9001 --http-addr=0.0.0.0:10001 &
-../bin/codis-proxy -c config3.ini -L proxy3.log --addr=0.0.0.0:9002 --http-addr=0.0.0.0:10002 &
 
 sleep 2
 
 ../bin/codis-config proxy online proxy_1 2>&1 | tee -a config.log
 ../bin/codis-config proxy online proxy_2 2>&1 | tee -a config.log
-../bin/codis-config proxy online proxy_3 2>&1 | tee -a config.log
 
 ########################################
 # restart slots-migration

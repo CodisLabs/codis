@@ -72,7 +72,7 @@ func (s *Server) getBackendConn(addr string) *SharedBackendConn {
 	if bc != nil {
 		bc.IncrRefcnt()
 	} else {
-		bc = NewSharedBackendConn(addr)
+		bc = NewSharedBackendConn(addr, s.conf.passwd)
 		s.pool[addr] = bc
 	}
 	return bc
@@ -488,7 +488,7 @@ func (s *Server) Serve() error {
 
 	go func() {
 		for c := range ch {
-			x := NewSessionSize(c, s.conf.maxBufSize, s.conf.maxTimeout)
+			x := NewSessionSize(c, s.conf.passwd, s.conf.maxBufSize, s.conf.maxTimeout)
 			go x.Serve(s, s.conf.maxPipeline)
 		}
 	}()

@@ -25,6 +25,9 @@ type Session struct {
 	LastOpUnix int64
 	CreateUnix int64
 
+	passwd     string
+	authorized bool
+
 	quit   bool
 	failed atomic2.Bool
 	closed atomic2.Bool
@@ -44,12 +47,12 @@ func (s *Session) String() string {
 	return string(b)
 }
 
-func NewSession(c net.Conn) *Session {
-	return NewSessionSize(c, 1024*32, 1800)
+func NewSession(c net.Conn, passwd string) *Session {
+	return NewSessionSize(c, passwd, 1024*32, 1800)
 }
 
-func NewSessionSize(c net.Conn, bufsize int, timeout int) *Session {
-	s := &Session{CreateUnix: time.Now().Unix()}
+func NewSessionSize(c net.Conn, passwd string, bufsize int, timeout int) *Session {
+	s := &Session{CreateUnix: time.Now().Unix(), passwd: passwd}
 	s.Conn = redis.NewConnSize(c, bufsize)
 	s.Conn.ReaderTimeout = time.Second * time.Duration(timeout)
 	s.Conn.WriterTimeout = time.Second * 30
@@ -173,13 +176,26 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 		Failed: &s.failed,
 	}
 
+	if opstr == "QUIT" {
+		return s.handleQuit(r)
+	}
+	if opstr == "AUTH" {
+		return s.handleAuth(r)
+	}
+
+	if !s.authorized {
+		if s.passwd != "" {
+			r.Response.Resp = redis.NewError([]byte("NOAUTH Authentication required."))
+			return r, nil
+		}
+		s.authorized = true
+	}
+
 	switch opstr {
-	case "QUIT":
-		s.quit = true
-		fallthrough
-	case "AUTH", "SELECT":
-		r.Response.Resp = redis.NewString([]byte("OK"))
-		return r, nil
+	case "SELECT":
+		return s.handleSelect(r)
+	case "PING":
+		return s.handlePing(r)
 	case "MGET":
 		return s.handleRequestMGet(r, d)
 	case "MSET":
@@ -188,6 +204,42 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 		return s.handleRequestMDel(r, d)
 	}
 	return r, d.Dispatch(r)
+}
+
+func (s *Session) handleQuit(r *Request) (*Request, error) {
+	s.quit = true
+	r.Response.Resp = redis.NewString([]byte("OK"))
+	return r, nil
+}
+
+func (s *Session) handleAuth(r *Request) (*Request, error) {
+	if len(r.Resp.Array) != 2 {
+		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'AUTH' command"))
+		return r, nil
+	}
+	if s.passwd == "" {
+		r.Response.Resp = redis.NewError([]byte("ERR Client sent AUTH, but no password is set"))
+		return r, nil
+	}
+	if s.passwd != string(r.Resp.Array[1].Value) {
+		s.authorized = false
+		r.Response.Resp = redis.NewError([]byte("ERR invalid password"))
+		return r, nil
+	} else {
+		s.authorized = true
+		r.Response.Resp = redis.NewString([]byte("OK"))
+		return r, nil
+	}
+}
+
+func (s *Session) handleSelect(r *Request) (*Request, error) {
+	r.Response.Resp = redis.NewString([]byte("OK"))
+	return r, nil
+}
+
+func (s *Session) handlePing(r *Request) (*Request, error) {
+	r.Response.Resp = redis.NewString([]byte("PONG"))
+	return r, nil
 }
 
 func (s *Session) handleRequestMGet(r *Request, d Dispatcher) (*Request, error) {

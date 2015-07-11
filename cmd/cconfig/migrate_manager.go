@@ -6,12 +6,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/ngaut/logging"
-	"github.com/wandoulabs/go-zookeeper/zk"
-	"github.com/wandoulabs/zkhelper"
 	"path"
 	"sort"
 	"time"
+
+	"github.com/wandoulabs/go-zookeeper/zk"
+	"github.com/wandoulabs/zkhelper"
+
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 const (
@@ -73,11 +75,11 @@ func (m *MigrateManager) loop() error {
 		t := GetMigrateTask(*info)
 		err := t.preMigrateCheck()
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "pre migrate check failed")
 		}
 		err = t.run()
 		if err != nil {
-			log.Warning(err)
+			log.ErrorErrorf(err, "migrate failed")
 		}
 	}
 }

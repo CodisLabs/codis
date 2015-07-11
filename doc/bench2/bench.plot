@@ -47,15 +47,15 @@ set y2range[0:14]
 
 plot 'input1' \
               using 1:2  title "1Core-Twemproxy " with linespoints ls 1, \
-           '' using 1:4  title "4Core-Codis     " with linespoints ls 3, \
-           '' using 1:6  title "8Core-Codis     " with linespoints ls 5, \
+           '' using 1:4  title "4Core-Codis 2.0 " with linespoints ls 3, \
+           '' using 1:6  title "8Core-Codis 2.0 " with linespoints ls 5, \
            '' using 1:7  notitle with points ls 1 pt 1 ps 0.7 axes x1y2, \
            '' using 1:9  notitle with points ls 3 pt 1 ps 0.7 axes x1y2, \
            '' using 1:11 notitle with points ls 5 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
-         # '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
-         # '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
+           '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
+           '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
 
 
 set bmargin at screen 0.63
@@ -69,15 +69,15 @@ set y2range[0:1200]
 
 plot 'input2' \
               using 1:2  title "1Core-Twemproxy " with linespoints ls 1, \
-           '' using 1:4  title "4Core-Codis     " with linespoints ls 3, \
-           '' using 1:6  title "8Core-Codis     " with linespoints ls 5, \
+           '' using 1:4  title "4Core-Codis 2.0 " with linespoints ls 3, \
+           '' using 1:6  title "8Core-Codis 2.0 " with linespoints ls 5, \
            '' using 1:7  notitle with points ls 1 pt 1 ps 0.7 axes x1y2, \
            '' using 1:9  notitle with points ls 3 pt 1 ps 0.7 axes x1y2, \
            '' using 1:11 notitle with points ls 5 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
-         # '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
-         # '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
+           '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
+           '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
 
 set bmargin at screen 0.43
 set tmargin at screen 0.58
@@ -92,15 +92,15 @@ set ylabel "RPS_{mset}, 1K=10^3" offset 0.5,0 font ",16"
 
 plot 'input3' \
               using 1:2  title "1Core-Twemproxy " with linespoints ls 1, \
-           '' using 1:4  title "4Core-Codis     " with linespoints ls 3, \
-           '' using 1:6  title "8Core-Codis     " with linespoints ls 5, \
+           '' using 1:4  title "4Core-Codis 2.0 " with linespoints ls 3, \
+           '' using 1:6  title "8Core-Codis 2.0 " with linespoints ls 5, \
            '' using 1:7  notitle with points ls 1 pt 1 ps 0.7 axes x1y2, \
            '' using 1:9  notitle with points ls 3 pt 1 ps 0.7 axes x1y2, \
            '' using 1:11 notitle with points ls 5 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
-         # '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
-         # '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
+           '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
+           '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
 
 set bmargin at screen 0.23
 set tmargin at screen 0.38
@@ -115,15 +115,15 @@ set ylabel "RPS_{set+get}, 1K=10^3" offset 0.5,0 font ",16"
 
 plot 'input4' \
               using 1:2  title "1Core-Twemproxy " with linespoints ls 1, \
-           '' using 1:4  title "4Core-Codis     " with linespoints ls 3, \
-           '' using 1:6  title "8Core-Codis     " with linespoints ls 5, \
+           '' using 1:4  title "4Core-Codis 2.0 " with linespoints ls 3, \
+           '' using 1:6  title "8Core-Codis 2.0 " with linespoints ls 5, \
            '' using 1:7  notitle with points ls 1 pt 1 ps 0.7 axes x1y2, \
            '' using 1:9  notitle with points ls 3 pt 1 ps 0.7 axes x1y2, \
            '' using 1:11 notitle with points ls 5 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
-         # '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
-         # '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
+           '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
+           '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
 
 set bmargin at screen 0.03
 set tmargin at screen 0.18
@@ -138,14 +138,14 @@ set ylabel "RPS_{set+get}, 1K=10^3" offset 0.5,0 font ",16"
 
 plot 'input5' \
               using 1:2  title "1Core-Twemproxy " with linespoints ls 1, \
-           '' using 1:4  title "4Core-Codis     " with linespoints ls 3, \
-           '' using 1:6  title "8Core-Codis     " with linespoints ls 5, \
+           '' using 1:4  title "4Core-Codis 2.0 " with linespoints ls 3, \
+           '' using 1:6  title "8Core-Codis 2.0 " with linespoints ls 5, \
            '' using 1:7  notitle with points ls 1 pt 1 ps 0.7 axes x1y2, \
            '' using 1:9  notitle with points ls 3 pt 1 ps 0.7 axes x1y2, \
            '' using 1:11 notitle with points ls 5 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
-         # '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
-         # '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
-         # '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:3  title "4Core-Codis 1.9 " with linespoints ls 2, \
+           '' using 1:5  title "8Core-Codis 1.9 " with linespoints ls 4, \
+           '' using 1:8  notitle with points ls 2 pt 1 ps 0.7 axes x1y2, \
+           '' using 1:10 notitle with points ls 4 pt 1 ps 0.7 axes x1y2, \
 
 unset multiplot
