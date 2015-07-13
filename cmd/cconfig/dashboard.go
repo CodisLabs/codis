@@ -30,7 +30,7 @@ func cmdDashboard(argv []string) (err error) {
 	usage := `usage: codis-config dashboard [--addr=<address>] [--http-log=<log_file>]
 
 options:
-	--addr	listen ip:port, e.g. localhost:12345, :8086, [default: :8086]
+	--addr	listen ip:port, e.g. localhost:18087, :18087, [default: :18087]
 	--http-log	http request log [default: request.log ]
 `
 
@@ -46,7 +46,7 @@ options:
 		logFileName = args["--http-log"].(string)
 	}
 
-	addr := ":8086"
+	addr := ":18087"
 	if args["--addr"] != nil {
 		addr = args["--addr"].(string)
 	}
