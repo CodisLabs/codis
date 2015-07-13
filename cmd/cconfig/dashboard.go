@@ -120,22 +120,6 @@ func getAllProxyDebugVars() map[string]map[string]interface{} {
 	return ret
 }
 
-func getProxySpeedChan() <-chan int64 {
-	c := make(chan int64)
-	go func() {
-		var lastCnt int64
-		for {
-			cnt := getAllProxyOps()
-			if lastCnt > 0 {
-				c <- cnt - lastCnt
-			}
-			lastCnt = cnt
-			time.Sleep(1 * time.Second)
-		}
-	}()
-	return c
-}
-
 func pageSlots(r render.Render) {
 	r.HTML(200, "slots", nil)
 }
@@ -251,9 +235,17 @@ func runDashboard(addr string, httpLogFile string) {
 	globalMigrateManager = NewMigrateManager(safeZkConn, globalEnv.ProductName())
 
 	go func() {
-		c := getProxySpeedChan()
-		for {
-			atomic.StoreInt64(&proxiesSpeed, <-c)
+		tick := time.Tick(time.Second)
+		var lastCnt, qps int64
+		for _ = range tick {
+			cnt := getAllProxyOps()
+			if cnt > 0 {
+				qps = cnt - lastCnt
+				lastCnt = cnt
+			} else {
+				qps = 0
+			}
+			atomic.StoreInt64(&proxiesSpeed, qps)
 		}
 	}()
 
