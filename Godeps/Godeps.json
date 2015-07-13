@@ -7,7 +7,7 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/alicebob/miniredis",
-			"Rev": "369a529586baa6b4da7675162a4eb066d4babfe3"
+			"Rev": "c92a63681772281d5b7c962f6e3c9893db93d6a7"
 		},
 		{
 			"ImportPath": "github.com/bsm/redeo",
@@ -24,8 +24,8 @@
 		},
 		{
 			"ImportPath": "github.com/codegangsta/martini",
-			"Comment": "v1.0-121-gd460785",
-			"Rev": "d46078590564902aecd957f2034647a5786d0155"
+			"Comment": "v1.0-130-g17752b2",
+			"Rev": "17752b20aa29c599c7b6c22f1901d63983c5c25b"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/martini-contrib/binding",
@@ -39,13 +39,13 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/error",
-			"Comment": "v2.0.4-421-g90a7978",
-			"Rev": "90a7978474f6b45a0cb8f17cfa05b9944acc4bcd"
+			"Comment": "v2.1.0-rc.0-32-g5be545b",
+			"Rev": "5be545b872a5a5938f9664668c0022ca877c5439"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
-			"Comment": "v2.0.0-3-g0424b5f",
-			"Rev": "0424b5f86ef0ca57a5309c599f74bbb3e97ecd9d"
+			"Comment": "v2.0.0-18-gc904d70",
+			"Rev": "c904d7032a70da6551c43929f199244f6a45f4c1"
 		},
 		{
 			"ImportPath": "github.com/docopt/docopt-go",
@@ -54,20 +54,16 @@
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/internal",
-			"Rev": "535138d7bcd717d6531c701ef5933d98b1866257"
+			"Rev": "a47585eaae68b1d14b02940d2af1b9194f3caa9c"
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Rev": "535138d7bcd717d6531c701ef5933d98b1866257"
+			"Rev": "a47585eaae68b1d14b02940d2af1b9194f3caa9c"
 		},
 		{
 			"ImportPath": "github.com/go-martini/martini",
-			"Comment": "v1.0-121-gd460785",
-			"Rev": "d46078590564902aecd957f2034647a5786d0155"
-		},
-		{
-			"ImportPath": "github.com/juju/errors",
-			"Rev": "4567a5e69fd3130ca0d89f69478e7ac025b67452"
+			"Comment": "v1.0-130-g17752b2",
+			"Rev": "17752b20aa29c599c7b6c22f1901d63983c5c25b"
 		},
 		{
 			"ImportPath": "github.com/martini-contrib/cors",
@@ -82,10 +78,6 @@
 			"Rev": "a370e11a897352d792b9a6cba4db829368271c41"
 		},
 		{
-			"ImportPath": "github.com/ngaut/logging",
-			"Rev": "f98f5f4cd523647678af6f1726c5b5a14c9193d0"
-		},
-		{
 			"ImportPath": "github.com/ngaut/pools",
 			"Rev": "6352e005618615ffaf1cb1c6622b8e91435751fe"
 		},
@@ -94,12 +86,16 @@
 			"Rev": "7a24ed77b2efb460c1468b7dc917821c66e80e55"
 		},
 		{
+			"ImportPath": "github.com/ugorji/go/codec",
+			"Rev": "821cda7e48749cacf7cad2c6ed01e96457ca7e9d"
+		},
+		{
 			"ImportPath": "github.com/wandoulabs/go-zookeeper/zk",
-			"Rev": "3ba92e986ed7d490e9efe63d89ca8d02f3823ae1"
+			"Rev": "b1b28a63b55c6cbf89a73fde62b3e92675c90d4e"
 		},
 		{
 			"ImportPath": "github.com/wandoulabs/zkhelper",
-			"Rev": "ecac4d74e8357848e01790a123233c0a60592157"
+			"Rev": "324e3770c089e7a489248872efb3e5eb16c35e7b"
 		}
 	]
 }
