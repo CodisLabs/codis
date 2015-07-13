@@ -233,11 +233,27 @@ func (s *Session) handleAuth(r *Request) (*Request, error) {
 }
 
 func (s *Session) handleSelect(r *Request) (*Request, error) {
-	r.Response.Resp = redis.NewString([]byte("OK"))
-	return r, nil
+	if len(r.Resp.Array) != 2 {
+		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'SELECT' command"))
+		return r, nil
+	}
+	if db, err := strconv.Atoi(string(r.Resp.Array[1].Value)); err != nil {
+		r.Response.Resp = redis.NewError([]byte("ERR invalid DB index"))
+		return r, nil
+	} else if db != 0 {
+		r.Response.Resp = redis.NewError([]byte("ERR invalid DB index, only accept DB 0"))
+		return r, nil
+	} else {
+		r.Response.Resp = redis.NewString([]byte("OK"))
+		return r, nil
+	}
 }
 
 func (s *Session) handlePing(r *Request) (*Request, error) {
+	if len(r.Resp.Array) != 1 {
+		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'PING' command"))
+		return r, nil
+	}
 	r.Response.Resp = redis.NewString([]byte("PONG"))
 	return r, nil
 }
@@ -290,7 +306,7 @@ func (s *Session) handleRequestMSet(r *Request, d Dispatcher) (*Request, error) 
 		return r, d.Dispatch(r)
 	}
 	if nblks%2 != 0 {
-		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for MSET"))
+		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'MSET' command"))
 		return r, nil
 	}
 	var sub = make([]*Request, nblks/2)
