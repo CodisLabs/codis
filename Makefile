@@ -1,7 +1,10 @@
 all: build
 	@tar -cf deploy.tar bin sample
 
-build: build-proxy build-config build-server
+build: build-version build-proxy build-config build-server
+
+build-version:
+	@bash genver.sh
 
 build-proxy:
 	go build -o bin/codis-proxy ./cmd/proxy
