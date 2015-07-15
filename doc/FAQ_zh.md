@@ -7,7 +7,6 @@ Codis 是 Wandoujia Infrastructure Team 开发的一个分布式 Redis 服务, �
 codis 支持水平扩容/缩容，扩容可以直使界面的 "Auto Rebalance" 按钮，缩容只需要将要下线的实例拥有的slot迁移到其它实例，
 然后在界面上删除下线的group即可
 
-
 ###我的服务能直接迁移到 Codis 上吗?
 
 分两种情况: 
@@ -16,11 +15,11 @@ codis 支持水平扩容/缩容，扩容可以直使界面的 "Auto Rebalance" �
 可以, 使用codis项目内的redis-port工具, 可以实时的同步 twemproxy 底下的 redis 数据到你的 codis 集群上. 搞定了以后, 只需要你修改一下你的配置, 将 twemproxy 的地址改成 codis 的地址就好了. 除此之外, 你什么事情都不用做.
 
 2) 原来使用 Redis 的用户:
-看情况, 如果你使用以下命令:   
+如果你使用了[doc/unsupported_cmds](https://github.com/wandoulabs/codis/blob/master/doc/unsupported_cmds.md)中提到的命令，是无法直接迁移到 Codis 上的. 你需要修改你的代码, 用其他的方式实现.
 
-BGREWRITEAOF, BGSAVE, BITOP, BLPOP, BRPOP, BRPOPLPUSH, CLIENT, CONFIG, DBSIZE, DEBUG, DISCARD, EXEC, FLUSHALL, FLUSHDB, KEYS, LASTSAVE, MIGRATE, MONITOR, MOVE, MSETNX, MULTI, OBJECT, PSUBSCRIBE, PUBLISH, PUNSUBSCRIBE, RANDOMKEY, RENAME, RENAMENX, RESTORE, SAVE, SCAN, SCRIPT, SHUTDOWN, SLAVEOF, SLOTSCHECK, SLOTSDEL, SLOTSINFO, SLOTSMGRTONE, SLOTSMGRTSLOT, SLOTSMGRTTAGONE, SLOTSMGRTTAGSLOT, SLOWLOG, SUBSCRIBE, SYNC, TIME, UNSUBSCRIBE, UNWATCH, WATCH
-
-是无法直接迁移到 Codis 上的. 你需要修改你的代码, 用其他的方式实现.
+###相对于twemproxy的优劣？
+codis和twemproxy最大的区别有两个：一个是codis支持动态水平扩展，对client完全透明不影响服务的情况下可以完成增减redis实例的操作；一个是codis是用go语言写的并支持多线程而twemproxy用C并只用单线程。
+后者又意味着：codis在多核机器上的性能会好于twemproxy；codis的最坏响应时间可能会因为GC的STW而变大，不过go1.5发布后会显著降低STW的时间；如果只用一个CPU的话go语言的性能不如C，因此在一些短连接而非长连接的场景中，整个系统的瓶颈可能变成accept新tcp连接的速度，这时codis的性能可能会差于twemproxy。
 
 ###服务迁移到 Codis 上有什么好处?
 
@@ -41,7 +40,7 @@ Codis 是会把 KEYS 指令屏蔽的, 即使你在使用 raw Redis, 我也不太
 
 ###Codis 支持 MSET, MGET吗?
 
-支持, 但是对于有高性能要求的场景, 尽量不要使用. 当然, 如果觉得你的瓶颈是带宽的话, 那可以用. 在 Codis 内部还是会将 MSET 和 MGET 拆成一个个单个GET, SET指令的, 所以在Codis这边性能是不会提升的, 能节省是与客户端来回的网络IO. 要知道在一个分布式系统上实现一个原始语意的 mset, 这个相当于实现一个分布式事务, 性能肯定好不了. :)
+支持, 在比较早的版本中MSET/MGET的性能较差，甚至可能差过单机redis，但2.0开始会因为后台并发执行而比单机的mset/mget快很多。
 
 ###Codis 是多线程的吗?
 
