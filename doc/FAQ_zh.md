@@ -2,10 +2,11 @@
 
 Codis 是 Wandoujia Infrastructure Team 开发的一个分布式 Redis 服务, 用户可以看成是一个无限内存的 Redis 服务, 有动态扩/缩容的能力. 对偏存储型的业务更实用, 如果你需要 SUBPUB 之类的指令, Codis 是不支持的. 时刻记住 Codis 是一个分布式存储的项目. 对于海量的 key, value不太大( <= 1M ), 随着业务扩展缓存也要随之扩展的业务场景有特效.
 
-###Codis 弹性到什么程度？
+###使用 Codis 有什么好处?
 
-codis 支持水平扩容/缩容，扩容可以直使界面的 "Auto Rebalance" 按钮，缩容只需要将要下线的实例拥有的slot迁移到其它实例，
-然后在界面上删除下线的group即可
+Redis获得动态扩容/缩容的能力，增减redis实例对client完全透明、不需要重启服务，不需要业务方担心 Redis 内存爆掉的问题. 也不用担心申请太大, 造成浪费. 业务方也不需要自己维护 Redis.
+
+Codis支持水平扩容/缩容，扩容可以直接界面的 "Auto Rebalance" 按钮，缩容只需要将要下线的实例拥有的slot迁移到其它实例，然后在界面上删除下线的group即可。
 
 ###我的服务能直接迁移到 Codis 上吗?
 
@@ -21,13 +22,9 @@ codis 支持水平扩容/缩容，扩容可以直使界面的 "Auto Rebalance" �
 codis和twemproxy最大的区别有两个：一个是codis支持动态水平扩展，对client完全透明不影响服务的情况下可以完成增减redis实例的操作；一个是codis是用go语言写的并支持多线程而twemproxy用C并只用单线程。
 后者又意味着：codis在多核机器上的性能会好于twemproxy；codis的最坏响应时间可能会因为GC的STW而变大，不过go1.5发布后会显著降低STW的时间；如果只用一个CPU的话go语言的性能不如C，因此在一些短连接而非长连接的场景中，整个系统的瓶颈可能变成accept新tcp连接的速度，这时codis的性能可能会差于twemproxy。
 
-###服务迁移到 Codis 上有什么好处?
-
-Redis获得动态扩容/缩容的能力. 不需要业务方担心 Redis 内存爆掉的问题. 也不用担心申请太大, 造成浪费. 业务方也不需要自己维护 Redis.
-
-###我的代码里用了 KEYS 怎么办?
-
-Codis 是会把 KEYS 指令屏蔽的, 即使你在使用 raw Redis, 我也不太建议使用这个命令, 因为在 Redis 里 KEYS 指令是 O(n) 复杂度的, 而且 Redis 是一个单线程的服务端程序, 当 Key 的数量一大, 会将整个主线程卡死, 所有的请求都无法响应. 所以我建议在业务中最好别用. Codis 同样屏蔽 SCAN 命令.
+###相对于redis cluster的优劣？
+redis cluster基于smart client和无中心的设计，client必须按key的哈希将请求直接发送到对应的节点。这意味着：使用官方cluster必须要等对应语言的redis driver对cluster支持的开发和不断成熟；client不能直接像单机一样使用pipeline来提高效率，想同时执行多个请求来提速必须在client端自行实现异步逻辑。
+而codis因其有中心节点、基于proxy的设计，对client来说可以像对单机redis一样去操作proxy（除了一些命令不支持），还可以继续使用pipeline并且如果后台redis有多个的话速度会显著快于单redis的pipeline。同时codis使用zookeeper来作为辅助，这意味着单纯对于redis集群来说需要额外的机器搭zk，不过对于很多已经在其他服务上用了zk的公司来说这不是问题：）
 
 ###Codis 可以当队列使用吗?
 
@@ -56,8 +53,7 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 
 ###Codis的性能如何?
 
-8 core Xeon 2.10GHz, 多线程的 benchmark, 单 proxy 的 ops 是 12w. 而且 proxy 是可以动态水平扩展的, 理论上的性能瓶颈应该是百万级别的.
-由于 Codis 能很好的利用多核, 虽然在单核上的速度没有 Twemproxy 快, 但是并发数一上来, 你会发现单 Twemproxy 仅仅能吃满一个 CPU, 而 Codis 能尽可能的跑满 CPU. 所以在高并发/多线程客户端的场景下, Codis 的性能是不一定比单 Twemproxy 差, 见 benchmark. 但是 Codis 提供的最大价值是弹性扩缩容的能力, 不是吗 :) ?
+见Readme中的[Benchmark一节](https://github.com/wandoulabs/codis#performance-benchmark)。
 
 ###我的数据在 Codis 上是安全的吗?
 
@@ -108,7 +104,7 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 
 	- 旧 redis 下线时，会导致 reids-port 链接断开，于是自动退出
 		
-###redis-port 是如何在线迁移数据的？#####
+###redis-port 是如何在线迁移数据的？
 
 + redis-port 本质是以 slave 的形式挂载到现有 redis 服务上去的
 
@@ -120,11 +116,11 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 	- https://github.com/sripathikrishnan/redis-rdb-tools
 	- https://github.com/cupcake/rdb
 
-#### Dashboard 中 Ops 一直是 0？
+### Dashboard 中 Ops 一直是 0？
 
 检查你的启动 dashboard 进程的机器，看是否可以访问proxy的地址，对应的地址是 proxy 启动参数中的 debug_var_addr 中填写的地址。
 
-#### 如果出现错误 "Some proxies may not stop cleanly ..." 如何处理？
+### 如果出现错误 "Some proxies may not stop cleanly ..." 如何处理？
 
 可能的原因是之前某个 proxy 并没有正常退出所致，我们并不能区分该 proxy 是 session expire 或者已经退出，为了安全起见，我们在这期间是禁止做集群拓扑结构变更的操作的。请确认这个 proxy 已经确实下线，或者确实进程已经被杀掉后，然后清除这个 proxy 留下的fence，使用命令：
 `codis-config -c config.ini action remove-fence` 进行操作。
