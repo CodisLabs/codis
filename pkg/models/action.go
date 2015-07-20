@@ -117,7 +117,7 @@ func WaitForReceiverWithTimeout(zkConn zkhelper.Conn, productName string, action
 			return errors.Trace(err)
 		}
 	}
-	return errors.Trace(ErrReceiverTimeout)
+	return ErrReceiverTimeout
 }
 
 func GetActionSeqList(zkConn zkhelper.Conn, productName string) ([]int, error) {
