@@ -13,8 +13,8 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
-func DialTo(addr string, passwd string) (redis.Conn, error) {
-	c, err := redis.DialTimeout("tcp", addr, time.Second, time.Second, time.Second)
+func DialToTimeout(addr string, passwd string, readTimeout, writeTimeout time.Duration) (redis.Conn, error) {
+	c, err := redis.DialTimeout("tcp", addr, time.Second, readTimeout, writeTimeout)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -25,6 +25,10 @@ func DialTo(addr string, passwd string) (redis.Conn, error) {
 		}
 	}
 	return c, nil
+}
+
+func DialTo(addr string, passwd string) (redis.Conn, error) {
+	return DialToTimeout(addr, passwd, time.Second*5, time.Second*5)
 }
 
 func SlotsInfo(addr, passwd string, fromSlot, toSlot int) (map[int]int, error) {
@@ -139,7 +143,7 @@ func SlaveOf(slave, passwd string, master string) error {
 		return errors.Errorf("can not slave of itself")
 	}
 
-	c, err := DialTo(slave, passwd)
+	c, err := DialToTimeout(slave, passwd, time.Minute*15, time.Second*5)
 	if err != nil {
 		return err
 	}
