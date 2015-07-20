@@ -12,12 +12,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ngaut/zkhelper"
-	"github.com/wandoulabs/codis/pkg/utils"
-
 	"github.com/juju/errors"
 	"github.com/ngaut/go-zookeeper/zk"
 	log "github.com/ngaut/logging"
+	"github.com/ngaut/zkhelper"
 )
 
 type ActionType string
@@ -87,14 +85,12 @@ func WaitForReceiver(zkConn zkhelper.Conn, productName string, actionZkPath stri
 	}
 
 	times := 0
-	var proxyIds []string
-	var offlineProxyIds []string
+	proxyIds := make(map[string]bool)
 	for _, p := range proxies {
-		proxyIds = append(proxyIds, p.Id)
+		proxyIds[p.Id] = true
 	}
-	sort.Strings(proxyIds)
 	// check every 500ms
-	for times < 60 {
+	for times < 20 {
 		if times >= 6 && (times*500)%1000 == 0 {
 			log.Warning("abnormal waiting time for receivers", actionZkPath)
 		}
@@ -102,26 +98,19 @@ func WaitForReceiver(zkConn zkhelper.Conn, productName string, actionZkPath stri
 		if err != nil {
 			return errors.Trace(err)
 		}
-		var confirmIds []string
 		for _, node := range nodes {
 			id := path.Base(node)
-			confirmIds = append(confirmIds, id)
+			delete(proxyIds, id)
 		}
-		if len(confirmIds) != 0 {
-			sort.Strings(confirmIds)
-			if utils.Strings(proxyIds).Eq(confirmIds) {
-				return nil
-			}
-			offlineProxyIds = proxyIds[len(confirmIds)-1:]
+		if len(proxyIds) == 0 {
+			return nil
 		}
-		times += 1
+		times++
 		time.Sleep(500 * time.Millisecond)
 	}
-	if len(offlineProxyIds) > 0 {
-		log.Error("proxies didn't responed: ", offlineProxyIds)
-	}
+	log.Warning("proxies didn't responed: ", proxyIds)
 	// set offline proxies
-	for _, id := range offlineProxyIds {
+	for id, _ := range proxyIds {
 		log.Errorf("mark proxy %s to PROXY_STATE_MARK_OFFLINE", id)
 		if err := SetProxyStatus(zkConn, productName, id, PROXY_STATE_MARK_OFFLINE); err != nil {
 			return err
