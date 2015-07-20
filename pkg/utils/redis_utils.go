@@ -103,7 +103,7 @@ func GetRedisConfig(addr string, configName string) (string, error) {
 }
 
 func SlaveOf(slave, master string) error {
-	c, err := redis.DialTimeout("tcp", slave, defaultTimeout, defaultTimeout, defaultTimeout)
+	c, err := redis.DialTimeout("tcp", slave, defaultTimeout, time.Minute * 15, defaultTimeout)
 	if err != nil {
 		return errors.Trace(err)
 	}
