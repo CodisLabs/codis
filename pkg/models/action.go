@@ -85,53 +85,33 @@ func WaitForReceiverWithTimeout(zkConn zkhelper.Conn, productName string, action
 	}
 
 	times := 0
-	proxyIds := make(map[string]struct{})
-	var offlineProxyIds []string
+	proxyIds := make(map[string]bool)
 	for _, p := range proxies {
-		proxyIds[p.Id] = struct{}{}
+		proxyIds[p.Id] = true
 	}
-
-	checkTimes := timeoutInMs / 500
 	// check every 500ms
-	for times < checkTimes {
+	for times < timeoutInMs/500{
 		if times >= 6 && (times*500)%1000 == 0 {
-			log.Warnf("abnormal waiting time for receivers: %s %v", actionZkPath, offlineProxyIds)
+			log.Warnf("abnormal waiting time for receivers: %s %v", actionZkPath, proxyIds)
 		}
 		// get confirm ids
 		nodes, _, err := zkConn.Children(actionZkPath)
 		if err != nil {
 			return errors.Trace(err)
 		}
-		confirmIds := make(map[string]struct{})
 		for _, node := range nodes {
 			id := path.Base(node)
-			confirmIds[id] = struct{}{}
+			delete(proxyIds, id)
 		}
-		if len(confirmIds) != 0 {
-			match := true
-			// check if all proxy have responsed
-			var notMatchList []string
-			for id, _ := range proxyIds {
-				// if proxy id not in confirm ids, means someone didn't response
-				if _, ok := confirmIds[id]; !ok {
-					match = false
-					notMatchList = append(notMatchList, id)
-				}
-			}
-			if match {
-				return nil
-			}
-			offlineProxyIds = notMatchList
+		if len(proxyIds) == 0 {
+			return nil
 		}
-		times += 1
+		times++
 		time.Sleep(500 * time.Millisecond)
 	}
-	if len(offlineProxyIds) > 0 {
-		log.Errorf("proxies didn't responed: %v", offlineProxyIds)
-	}
-
+	log.Warn("proxies didn't responed: ", proxyIds)
 	// set offline proxies
-	for _, id := range offlineProxyIds {
+	for id, _ := range proxyIds {
 		log.Errorf("mark proxy %s to PROXY_STATE_MARK_OFFLINE", id)
 		if err := SetProxyStatus(zkConn, productName, id, PROXY_STATE_MARK_OFFLINE); err != nil {
 			return errors.Trace(err)
@@ -241,8 +221,8 @@ func CreateActionRootPath(zkConn zkhelper.Conn, path string) error {
 }
 
 func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, target interface{}, desc string, needConfirm bool) error {
-	// new action with default timeout: 30s
-	return NewActionWithTimeout(zkConn, productName, actionType, target, desc, needConfirm, 30*1000)
+	// new action with default timeout: 10s
+	return NewActionWithTimeout(zkConn, productName, actionType, target, desc, needConfirm, 10*1000)
 }
 
 func NewActionWithTimeout(zkConn zkhelper.Conn, productName string, actionType ActionType, target interface{}, desc string, needConfirm bool, timeoutInMs int) error {
