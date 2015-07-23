@@ -136,7 +136,7 @@ func main() {
 	if s, ok := args["--log-level"].(string); ok && s != "" {
 		setLogLevel(s)
 	}
-
+	cpus = runtime.NumCPU()
 	// set cpu
 	if args["--cpu"] != nil {
 		cpus, err = strconv.Atoi(args["--cpu"].(string))
