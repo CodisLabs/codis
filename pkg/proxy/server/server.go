@@ -92,6 +92,8 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 		for i := 0; i < router.MaxSlotNum; i++ {
 			s.fillSlot(i)
 		}
+		log.Infof("proxy is ready for serving")
+
 		s.handleTopoEvent()
 	}()
 
@@ -128,7 +130,7 @@ func (s *Server) register() bool {
 		}
 		switch info.State {
 		case models.PROXY_STATE_MARK_OFFLINE:
-			log.Infof("register, receive offline event")
+			log.Infof("action, mark offline")
 			s.handleOffline()
 			return false
 		case models.PROXY_STATE_ONLINE:
@@ -142,7 +144,7 @@ func (s *Server) register() bool {
 		}
 		select {
 		case <-s.kill:
-			log.Infof("register, receive kill event")
+			log.Infof("killed, mark offline")
 			s.handleOffline()
 			return false
 		default:
@@ -295,17 +297,23 @@ func (s *Server) handleOffline() {
 	s.topo.Close(s.info.Id)
 }
 
-func (s *Server) processAction(e interface{}) {
+func (s *Server) processAction(e interface{}) bool {
 	if strings.Index(getEventPath(e), models.GetProxyPath(s.topo.ProductName)) == 0 {
 		info, err := s.topo.GetProxyInfo(s.info.Id)
 		if err != nil {
 			log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
 		}
 		if info.State == models.PROXY_STATE_MARK_OFFLINE {
-			log.Infof("process action, receive offline event")
+			log.Infof("action, mark offline")
 			s.handleOffline()
+			return false
+		} else {
+			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
+			if err != nil {
+				log.PanicErrorf(err, "watch node failed")
+			}
+			return true
 		}
-		return
 	}
 
 	//re-watch
@@ -320,7 +328,7 @@ func (s *Server) processAction(e interface{}) {
 	}
 
 	if len(seqs) == 0 || !s.topo.IsChildrenChangedEvent(e) {
-		return
+		return true
 	}
 
 	//get last pos
@@ -333,7 +341,7 @@ func (s *Server) processAction(e interface{}) {
 	}
 
 	if index < 0 {
-		return
+		return true
 	}
 
 	actions := seqs[index:]
@@ -351,6 +359,7 @@ func (s *Server) processAction(e interface{}) {
 	}
 
 	s.lastActionSeq = seqs[len(seqs)-1]
+	return true
 }
 
 func (s *Server) handleTopoEvent() {
@@ -361,8 +370,8 @@ func (s *Server) handleTopoEvent() {
 	for {
 		select {
 		case <-s.kill:
+			log.Infof("killed, mark offline")
 			s.handleOffline()
-			log.Infof("handle topo event: receive kill event")
 			return
 		case e := <-s.evtbus:
 			evtPath := getEventPath(e)
@@ -379,7 +388,9 @@ func (s *Server) handleTopoEvent() {
 				}
 			}
 			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
-			s.processAction(e)
+			if !s.processAction(e) {
+				return
+			}
 		case <-ticker.C:
 			if maxTick := s.conf.pingPeriod; maxTick != 0 {
 				if tick++; tick >= maxTick {
