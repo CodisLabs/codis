@@ -10,13 +10,25 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/atomic2"
 )
 
-type opstats struct {
+type OpStats struct {
 	opstr string
 	calls atomic2.Int64
 	usecs atomic2.Int64
 }
 
-func (s *opstats) MarshalJSON() ([]byte, error) {
+func (s *OpStats) OpStr() string {
+	return s.opstr
+}
+
+func (s *OpStats) Calls() int64 {
+	return s.calls.Get()
+}
+
+func (s *OpStats) USecs() int64 {
+	return s.usecs.Get()
+}
+
+func (s *OpStats) MarshalJSON() ([]byte, error) {
 	var m = make(map[string]interface{})
 	var calls = s.calls.Get()
 	var usecs = s.usecs.Get()
@@ -36,15 +48,19 @@ func (s *opstats) MarshalJSON() ([]byte, error) {
 var cmdstats struct {
 	requests atomic2.Int64
 
-	opmap map[string]*opstats
+	opmap map[string]*OpStats
 	rwlck sync.RWMutex
 }
 
 func init() {
-	cmdstats.opmap = make(map[string]*opstats)
+	cmdstats.opmap = make(map[string]*OpStats)
 }
 
-func getOpStats(opstr string, create bool) *opstats {
+func OpCounts() int64 {
+	return cmdstats.requests.Get()
+}
+
+func GetOpStats(opstr string, create bool) *OpStats {
 	cmdstats.rwlck.RLock()
 	s := cmdstats.opmap[opstr]
 	cmdstats.rwlck.RUnlock()
@@ -56,15 +72,15 @@ func getOpStats(opstr string, create bool) *opstats {
 	cmdstats.rwlck.Lock()
 	s = cmdstats.opmap[opstr]
 	if s == nil {
-		s = &opstats{opstr: opstr}
+		s = &OpStats{opstr: opstr}
 		cmdstats.opmap[opstr] = s
 	}
 	cmdstats.rwlck.Unlock()
 	return s
 }
 
-func getAllOpStats() []*opstats {
-	var all = make([]*opstats, 0, 128)
+func GetAllOpStats() []*OpStats {
+	var all = make([]*OpStats, 0, 128)
 	cmdstats.rwlck.RLock()
 	for _, s := range cmdstats.opmap {
 		all = append(all, s)
@@ -74,7 +90,7 @@ func getAllOpStats() []*opstats {
 }
 
 func incrOpStats(opstr string, usecs int64) {
-	s := getOpStats(opstr, true)
+	s := GetOpStats(opstr, true)
 	s.calls.Incr()
 	s.usecs.Add(usecs)
 	cmdstats.requests.Incr()

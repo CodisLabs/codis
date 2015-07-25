@@ -7,16 +7,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type Slot struct {
-	Id    int
-	Info  *models.Slot
-	Group *models.ServerGroup
+	id int
 
 	backend struct {
 		addr string
@@ -53,7 +50,6 @@ func (s *Slot) unblock() {
 }
 
 func (s *Slot) reset() {
-	s.Info, s.Group = nil, nil
 	s.backend.addr = ""
 	s.backend.host = nil
 	s.backend.port = nil
@@ -78,12 +74,12 @@ var ErrSlotIsNotReady = errors.New("slot is not ready, may be offline")
 
 func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 	if s.backend.bc == nil {
-		log.Infof("slot-%04d is not ready: key = %s", s.Id, key)
+		log.Infof("slot-%04d is not ready: key = %s", s.id, key)
 		return nil, ErrSlotIsNotReady
 	}
 	if err := s.slotsmgrt(r, key); err != nil {
 		log.Warnf("slot-%04d migrate from = %s to %s failed: key = %s, error = %s",
-			s.Id, s.migrate.from, s.backend.addr, key, err)
+			s.id, s.migrate.from, s.backend.addr, key, err)
 		return nil, err
 	} else {
 		r.slot = &s.wait
@@ -122,7 +118,7 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 	}
 	if resp.IsInt() {
 		log.Debugf("slot-%04d migrate from %s to %s: key = %s, resp = %s",
-			s.Id, s.migrate.from, s.backend.addr, key, resp.Value)
+			s.id, s.migrate.from, s.backend.addr, key, resp.Value)
 		return nil
 	} else {
 		return errors.New(fmt.Sprintf("error resp: should be integer, but got %s", resp.Type))

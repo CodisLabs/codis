@@ -4,18 +4,23 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/docopt/docopt-go"
+	"github.com/ngaut/gostats"
 	"github.com/wandoulabs/codis/pkg/proxy/router"
+	"github.com/wandoulabs/codis/pkg/proxy/server"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/bytesize"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -162,16 +167,34 @@ func main() {
 	go http.ListenAndServe(httpAddr, nil)
 
 	log.Info("running on ", addr)
-	conf, err := router.LoadConf(configFile)
+	conf, err := server.LoadConf(configFile)
 	if err != nil {
 		log.PanicErrorf(err, "load config failed")
 	}
-	s, err := router.NewServer(addr, httpAddr, conf)
-	if err != nil {
-		log.PanicErrorf(err, "create new server failed")
-	}
-	if err := s.Serve(); err != nil {
-		log.PanicErrorf(err, "serve failed")
-	}
-	panic("exit")
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM, os.Kill)
+
+	s := server.New(addr, httpAddr, conf)
+
+	stats.PublishJSONFunc("router", func() string {
+		var m = make(map[string]interface{})
+		m["ops"] = router.OpCounts()
+		m["cmds"] = router.GetAllOpStats()
+		m["info"] = s.Info()
+		m["build"] = map[string]interface{}{
+			"version": utils.Version,
+			"compile": utils.Compile,
+		}
+		b, _ := json.Marshal(m)
+		return string(b)
+	})
+
+	go func() {
+		<-c
+		log.Info("ctrl-c or SIGTERM found, server is shutting down, bye bye...")
+		s.Close()
+	}()
+
+	log.PanicErrorf(s.Serve(), "server exit")
 }

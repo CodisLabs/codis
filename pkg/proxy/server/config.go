@@ -1,13 +1,12 @@
 // Copyright 2014 Wandoujia Inc. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package router
+package server
 
 import (
 	"strings"
 
 	"github.com/c4pt0r/cfg"
-	"github.com/wandoulabs/codis/pkg/proxy/router/topology"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -16,7 +15,7 @@ type Config struct {
 	productName string
 	zkAddr      string
 	passwd      string
-	fact        topology.ZkFactory
+	fact        ZkFactory
 	proto       string //tcp or tcp4
 	provider    string
 
@@ -53,8 +52,8 @@ func LoadConf(configFile string) (*Config, error) {
 	conf.proto, _ = c.ReadString("proto", "tcp")
 	conf.provider, _ = c.ReadString("coordinator", "zookeeper")
 
-	loadConfInt := func(entry string, defInt int) int {
-		v, _ := c.ReadInt(entry, defInt)
+	loadConfInt := func(entry string, defval int) int {
+		v, _ := c.ReadInt(entry, defval)
 		if v < 0 {
 			log.Panicf("invalid config: read %s = %d", entry, v)
 		}
@@ -63,8 +62,8 @@ func LoadConf(configFile string) (*Config, error) {
 
 	conf.pingPeriod = loadConfInt("backend_ping_period", 5)
 	conf.maxTimeout = loadConfInt("session_max_timeout", 1800)
-	conf.maxBufSize = loadConfInt("session_max_bufsize", 1024*32)
-	conf.maxPipeline = loadConfInt("session_max_pipeline", 128)
+	conf.maxBufSize = loadConfInt("session_max_bufsize", 131072)
+	conf.maxPipeline = loadConfInt("session_max_pipeline", 1024)
 	conf.zkSessionTimeout = loadConfInt("zk_session_timeout", 30)
 	return conf, nil
 }

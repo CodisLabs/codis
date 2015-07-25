@@ -25,7 +25,7 @@ type Session struct {
 	LastOpUnix int64
 	CreateUnix int64
 
-	passwd     string
+	auth       string
 	authorized bool
 
 	quit   bool
@@ -47,12 +47,12 @@ func (s *Session) String() string {
 	return string(b)
 }
 
-func NewSession(c net.Conn, passwd string) *Session {
-	return NewSessionSize(c, passwd, 1024*32, 1800)
+func NewSession(c net.Conn, auth string) *Session {
+	return NewSessionSize(c, auth, 1024*32, 1800)
 }
 
-func NewSessionSize(c net.Conn, passwd string, bufsize int, timeout int) *Session {
-	s := &Session{CreateUnix: time.Now().Unix(), passwd: passwd}
+func NewSessionSize(c net.Conn, auth string, bufsize int, timeout int) *Session {
+	s := &Session{CreateUnix: time.Now().Unix(), auth: auth}
 	s.Conn = redis.NewConnSize(c, bufsize)
 	s.Conn.ReaderTimeout = time.Second * time.Duration(timeout)
 	s.Conn.WriterTimeout = time.Second * 30
@@ -184,7 +184,7 @@ func (s *Session) handleRequest(resp *redis.Resp, d Dispatcher) (*Request, error
 	}
 
 	if !s.authorized {
-		if s.passwd != "" {
+		if s.auth != "" {
 			r.Response.Resp = redis.NewError([]byte("NOAUTH Authentication required."))
 			return r, nil
 		}
@@ -217,11 +217,11 @@ func (s *Session) handleAuth(r *Request) (*Request, error) {
 		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'AUTH' command"))
 		return r, nil
 	}
-	if s.passwd == "" {
+	if s.auth == "" {
 		r.Response.Resp = redis.NewError([]byte("ERR Client sent AUTH, but no password is set"))
 		return r, nil
 	}
-	if s.passwd != string(r.Resp.Array[1].Value) {
+	if s.auth != string(r.Resp.Array[1].Value) {
 		s.authorized = false
 		r.Response.Resp = redis.NewError([]byte("ERR invalid password"))
 		return r, nil

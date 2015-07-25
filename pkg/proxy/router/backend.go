@@ -15,16 +15,15 @@ import (
 
 type BackendConn struct {
 	addr string
+	auth string
 	stop sync.Once
-
-	passwd string
 
 	input chan *Request
 }
 
-func NewBackendConn(addr, passwd string) *BackendConn {
+func NewBackendConn(addr, auth string) *BackendConn {
 	bc := &BackendConn{
-		addr: addr, passwd: passwd,
+		addr: addr, auth: auth,
 		input: make(chan *Request, 1024),
 	}
 	go bc.Run()
@@ -145,12 +144,12 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 }
 
 func (bc *BackendConn) verifyAuth(c *redis.Conn) error {
-	if bc.passwd == "" {
+	if bc.auth == "" {
 		return nil
 	}
 	resp := redis.NewArray([]*redis.Resp{
 		redis.NewBulkBytes([]byte("AUTH")),
-		redis.NewBulkBytes([]byte(bc.passwd)),
+		redis.NewBulkBytes([]byte(bc.auth)),
 	})
 
 	if err := c.Writer.Encode(resp, true); err != nil {
@@ -203,8 +202,8 @@ type SharedBackendConn struct {
 	refcnt int
 }
 
-func NewSharedBackendConn(addr, passwd string) *SharedBackendConn {
-	return &SharedBackendConn{BackendConn: NewBackendConn(addr, passwd), refcnt: 1}
+func NewSharedBackendConn(addr, auth string) *SharedBackendConn {
+	return &SharedBackendConn{BackendConn: NewBackendConn(addr, auth), refcnt: 1}
 }
 
 func (s *SharedBackendConn) Close() bool {
