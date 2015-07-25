@@ -18,8 +18,8 @@ import (
 
 	"github.com/docopt/docopt-go"
 	"github.com/ngaut/gostats"
+	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/proxy/router"
-	"github.com/wandoulabs/codis/pkg/proxy/server"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/bytesize"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -167,7 +167,7 @@ func main() {
 	go http.ListenAndServe(httpAddr, nil)
 
 	log.Info("running on ", addr)
-	conf, err := server.LoadConf(configFile)
+	conf, err := proxy.LoadConf(configFile)
 	if err != nil {
 		log.PanicErrorf(err, "load config failed")
 	}
@@ -175,7 +175,7 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, os.Kill)
 
-	s := server.New(addr, httpAddr, conf)
+	s := proxy.New(addr, httpAddr, conf)
 
 	stats.PublishJSONFunc("router", func() string {
 		var m = make(map[string]interface{})
@@ -192,9 +192,9 @@ func main() {
 
 	go func() {
 		<-c
-		log.Info("ctrl-c or SIGTERM found, server is shutting down, bye bye...")
+		log.Info("ctrl-c or SIGTERM found, proxy is shutting down, bye bye...")
 		s.Close()
 	}()
 
-	log.PanicErrorf(s.Serve(), "server exit")
+	log.PanicErrorf(s.Serve(), "proxy exit")
 }
