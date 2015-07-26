@@ -58,21 +58,23 @@ func init() {
 }
 
 func setLogLevel(level string) {
-	var lv = log.LEVEL_INFO
-	switch strings.ToLower(level) {
+	level = strings.ToLower(level)
+	var l = log.LEVEL_INFO
+	switch level {
 	case "error":
-		lv = log.LEVEL_ERROR
+		l = log.LEVEL_ERROR
 	case "warn", "warning":
-		lv = log.LEVEL_WARN
+		l = log.LEVEL_WARN
 	case "debug":
-		lv = log.LEVEL_DEBUG
+		l = log.LEVEL_DEBUG
 	case "info":
 		fallthrough
 	default:
-		lv = log.LEVEL_INFO
+		level = "info"
+		l = log.LEVEL_INFO
 	}
-	log.SetLevel(lv)
-	log.Infof("set log level to %s", lv)
+	log.SetLevel(l)
+	log.Infof("set log level to <%s>", level)
 }
 
 func setCrashLog(file string) {
@@ -198,6 +200,6 @@ func main() {
 		s.Close()
 	}()
 
-	err = s.Serve()
-	log.InfoErrorf(err, "proxy exit")
+	s.Serve()
+	log.Infof("proxy exit!! :(")
 }

@@ -66,21 +66,12 @@ func init() {
 	err = models.SetSlotRange(conn, conf.productName, 512, 1023, 2, models.SLOT_STATUS_ONLINE)
 	assert.MustNoError(err)
 
-	go func() { //set proxy online
-		time.Sleep(time.Second)
-		err := models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_ONLINE)
-		assert.MustNoError(err)
-
-		time.Sleep(4 * time.Second)
-		assert.Must(s.info.State == models.PROXY_STATE_ONLINE)
-	}()
-
 	s = New(":19000", ":11000", conf)
 
-	go func() {
-		s.Serve()
-		s.Close()
-	}()
+	err = models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_ONLINE)
+	assert.MustNoError(err)
+
+	go s.Serve()
 }
 
 func TestSingleKeyRedisCmd(t *testing.T) {

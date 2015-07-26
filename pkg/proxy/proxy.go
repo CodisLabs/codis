@@ -17,7 +17,6 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/router"
-	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -36,6 +35,8 @@ type Server struct {
 	kill chan interface{}
 	wait sync.WaitGroup
 	stop sync.Once
+
+	srvlck sync.Mutex
 }
 
 func New(addr string, debugVarAddr string, conf *Config) *Server {
@@ -77,45 +78,95 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 
 	s.register()
 
-	s.wait.Add(1)
-	go func() {
-		defer func() {
-			s.router.Close()
-			s.listener.Close()
-			s.wait.Done()
-		}()
-		if s.info.State != models.PROXY_STATE_ONLINE {
-			return
-		}
-		_, err := s.topo.WatchChildren(models.GetWatchActionPath(s.conf.productName), s.evtbus)
-		if err != nil {
-			log.PanicErrorf(err, "watch children failed")
-		}
-		for i := 0; i < router.MaxSlotNum; i++ {
-			s.fillSlot(i)
-		}
-		log.Infof("proxy is ready for serving")
+	return s
+}
 
-		s.handleTopoEvent()
+func (s *Server) Serve() {
+	s.srvlck.Lock()
+	defer s.srvlck.Unlock()
+
+	s.wait.Add(1)
+	defer func() {
+		s.close()
+		s.wait.Done()
 	}()
 
-	return s
+	if !s.waitOnline() {
+		return
+	}
+
+	s.rewatchNodes()
+
+	for i := 0; i < router.MaxSlotNum; i++ {
+		s.fillSlot(i)
+	}
+
+	go func() {
+		defer s.close()
+		s.handleConns()
+	}()
+
+	s.loopEvents()
+}
+
+func (s *Server) handleConns() {
+	ch := make(chan net.Conn, 4096)
+	defer close(ch)
+
+	go func() {
+		for c := range ch {
+			x := router.NewSessionSize(c, s.conf.passwd, s.conf.maxBufSize, s.conf.maxTimeout)
+			go x.Serve(s.router, s.conf.maxPipeline)
+		}
+	}()
+
+	for {
+		c, err := s.listener.Accept()
+		if err != nil {
+			return
+		} else {
+			ch <- c
+		}
+	}
 }
 
 func (s *Server) Info() models.ProxyInfo {
 	return s.info
 }
 
+func (s *Server) Join() {
+	s.wait.Wait()
+}
+
 func (s *Server) Close() error {
-	s.stop.Do(func() {
-		close(s.kill)
-	})
+	s.close()
 	s.wait.Wait()
 	return nil
 }
 
-func (s *Server) Join() {
-	s.wait.Wait()
+func (s *Server) close() {
+	s.stop.Do(func() {
+		s.listener.Close()
+		if s.router != nil {
+			s.router.Close()
+		}
+		close(s.kill)
+	})
+}
+
+func (s *Server) rewatchProxy() {
+	_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
+	if err != nil {
+		log.PanicErrorf(err, "watch node failed")
+	}
+}
+
+func (s *Server) rewatchNodes() []string {
+	nodes, err := s.topo.WatchChildren(models.GetWatchActionPath(s.topo.ProductName), s.evtbus)
+	if err != nil {
+		log.PanicErrorf(err, "watch children failed")
+	}
+	return nodes
 }
 
 func (s *Server) register() {
@@ -125,30 +176,35 @@ func (s *Server) register() {
 	if _, err := s.topo.CreateProxyFenceNode(&s.info); err != nil {
 		log.PanicErrorf(err, "create fence node failed")
 	}
+}
+
+func (s *Server) markOffline() {
+	s.topo.Close(s.info.Id)
+	s.info.State = models.PROXY_STATE_MARK_OFFLINE
+}
+
+func (s *Server) waitOnline() bool {
 	for {
 		info, err := s.topo.GetProxyInfo(s.info.Id)
 		if err != nil {
-			log.PanicErrorf(err, "get proxy info failed")
+			log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
 		}
-		s.info.State = info.State
 		switch info.State {
 		case models.PROXY_STATE_MARK_OFFLINE:
-			log.Infof("action, mark offline")
-			s.handleOffline()
-			return
+			log.Infof("mark offline, proxy got offline event: %s", s.info.Id)
+			s.markOffline()
+			return false
 		case models.PROXY_STATE_ONLINE:
+			s.info.State = info.State
 			log.Infof("we are online: %s", s.info.Id)
-			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
-			if err != nil {
-				log.PanicErrorf(err, "watch node failed")
-			}
-			return
+			s.rewatchProxy()
+			return true
 		}
 		select {
 		case <-s.kill:
-			log.Infof("killed, mark offline")
-			s.handleOffline()
-			return
+			log.Infof("mark offline, proxy is killed: %s", s.info.Id)
+			s.markOffline()
+			return false
 		default:
 		}
 		log.Infof("wait to be online: %s", s.info.Id)
@@ -230,7 +286,7 @@ func (s *Server) onSlotRangeChange(param *models.SlotMultiSetParam) {
 		case models.SLOT_STATUS_ONLINE:
 			s.fillSlot(i)
 		default:
-			log.Errorf("can not handle status %v", param.Status)
+			log.Panicf("can not handle status %v", param.Status)
 		}
 	}
 }
@@ -295,34 +351,26 @@ func (s *Server) checkAndDoTopoChange(seq int) bool {
 	return true
 }
 
-func (s *Server) handleOffline() {
-	s.topo.Close(s.info.Id)
-}
-
-func (s *Server) processAction(e interface{}) bool {
+func (s *Server) processAction(e interface{}) {
 	if strings.Index(getEventPath(e), models.GetProxyPath(s.topo.ProductName)) == 0 {
 		info, err := s.topo.GetProxyInfo(s.info.Id)
 		if err != nil {
 			log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
 		}
-		if info.State == models.PROXY_STATE_MARK_OFFLINE {
-			log.Infof("action, mark offline")
-			s.handleOffline()
-			return false
-		} else {
-			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
-			if err != nil {
-				log.PanicErrorf(err, "watch node failed")
-			}
-			return true
+		switch info.State {
+		case models.PROXY_STATE_MARK_OFFLINE:
+			log.Infof("mark offline, proxy got offline event: %s", s.info.Id)
+			s.markOffline()
+		case models.PROXY_STATE_ONLINE:
+			s.rewatchProxy()
+		default:
+			log.Panicf("unknown proxy state %v", info)
 		}
+		return
 	}
 
 	//re-watch
-	nodes, err := s.topo.WatchChildren(models.GetWatchActionPath(s.topo.ProductName), s.evtbus)
-	if err != nil {
-		log.PanicErrorf(err, "rewatch children failed")
-	}
+	nodes := s.rewatchNodes()
 
 	seqs, err := models.ExtraSeqList(nodes)
 	if err != nil {
@@ -330,7 +378,7 @@ func (s *Server) processAction(e interface{}) bool {
 	}
 
 	if len(seqs) == 0 || !s.topo.IsChildrenChangedEvent(e) {
-		return true
+		return
 	}
 
 	//get last pos
@@ -343,7 +391,7 @@ func (s *Server) processAction(e interface{}) bool {
 	}
 
 	if index < 0 {
-		return true
+		return
 	}
 
 	actions := seqs[index:]
@@ -361,20 +409,18 @@ func (s *Server) processAction(e interface{}) bool {
 	}
 
 	s.lastActionSeq = seqs[len(seqs)-1]
-	return true
 }
 
-func (s *Server) handleTopoEvent() {
+func (s *Server) loopEvents() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	var tick int = 0
-	for {
+	for s.info.State == models.PROXY_STATE_ONLINE {
 		select {
 		case <-s.kill:
-			log.Infof("killed, mark offline")
-			s.handleOffline()
-			return
+			log.Infof("mark offline, proxy is killed: %s", s.info.Id)
+			s.markOffline()
 		case e := <-s.evtbus:
 			evtPath := getEventPath(e)
 			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
@@ -389,10 +435,7 @@ func (s *Server) handleTopoEvent() {
 					}
 				}
 			}
-			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
-			if !s.processAction(e) {
-				return
-			}
+			s.processAction(e)
 		case <-ticker.C:
 			if maxTick := s.conf.pingPeriod; maxTick != 0 {
 				if tick++; tick >= maxTick {
@@ -401,25 +444,5 @@ func (s *Server) handleTopoEvent() {
 				}
 			}
 		}
-	}
-}
-
-func (s *Server) Serve() error {
-	ch := make(chan net.Conn, 4096)
-	defer close(ch)
-
-	go func() {
-		for c := range ch {
-			x := router.NewSessionSize(c, s.conf.passwd, s.conf.maxBufSize, s.conf.maxTimeout)
-			go x.Serve(s.router, s.conf.maxPipeline)
-		}
-	}()
-
-	for {
-		c, err := s.listener.Accept()
-		if err != nil {
-			return errors.Trace(err)
-		}
-		ch <- c
 	}
 }
