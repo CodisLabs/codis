@@ -200,6 +200,6 @@ func main() {
 		s.Close()
 	}()
 
-	s.Serve()
+	s.Join()
 	log.Infof("proxy exit!! :(")
 }

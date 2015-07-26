@@ -35,8 +35,6 @@ type Server struct {
 	kill chan interface{}
 	wait sync.WaitGroup
 	stop sync.Once
-
-	srvlck sync.Mutex
 }
 
 func New(addr string, debugVarAddr string, conf *Config) *Server {
@@ -78,13 +76,12 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 
 	s.register()
 
+	go s.serve()
+
 	return s
 }
 
-func (s *Server) Serve() {
-	s.srvlck.Lock()
-	defer s.srvlck.Unlock()
-
+func (s *Server) serve() {
 	s.wait.Add(1)
 	defer func() {
 		s.close()

@@ -70,8 +70,6 @@ func init() {
 
 	err = models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_ONLINE)
 	assert.MustNoError(err)
-
-	go s.Serve()
 }
 
 func TestSingleKeyRedisCmd(t *testing.T) {
