@@ -76,17 +76,16 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 
 	s.register()
 
-	go s.serve()
-
+	s.wait.Add(1)
+	go func() {
+		defer s.wait.Done()
+		s.serve()
+	}()
 	return s
 }
 
 func (s *Server) serve() {
-	s.wait.Add(1)
-	defer func() {
-		s.close()
-		s.wait.Done()
-	}()
+	defer s.close()
 
 	if !s.waitOnline() {
 		return
