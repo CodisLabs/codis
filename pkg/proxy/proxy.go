@@ -75,6 +75,8 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 	s.router = router.NewWithAuth(conf.passwd)
 	s.evtbus = make(chan interface{}, 1024)
 
+	s.register()
+
 	s.wait.Add(1)
 	go func() {
 		defer func() {
@@ -82,7 +84,7 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 			s.listener.Close()
 			s.wait.Done()
 		}()
-		if !s.register() {
+		if s.info.State != models.PROXY_STATE_ONLINE {
 			return
 		}
 		_, err := s.topo.WatchChildren(models.GetWatchActionPath(s.conf.productName), s.evtbus)
@@ -108,15 +110,15 @@ func (s *Server) Close() error {
 	s.stop.Do(func() {
 		close(s.kill)
 	})
+	s.wait.Wait()
 	return nil
 }
 
-func (s *Server) CloseAndWait() {
-	s.Close()
+func (s *Server) Join() {
 	s.wait.Wait()
 }
 
-func (s *Server) register() bool {
+func (s *Server) register() {
 	if _, err := s.topo.CreateProxyInfo(&s.info); err != nil {
 		log.PanicErrorf(err, "create proxy node failed")
 	}
@@ -128,25 +130,25 @@ func (s *Server) register() bool {
 		if err != nil {
 			log.PanicErrorf(err, "get proxy info failed")
 		}
+		s.info.State = info.State
 		switch info.State {
 		case models.PROXY_STATE_MARK_OFFLINE:
 			log.Infof("action, mark offline")
 			s.handleOffline()
-			return false
+			return
 		case models.PROXY_STATE_ONLINE:
-			s.info.State = info.State
 			log.Infof("we are online: %s", s.info.Id)
 			_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
 			if err != nil {
 				log.PanicErrorf(err, "watch node failed")
 			}
-			return true
+			return
 		}
 		select {
 		case <-s.kill:
 			log.Infof("killed, mark offline")
 			s.handleOffline()
-			return false
+			return
 		default:
 		}
 		log.Infof("wait to be online: %s", s.info.Id)
@@ -403,8 +405,6 @@ func (s *Server) handleTopoEvent() {
 }
 
 func (s *Server) Serve() error {
-	defer s.CloseAndWait()
-
 	ch := make(chan net.Conn, 4096)
 	defer close(ch)
 

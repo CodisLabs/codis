@@ -18,6 +18,7 @@ import (
 
 	"github.com/docopt/docopt-go"
 	"github.com/ngaut/gostats"
+
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/proxy/router"
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -176,6 +177,7 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, os.Kill)
 
 	s := proxy.New(addr, httpAddr, conf)
+	defer s.Close()
 
 	stats.PublishJSONFunc("router", func() string {
 		var m = make(map[string]interface{})
@@ -192,9 +194,10 @@ func main() {
 
 	go func() {
 		<-c
-		log.Info("ctrl-c or SIGTERM found, proxy is shutting down, bye bye...")
+		log.Info("ctrl-c or SIGTERM found, bye bye...")
 		s.Close()
 	}()
 
-	log.PanicErrorf(s.Serve(), "proxy exit")
+	err = s.Serve()
+	log.InfoErrorf(err, "proxy exit")
 }
