@@ -8,28 +8,28 @@
 |                  | RENAME           |
 |                  | RENAMENX         |
 |                  | SCAN             |
-| ---------------- | ---------------- |
+|                  |                  |
 |   Strings        | BITOP            |
 |                  | MSETNX           |
-| ---------------- | ---------------- |
+|                  |                  |
 |   Lists          | BLPOP            |
 |                  | BRPOP            |
 |                  | BRPOPLPUSH       |
-| ---------------- | ---------------- |
+|                  |                  |
 |   Pub/Sub        | PSUBSCRIBE       |
 |                  | PUBLISH          |
 |                  | PUNSUBSCRIBE     |
 |                  | SUBSCRIBE        |
 |                  | UNSUBSCRIBE      |
-| ---------------- | ---------------- |
+|                  |                  |
 |   Transactions   | DISCARD          |
 |                  | EXEC             |
 |                  | MULTI            |
 |                  | UNWATCH          |
 |                  | WATCH            |
-| ---------------- | ---------------- |
+|                  |                  |
 |   Scripting      | SCRIPT           |
-| ---------------- | ---------------- |
+|                  |                  |
 |   Server         | BGREWRITEAOF     |
 |                  | BGSAVE           |
 |                  | CLIENT           |
@@ -47,7 +47,7 @@
 |                  | SLOWLOG          |
 |                  | SYNC             |
 |                  | TIME             |
-| ---------------- | ---------------- |
+|                  |                  |
 |   Codis Slot     | SLOTSCHECK       |
 |                  | SLOTSDEL         |
 |                  | SLOTSINFO        |
@@ -55,4 +55,3 @@
 |                  | SLOTSMGRTSLOT    |
 |                  | SLOTSMGRTTAGONE  |
 |                  | SLOTSMGRTTAGSLOT |
-| ---------------- | ---------------- |
