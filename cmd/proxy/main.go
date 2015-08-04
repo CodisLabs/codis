@@ -167,8 +167,10 @@ func main() {
 	runtime.GOMAXPROCS(cpus)
 
 	http.HandleFunc("/setloglevel", handleSetLogLevel)
-	go http.ListenAndServe(httpAddr, nil)
-
+	go func(){
+		err := http.ListenAndServe(httpAddr, nil)
+		log.PanicError(err, "http debug server quit")
+	}()
 	log.Info("running on ", addr)
 	conf, err := proxy.LoadConf(configFile)
 	if err != nil {
