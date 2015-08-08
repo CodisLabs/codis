@@ -153,6 +153,9 @@ func (self *ServerGroup) Remove(zkConn zkhelper.Conn) error {
 		if slot.GroupId == self.Id {
 			return errors.Errorf("group %d is using by slot %d", slot.GroupId, slot.Id)
 		}
+		if ((slot.State.Status == SLOT_STATUS_MIGRATE || slot.State.Status == SLOT_STATUS_PRE_MIGRATE) && slot.State.MigrateStatus.From == self.Id) {
+			return errors.Errorf("slot %d has residual data remain in group %d", slot.Id, self.Id)
+		}
 	}
 
 	// do delete
