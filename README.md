@@ -12,8 +12,9 @@ In Codis 2.0, we:
 * Redesign the request dispatcher, now pipeline and mget/mset requests are much faster than ever!
 * Codis-server (forked redis) is upgrated to 2.8.21. It brings bugfix from upstream redis and also has optimizations, for example, lower memory consumption and faster migration.
 * Optimize the zk connection, it is more stable now. 
-* Migration (and autorebalance) tasks are saved on zk, it will be continued automatically when the dashborad is restarted.
+* Migration (and auto-rebalance) tasks are saved on zk, it will be continued automatically when the dashboard is restarted.
 * Support Redis AUTH command.
+* More configuration options, see sample/config.ini
 
 ##Features
 * Auto rebalance
