@@ -221,8 +221,8 @@ func CreateActionRootPath(zkConn zkhelper.Conn, path string) error {
 }
 
 func NewAction(zkConn zkhelper.Conn, productName string, actionType ActionType, target interface{}, desc string, needConfirm bool) error {
-	// new action with default timeout: 10s
-	return NewActionWithTimeout(zkConn, productName, actionType, target, desc, needConfirm, 10*1000)
+	// new action with default timeout: 30s
+	return NewActionWithTimeout(zkConn, productName, actionType, target, desc, needConfirm, 30*1000)
 }
 
 func NewActionWithTimeout(zkConn zkhelper.Conn, productName string, actionType ActionType, target interface{}, desc string, needConfirm bool, timeoutInMs int) error {
