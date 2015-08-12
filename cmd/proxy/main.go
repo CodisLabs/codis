@@ -167,7 +167,7 @@ func main() {
 	runtime.GOMAXPROCS(cpus)
 
 	http.HandleFunc("/setloglevel", handleSetLogLevel)
-	go func(){
+	go func() {
 		err := http.ListenAndServe(httpAddr, nil)
 		log.PanicError(err, "http debug server quit")
 	}()

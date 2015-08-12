@@ -255,11 +255,13 @@ func apiGetRedisSlotInfoFromGroupId(param martini.Params) (int, string) {
 
 func apiRemoveServerGroup(param martini.Params) (int, string) {
 	lock := utils.GetZkLock(safeZkConn, globalEnv.ProductName())
-	lock.Lock(fmt.Sprintf("removing group %s", param["id"]))
+	if err := lock.LockWithTimeout(0, fmt.Sprintf("removing group %s", param["id"])); err != nil {
+		return 500, err.Error()
+	}
 
 	defer func() {
 		err := lock.Unlock()
-		if err != nil {
+		if err != nil && err != zk.ErrNoNode {
 			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
@@ -277,11 +279,13 @@ func apiRemoveServerGroup(param martini.Params) (int, string) {
 // create new server group
 func apiAddServerGroup(newGroup models.ServerGroup) (int, string) {
 	lock := utils.GetZkLock(safeZkConn, globalEnv.ProductName())
-	lock.Lock(fmt.Sprintf("add group %+v", newGroup))
+	if err := lock.LockWithTimeout(0, fmt.Sprintf("add group %+v", newGroup)); err != nil {
+		return 500, err.Error()
+	}
 
 	defer func() {
 		err := lock.Unlock()
-		if err != nil {
+		if err != nil && err != zk.ErrNoNode {
 			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
@@ -308,10 +312,12 @@ func apiAddServerGroup(newGroup models.ServerGroup) (int, string) {
 func apiAddServerToGroup(server models.Server, param martini.Params) (int, string) {
 	groupId, _ := strconv.Atoi(param["id"])
 	lock := utils.GetZkLock(safeZkConn, globalEnv.ProductName())
-	lock.Lock(fmt.Sprintf("add server to group,  %+v", server))
+	if err := lock.LockWithTimeout(0, fmt.Sprintf("add server to group,  %+v", server)); err != nil {
+		return 500, err.Error()
+	}
 	defer func() {
 		err := lock.Unlock()
-		if err != nil {
+		if err != nil && err != zk.ErrNoNode {
 			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
@@ -341,10 +347,12 @@ func apiAddServerToGroup(server models.Server, param martini.Params) (int, strin
 
 func apiPromoteServer(server models.Server, param martini.Params) (int, string) {
 	lock := utils.GetZkLock(safeZkConn, globalEnv.ProductName())
-	lock.Lock(fmt.Sprintf("promote server %+v", server))
+	if err := lock.LockWithTimeout(0, fmt.Sprintf("promote server %+v", server)); err != nil {
+		return 500, err.Error()
+	}
 	defer func() {
 		err := lock.Unlock()
-		if err != nil {
+		if err != nil && err != zk.ErrNoNode {
 			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
@@ -366,10 +374,12 @@ func apiPromoteServer(server models.Server, param martini.Params) (int, string) 
 func apiRemoveServerFromGroup(server models.Server, param martini.Params) (int, string) {
 	groupId, _ := strconv.Atoi(param["id"])
 	lock := utils.GetZkLock(safeZkConn, globalEnv.ProductName())
-	lock.Lock(fmt.Sprintf("removing server from group, %+v", server))
+	if err := lock.LockWithTimeout(0, fmt.Sprintf("removing server from group, %+v", server)); err != nil {
+		return 500, err.Error()
+	}
 	defer func() {
 		err := lock.Unlock()
-		if err != nil {
+		if err != nil && err != zk.ErrNoNode {
 			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
@@ -434,10 +444,12 @@ func apiGetSlots() (int, string) {
 
 func apiSlotRangeSet(task RangeSetTask) (int, string) {
 	lock := utils.GetZkLock(safeZkConn, globalEnv.ProductName())
-	lock.Lock(fmt.Sprintf("set slot range, %+v", task))
+	if err := lock.LockWithTimeout(0, fmt.Sprintf("set slot range, %+v", task)); err != nil {
+		return 500, err
+	}
 	defer func() {
 		err := lock.Unlock()
-		if err != nil {
+		if err != nil && err != zk.ErrNoNode {
 			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()
@@ -462,10 +474,12 @@ func apiActionGC(r *http.Request) (int, string) {
 	keep, _ := strconv.Atoi(r.FormValue("keep"))
 	secs, _ := strconv.Atoi(r.FormValue("secs"))
 	lock := utils.GetZkLock(safeZkConn, globalEnv.ProductName())
-	lock.Lock(fmt.Sprintf("action gc"))
+	if err := lock.LockWithTimeout(0, fmt.Sprintf("action gc")); err != nil {
+		return 500, err
+	}
 	defer func() {
 		err := lock.Unlock()
-		if err != nil {
+		if err != nil && err != zk.ErrNoNode {
 			log.ErrorErrorf(err, "unlock node failed")
 		}
 	}()

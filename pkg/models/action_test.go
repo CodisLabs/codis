@@ -13,9 +13,9 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/assert"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/zkhelper"
-	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
 var (

@@ -90,7 +90,7 @@ func WaitForReceiverWithTimeout(zkConn zkhelper.Conn, productName string, action
 		proxyIds[p.Id] = true
 	}
 	// check every 500ms
-	for times < timeoutInMs/500{
+	for times < timeoutInMs/500 {
 		if times >= 6 && (times*500)%1000 == 0 {
 			log.Warnf("abnormal waiting time for receivers: %s %v", actionZkPath, proxyIds)
 		}
