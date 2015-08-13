@@ -71,6 +71,8 @@ options:
 ------------------------
 
 ###配置文件
+`codis-config` 和 `codis-proxy` 在不加 -c 参数的时候, 默认会读取当前目录下的 config.ini 文件
+
 见[config.ini](https://github.com/wandoulabs/codis/blob/master/config.ini)中的注释来根据需求修改
 
 ###流程

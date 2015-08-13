@@ -67,6 +67,8 @@ options:
 ## Deploy
 
 ### Configuration file
+`codis-config` and `codis-proxy` will take `config.ini` in current directory by default without a specific `-c`.
+
 See [config.ini](https://github.com/wandoulabs/codis/blob/master/config.ini)'s comments.
 
 ### Workflow
