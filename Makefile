@@ -1,5 +1,4 @@
 all: build
-	@tar -cf deploy.tar bin sample
 
 build: build-version build-proxy build-config build-server
 
