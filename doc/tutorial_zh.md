@@ -113,7 +113,7 @@ $ bin/codis-config server add 2 localhost:6480 slave
 
 **4. 设置 server group 服务的 slot 范围**
    Codis 采用 Pre-sharding 的技术来实现数据的分片, 默认分成 1024 个 slots (0-1023), 对于每个key来说, 通过以下公式确定所属的 Slot Id : SlotId = crc32(key) % 1024 
-   每一个 slot 都会有一个特定的 server group id 来表示这个 slot 的数据由哪个 server group 来提供.
+   每一个 slot 都会有一个且必须有一个特定的 server group id 来表示这个 slot 的数据由哪个 server group 来提供.
 
 ```
 $ bin/codis-config slot -h                                                                                                                                                                                                                     
