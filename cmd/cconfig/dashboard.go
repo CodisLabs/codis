@@ -141,7 +141,10 @@ func createDashboardNode() error {
 	pathCreated, err := safeZkConn.Create(zkPath, []byte(content), 0, zkhelper.DefaultFileACLs())
 	createdDashboardNode = true
 	log.Infof("dashboard node created: %v, %s", pathCreated, string(content))
-
+	log.Warn("********** Attention **********")
+	log.Warn("You should use `kill {pid}` rather than `kill -9 {pid}` to stop me,")
+	log.Warn("or the node resisted on zk will not be cleaned when I'm quiting and you must remove it manually")
+	log.Warn("*******************************")
 	return errors.Trace(err)
 }
 
