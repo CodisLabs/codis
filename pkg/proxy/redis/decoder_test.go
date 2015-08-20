@@ -10,6 +10,14 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 )
 
+func TestBtoi(t *testing.T) {
+	for i, b := range tmap {
+		v, err := btoi(b)
+		assert.MustNoError(err)
+		assert.Must(v == i)
+	}
+}
+
 func TestDecodeInvalidRequests(t *testing.T) {
 	test := []string{
 		"*hello\r\n",

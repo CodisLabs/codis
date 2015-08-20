@@ -12,21 +12,30 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 )
 
-func TestItox(t *testing.T) {
-	for i := 0; i < len(itoamap)*2; i++ {
-		n, p := -i, i
-		assert.Must(strconv.Itoa(n) == itoa(int64(n)))
-		assert.Must(strconv.Itoa(p) == itoa(int64(p)))
-		assert.Must(strconv.Itoa(n) == string(itob(int64(n))))
-		assert.Must(strconv.Itoa(p) == string(itob(int64(p))))
+var tmap = make(map[int64][]byte)
+
+func init() {
+	var n = len(itoamap)*2 + 100000
+	for i := -n; i <= n; i++ {
+		tmap[int64(i)] = []byte(strconv.Itoa(int(i)))
 	}
-	tests := []int64{
-		math.MaxInt32, math.MinInt32,
-		math.MaxInt64, math.MinInt64,
+	for i := math.MinInt64; i != 0; i = int(float64(i) / 1.1) {
+		tmap[int64(i)] = []byte(strconv.Itoa(int(i)))
 	}
-	for _, v := range tests {
-		assert.Must(strconv.FormatInt(v, 10) == itoa(int64(v)))
-		assert.Must(strconv.FormatInt(v, 10) == string(itob(int64(v))))
+	for i := math.MaxInt64; i != 0; i = int(float64(i) / 1.1) {
+		tmap[int64(i)] = []byte(strconv.Itoa(int(i)))
+	}
+}
+
+func TestItob(t *testing.T) {
+	for i, b := range tmap {
+		assert.Must(string(b) == string(itob(i)))
+	}
+}
+
+func TestItoa(t *testing.T) {
+	for i, b := range tmap {
+		assert.Must(string(b) == itoa(i))
 	}
 }
 
