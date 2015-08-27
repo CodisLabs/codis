@@ -17,24 +17,12 @@ In Codis 2.0, we:
 * More configuration options, see sample/config.ini
 
 ##Features
-* Auto rebalance
-* Extremely simple to use
-* Support both redis or rocksdb transparently
+* Proxy based
+* Add/remove redis or proxy dynamically without restarting client, safe and transparent data migration
+* Support both redis or redis-protocol databases
 * GUI dashboard & admin tools
-* Supports most of Redis commands, Fully compatible with twemproxy(https://github.com/twitter/twemproxy)
+* Supports most of Redis commands, Fully compatible with Twemproxy(https://github.com/twitter/twemproxy)
 * Native Redis clients are supported
-* Safe and transparent data migration, Easily add or remove nodes on-demand.
-* Command-line interface is also provided
-* RESTful APIs
-
-## Build and Install
-
-* Install go & ZooKeeper
-* go get -d github.com/wandoulabs/codis
-* cd $GOPATH/src/github.com/wandoulabs/codis
-* ./bootstrap.sh
-* cd sample
-* follow instructions in usage.md
 
 ## Tutorial
 

@@ -26,6 +26,11 @@ codis和twemproxy最大的区别有两个：一个是codis支持动态水平扩�
 redis cluster基于smart client和无中心的设计，client必须按key的哈希将请求直接发送到对应的节点。这意味着：使用官方cluster必须要等对应语言的redis driver对cluster支持的开发和不断成熟；client不能直接像单机一样使用pipeline来提高效率，想同时执行多个请求来提速必须在client端自行实现异步逻辑。
 而codis因其有中心节点、基于proxy的设计，对client来说可以像对单机redis一样去操作proxy（除了一些命令不支持），还可以继续使用pipeline并且如果后台redis有多个的话速度会显著快于单redis的pipeline。同时codis使用zookeeper来作为辅助，这意味着单纯对于redis集群来说需要额外的机器搭zk，不过对于很多已经在其他服务上用了zk的公司来说这不是问题：）
 
+###Codis是如何分片的？
+Codis 采用 Pre-sharding 的技术来实现数据的分片, 默认分成 1024 个 slots (0-1023), 对于每个key来说, 通过以下公式确定所属的 Slot Id : SlotId = crc32(key) % 1024。
+
+每一个 slot 都会有一个且必须有一个特定的 server group id 来表示这个 slot 的数据由哪个 server group 来提供。数据的迁移也是以slot为单位的。
+
 ###Codis 可以当队列使用吗?
 
 可以, Codis 还是支持 LPUSH LPOP这样的指令, 但是注意, 并不是说你用了 Codis 就有了一个分布式队列. 对于单个 key, 它的 value 还是会在一台机器上, 所以, 如果你的队列特别大, 而且整个业务就用了几个 key, 那么就几乎退化成了单个 redis 了, 所以, 如果你是希望有一个队列服务, 那么我建议你:
@@ -41,7 +46,7 @@ redis cluster基于smart client和无中心的设计，client必须按key的哈�
 
 ###Codis 是多线程的吗?
 
-这是个很有意思的话题, 由于 Redis 本身是单线程的, 跑的再欢也只能跑满一个核, 这个我们没办法, 不过 Redis 的性能足够好, 当value不是太大的时候仍然能达到很高的吞吐, 在CPU瓶颈之前更应该考虑的是带宽的瓶颈 (IO). 但是 Codis proxy 是多线程的(严格来说是 goroutine), 启动的线程数是 CPU 的核数, 是可以充分利用起多核的性能的.
+虽然Redis是单线程的，但Codis proxy 是多线程的(严格来说是 goroutine), 启动的线程数是 CPU 的核数, 是可以充分利用起多核的性能的。
 
 ###Codis 支持 CAS 吗? 支持 Lua 脚本吗?
 
@@ -61,12 +66,6 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 第二种情况, 业务短时间内爆炸性增长, 内存短时间内不可预见的暴涨(就和你用数据库磁盘满了一样), Codis还没来得及扩容, 同时数据迁移的速度小于暴涨的速度, 此时会触发 Redis 的 LRU 策略, 会淘汰老的 Key. 这种情况也是无解...不过按照现在的运维经验, 我们会尽量预分配一些 buffer, 内存使用量大概 80% 的时候, 我们就会开始扩容.
 
 除此之外, 正常的数据迁移, 扩容缩容, 数据都是安全的. 
-不过我还是建议用户把它作为 Cache 使用.
-
-###Codis 的代码在哪? 是开源的吗?
-
-是的, Codis 现在是豌豆荚的开源项目, 在 Github 上, Licence 是 MIT, 地址是:　https://github.com/wandoulabs/codis
-
 
 ###你们如何保证数据迁移的过程中多个 Proxy 不会读到老的数据 (迁移的原子性) ? 
 
@@ -121,4 +120,19 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 检查你的启动 dashboard 进程的机器，看是否可以访问proxy的地址，对应的地址是 proxy 启动参数中的 debug_var_addr 中填写的地址。
 
 ###  zk: node already exists
-无论是proxy还是dashboard，都会在zk上注册自己的节点，同时在程序正常退出的时候会删掉对应的节点，但如果异常退出或试用`kill -9 {pid}`就会导致zk的节点无法删除，在下一次启动的时候会报“zk: node already exists”的错误。因此关闭服务的时候直接用`kill {pid}`不要-9，同时如果无法启动并且确认没有其他运行中的进程占用zk上的节点，可以在zk上手动删除/zk/codis/db_test/dashboard 或/zk/codis/db_test/fence/{host:port}.
+无论是proxy还是dashboard，都会在zk上注册自己的节点，同时在程序正常退出的时候会删掉对应的节点，但如果异常退出或试用`kill -9 {pid}`就会导致zk的节点无法删除，在下一次启动的时候会报“zk: node already exists”的错误。
+
+因此关闭服务的时候直接用`kill {pid}`不要-9，同时如果无法启动并且确认没有其他运行中的进程占用zk上的节点，可以在zk上手动删除/zk/codis/db_test/dashboard 或/zk/codis/db_test/fence/{host:port}.
+
+### 编译报错  undefined: utils.Version
+说明没有正确的设置go项目路径导致生成的文件找不到。见[安装教程](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#build-codis-proxy--codis-config)来正确配置环境变量并用正确的方式下载代码。
+
+### zk: session has been expired by the server
+Codis的proxy会注册在zk上并监听新的zk事件。因为涉及到数据一致性的问题，所有proxy必须能尽快知道slot状态的改变，因此一旦和zk的连接出了问题就无法知道最新的slot信息从而可能导致数据丢失或请求不得不阻塞。
+
+Proxy会每几秒给zk发心跳，proxy的load太高可能导致timeout时间内（默认30秒，配置文件中可以修改）没有成功发心跳导致zk认为proxy已经挂了（当然也可能proxy确实挂了），
+这时如果client用了我们修改的Jedis, [Jodis](https://github.com/wandoulabs/codis/tree/master/extern/jodis)，是会监控到zk节点上proxy少了一个从而自动避开请求这个proxy以保证客户端业务的可用性。如果用非Java语言可以根据Jodis代码DIY一个监听zk的客户端。
+
+当然，proxy收到session expired的错误也不意味着proxy一定要强制退出，但是这是最方便、安全的实现方式。而且实际使用中出现错误的情况通常是zk或proxy的load过高导致的，即使这时不退出可能业务的请求也会受影响，因此出现这个问题通常意味着需要加机器了。
+
+如果不依赖zk/Jodis来做proxy的高可用性（虽然我们建议这样做），可以适当延长配置文件中的超时时间以降低出这个错误的概率。

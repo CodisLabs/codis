@@ -13,26 +13,26 @@ codis-proxy 是客户端连接的 Redis 代理服务, codis-proxy 本身实现�
 
 codis-config 是 Codis 的管理工具, 支持包括, 添加/删除 Redis 节点, 添加/删除 Proxy 节点, 发起数据迁移等操作. codis-config 本身还自带了一个 http server, 会启动一个 dashboard, 用户可以直接在浏览器上观察 Codis 集群的运行状态.
 
-codis-server 是 Codis 项目维护的一个 Redis 分支, 基于 2.8.13 开发, 加入了 slot 的支持和原子的数据迁移指令. Codis 上层的 codis-proxy 和 codis-config 只能和这个版本的 Redis 交互才能正常运行.
+codis-server 是 Codis 项目维护的一个 Redis 分支, 基于 2.8.21 开发, 加入了 slot 的支持和原子的数据迁移指令. Codis 上层的 codis-proxy 和 codis-config 只能和这个版本的 Redis 交互才能正常运行.
 
 Codis 依赖 ZooKeeper 来存放数据路由表和 codis-proxy 节点的元信息, codis-config 发起的命令都会通过 ZooKeeper 同步到各个存活的 codis-proxy.
 
 Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name 的产品, 各项配置都不会冲突.
 
-
 ##Build codis-proxy & codis-config
 ------------------
 
-安装go[参考这里](https://golang.org/doc/install)，建议使用Go源码安装，然后参考下的流程
+安装go[参考这里](https://golang.org/doc/install), 根据教程正确设置$GOPATH环境变量。注意$GOPATH是本机所有go项目（包括项目依赖的第三方库）的所在目录，而非单纯codis的所在目录。
 
 ```
-go get -d github.com/wandoulabs/codis
+go get -u -d github.com/wandoulabs/codis
 cd $GOPATH/src/github.com/wandoulabs/codis
 ./bootstrap.sh
 make gotest
 ```
+建议只通过go get命令来下载codis，除非你非常熟悉go语言的目录引用形式从而不会导致代码放错地方。该命令会下载master分支的最新版，我们会确保master分支的稳定。
 
-会在 bin 文件夹生成 codis-config, codis-proxy 两个可执行文件, (另外, bin/assets 文件夹是 codis-config 的 dashboard http 服务需要的前端资源, 需要和 codis-config 放置在同一文件夹下)
+执行全部指令后，会在 bin 文件夹生成 codis-config, codis-proxy 两个可执行文件, (另外, bin/assets 文件夹是 codis-config 的 dashboard http 服务需要的前端资源, 需要和 codis-config 放置在同一文件夹下)
 
 ```
 cd sample
