@@ -128,7 +128,7 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 说明没有正确的设置go项目路径导致生成的文件找不到。见[安装教程](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#build-codis-proxy--codis-config)来正确配置环境变量并用正确的方式下载代码。
 
 ### zk: session has been expired by the server
-Codis的proxy会注册在zk上并监听新的zk事件。因为涉及到数据一致性的问题，所有proxy必须能尽快知道slot状态的改变，因此一旦和zk的连接出了问题就无法知道最新的slot信息从而可能导致数据丢失或请求不得不阻塞。
+Codis的proxy会注册在zk上并监听新的zk事件。因为涉及到数据一致性的问题，所有proxy必须能尽快知道slot状态的改变，因此一旦和zk的连接出了问题就无法知道最新的slot信息从而可能不得不阻塞一些请求以防止数据错误或丢失。
 
 Proxy会每几秒给zk发心跳，proxy的load太高可能导致timeout时间内（默认30秒，配置文件中可以修改）没有成功发心跳导致zk认为proxy已经挂了（当然也可能proxy确实挂了），
 这时如果client用了我们修改的Jedis, [Jodis](https://github.com/wandoulabs/codis/tree/master/extern/jodis)，是会监控到zk节点上proxy少了一个从而自动避开请求这个proxy以保证客户端业务的可用性。如果用非Java语言可以根据Jodis代码DIY一个监听zk的客户端。
