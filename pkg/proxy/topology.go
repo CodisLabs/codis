@@ -101,6 +101,14 @@ func (top *Topology) CreateProxyFenceNode(pi *models.ProxyInfo) (string, error) 
 	return models.CreateProxyFenceNode(top.zkConn, top.ProductName, pi)
 }
 
+func (top *Topology) RemoveProxyInfo(pi *models.ProxyInfo) error {
+	return models.RemoveProxyInfo(top.zkConn, top.ProductName, pi)
+}
+
+func (top *Topology) RemoveProxyFenceNode(pi *models.ProxyInfo) error {
+	return models.RemoveProxyFenceNode(top.zkConn, top.ProductName, pi)
+}
+
 func (top *Topology) GetProxyInfo(proxyName string) (*models.ProxyInfo, error) {
 	return models.GetProxyInfo(top.zkConn, top.ProductName, proxyName)
 }

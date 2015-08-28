@@ -37,7 +37,7 @@ type Server struct {
 	stop sync.Once
 }
 
-func New(addr string, debugVarAddr string, conf *Config) *Server {
+func New(addr string, debugVarAddr string, removeFence bool, autoOnline bool, conf *Config) *Server {
 	log.Infof("create proxy with config: %+v", conf)
 
 	proxyHost := strings.Split(addr, ":")[0]
@@ -57,7 +57,11 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 	s := &Server{conf: conf, lastActionSeq: -1, groups: make(map[int]int)}
 	s.topo = NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider, conf.zkSessionTimeout)
 	s.info.Id = conf.proxyId
-	s.info.State = models.PROXY_STATE_OFFLINE
+	if autoOnline {
+		s.info.State = models.PROXY_STATE_ONLINE
+	} else {
+		s.info.State = models.PROXY_STATE_OFFLINE
+	}
 	s.info.Addr = proxyHost + ":" + strings.Split(addr, ":")[1]
 	s.info.DebugVarAddr = debugHost + ":" + strings.Split(debugVarAddr, ":")[1]
 	s.info.Pid = os.Getpid()
@@ -74,7 +78,7 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 	s.router = router.NewWithAuth(conf.passwd)
 	s.evtbus = make(chan interface{}, 1024)
 
-	s.register()
+	s.register(removeFence)
 
 	s.wait.Add(1)
 	go func() {
@@ -165,13 +169,22 @@ func (s *Server) rewatchNodes() []string {
 	return nodes
 }
 
-func (s *Server) register() {
+func (s *Server) register(removeFence bool) {
+	if removeFence {
+		s.topo.RemoveProxyInfo(&s.info)
+		s.topo.RemoveProxyFenceNode(&s.info)
+	}
+
 	if _, err := s.topo.CreateProxyInfo(&s.info); err != nil {
 		log.PanicErrorf(err, "create proxy node failed")
 	}
 	if _, err := s.topo.CreateProxyFenceNode(&s.info); err != nil {
 		log.PanicErrorf(err, "create fence node failed")
 	}
+	log.Warn("********** Attention **********")
+	log.Warn("You should use `kill {pid}` rather than `kill -9 {pid}` to stop me,")
+	log.Warn("or the node resisted on zk will not be cleaned when I'm quiting and you must remove it manually")
+	log.Warn("*******************************")
 }
 
 func (s *Server) markOffline() {

@@ -95,6 +95,11 @@ func CreateProxyInfo(zkConn zkhelper.Conn, productName string, pi *ProxyInfo) (s
 	return zkConn.Create(path.Join(dir, pi.Id), data, zk.FlagEphemeral, zkhelper.DefaultFileACLs())
 }
 
+func RemoveProxyInfo(zkConn zkhelper.Conn, productName string, pi *ProxyInfo) error {
+	path := path.Join(GetProxyPath(productName), pi.Id)
+	return zkhelper.DeleteRecursive(zkConn, path, -1)
+}
+
 func GetProxyFencePath(productName string) string {
 	return fmt.Sprintf("/zk/codis/db_%s/fence", productName)
 }
@@ -102,6 +107,11 @@ func GetProxyFencePath(productName string) string {
 func CreateProxyFenceNode(zkConn zkhelper.Conn, productName string, pi *ProxyInfo) (string, error) {
 	return zkhelper.CreateRecursive(zkConn, path.Join(GetProxyFencePath(productName), pi.Addr), "",
 		0, zkhelper.DefaultFileACLs())
+}
+
+func RemoveProxyFenceNode(zkConn zkhelper.Conn, productName string, pi *ProxyInfo) error {
+	fencePath := path.Join(GetProxyFencePath(productName), pi.Addr)
+	return zkhelper.DeleteRecursive(zkConn, fencePath, -1)
 }
 
 func ProxyList(zkConn zkhelper.Conn, productName string, filter func(*ProxyInfo) bool) ([]ProxyInfo, error) {
