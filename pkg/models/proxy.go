@@ -160,7 +160,7 @@ func SetProxyStatus(zkConn zkhelper.Conn, productName string, proxyName string, 
 			return errors.Trace(err)
 		}
 		for _, slot := range slots {
-			if slot.State.Status != SLOT_STATUS_ONLINE && slot.State.Status != SLOT_STATUS_MIGRATE{
+			if slot.State.Status != SLOT_STATUS_ONLINE && slot.State.Status != SLOT_STATUS_MIGRATE {
 				return errors.Errorf("slot %v is not online or migrate", slot)
 			}
 			if slot.GroupId == INVALID_ID {

@@ -139,11 +139,24 @@ func (t *MigrateTask) run() error {
 	if err != nil {
 		log.ErrorErrorf(err, "migrate single slot failed")
 		t.UpdateStatus(MIGRATE_TASK_ERR)
+		t.rollbackPremigrate()
 		return err
 	}
 	t.UpdateFinish()
 	log.Infof("migration finished: %+v", t.MigrateTaskInfo)
 	return nil
+}
+
+func (t *MigrateTask) rollbackPremigrate() {
+	if s, err := models.GetSlot(t.zkConn, t.productName, t.SlotId); err == nil && s.State.Status == models.SLOT_STATUS_PRE_MIGRATE {
+		s.State.Status = models.SLOT_STATUS_ONLINE
+		err = s.Update(t.zkConn)
+		if err != nil {
+			log.Warn("rollback premigrate failed", err)
+		} else {
+			log.Infof("rollback slot %d from premigrate to online\n", s.Id)
+		}
+	}
 }
 
 var ErrGroupMasterNotFound = errors.New("group master not found")
