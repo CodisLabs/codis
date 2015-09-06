@@ -14,7 +14,7 @@ In Codis 2.0, we:
 * Optimize the zk connection, it is more stable now. 
 * Migration (and auto-rebalance) tasks are saved on zk, it will be continued automatically when the dashboard is restarted.
 * Support Redis AUTH command.
-* More configuration options, see sample/config.ini
+* More configuration options, see config.ini
 
 ##Features
 * Proxy based
