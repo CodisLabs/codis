@@ -257,12 +257,6 @@ func (self *ServerGroup) Create(zkConn zkhelper.Conn) error {
 		return errors.Trace(err)
 	}
 
-	// set no server slots' group id to this server group, no need to return error
-	slots, err := NoGroupSlots(zkConn, self.ProductName)
-	if err == nil && len(slots) > 0 {
-		SetSlots(zkConn, self.ProductName, slots, self.Id, SLOT_STATUS_ONLINE)
-	}
-
 	return nil
 }
 
