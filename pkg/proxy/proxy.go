@@ -173,6 +173,10 @@ func (s *Server) register() {
 	if _, err := s.topo.CreateProxyFenceNode(&s.info); err != nil && err != zk.ErrNodeExists {
 		log.PanicErrorf(err, "create fence node failed")
 	}
+	log.Warn("********** Attention **********")
+	log.Warn("You should use `kill {pid}` rather than `kill -9 {pid}` to stop me,")
+	log.Warn("or the node resisted on zk will not be cleaned when I'm quiting and you must remove it manually")
+	log.Warn("*******************************")
 }
 
 func (s *Server) markOffline() {
