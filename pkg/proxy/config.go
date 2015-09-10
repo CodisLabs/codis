@@ -11,13 +11,14 @@ import (
 )
 
 type Config struct {
-	proxyId     string
-	productName string
-	zkAddr      string
-	passwd      string
-	fact        ZkFactory
-	proto       string //tcp or tcp4
-	provider    string
+	proxyId       string
+	productName   string
+	zkAddr        string
+	passwd        string
+	fact          ZkFactory
+	proto         string //tcp or tcp4
+	provider      string
+	dashboardAddr string
 
 	pingPeriod       int // seconds
 	maxTimeout       int // seconds
@@ -36,6 +37,10 @@ func LoadConf(configFile string) (*Config, error) {
 	conf.productName, _ = c.ReadString("product", "test")
 	if len(conf.productName) == 0 {
 		log.Panicf("invalid config: product entry is missing in %s", configFile)
+	}
+	conf.dashboardAddr, _ = c.ReadString("dashboard_addr", "")
+	if conf.dashboardAddr == "" {
+		log.Panicf("invalid config: dashboard_addr is missing in %s", configFile)
 	}
 	conf.zkAddr, _ = c.ReadString("zk", "")
 	if len(conf.zkAddr) == 0 {

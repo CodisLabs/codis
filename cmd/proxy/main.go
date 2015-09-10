@@ -15,10 +15,10 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/docopt/docopt-go"
 	"github.com/ngaut/gostats"
-
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/proxy/router"
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -201,6 +201,11 @@ func main() {
 		log.Info("ctrl-c or SIGTERM found, bye bye...")
 		s.Close()
 	}()
+
+	time.Sleep(time.Second)
+	if err := s.SetMyselfOnline(); err != nil {
+		log.WarnError(err, "mark myself online fail, you need mark online manually by dashboard")
+	}
 
 	s.Join()
 	log.Infof("proxy exit!! :(")

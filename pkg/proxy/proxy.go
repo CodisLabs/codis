@@ -4,8 +4,11 @@
 package proxy
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"net"
+	"net/http"
 	"os"
 	"path"
 	"strconv"
@@ -13,12 +16,11 @@ import (
 	"sync"
 	"time"
 
-	topo "github.com/wandoulabs/go-zookeeper/zk"
-
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/router"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/go-zookeeper/zk"
+	topo "github.com/wandoulabs/go-zookeeper/zk"
 )
 
 type Server struct {
@@ -48,10 +50,10 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 	if err != nil {
 		log.PanicErrorf(err, "get host name failed")
 	}
-	if proxyHost == "0.0.0.0" || strings.HasPrefix(proxyHost, "127.0.0.") {
+	if proxyHost == "0.0.0.0" || strings.HasPrefix(proxyHost, "127.0.0.") || proxyHost == "" {
 		proxyHost = hostname
 	}
-	if debugHost == "0.0.0.0" || strings.HasPrefix(debugHost, "127.0.0.") {
+	if debugHost == "0.0.0.0" || strings.HasPrefix(debugHost, "127.0.0.") || debugHost == "" {
 		debugHost = hostname
 	}
 
@@ -85,6 +87,24 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 	return s
 }
 
+func (s *Server) SetMyselfOnline() error {
+	log.Info("mark myself online")
+	info := models.ProxyInfo{
+		Id:    s.conf.proxyId,
+		State: models.PROXY_STATE_ONLINE,
+	}
+	b, _ := json.Marshal(info)
+	url := "http://" + s.conf.dashboardAddr + "/api/proxy"
+	res, err := http.Post(url, "application/json", bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != 200 {
+		return errors.New("response code is not 200")
+	}
+	return nil
+}
+
 func (s *Server) serve() {
 	defer s.close()
 
@@ -97,7 +117,7 @@ func (s *Server) serve() {
 	for i := 0; i < router.MaxSlotNum; i++ {
 		s.fillSlot(i)
 	}
-
+	log.Info("proxy is serving")
 	go func() {
 		defer s.close()
 		s.handleConns()
