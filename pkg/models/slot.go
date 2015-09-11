@@ -189,16 +189,16 @@ func (s *Slot) SetMigrateStatus(zkConn zkhelper.Conn, fromGroup, toGroup int) er
 	if fromGroup < 0 || toGroup < 0 {
 		return errors.Errorf("invalid group id, from %d, to %d", fromGroup, toGroup)
 	}
-	// wait until all proxy confirmed
-	s.State.Status = SLOT_STATUS_PRE_MIGRATE
-	err := s.Update(zkConn)
-	if err != nil {
-		return errors.Trace(err)
+
+	// skip pre_migrate if slot is already migrating
+	if s.State.Status != SLOT_STATUS_MIGRATE {
+		s.State.Status = SLOT_STATUS_PRE_MIGRATE
+		err := s.Update(zkConn)
+		if err != nil {
+			return errors.Trace(err)
+		}
 	}
-	err = NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_PREMIGRATE, s, "", true)
-	if err != nil {
-		return errors.Trace(err)
-	}
+
 	s.State.Status = SLOT_STATUS_MIGRATE
 	s.State.MigrateStatus.From = fromGroup
 	s.State.MigrateStatus.To = toGroup
@@ -230,11 +230,22 @@ func (s *Slot) Update(zkConn zkhelper.Conn) error {
 		return errors.Trace(err)
 	}
 
-	if s.State.Status == SLOT_STATUS_MIGRATE {
-		err = NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_MIGRATE, s, "", true)
-	} else {
-		err = NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_CHANGED, s, "", true)
+	switch s.State.Status {
+	case SLOT_STATUS_MIGRATE:
+		{
+			err = NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_MIGRATE, s, "", true)
+		}
+	case SLOT_STATUS_PRE_MIGRATE:
+		{
+			err = NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_PREMIGRATE, s, "", true)
+		}
+	default:
+		{
+			err = NewAction(zkConn, s.ProductName, ACTION_TYPE_SLOT_CHANGED, s, "", true)
+		}
 	}
-
-	return errors.Trace(err)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
