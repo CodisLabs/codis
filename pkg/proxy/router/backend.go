@@ -134,13 +134,16 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 
 	tasks := make(chan *Request, 4096)
 	go func() {
-		defer c.Close()
+		defer func() {
+			c.Close()
+			for r := range tasks {
+				bc.setResponse(r, nil, ErrFailedRequest)
+			}
+		}()
 		for r := range tasks {
 			resp, err := c.Reader.Decode()
-			bc.setResponse(r, resp, err)
-			if err != nil {
-				// close tcp to tell writer we are failed and should quit
-				c.Close()
+			if bc.setResponse(r, resp, err) != nil {
+				return
 			}
 		}
 	}()
