@@ -49,7 +49,7 @@ func New(config *Config) (*Proxy, error) {
 	s.exit.C = make(chan struct{})
 
 	s.model = &models.Proxy{
-		Token: s.token, StartAt: time.Now().String(),
+		Token: s.token, StartTime: time.Now().String(),
 	}
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
