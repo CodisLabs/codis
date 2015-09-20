@@ -64,14 +64,19 @@ These commands is "half-supported". Codis does not support cross-node operation,
 |   Command Type   |   Command Name   |
 |:----------------:|:---------------- |
 |   Lists          | RPOPLPUSH        |
-|     Sets        |    SDIFF    |
-|             |    SINTER    |
-|             |   SINTERSTORE     |
-|             |   SMOVE     |
-|             |    SUNION    |
-|             |    SUNIONSTORE    |
-|      Sorted Sets       |   ZINTERSTORE     |
-|             |   ZUNIONSTORE     |
-|       HyperLogLog      |  PFMERGE      |
-|       Scripting      |    EVAL    |
-|             |    EVALSHA    |
+|                  |                  |
+|   Sets           | SDIFF            |
+|                  | SINTER           |
+|                  | SINTERSTORE      |
+|                  | SMOVE            |
+|                  | SUNION           |
+|                  | SUNIONSTORE      |
+|                  |                  |
+|   Sorted Sets    | ZINTERSTORE      |
+|                  | ZUNIONSTORE      |
+|                  |                  |
+|   HyperLogLog    | PFMERGE          |
+|                  |                  |
+|   Scripting      | EVAL             |
+|                  | EVALSHA          |
+
