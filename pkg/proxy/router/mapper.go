@@ -8,6 +8,7 @@ import (
 	"hash/crc32"
 	"strings"
 
+	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
@@ -88,7 +89,7 @@ func hashSlot(key []byte) int {
 			key = key[beg+1 : beg+1+end]
 		}
 	}
-	return int(crc32.ChecksumIEEE(key) % MaxSlotNum)
+	return int(crc32.ChecksumIEEE(key) % models.MaxSlotNum)
 }
 
 func getHashKey(resp *redis.Resp, opstr string) []byte {

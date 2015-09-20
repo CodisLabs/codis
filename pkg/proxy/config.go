@@ -1,74 +1,55 @@
-// Copyright 2014 Wandoujia Inc. All Rights Reserved.
-// Licensed under the MIT (MIT-LICENSE.txt) license.
-
 package proxy
 
 import (
-	"strings"
+	"bytes"
 
-	"github.com/c4pt0r/cfg"
-	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/BurntSushi/toml"
+
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
 type Config struct {
-	proxyId       string
-	productName   string
-	zkAddr        string
-	passwd        string
-	fact          ZkFactory
-	proto         string //tcp or tcp4
-	provider      string
-	dashboardAddr string
+	ProtoType string `toml:"proto_type" json:"proto_type"`
+	ProxyAddr string `toml:"proxy_addr" json:"proxy_addr"`
+	AdminAddr string `toml:"admin_addr" json:"admin_addr"`
 
-	pingPeriod       int // seconds
-	maxTimeout       int // seconds
-	maxBufSize       int
-	maxPipeline      int
-	zkSessionTimeout int
+	ProductName string `toml:"product_name" json:"product_name"`
+	ProductAuth string `toml:"product_auth" json:"-"`
+
+	BackendPingPeriod      int `toml:"backend_ping_period" json:"backend_ping_period"`
+	SessionMaxTimeout      int `toml:"session_max_timeout" json:"session_max_timeout"`
+	SessionMaxBufSize      int `toml:"session_max_bufsize" json:"session_max_bufsize"`
+	SessionMaxPipeline     int `toml:"session_max_pipeline" json:"session_max_pipeline"`
+	SessionKeepAlivePeriod int `toml:"session_keepalive_period" json:"session_keepalive_period"`
 }
 
-func LoadConf(configFile string) (*Config, error) {
-	c := cfg.NewCfg(configFile)
-	if err := c.Load(); err != nil {
-		log.PanicErrorf(err, "load config '%s' failed", configFile)
-	}
+func NewDefaultConfig() *Config {
+	return &Config{
+		ProtoType: "tcp4",
+		ProxyAddr: "0.0.0.0:9000",
+		AdminAddr: "0.0.0.0:7953",
 
-	conf := &Config{}
-	conf.productName, _ = c.ReadString("product", "test")
-	if len(conf.productName) == 0 {
-		log.Panicf("invalid config: product entry is missing in %s", configFile)
-	}
-	conf.dashboardAddr, _ = c.ReadString("dashboard_addr", "")
-	if conf.dashboardAddr == "" {
-		log.Panicf("invalid config: dashboard_addr is missing in %s", configFile)
-	}
-	conf.zkAddr, _ = c.ReadString("zk", "")
-	if len(conf.zkAddr) == 0 {
-		log.Panicf("invalid config: need zk entry is missing in %s", configFile)
-	}
-	conf.zkAddr = strings.TrimSpace(conf.zkAddr)
-	conf.passwd, _ = c.ReadString("password", "")
+		ProductName: "Demo2",
+		ProductAuth: "",
 
-	conf.proxyId, _ = c.ReadString("proxy_id", "")
-	if len(conf.proxyId) == 0 {
-		log.Panicf("invalid config: need proxy_id entry is missing in %s", configFile)
+		BackendPingPeriod:  5,
+		SessionMaxTimeout:  60 * 30,
+		SessionMaxBufSize:  1024 * 128,
+		SessionMaxPipeline: 1024,
+
+		SessionKeepAlivePeriod: 60,
 	}
+}
 
-	conf.proto, _ = c.ReadString("proto", "tcp")
-	conf.provider, _ = c.ReadString("coordinator", "zookeeper")
+func (c *Config) LoadFromFile(path string) error {
+	_, err := toml.DecodeFile(path, c)
+	return errors.Trace(err)
+}
 
-	loadConfInt := func(entry string, defval int) int {
-		v, _ := c.ReadInt(entry, defval)
-		if v < 0 {
-			log.Panicf("invalid config: read %s = %d", entry, v)
-		}
-		return v
-	}
-
-	conf.pingPeriod = loadConfInt("backend_ping_period", 5)
-	conf.maxTimeout = loadConfInt("session_max_timeout", 1800)
-	conf.maxBufSize = loadConfInt("session_max_bufsize", 131072)
-	conf.maxPipeline = loadConfInt("session_max_pipeline", 1024)
-	conf.zkSessionTimeout = loadConfInt("zk_session_timeout", 30)
-	return conf, nil
+func (c *Config) String() string {
+	var b bytes.Buffer
+	e := toml.NewEncoder(&b)
+	e.Indent = "    "
+	e.Encode(c)
+	return b.String()
 }

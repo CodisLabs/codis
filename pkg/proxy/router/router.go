@@ -12,15 +12,13 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-const MaxSlotNum = models.DEFAULT_SLOT_NUM
-
 type Router struct {
 	mu sync.Mutex
 
 	auth string
 	pool map[string]*SharedBackendConn
 
-	slots [MaxSlotNum]*Slot
+	slots [models.MaxSlotNum]*Slot
 
 	closed bool
 }
@@ -53,25 +51,36 @@ func (s *Router) Close() error {
 	return nil
 }
 
-var errClosedRouter = errors.New("use of closed router")
-
-func (s *Router) ResetSlot(i int) error {
+func (s *Router) GetSlots() []*models.Slot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return errClosedRouter
+	slots := []*models.Slot{}
+	for i, slot := range s.slots {
+		slots = append(slots, &models.Slot{
+			Id:          i,
+			BackendAddr: slot.backend.addr,
+			MigrateFrom: slot.migrate.from,
+			Locked:      slot.lock.hold,
+		})
 	}
-	s.resetSlot(i)
-	return nil
+	return slots
 }
 
-func (s *Router) FillSlot(i int, addr, from string, lock bool) error {
+var (
+	ErrClosedRouter  = errors.New("use of closed router")
+	ErrInvalidSlotId = errors.New("use of invalid slot id")
+)
+
+func (s *Router) FillSlot(i int, addr, from string, locked bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return errClosedRouter
+		return ErrClosedRouter
 	}
-	s.fillSlot(i, addr, from, lock)
+	if i < 0 || i >= len(s.slots) {
+		return ErrInvalidSlotId
+	}
+	s.fillSlot(i, addr, from, locked)
 	return nil
 }
 
@@ -79,7 +88,7 @@ func (s *Router) KeepAlive() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return errClosedRouter
+		return ErrClosedRouter
 	}
 	for _, bc := range s.pool {
 		bc.KeepAlive()
@@ -110,14 +119,7 @@ func (s *Router) putBackendConn(bc *SharedBackendConn) {
 	}
 }
 
-func (s *Router) isValidSlot(i int) bool {
-	return i >= 0 && i < len(s.slots)
-}
-
 func (s *Router) resetSlot(i int) {
-	if !s.isValidSlot(i) {
-		return
-	}
 	slot := s.slots[i]
 	slot.blockAndWait()
 
@@ -128,10 +130,7 @@ func (s *Router) resetSlot(i int) {
 	slot.unblock()
 }
 
-func (s *Router) fillSlot(i int, addr, from string, lock bool) {
-	if !s.isValidSlot(i) {
-		return
-	}
+func (s *Router) fillSlot(i int, addr, from string, locked bool) {
 	slot := s.slots[i]
 	slot.blockAndWait()
 
@@ -155,15 +154,15 @@ func (s *Router) fillSlot(i int, addr, from string, lock bool) {
 		slot.migrate.bc = s.getBackendConn(from)
 	}
 
-	if !lock {
+	if !locked {
 		slot.unblock()
 	}
 
 	if slot.migrate.bc != nil {
-		log.Infof("fill slot %04d, backend.addr = %s, migrate.from = %s",
-			i, slot.backend.addr, slot.migrate.from)
+		log.Infof("fill slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
+			i, slot.backend.addr, slot.migrate.from, locked)
 	} else {
-		log.Infof("fill slot %04d, backend.addr = %s",
-			i, slot.backend.addr)
+		log.Infof("fill slot %04d, backend.addr = %s, locked = %t",
+			i, slot.backend.addr, locked)
 	}
 }

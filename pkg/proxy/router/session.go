@@ -60,6 +60,16 @@ func NewSessionSize(c net.Conn, auth string, bufsize int, timeout int) *Session 
 	return s
 }
 
+func (s *Session) SetKeepAlivePeriod(period int) error {
+	if period == 0 {
+		return nil
+	}
+	if err := s.Conn.SetKeepAlive(true); err != nil {
+		return err
+	}
+	return s.Conn.SetKeepAlivePeriod(time.Second * time.Duration(period))
+}
+
 func (s *Session) Close() error {
 	s.failed.Set(true)
 	s.closed.Set(true)
@@ -80,6 +90,8 @@ func (s *Session) Serve(d Dispatcher, maxPipeline int) {
 		}
 	}()
 
+	incrSessions()
+
 	tasks := make(chan *Request, maxPipeline)
 	go func() {
 		defer func() {
@@ -96,6 +108,8 @@ func (s *Session) Serve(d Dispatcher, maxPipeline int) {
 	if err := s.loopReader(tasks, d); err != nil {
 		errlist.PushBack(err)
 	}
+
+	decrSessions()
 }
 
 func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {

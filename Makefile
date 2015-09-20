@@ -1,6 +1,6 @@
 all: build
 
-build: build-version build-proxy build-config build-server
+build: build-version build-proxy build-server
 
 build-version:
 	@bash genver.sh
