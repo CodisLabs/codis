@@ -26,11 +26,11 @@ type Slot struct {
 		bc   *SharedBackendConn
 	}
 
-	wait sync.WaitGroup
 	lock struct {
 		hold bool
 		sync.RWMutex
 	}
+	refs sync.WaitGroup
 }
 
 func (s *Slot) blockAndWait() {
@@ -38,7 +38,7 @@ func (s *Slot) blockAndWait() {
 		s.lock.hold = true
 		s.lock.Lock()
 	}
-	s.wait.Wait()
+	s.refs.Wait()
 }
 
 func (s *Slot) unblock() {
@@ -82,7 +82,7 @@ func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 			s.id, s.migrate.from, s.backend.addr, key, err)
 		return nil, err
 	} else {
-		r.slot = &s.wait
+		r.slot = &s.refs
 		r.slot.Add(1)
 		return s.backend.bc, nil
 	}
