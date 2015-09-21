@@ -1,7 +1,6 @@
 package models
 
 type Topom struct {
-	Token     string `json:"token"`
 	StartTime string `json:"start_time"`
 	AdminAddr string `json:"admin_addr"`
 
@@ -11,10 +10,10 @@ type Topom struct {
 
 type Store interface {
 	Acquire(topom *Topom) error
-	Release(topom *Topom) error
+	Release() error
 
-	GetMapping(i int) (*SlotMapping, error)
-	UpdateMapping(slot *SlotMapping) error
+	LoadSlotMapping(i int) (*SlotMapping, error)
+	SaveSlotMapping(slot *SlotMapping) error
 
 	ListProxy() ([]*Proxy, error)
 	CreateProxy(proxy *Proxy) error
