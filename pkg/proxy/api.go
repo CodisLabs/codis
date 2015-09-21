@@ -66,24 +66,17 @@ func newApiServer(p *Proxy) http.Handler {
 
 	r := martini.NewRouter()
 	r.Get("/", api.Summary)
-	r.Get("/api/stats/:token/:xauth", api.Stats)
-	r.Put("/api/start/:token/:xauth", api.Start)
-	r.Put("/api/shutdown/:token/:xauth", api.Shutdown)
-	r.Put("/api/fillslot/:token/:xauth", binding.Json([]*models.Slot{}), api.FillSlot)
+	r.Get("/api/stats/:xauth", api.Stats)
+	r.Put("/api/start/:xauth", api.Start)
+	r.Put("/api/shutdown/:xauth", api.Shutdown)
+	r.Put("/api/fillslot/:xauth", binding.Json([]*models.Slot{}), api.FillSlot)
 
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	return m
 }
 
-func (s *apiServer) verifyToken(params martini.Params) error {
-	token := params["token"]
-	if token == "" {
-		return errors.New("Missing Token")
-	}
-	if token != s.proxy.GetToken() {
-		return errors.New("Unmatched Token")
-	}
+func (s *apiServer) verifyXAuth(params martini.Params) error {
 	xauth := params["xauth"]
 	if xauth == "" {
 		return errors.New("Missing XAuth")
@@ -120,7 +113,7 @@ func (s *apiServer) GetStats() *Stats {
 }
 
 func (s *apiServer) Stats(params martini.Params) (int, string) {
-	if err := s.verifyToken(params); err != nil {
+	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson(s.GetStats())
@@ -128,7 +121,7 @@ func (s *apiServer) Stats(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) Start(params martini.Params) (int, string) {
-	if err := s.verifyToken(params); err != nil {
+	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.proxy.Start(); err != nil {
@@ -139,7 +132,7 @@ func (s *apiServer) Start(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) Shutdown(params martini.Params) (int, string) {
-	if err := s.verifyToken(params); err != nil {
+	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.proxy.Close(); err != nil {
@@ -150,7 +143,7 @@ func (s *apiServer) Shutdown(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) FillSlot(slots []*models.Slot, params martini.Params) (int, string) {
-	if err := s.verifyToken(params); err != nil {
+	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.proxy.FillSlot(slots...); err != nil {
@@ -162,7 +155,6 @@ func (s *apiServer) FillSlot(slots []*models.Slot, params martini.Params) (int, 
 
 type ApiClient struct {
 	addr  string
-	token string
 	xauth string
 }
 
@@ -170,9 +162,8 @@ func NewApiClient(addr string) *ApiClient {
 	return &ApiClient{addr: addr}
 }
 
-func (c *ApiClient) SetToken(token string, auth string) {
-	c.token = token
-	c.xauth = rpc.NewXAuth(auth, token)
+func (c *ApiClient) SetXAuth(name, auth string, token string) {
+	c.xauth = rpc.NewXAuth(name, auth, token)
 }
 
 func (c *ApiClient) encodeURL(format string, args ...interface{}) string {
@@ -189,7 +180,7 @@ func (c *ApiClient) Summary() (*Summary, error) {
 }
 
 func (c *ApiClient) Stats() (*Stats, error) {
-	url := c.encodeURL("/api/stats/%s/%s", c.token, c.xauth)
+	url := c.encodeURL("/api/stats/%s", c.xauth)
 	stats := &Stats{}
 	if err := rpc.ApiGetJson(url, stats); err != nil {
 		return nil, err
@@ -198,16 +189,16 @@ func (c *ApiClient) Stats() (*Stats, error) {
 }
 
 func (c *ApiClient) Start() error {
-	url := c.encodeURL("/api/start/%s/%s", c.token, c.xauth)
+	url := c.encodeURL("/api/start/%s", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) Shutdown() error {
-	url := c.encodeURL("/api/shutdown/%s/%s", c.token, c.xauth)
+	url := c.encodeURL("/api/shutdown/%s", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) FillSlot(slots ...*models.Slot) error {
-	url := c.encodeURL("/api/fillslot/%s/%s", c.token, c.xauth)
+	url := c.encodeURL("/api/fillslot/%s", c.xauth)
 	return rpc.ApiPutJson(url, slots, nil)
 }

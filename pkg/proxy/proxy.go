@@ -35,14 +35,12 @@ type Proxy struct {
 	router *router.Router
 }
 
-var (
-	ErrClosedProxy = errors.New("use of closed proxy")
-)
+var ErrClosedProxy = errors.New("use of closed proxy")
 
 func New(config *Config) (*Proxy, error) {
 	s := &Proxy{config: config}
 	s.token = rpc.NewToken()
-	s.xauth = rpc.NewXAuth(config.ProductAuth, s.token)
+	s.xauth = rpc.NewXAuth(config.ProductName, config.ProductAuth, s.token)
 
 	s.router = router.NewWithAuth(config.ProductAuth)
 	s.init.C = make(chan struct{})
@@ -74,17 +72,17 @@ func (s *Proxy) setup() error {
 		s.lproxy = l
 	}
 
-	if l, err := net.Listen("tcp", s.config.AdminAddr); err != nil {
-		return errors.Trace(err)
-	} else {
-		s.ladmin = l
-	}
-
 	if addr, err := utils.ResolveAddr(s.config.ProtoType, s.config.ProxyAddr); err != nil {
 		return err
 	} else {
 		s.model.ProtoType = s.config.ProtoType
 		s.model.ProxyAddr = addr
+	}
+
+	if l, err := net.Listen("tcp", s.config.AdminAddr); err != nil {
+		return errors.Trace(err)
+	} else {
+		s.ladmin = l
 	}
 
 	if addr, err := utils.ResolveAddr("tcp", s.config.AdminAddr); err != nil {
@@ -95,42 +93,6 @@ func (s *Proxy) setup() error {
 
 	if !utils.IsValidName(s.config.ProductName) {
 		return errors.New("invalid product name, empty or using invalid character")
-	}
-	return nil
-}
-
-func (s *Proxy) GetSlots() []*models.Slot {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.router.GetSlots()
-}
-
-func (s *Proxy) GetToken() string {
-	return s.token
-}
-
-func (s *Proxy) GetXAuth() string {
-	return s.xauth
-}
-
-func (s *Proxy) GetModel() *models.Proxy {
-	return s.model
-}
-
-func (s *Proxy) GetConfig() *Config {
-	return s.config
-}
-
-func (s *Proxy) FillSlot(slots ...*models.Slot) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return errors.Trace(ErrClosedProxy)
-	}
-	for _, slot := range slots {
-		if err := s.router.FillSlot(slot.Id, slot.BackendAddr, slot.MigrateFrom, slot.Locked); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -164,6 +126,22 @@ func (s *Proxy) Close() error {
 	return nil
 }
 
+func (s *Proxy) GetToken() string {
+	return s.token
+}
+
+func (s *Proxy) GetXAuth() string {
+	return s.xauth
+}
+
+func (s *Proxy) GetModel() *models.Proxy {
+	return s.model
+}
+
+func (s *Proxy) GetConfig() *Config {
+	return s.config
+}
+
 func (s *Proxy) IsOnline() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -174,6 +152,26 @@ func (s *Proxy) IsClosed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.closed
+}
+
+func (s *Proxy) GetSlots() []*models.Slot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.router.GetSlots()
+}
+
+func (s *Proxy) FillSlot(slots ...*models.Slot) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return errors.Trace(ErrClosedProxy)
+	}
+	for _, slot := range slots {
+		if err := s.router.FillSlot(slot.Id, slot.BackendAddr, slot.MigrateFrom, slot.Locked); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Proxy) serveAdmin() {

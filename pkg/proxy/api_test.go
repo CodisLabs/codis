@@ -10,11 +10,12 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 )
 
+var config = proxy.NewDefaultConfig()
+
 func openProxy() (*proxy.Proxy, string) {
 	l, err := net.Listen("tcp", "0.0.0.0:0")
 	assert.MustNoError(err)
 
-	config := proxy.NewDefaultConfig()
 	config.ProxyAddr = "0.0.0.0:0"
 	config.AdminAddr = l.Addr().String()
 
@@ -45,11 +46,11 @@ func TestStats(x *testing.T) {
 
 	var c = proxy.NewApiClient(addr)
 
-	c.SetToken("", "")
+	c.SetXAuth(config.ProductName, config.ProductAuth, "")
 	_, err1 := c.Stats()
 	assert.Must(err1 != nil)
 
-	c.SetToken(s.GetToken(), "")
+	c.SetXAuth(config.ProductName, config.ProductAuth, s.GetToken())
 	_, err2 := c.Stats()
 	assert.MustNoError(err2)
 }
@@ -76,7 +77,7 @@ func TestFillSlot(x *testing.T) {
 	defer s.Close()
 
 	var c = proxy.NewApiClient(addr)
-	c.SetToken(s.GetToken(), "")
+	c.SetXAuth(config.ProductName, config.ProductAuth, s.GetToken())
 
 	expect := make(map[int]*models.Slot)
 
@@ -111,7 +112,7 @@ func TestStartAndShutdown(x *testing.T) {
 	defer s.Close()
 
 	var c = proxy.NewApiClient(addr)
-	c.SetToken(s.GetToken(), "")
+	c.SetXAuth(config.ProductName, config.ProductAuth, s.GetToken())
 
 	expect := make(map[int]*models.Slot)
 

@@ -1,6 +1,7 @@
 package rpc
 
 import (
+	"bytes"
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
@@ -19,8 +20,14 @@ func NewToken() string {
 	return fmt.Sprintf("%x", b)
 }
 
-func NewXAuth(auth, token string) string {
-	s := fmt.Sprintf("%s-%s", auth, token)
-	b := sha256.Sum256([]byte(s))
+func NewXAuth(segs ...string) string {
+	t := &bytes.Buffer{}
+	t.WriteString("Codis-XAuth")
+	for _, s := range segs {
+		t.WriteString("-[")
+		t.WriteString(s)
+		t.WriteString("]")
+	}
+	b := sha256.Sum256(t.Bytes())
 	return fmt.Sprintf("%x", b[:16])
 }
