@@ -101,7 +101,7 @@ func (s *Proxy) Start() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return errors.Trace(ErrClosedProxy)
+		return ErrClosedProxy
 	}
 	if s.online {
 		return nil
@@ -164,7 +164,7 @@ func (s *Proxy) FillSlot(slots ...*models.Slot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return errors.Trace(ErrClosedProxy)
+		return ErrClosedProxy
 	}
 	for _, slot := range slots {
 		if err := s.router.FillSlot(slot.Id, slot.BackendAddr, slot.MigrateFrom, slot.Locked); err != nil {

@@ -1,9 +1,11 @@
 package topom
 
 import (
+	"container/list"
 	"math"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/garyburd/redigo/redis"
@@ -44,7 +46,7 @@ func (c *RedisClient) Close() error {
 
 func (c *RedisClient) command(cmd string, args ...interface{}) (interface{}, error) {
 	if c.LastErr != nil {
-		return nil, errors.Trace(ErrFailedRedisClient)
+		return nil, ErrFailedRedisClient
 	}
 	if reply, err := c.conn.Do(cmd, args...); err != nil {
 		c.LastErr = errors.Trace(err)
@@ -169,5 +171,111 @@ func (c *RedisClient) SlaveOf(master string) error {
 		} else {
 			return nil
 		}
+	}
+}
+
+var ErrClosedRedisPool = errors.New("use of closed redis pool")
+
+type RedisPool struct {
+	mu sync.Mutex
+
+	auth    string
+	pool    map[string]*list.List
+	timeout time.Duration
+
+	closed bool
+}
+
+func NewRedisPool(auth string, timeout time.Duration) *RedisPool {
+	return &RedisPool{
+		auth: auth, timeout: timeout,
+		pool: make(map[string]*list.List),
+	}
+}
+
+func (p *RedisPool) isRecyclable(c *RedisClient) bool {
+	if c.LastErr != nil {
+		return false
+	}
+	if p.timeout == 0 {
+		return true
+	} else {
+		return c.LastUse.Add(p.timeout / 2).After(time.Now())
+	}
+}
+
+func (p *RedisPool) Close() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return nil
+	}
+	p.closed = true
+
+	for addr, list := range p.pool {
+		for i := list.Len(); i != 0; i-- {
+			c := list.Remove(list.Front()).(*RedisClient)
+			c.Close()
+		}
+		delete(p.pool, addr)
+	}
+	return nil
+}
+
+func (p *RedisPool) Cleanup() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return ErrClosedRedisPool
+	}
+
+	for addr, list := range p.pool {
+		for i := list.Len(); i != 0; i-- {
+			c := list.Remove(list.Front()).(*RedisClient)
+			if p.isRecyclable(c) {
+				list.PushBack(c)
+			} else {
+				c.Close()
+			}
+		}
+		if list.Len() == 0 {
+			delete(p.pool, addr)
+		}
+	}
+	return nil
+}
+
+func (p *RedisPool) GetClient(addr string) (*RedisClient, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return nil, ErrClosedRedisPool
+	}
+
+	if list := p.pool[addr]; list != nil {
+		for i := list.Len(); i != 0; i-- {
+			c := list.Remove(list.Front()).(*RedisClient)
+			if p.isRecyclable(c) {
+				return c, nil
+			} else {
+				c.Close()
+			}
+		}
+	}
+	return NewRedisClient(addr, p.auth, p.timeout)
+}
+
+func (p *RedisPool) PutClient(client *RedisClient) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed || !p.isRecyclable(client) {
+		client.Close()
+	} else {
+		cache := p.pool[client.addr]
+		if cache == nil {
+			cache = list.New()
+			p.pool[client.addr] = cache
+		}
+		cache.PushFront(client)
 	}
 }
