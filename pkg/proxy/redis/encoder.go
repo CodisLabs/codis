@@ -56,6 +56,8 @@ type Encoder struct {
 	Err error
 }
 
+var ErrFailedEncoder = errors.New("use of failed redis encoder")
+
 func NewEncoder(bw *bufio.Writer) *Encoder {
 	return &Encoder{Writer: bw}
 }
@@ -70,7 +72,7 @@ func NewEncoderSize(w io.Writer, size int) *Encoder {
 
 func (e *Encoder) Encode(r *Resp, flush bool) error {
 	if e.Err != nil {
-		return e.Err
+		return errors.Trace(ErrFailedEncoder)
 	}
 	err := e.encodeResp(r)
 	if err == nil && flush {

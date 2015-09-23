@@ -55,6 +55,8 @@ type Decoder struct {
 	Err error
 }
 
+var ErrFailedDecoder = errors.New("use of failed decoder")
+
 func NewDecoder(br *bufio.Reader) *Decoder {
 	return &Decoder{Reader: br}
 }
@@ -69,7 +71,7 @@ func NewDecoderSize(r io.Reader, size int) *Decoder {
 
 func (d *Decoder) Decode() (*Resp, error) {
 	if d.Err != nil {
-		return nil, d.Err
+		return nil, errors.Trace(ErrFailedDecoder)
 	}
 	r, err := d.decodeResp(0)
 	if err != nil {
