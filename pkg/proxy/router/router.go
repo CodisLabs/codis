@@ -4,7 +4,7 @@
 package router
 
 import (
-	"strings"
+	"net"
 	"sync"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -139,12 +139,12 @@ func (s *Router) fillSlot(i int, addr, from string, locked bool) {
 	slot.reset()
 
 	if len(addr) != 0 {
-		xx := strings.Split(addr, ":")
-		if len(xx) >= 1 {
-			slot.backend.host = []byte(xx[0])
-		}
-		if len(xx) >= 2 {
-			slot.backend.port = []byte(xx[1])
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			log.ErrorErrorf(err, "split host-port failed, address = %s", addr)
+		} else {
+			slot.backend.host = []byte(host)
+			slot.backend.port = []byte(port)
 		}
 		slot.backend.addr = addr
 		slot.backend.bc = s.getBackendConn(addr)
