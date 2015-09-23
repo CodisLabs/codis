@@ -5,10 +5,10 @@ go:
     - 1.5.1
     - tip
 
-install: go get -d -v ./... 
+install: go get -d -v ./...
 
 before_script:
     - echo "before script"
 
-script: 
+script:
     - ./bootstrap.sh

@@ -1,5 +1,7 @@
 #!/bin/sh
 
+exit 0
+
 make clean
 
 echo "downloading dependcies, it may take a few minutes..."
