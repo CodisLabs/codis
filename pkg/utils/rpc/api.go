@@ -39,6 +39,12 @@ func init() {
 		Transport: tr,
 		Timeout:   time.Minute,
 	}
+	go func() {
+		for {
+			time.Sleep(time.Minute)
+			tr.CloseIdleConnections()
+		}
+	}()
 }
 
 type rpcError struct {
