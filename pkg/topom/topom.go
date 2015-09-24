@@ -10,6 +10,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/async"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
@@ -208,4 +209,33 @@ func (s *Topom) daemonMigration() {
 		// TODO
 		time.Sleep(time.Second)
 	}
+}
+
+func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
+	var rets = &struct {
+		sync.Mutex
+		wait sync.WaitGroup
+		errs map[string]error
+	}{errs: make(map[string]error)}
+
+	for token, p := range s.proxies {
+		c := s.clients[token]
+		rets.wait.Add(1)
+		async.Call(func() {
+			defer rets.wait.Done()
+			if err := fn(p, c); err != nil {
+				rets.Lock()
+				rets.errs[token] = err
+				rets.Unlock()
+			}
+		})
+	}
+	rets.wait.Wait()
+	return rets.errs
+}
+
+func (s *Topom) xping() map[string]error {
+	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		return c.XPing()
+	})
 }

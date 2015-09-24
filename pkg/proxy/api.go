@@ -68,6 +68,7 @@ func newApiServer(p *Proxy) http.Handler {
 	r.Get("/", api.Summary)
 	r.Get("/api/stats/:xauth", api.Stats)
 	r.Put("/api/start/:xauth", api.Start)
+	r.Put("/api/xping/:xauth", api.XPing)
 	r.Put("/api/shutdown/:xauth", api.Shutdown)
 	r.Put("/api/fillslot/:xauth", binding.Json([]*models.Slot{}), api.FillSlot)
 
@@ -125,6 +126,14 @@ func (s *apiServer) Start(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.proxy.Start(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) XPing(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -190,6 +199,11 @@ func (c *ApiClient) Stats() (*Stats, error) {
 
 func (c *ApiClient) Start() error {
 	url := c.encodeURL("/api/start/%s", c.xauth)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) XPing() error {
+	url := c.encodeURL("/api/xping/%s", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
