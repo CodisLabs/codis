@@ -23,8 +23,9 @@ type Topom struct {
 
 	exit struct {
 		C chan struct{}
-		sync.WaitGroup
 	}
+	wait sync.WaitGroup
+
 	online bool
 	closed bool
 
@@ -32,10 +33,10 @@ type Topom struct {
 
 	config *Config
 
-	store models.Store
 	rwlck sync.RWMutex
+	store models.Store
 
-	slots  []*models.SlotMapping
+	slots  [models.MaxSlotNum]*models.SlotMapping
 	groups map[int]*models.Group
 
 	proxies map[string]*models.Proxy
@@ -45,16 +46,15 @@ type Topom struct {
 var ErrClosedTopom = errors.New("use of closed topom")
 
 func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
-	s := &Topom{store: store, config: config}
+	s := &Topom{config: config, store: store}
 	s.xauth = rpc.NewXAuth(config.ProductName, config.ProductAuth)
-
-	s.exit.C = make(chan struct{})
-
 	s.model = &models.Topom{
 		StartTime: time.Now().String(),
 	}
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
+
+	s.exit.C = make(chan struct{})
 
 	if err := s.setup(); err != nil {
 		s.Close()
@@ -63,10 +63,10 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 
 	log.Infof("[%p] create new topom", s)
 
-	s.exit.Add(1)
+	s.wait.Add(1)
 	go func() {
-		defer s.exit.Done()
-		// TODO
+		defer s.wait.Done()
+		s.daemonMigration()
 	}()
 
 	go s.serveAdmin()
@@ -93,17 +93,18 @@ func (s *Topom) setup() error {
 
 	if err := s.store.Acquire(s.GetModel()); err != nil {
 		return err
+	} else {
+		s.online = true
 	}
-	s.online = true
 
-	s.slots = make([]*models.SlotMapping, models.MaxSlotNum)
-	for i := 0; i < len(s.slots); i++ {
+	for i := 0; i < models.MaxSlotNum; i++ {
 		if m, err := s.store.LoadSlotMapping(i); err != nil {
 			return err
 		} else {
 			s.slots[i] = m
 		}
 	}
+
 	if glist, err := s.store.ListGroup(); err != nil {
 		return err
 	} else {
@@ -112,6 +113,7 @@ func (s *Topom) setup() error {
 			s.groups[g.Id] = g
 		}
 	}
+
 	if plist, err := s.store.ListProxy(); err != nil {
 		return err
 	} else {
@@ -124,6 +126,7 @@ func (s *Topom) setup() error {
 			s.clients[p.Token] = c
 		}
 	}
+
 	return nil
 }
 
@@ -142,7 +145,7 @@ func (s *Topom) Close() error {
 	if !s.online {
 		return nil
 	} else {
-		s.exit.Wait()
+		s.wait.Wait()
 		return s.store.Release()
 	}
 }
@@ -192,5 +195,17 @@ func (s *Topom) serveAdmin() {
 		log.Infof("[%p] admin shutdown", s)
 	case err := <-eh:
 		log.ErrorErrorf(err, "[%p] admin exit on error", s)
+	}
+}
+
+func (s *Topom) daemonMigration() {
+	for {
+		select {
+		case <-s.exit.C:
+			return
+		default:
+		}
+		// TODO
+		time.Sleep(time.Second)
 	}
 }

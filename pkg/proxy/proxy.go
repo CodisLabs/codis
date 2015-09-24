@@ -41,16 +41,15 @@ func New(config *Config) (*Proxy, error) {
 	s := &Proxy{config: config}
 	s.token = rpc.NewToken()
 	s.xauth = rpc.NewXAuth(config.ProductName, config.ProductAuth, s.token)
-
-	s.router = router.NewWithAuth(config.ProductAuth)
-	s.init.C = make(chan struct{})
-	s.exit.C = make(chan struct{})
-
 	s.model = &models.Proxy{
 		Token: s.token, StartTime: time.Now().String(),
 	}
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
+
+	s.router = router.NewWithAuth(config.ProductAuth)
+	s.init.C = make(chan struct{})
+	s.exit.C = make(chan struct{})
 
 	if err := s.setup(); err != nil {
 		s.Close()
