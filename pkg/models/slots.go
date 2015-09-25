@@ -9,12 +9,6 @@ type Slot struct {
 	Locked      bool   `json:"locked,omitempty"`
 }
 
-type Group struct {
-	Id     int      `json:"id"`
-	Master string   `json:"master"`
-	Slaves []string `json:"slaves,omitempty"`
-}
-
 type SlotMapping struct {
 	Id      int `json:"id"`
 	GroupId int `json:"group_id"`

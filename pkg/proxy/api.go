@@ -66,6 +66,7 @@ func newApiServer(p *Proxy) http.Handler {
 
 	r := martini.NewRouter()
 	r.Get("/", api.Summary)
+	r.Get("/api/model", api.Model)
 	r.Get("/api/stats/:xauth", api.Stats)
 	r.Put("/api/start/:xauth", api.Start)
 	r.Put("/api/xping/:xauth", api.XPing)
@@ -111,6 +112,10 @@ func (s *apiServer) GetStats() *Stats {
 	stats.Sessions.Total = router.SessionsTotal()
 	stats.Sessions.Actived = router.SessionsActived()
 	return stats
+}
+
+func (s *apiServer) Model(params martini.Params) (int, string) {
+	return rpc.ApiResponseJson(s.proxy.GetModel())
 }
 
 func (s *apiServer) Stats(params martini.Params) (int, string) {
@@ -186,6 +191,15 @@ func (c *ApiClient) Summary() (*Summary, error) {
 		return nil, err
 	}
 	return sum, nil
+}
+
+func (c *ApiClient) Model() (*models.Proxy, error) {
+	url := c.encodeURL("/api/model")
+	model := &models.Proxy{}
+	if err := rpc.ApiGetJson(url, model); err != nil {
+		return nil, err
+	}
+	return model, nil
 }
 
 func (c *ApiClient) Stats() (*Stats, error) {

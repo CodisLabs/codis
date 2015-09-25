@@ -6,7 +6,6 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
-	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 )
 
@@ -33,11 +32,9 @@ func TestInfo(x *testing.T) {
 
 	var c = proxy.NewApiClient(addr)
 
-	sum, err := c.Summary()
+	p, err := c.Model()
 	assert.MustNoError(err)
-	assert.Must(sum.Version == utils.Version)
-	assert.Must(sum.Compile == utils.Compile)
-	assert.Must(sum.Model.Token == s.GetToken())
+	assert.Must(p.Token == s.GetToken())
 }
 
 func TestStats(x *testing.T) {
