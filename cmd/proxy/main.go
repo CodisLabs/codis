@@ -28,13 +28,13 @@ const banner = `
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N] [--config=CONF] [--log=LOG] [--log-level=LEVEL] [--ulimit=NLIMIT]
+	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--ulimit=NLIMIT]
 
 Options:
 	--ncpu=N                    set runtime.GOMAXPROCS to N, default is runtime.NumCPU().
 	-c CONF, --config=CONF      specify the config file.
 	-l FILE, --log=FILE         specify the daliy rotated log file.
-	--log-level=LEVEL            specify the log-level, can be INFO,WARN,DEBUG,ERROR, default is INFO.
+	--log-level=LEVEL           specify the log-level, can be INFO,WARN,DEBUG,ERROR, default is INFO.
 	--ulimit=NLIMIT             run 'ulimit -n' to check the maximum number of open file descriptors.
 `
 
@@ -92,7 +92,7 @@ Options:
 		case "INFO":
 			log.SetLevel(log.LEVEL_INFO)
 		default:
-			log.Panicf("parse --log-level failed, invalid log-level = '%s'", level)
+			log.Panicf("parse --log-level failed, invalid level = '%s'", level)
 		}
 	}
 
