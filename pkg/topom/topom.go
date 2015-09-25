@@ -237,9 +237,15 @@ func (s *Topom) daemonMigration() {
 func (s *Topom) getGroupMaster(groupId int) string {
 	if g := s.groups[groupId]; g != nil {
 		return g.Master
-	} else {
-		return ""
 	}
+	return ""
+}
+
+func (s *Topom) getApiClient(token string) (*proxy.ApiClient, error) {
+	if c := s.clients[token]; c != nil {
+		return c, nil
+	}
+	return nil, errors.Errorf("proxy does not exist")
 }
 
 func (s *Topom) toSlotState(m *models.SlotMapping) *models.Slot {
@@ -273,6 +279,9 @@ func (s *Topom) maxProxyId() (maxId int) {
 func (s *Topom) CreateProxy(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
 
 	c := proxy.NewApiClient(addr)
 	p, err := c.Model()
@@ -302,19 +311,23 @@ func (s *Topom) CreateProxy(addr string) error {
 	log.Infof("[%p] create proxy: %+v", s, p)
 	s.proxies[p.Token] = p
 	s.clients[p.Token] = c
-	return s.startProxy(p.Token)
+	return s.resyncProxy(p.Token)
 }
 
-func (s *Topom) startProxy(token string) error {
-	c := s.clients[token]
-	if c == nil {
-		return errors.Errorf("proxy does not exist")
-	}
+func (s *Topom) getSlots() []*models.Slot {
 	slots := make([]*models.Slot, 0, len(s.mappings))
 	for _, m := range s.mappings {
 		slots = append(slots, s.toSlotState(m))
 	}
-	if err := c.FillSlot(slots...); err != nil {
+	return slots
+}
+
+func (s *Topom) resyncProxy(token string) error {
+	c, err := s.getApiClient(token)
+	if err != nil {
+		return err
+	}
+	if err := c.FillSlot(s.getSlots()...); err != nil {
 		log.WarnErrorf(err, "proxy-[%s] init slots failed", token)
 		return errors.Errorf("proxy init slots failed")
 	}
@@ -325,22 +338,25 @@ func (s *Topom) startProxy(token string) error {
 	return nil
 }
 
-func (s *Topom) StartProxy(token string) error {
+func (s *Topom) ResyncProxy(token string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.startProxy(token)
+	if s.closed {
+		return ErrClosedTopom
+	}
+	return s.resyncProxy(token)
 }
 
 func (s *Topom) RemoveProxy(token string, force bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
 
-	c := s.clients[token]
-	if c == nil {
-		if !force {
-			return errors.Errorf("proxy does not exist")
-		}
-		return nil
+	c, err := s.getApiClient(token)
+	if err != nil {
+		return err
 	}
 	p := s.proxies[token]
 
@@ -369,6 +385,36 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 	return nil
 }
 
+func (s *Topom) XPingAll() (map[string]error, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, ErrClosedTopom
+	}
+	return s.broadcastXPing(false), nil
+}
+
+func (s *Topom) StatsAll() (map[string]*proxy.Stats, map[string]error, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, nil, ErrClosedTopom
+	}
+	var mulck sync.Mutex
+	var stats = make(map[string]*proxy.Stats)
+	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		x, err := c.Stats()
+		if err != nil {
+			return err
+		}
+		mulck.Lock()
+		stats[p.Token] = x
+		mulck.Unlock()
+		return nil
+	})
+	return stats, errs, nil
+}
+
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
 	var rets = &struct {
 		sync.Mutex
@@ -392,31 +438,16 @@ func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) ma
 	return rets.errs
 }
 
-func (s *Topom) broadcastXPing() map[string]error {
+func (s *Topom) broadcastXPing(debug bool) map[string]error {
 	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		return c.XPing()
-	})
-}
-
-func (s *Topom) broadcastStats() (*proxy.Stats, map[string]error) {
-	var stats struct {
-		proxy.Stats
-		mu sync.Mutex
-	}
-	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		x, err := c.Stats()
-		if err != nil {
+		if err := c.XPing(); err != nil {
+			if debug {
+				log.WarnErrorf(err, "proxy-[%s] call xping failed", p.Token)
+			}
 			return err
 		}
-		stats.mu.Lock()
-		defer stats.mu.Unlock()
-
-		stats.Ops.Total += x.Ops.Total
-		stats.Sessions.Total += x.Sessions.Total
-		stats.Sessions.Actived += x.Sessions.Actived
 		return nil
 	})
-	return &stats.Stats, errs
 }
 
 func (s *Topom) broadcastFillSlot(slot *models.Slot) map[string]error {
