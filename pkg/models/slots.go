@@ -9,22 +9,19 @@ type Slot struct {
 	Locked      bool   `json:"locked,omitempty"`
 }
 
-type SlotMapping struct {
-	Id      int `json:"id"`
-	GroupId int `json:"group_id"`
-
-	Action *SlotAction `json:"action,omitempty"`
-}
-
 const (
 	ActionPending   = "pending"
 	ActionPreparing = "preparing"
 	ActionMigrating = "migrating"
 )
 
-type SlotAction struct {
-	Index int    `json:"index"`
-	State string `json:"state"`
+type SlotMapping struct {
+	Id      int `json:"id"`
+	GroupId int `json:"group_id"`
 
-	TargetId int `json:"target_id"`
+	Action struct {
+		Index    int    `json:"index"`
+		State    string `json:"state"`
+		TargetId int    `json:"target_id"`
+	} `json:"action"`
 }

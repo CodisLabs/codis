@@ -37,9 +37,9 @@ type Topom struct {
 	rwlck sync.RWMutex
 	store models.Store
 
-	slots  [models.MaxSlotNum]*models.SlotMapping
-	groups map[int]*models.Group
+	mappings [models.MaxSlotNum]*models.SlotMapping
 
+	groups  map[int]*models.Group
 	proxies map[string]*models.Proxy
 	clients map[string]*proxy.ApiClient
 }
@@ -98,11 +98,11 @@ func (s *Topom) setup() error {
 		s.online = true
 	}
 
-	for i := 0; i < models.MaxSlotNum; i++ {
+	for i := 0; i < len(s.mappings); i++ {
 		if m, err := s.store.LoadSlotMapping(i); err != nil {
 			return err
 		} else {
-			s.slots[i] = m
+			s.mappings[i] = m
 		}
 	}
 
@@ -211,6 +211,33 @@ func (s *Topom) daemonMigration() {
 	}
 }
 
+func (s *Topom) getGroupMaster(groupId int) string {
+	if g := s.groups[groupId]; g != nil {
+		return g.Master
+	} else {
+		return ""
+	}
+}
+
+func (s *Topom) toSlotState(m *models.SlotMapping) *models.Slot {
+	slot := &models.Slot{
+		Id: m.Id,
+	}
+	switch m.Action.State {
+	default:
+		fallthrough
+	case models.ActionPending:
+		slot.BackendAddr = s.getGroupMaster(m.GroupId)
+	case models.ActionPreparing:
+		slot.Locked = true
+		fallthrough
+	case models.ActionMigrating:
+		slot.BackendAddr = s.getGroupMaster(m.Action.TargetId)
+		slot.MigrateFrom = s.getGroupMaster(m.GroupId)
+	}
+	return slot
+}
+
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
 	var rets = &struct {
 		sync.Mutex
@@ -234,8 +261,35 @@ func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) ma
 	return rets.errs
 }
 
-func (s *Topom) xping() map[string]error {
+func (s *Topom) broadcastXPing() map[string]error {
 	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		return c.XPing()
+	})
+}
+
+func (s *Topom) broadcastStats() (*proxy.Stats, map[string]error) {
+	var stats struct {
+		proxy.Stats
+		mu sync.Mutex
+	}
+	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		x, err := c.Stats()
+		if err != nil {
+			return err
+		}
+		stats.mu.Lock()
+		defer stats.mu.Unlock()
+
+		stats.Ops.Total += x.Ops.Total
+		stats.Sessions.Total += x.Sessions.Total
+		stats.Sessions.Actived += x.Sessions.Actived
+		return nil
+	})
+	return &stats.Stats, errs
+}
+
+func (s *Topom) broadcastFillSlot(slot *models.Slot) map[string]error {
+	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		return c.FillSlot(slot)
 	})
 }
