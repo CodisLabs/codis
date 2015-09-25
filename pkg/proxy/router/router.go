@@ -54,7 +54,7 @@ func (s *Router) Close() error {
 func (s *Router) GetSlots() []*models.Slot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	slots := []*models.Slot{}
+	slots := make([]*models.Slot, 0, len(s.slots))
 	for i, slot := range s.slots {
 		slots = append(slots, &models.Slot{
 			Id:          i,

@@ -21,6 +21,7 @@ type Topom struct {
 
 	xauth string
 	model *models.Topom
+	store models.Store
 
 	exit struct {
 		C chan struct{}
@@ -33,9 +34,6 @@ type Topom struct {
 	ladmin net.Listener
 
 	config *Config
-
-	rwlck sync.RWMutex
-	store models.Store
 
 	mappings [models.MaxSlotNum]*models.SlotMapping
 
@@ -62,7 +60,7 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 		return nil, err
 	}
 
-	log.Infof("[%p] create new topom", s)
+	log.Infof("[%p] create new topom: %+v", s, s.model)
 
 	s.wait.Add(1)
 	go func() {
@@ -92,7 +90,7 @@ func (s *Topom) setup() error {
 		return errors.New("invalid product name, empty or using invalid character")
 	}
 
-	if err := s.store.Acquire(s.GetModel()); err != nil {
+	if err := s.store.Acquire(s.model); err != nil {
 		return err
 	} else {
 		s.online = true
@@ -127,7 +125,6 @@ func (s *Topom) setup() error {
 			s.clients[p.Token] = c
 		}
 	}
-
 	return nil
 }
 
@@ -173,6 +170,32 @@ func (s *Topom) IsClosed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.closed
+}
+
+func (s *Topom) GetSlotMappings() []*models.SlotMapping {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]*models.SlotMapping{}, s.mappings[:]...)
+}
+
+func (s *Topom) GetGroups() []*models.Group {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	groups := make([]*models.Group, 0, len(s.groups))
+	for _, g := range s.groups {
+		groups = append(groups, g)
+	}
+	return groups
+}
+
+func (s *Topom) GetProxies() []*models.Proxy {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	proxies := make([]*models.Proxy, 0, len(s.proxies))
+	for _, p := range s.proxies {
+		proxies = append(proxies, p)
+	}
+	return proxies
 }
 
 func (s *Topom) serveAdmin() {
@@ -236,6 +259,114 @@ func (s *Topom) toSlotState(m *models.SlotMapping) *models.Slot {
 		slot.MigrateFrom = s.getGroupMaster(m.GroupId)
 	}
 	return slot
+}
+
+func (s *Topom) maxProxyId() (maxId int) {
+	for _, p := range s.proxies {
+		if p.Id > maxId {
+			maxId = p.Id
+		}
+	}
+	return
+}
+
+func (s *Topom) CreateProxy(addr string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	c := proxy.NewApiClient(addr)
+	p, err := c.Model()
+	if err != nil {
+		log.WarnErrorf(err, "fetch proxy model failed, target = %s", addr)
+		return errors.Errorf("model init failed")
+	}
+	c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
+
+	if err := c.XPing(); err != nil {
+		log.WarnErrorf(err, "verify proxy auth failed, target = %s", addr)
+		return errors.Errorf("proxy auth failed")
+	}
+
+	if s.proxies[p.Token] != nil {
+		log.Warnf("proxy-[%s] already exists, target = %s", p.Token, addr)
+		return errors.Errorf("proxy link again")
+	} else {
+		p.Id = s.maxProxyId() + 1
+	}
+
+	if err := s.store.CreateProxy(p.Id, p); err != nil {
+		log.WarnErrorf(err, "proxy-[%s] create failed, target = %s", p.Token, addr)
+		return errors.Errorf("proxy create failed")
+	}
+
+	log.Infof("[%p] create proxy: %+v", s, p)
+	s.proxies[p.Token] = p
+	s.clients[p.Token] = c
+	return s.startProxy(p.Token)
+}
+
+func (s *Topom) startProxy(token string) error {
+	c := s.clients[token]
+	if c == nil {
+		return errors.Errorf("proxy does not exist")
+	}
+	slots := make([]*models.Slot, 0, len(s.mappings))
+	for _, m := range s.mappings {
+		slots = append(slots, s.toSlotState(m))
+	}
+	if err := c.FillSlot(slots...); err != nil {
+		log.WarnErrorf(err, "proxy-[%s] init slots failed", token)
+		return errors.Errorf("proxy init slots failed")
+	}
+	if err := c.Start(); err != nil {
+		log.WarnErrorf(err, "proxy-[%s] start failed", token)
+		return errors.Errorf("proxy start failed")
+	}
+	return nil
+}
+
+func (s *Topom) StartProxy(token string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.startProxy(token)
+}
+
+func (s *Topom) RemoveProxy(token string, force bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	c := s.clients[token]
+	if c == nil {
+		if !force {
+			return errors.Errorf("proxy does not exist")
+		}
+		return nil
+	}
+	p := s.proxies[token]
+
+	if err := c.XPing(); err != nil {
+		if !force {
+			return errors.Errorf("proxy ping failed")
+		}
+		log.WarnErrorf(err, "proxy-[%s] ping failed", token)
+	}
+
+	if err := c.Shutdown(); err != nil {
+		if !force {
+			return errors.Errorf("proxy shutdown failed")
+		}
+		log.WarnErrorf(err, "proxy-[%s] shutdown failed", token)
+	}
+
+	if err := s.store.RemoveProxy(p.Id); err != nil {
+		log.WarnErrorf(err, "proxy-[%s] remove failed", token)
+		return errors.Errorf("proxy remove failed")
+	}
+
+	delete(s.proxies, token)
+	delete(s.clients, token)
+	log.Infof("[%p] remove proxy: %+v", s, p)
+	return nil
 }
 
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {

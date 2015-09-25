@@ -12,17 +12,17 @@ type Store interface {
 	Acquire(topom *Topom) error
 	Release() error
 
-	LoadSlotMapping(i int) (*SlotMapping, error)
+	LoadSlotMapping(slotId int) (*SlotMapping, error)
 	SaveSlotMapping(slot *SlotMapping) error
 
 	ListProxy() ([]*Proxy, error)
-	CreateProxy(proxy *Proxy) error
-	RemoveProxy(id int) error
+	CreateProxy(proxyId int, proxy *Proxy) error
+	RemoveProxy(proxyId int) error
 
 	ListGroup() ([]*Group, error)
-	CreateGroup(group *Group) error
-	UpdateGroup(group *Group) error
-	RemoveGroup(id int) error
+	CreateGroup(groupId int, group *Group) error
+	UpdateGroup(groupId int, group *Group) error
+	RemoveGroup(groupId int) error
 
 	Close() error
 }

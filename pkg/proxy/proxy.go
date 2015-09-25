@@ -56,7 +56,7 @@ func New(config *Config) (*Proxy, error) {
 		return nil, err
 	}
 
-	log.Infof("[%p] create new proxy", s)
+	log.Infof("[%p] create new proxy: %+v", s, s.model)
 
 	go s.serveAdmin()
 	go s.serveProxy()
