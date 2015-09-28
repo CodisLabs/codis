@@ -159,18 +159,13 @@ func (s *Proxy) GetSlots() []*models.Slot {
 	return s.router.GetSlots()
 }
 
-func (s *Proxy) FillSlot(slots ...*models.Slot) error {
+func (s *Proxy) FillSlot(i int, addr, from string, locked bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return ErrClosedProxy
 	}
-	for _, slot := range slots {
-		if err := s.router.FillSlot(slot.Id, slot.BackendAddr, slot.MigrateFrom, slot.Locked); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.router.FillSlot(i, addr, from, locked)
 }
 
 func (s *Proxy) serveAdmin() {

@@ -84,7 +84,7 @@ func TestFillSlot(x *testing.T) {
 			Locked:      i%2 == 0,
 			BackendAddr: "x.x.x.x:xxxx",
 		}
-		assert.MustNoError(c.FillSlot(slot))
+		assert.MustNoError(c.FillSlots(slot))
 		expect[i] = slot
 	}
 	verifySlots(c, expect)
@@ -100,7 +100,7 @@ func TestFillSlot(x *testing.T) {
 		slots = append(slots, slot)
 		expect[i] = slot
 	}
-	assert.MustNoError(c.FillSlot(slots...))
+	assert.MustNoError(c.FillSlots(slots...))
 	verifySlots(c, expect)
 }
 
@@ -118,7 +118,7 @@ func TestStartAndShutdown(x *testing.T) {
 			Id:          i,
 			BackendAddr: "x.x.x.x:xxxx",
 		}
-		assert.MustNoError(c.FillSlot(slot))
+		assert.MustNoError(c.FillSlots(slot))
 		expect[i] = slot
 	}
 	verifySlots(c, expect)
