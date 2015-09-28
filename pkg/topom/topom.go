@@ -258,8 +258,8 @@ func (s *Topom) daemonMigration() {
 }
 
 func (s *Topom) getGroupMaster(groupId int) string {
-	if g := s.groups[groupId]; g != nil {
-		return g.Master
+	if g := s.groups[groupId]; g != nil && len(g.Servers) != 0 {
+		return g.Servers[0]
 	}
 	return ""
 }
@@ -466,6 +466,15 @@ func (s *Topom) resyncGroup(groupId int) map[string]error {
 	})
 }
 
+func (s *Topom) maxGroupId() (maxId int) {
+	for _, g := range s.groups {
+		if g.Id > maxId {
+			maxId = g.Id
+		}
+	}
+	return
+}
+
 func (s *Topom) ResyncGroup(groupId int) (map[string]error, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -473,6 +482,47 @@ func (s *Topom) ResyncGroup(groupId int) (map[string]error, error) {
 		return nil, ErrClosedTopom
 	}
 	return s.resyncGroup(groupId), nil
+}
+
+func (s *Topom) CreateGroup() (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return 0, ErrClosedTopom
+	}
+
+	g := &models.Group{Id: s.maxGroupId() + 1}
+	if err := s.store.CreateGroup(g.Id, g); err != nil {
+		log.WarnErrorf(err, "group-[%d] create failed", g.Id)
+		return 0, errors.Errorf("create group failed")
+	}
+	return g.Id, nil
+}
+
+func (s *Topom) RemoveGroup(groupId int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	g := s.groups[groupId]
+	if g == nil {
+		return errors.Errorf("group does not exist")
+	}
+	if slots := s.getSlotsByGroup(groupId); len(slots) != 0 {
+		return errors.Errorf("group is still busy")
+	}
+
+	if err := s.store.RemoveGroup(groupId); err != nil {
+		log.WarnErrorf(err, "group-[%d] remove failed", groupId)
+		return errors.Errorf("group remove failed")
+	}
+
+	log.Infof("[%p] remove group: %+v", s, g)
+
+	delete(s.groups, groupId)
+	return nil
 }
 
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
