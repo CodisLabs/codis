@@ -11,6 +11,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 
 	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var ErrFailedRedisClient = errors.New("use of failed redis client")
@@ -166,6 +167,7 @@ func (c *RedisClient) SlaveOf(master string) error {
 		if err != nil {
 			return errors.Trace(err)
 		}
+		log.Warnf("redis set slaveof [M] %s <---> %s [S]", master, c.addr)
 		if _, err := c.command("SLAVEOF", host, port); err != nil {
 			return err
 		} else {

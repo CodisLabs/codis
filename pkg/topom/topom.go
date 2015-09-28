@@ -257,6 +257,13 @@ func (s *Topom) daemonMigration() {
 	}
 }
 
+func (s *Topom) getGroup(groupId int) (*models.Group, error) {
+	if g := s.groups[groupId]; g != nil {
+		return g, nil
+	}
+	return nil, errors.Errorf("group does not exist")
+}
+
 func (s *Topom) getGroupMaster(groupId int) string {
 	if g := s.groups[groupId]; g != nil && len(g.Servers) != 0 {
 		return g.Servers[0]
@@ -321,7 +328,7 @@ func (s *Topom) CreateProxy(addr string) error {
 
 	if s.proxies[p.Token] != nil {
 		log.Warnf("proxy-[%s] already exists, target = %s", p.Token, addr)
-		return errors.Errorf("proxy link again")
+		return errors.Errorf("proxy already exists")
 	} else {
 		p.Id = s.maxProxyId() + 1
 	}
@@ -362,12 +369,12 @@ func (s *Topom) resyncProxy(token string) error {
 		return err
 	}
 	if err := c.FillSlot(s.getSlots()...); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] fill slots failed", token)
+		log.WarnErrorf(err, "proxy-[%s] resync failed", token)
 		return errors.Errorf("proxy fill slots failed")
 	}
 	if err := c.Start(); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] start failed", token)
-		return errors.Errorf("proxy start failed")
+		log.WarnErrorf(err, "proxy-[%s] resync failed", token)
+		return errors.Errorf("proxy call start failed")
 	}
 	return nil
 }
@@ -455,17 +462,6 @@ func (s *Topom) StatsAll() (map[string]*proxy.Stats, map[string]error, error) {
 	return stats, errs, nil
 }
 
-func (s *Topom) resyncGroup(groupId int) map[string]error {
-	slots := s.getSlotsByGroup(groupId)
-	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		if err := c.FillSlot(slots...); err != nil {
-			log.WarnErrorf(err, "proxy-[%s] fill slots failed", p.Token)
-			return errors.Errorf("proxy fill slots failed")
-		}
-		return nil
-	})
-}
-
 func (s *Topom) maxGroupId() (maxId int) {
 	for _, g := range s.groups {
 		if g.Id > maxId {
@@ -473,15 +469,6 @@ func (s *Topom) maxGroupId() (maxId int) {
 		}
 	}
 	return
-}
-
-func (s *Topom) ResyncGroup(groupId int) (map[string]error, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return nil, ErrClosedTopom
-	}
-	return s.resyncGroup(groupId), nil
 }
 
 func (s *Topom) CreateGroup() (int, error) {
@@ -494,8 +481,12 @@ func (s *Topom) CreateGroup() (int, error) {
 	g := &models.Group{Id: s.maxGroupId() + 1}
 	if err := s.store.CreateGroup(g.Id, g); err != nil {
 		log.WarnErrorf(err, "group-[%d] create failed", g.Id)
-		return 0, errors.Errorf("create group failed")
+		return 0, errors.Errorf("group create failed")
 	}
+
+	log.Infof("[%p] create group: %+v", s, g)
+
+	s.groups[g.Id] = g
 	return g.Id, nil
 }
 
@@ -506,9 +497,9 @@ func (s *Topom) RemoveGroup(groupId int) error {
 		return ErrClosedTopom
 	}
 
-	g := s.groups[groupId]
-	if g == nil {
-		return errors.Errorf("group does not exist")
+	g, err := s.getGroup(groupId)
+	if err != nil {
+		return err
 	}
 	if slots := s.getSlotsByGroup(groupId); len(slots) != 0 {
 		return errors.Errorf("group is still busy")
@@ -522,6 +513,153 @@ func (s *Topom) RemoveGroup(groupId int) error {
 	log.Infof("[%p] remove group: %+v", s, g)
 
 	delete(s.groups, groupId)
+	return nil
+}
+
+func (s *Topom) repairGroup(groupId int) error {
+	g, err := s.getGroup(groupId)
+	if err != nil {
+		return err
+	}
+	for i, addr := range g.Servers {
+		c, err := s.redisp.GetClient(addr)
+		if err != nil {
+			log.WarnErrorf(err, "group-[%d] repair failed, server = %s", groupId, addr)
+			return err
+		}
+		defer s.redisp.PutClient(c)
+
+		var master = ""
+		if i != 0 {
+			master = g.Servers[0]
+		}
+		if err := c.SlaveOf(master); err != nil {
+			log.WarnErrorf(err, "group-[%d] repair failed, server = %s", groupId, addr)
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Topom) resyncGroup(groupId int) map[string]error {
+	slots := s.getSlotsByGroup(groupId)
+	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		if err := c.FillSlot(slots...); err != nil {
+			log.WarnErrorf(err, "proxy-[%s] resync group-[%d] failed", p.Token, groupId)
+			return errors.Errorf("proxy resync failed")
+		}
+		return nil
+	})
+}
+
+func (s *Topom) RepairGroup(groupId int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+	return s.repairGroup(groupId)
+}
+
+func (s *Topom) ResyncGroup(groupId int) (map[string]error, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, ErrClosedTopom
+	}
+	_, err := s.getGroup(groupId)
+	if err != nil {
+		return nil, err
+	}
+	return s.resyncGroup(groupId), nil
+}
+
+func (s *Topom) GroupAddServer(groupId int, addr string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	g, err := s.getGroup(groupId)
+	if err != nil {
+		return err
+	}
+	for _, g := range s.groups {
+		for _, x := range g.Servers {
+			if x == addr {
+				return errors.Errorf("server already exists")
+			}
+		}
+	}
+
+	c, err := s.redisp.GetClient(addr)
+	if err != nil {
+		return err
+	}
+	defer s.redisp.PutClient(c)
+
+	if _, err := c.SlotsInfo(); err != nil {
+		log.WarnErrorf(err, "group-[%d] add failed, server = %s", groupId, addr)
+		return errors.Errorf("server check slots failed")
+	}
+	if err := c.SlaveOf(s.getGroupMaster(groupId)); err != nil {
+		log.WarnErrorf(err, "group-[%d] add failed, server = %s", groupId, addr)
+		return errors.Errorf("server set slaveof failed")
+	}
+
+	n := &models.Group{
+		Id:      g.Id,
+		Servers: append(g.Servers, addr),
+	}
+	if err := s.store.UpdateGroup(g.Id, n); err != nil {
+		log.WarnErrorf(err, "group-[%d] update failed", g.Id)
+		return errors.Errorf("update group failed")
+	}
+
+	log.Infof("[%p] update group: %+v", s, n)
+
+	s.groups[g.Id] = n
+	return nil
+}
+
+func (s *Topom) GroupRemoveServer(groupId int, addr string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	g, err := s.getGroup(groupId)
+	if err != nil {
+		return err
+	}
+	n := &models.Group{
+		Id: g.Id,
+	}
+	for _, x := range g.Servers {
+		if x != addr {
+			n.Servers = append(n.Servers, x)
+		}
+	}
+	if len(g.Servers) == len(n.Servers) {
+		return errors.Errorf("server doest not exist")
+	}
+
+	if addr == g.Servers[0] {
+		if len(g.Servers) != 1 || len(s.getGroupMaster(groupId)) != 0 {
+			return errors.Errorf("server is still busy")
+		}
+	}
+
+	if err := s.store.UpdateGroup(g.Id, n); err != nil {
+		log.WarnErrorf(err, "group-[%d] update failed", g.Id)
+		return errors.Errorf("update group failed")
+	}
+
+	log.Infof("[%p] update group: %+v", s, n)
+
+	s.groups[g.Id] = n
 	return nil
 }
 
