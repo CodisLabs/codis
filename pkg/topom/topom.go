@@ -278,6 +278,13 @@ func (s *Topom) getApiClient(token string) (*proxy.ApiClient, error) {
 	return nil, errors.Errorf("proxy does not exist")
 }
 
+func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {
+	if slotId >= 0 && slotId < len(s.mappings) {
+		return s.mappings[slotId], nil
+	}
+	return nil, errors.Errorf("invalid slot id")
+}
+
 func (s *Topom) toSlotState(m *models.SlotMapping) *models.Slot {
 	slot := &models.Slot{
 		Id: m.Id,
@@ -728,6 +735,91 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string, force bool) (map[st
 	}
 
 	return s.resyncGroup(groupId, false), nil
+}
+
+func (s *Topom) maxActionIndex() (maxIndex int) {
+	for _, m := range s.mappings {
+		if m.Action.State != models.ActionNothing {
+			if m.Action.Index > maxIndex {
+				maxIndex = m.Action.Index
+			}
+		}
+	}
+	return
+}
+
+func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	m, err := s.getSlotMapping(slotId)
+	if err != nil {
+		return err
+	}
+	g, err := s.getGroup(targetId)
+	if err != nil {
+		return err
+	}
+	switch m.Action.State {
+	case models.ActionNothing:
+	case models.ActionPending:
+	default:
+		return errors.Errorf("slot is being migrated")
+	}
+
+	n := &models.SlotMapping{
+		Id:      m.Id,
+		GroupId: m.GroupId,
+	}
+	n.Action.State = models.ActionPending
+	n.Action.Index = s.maxActionIndex() + 1
+	n.Action.TargetId = g.Id
+	if err := s.store.SaveSlotMapping(m.Id, n); err != nil {
+		log.WarnErrorf(err, "slot-[%d] update failed", m.Id)
+		return err
+	}
+
+	log.Infof("[%p] update slot: %+v", s, n)
+
+	s.mappings[m.Id] = n
+	return nil
+}
+
+func (s *Topom) SlotRemoveAction(slotId int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	m, err := s.getSlotMapping(slotId)
+	if err != nil {
+		return err
+	}
+	switch m.Action.State {
+	case models.ActionNothing:
+		return nil
+	case models.ActionPending:
+	default:
+		return errors.Errorf("slot is being migrated")
+	}
+
+	n := &models.SlotMapping{
+		Id:      m.Id,
+		GroupId: m.GroupId,
+	}
+	if err := s.store.SaveSlotMapping(m.Id, n); err != nil {
+		log.WarnErrorf(err, "slot-[%d] update failed", m.Id)
+		return err
+	}
+
+	log.Infof("[%p] update slot: %+v", s, n)
+
+	s.mappings[m.Id] = n
+	return nil
 }
 
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {

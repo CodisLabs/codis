@@ -13,7 +13,7 @@ type Store interface {
 	Release() error
 
 	LoadSlotMapping(slotId int) (*SlotMapping, error)
-	SaveSlotMapping(slot *SlotMapping) error
+	SaveSlotMapping(slotId int, slot *SlotMapping) error
 
 	ListProxy() ([]*Proxy, error)
 	CreateProxy(proxyId int, proxy *Proxy) error
