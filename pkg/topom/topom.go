@@ -32,6 +32,7 @@ type Topom struct {
 	closed bool
 
 	ladmin net.Listener
+	redisp *RedisPool
 
 	config *Config
 
@@ -53,6 +54,8 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
 
+	s.redisp = NewRedisPool(config.ProductAuth, time.Minute)
+
 	s.exit.C = make(chan struct{})
 
 	if err := s.setup(); err != nil {
@@ -61,6 +64,12 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	}
 
 	log.Infof("[%p] create new topom: %+v", s, s.model)
+
+	s.wait.Add(1)
+	go func() {
+		defer s.wait.Done()
+		s.daemonRedisPool()
+	}()
 
 	s.wait.Add(1)
 	go func() {
@@ -138,6 +147,7 @@ func (s *Topom) Close() error {
 	close(s.exit.C)
 
 	s.ladmin.Close()
+	s.redisp.Close()
 
 	defer s.store.Close()
 	if !s.online {
@@ -219,6 +229,19 @@ func (s *Topom) serveAdmin() {
 		log.Infof("[%p] admin shutdown", s)
 	case err := <-eh:
 		log.ErrorErrorf(err, "[%p] admin exit on error", s)
+	}
+}
+
+func (s *Topom) daemonRedisPool() {
+	var ticker = time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.exit.C:
+			return
+		case <-ticker.C:
+			s.redisp.Cleanup()
+		}
 	}
 }
 
