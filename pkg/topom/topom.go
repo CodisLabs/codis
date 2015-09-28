@@ -253,7 +253,7 @@ func (s *Topom) toSlotState(m *models.SlotMapping) *models.Slot {
 		Id: m.Id,
 	}
 	switch m.Action.State {
-	default:
+	case models.ActionNothing:
 		fallthrough
 	case models.ActionPending:
 		slot.BackendAddr = s.getGroupMaster(m.GroupId)
@@ -309,6 +309,7 @@ func (s *Topom) CreateProxy(addr string) error {
 	}
 
 	log.Infof("[%p] create proxy: %+v", s, p)
+
 	s.proxies[p.Token] = p
 	s.clients[p.Token] = c
 	return s.resyncProxy(p.Token)
@@ -322,14 +323,24 @@ func (s *Topom) getSlots() []*models.Slot {
 	return slots
 }
 
+func (s *Topom) getSlotsByGroup(groupId int) []*models.Slot {
+	slots := make([]*models.Slot, 0, len(s.mappings))
+	for _, m := range s.mappings {
+		if m.GroupId == groupId || m.Action.TargetId == groupId {
+			slots = append(slots, s.toSlotState(m))
+		}
+	}
+	return slots
+}
+
 func (s *Topom) resyncProxy(token string) error {
 	c, err := s.getApiClient(token)
 	if err != nil {
 		return err
 	}
 	if err := c.FillSlot(s.getSlots()...); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] init slots failed", token)
-		return errors.Errorf("proxy init slots failed")
+		log.WarnErrorf(err, "proxy-[%s] fill slots failed", token)
+		return errors.Errorf("proxy fill slots failed")
 	}
 	if err := c.Start(); err != nil {
 		log.WarnErrorf(err, "proxy-[%s] start failed", token)
@@ -360,13 +371,6 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 	}
 	p := s.proxies[token]
 
-	if err := c.XPing(); err != nil {
-		if !force {
-			return errors.Errorf("proxy ping failed")
-		}
-		log.WarnErrorf(err, "proxy-[%s] ping failed", token)
-	}
-
 	if err := c.Shutdown(); err != nil {
 		if !force {
 			return errors.Errorf("proxy shutdown failed")
@@ -379,9 +383,10 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 		return errors.Errorf("proxy remove failed")
 	}
 
+	log.Infof("[%p] remove proxy: %+v", s, p)
+
 	delete(s.proxies, token)
 	delete(s.clients, token)
-	log.Infof("[%p] remove proxy: %+v", s, p)
 	return nil
 }
 
@@ -391,7 +396,19 @@ func (s *Topom) XPingAll() (map[string]error, error) {
 	if s.closed {
 		return nil, ErrClosedTopom
 	}
-	return s.broadcastXPing(false), nil
+	return s.xpingall(false), nil
+}
+
+func (s *Topom) xpingall(debug bool) map[string]error {
+	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		if err := c.XPing(); err != nil {
+			if debug {
+				log.WarnErrorf(err, "proxy-[%s] call xping failed", p.Token)
+			}
+			return err
+		}
+		return nil
+	})
 }
 
 func (s *Topom) StatsAll() (map[string]*proxy.Stats, map[string]error, error) {
@@ -415,6 +432,26 @@ func (s *Topom) StatsAll() (map[string]*proxy.Stats, map[string]error, error) {
 	return stats, errs, nil
 }
 
+func (s *Topom) resyncGroup(groupId int) map[string]error {
+	slots := s.getSlotsByGroup(groupId)
+	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		if err := c.FillSlot(slots...); err != nil {
+			log.WarnErrorf(err, "proxy-[%s] fill slots failed", p.Token)
+			return errors.Errorf("proxy fill slots failed")
+		}
+		return nil
+	})
+}
+
+func (s *Topom) ResyncGroup(groupId int) (map[string]error, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, ErrClosedTopom
+	}
+	return s.resyncGroup(groupId), nil
+}
+
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
 	var rets = &struct {
 		sync.Mutex
@@ -436,18 +473,6 @@ func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) ma
 	}
 	rets.wait.Wait()
 	return rets.errs
-}
-
-func (s *Topom) broadcastXPing(debug bool) map[string]error {
-	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		if err := c.XPing(); err != nil {
-			if debug {
-				log.WarnErrorf(err, "proxy-[%s] call xping failed", p.Token)
-			}
-			return err
-		}
-		return nil
-	})
 }
 
 func (s *Topom) broadcastFillSlot(slot *models.Slot) map[string]error {

@@ -10,6 +10,7 @@ type Slot struct {
 }
 
 const (
+	ActionNothing   = ""
 	ActionPending   = "pending"
 	ActionPreparing = "preparing"
 	ActionMigrating = "migrating"
