@@ -538,12 +538,21 @@ func (s *Topom) repairGroup(groupId int) error {
 			return err
 		}
 	}
+	s.resyncGroup(groupId, false)
 	return nil
 }
 
-func (s *Topom) resyncGroup(groupId int) map[string]error {
+func (s *Topom) resyncGroup(groupId int, holdLock bool) map[string]error {
 	slots := s.getSlotsByGroup(groupId)
+	if holdLock {
+		for _, slot := range slots {
+			slot.Locked = true
+		}
+	}
 	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		if len(slots) == 0 {
+			return nil
+		}
 		if err := c.FillSlot(slots...); err != nil {
 			log.WarnErrorf(err, "proxy-[%s] resync group-[%d] failed", p.Token, groupId)
 			return errors.Errorf("proxy resync failed")
@@ -571,7 +580,7 @@ func (s *Topom) ResyncGroup(groupId int) (map[string]error, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.resyncGroup(groupId), nil
+	return s.resyncGroup(groupId, false), nil
 }
 
 func (s *Topom) GroupAddServer(groupId int, addr string) error {
