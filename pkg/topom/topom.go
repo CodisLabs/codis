@@ -10,7 +10,6 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/utils/async"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
@@ -188,16 +187,6 @@ func (s *Topom) GetSlotMappings() []*models.SlotMapping {
 	return append([]*models.SlotMapping{}, s.mappings[:]...)
 }
 
-func (s *Topom) GetProxies() []*models.Proxy {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	proxies := make([]*models.Proxy, 0, len(s.proxies))
-	for _, p := range s.proxies {
-		proxies = append(proxies, p)
-	}
-	return proxies
-}
-
 func (s *Topom) serveAdmin() {
 	if s.IsClosed() {
 		return
@@ -222,19 +211,6 @@ func (s *Topom) serveAdmin() {
 	}
 }
 
-func (s *Topom) daemonRedisPool() {
-	var ticker = time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-s.exit.C:
-			return
-		case <-ticker.C:
-			s.redisp.Cleanup()
-		}
-	}
-}
-
 func (s *Topom) daemonMigration() {
 	for {
 		select {
@@ -245,13 +221,6 @@ func (s *Topom) daemonMigration() {
 		// TODO
 		time.Sleep(time.Second)
 	}
-}
-
-func (s *Topom) getApiClient(token string) (*proxy.ApiClient, error) {
-	if c := s.clients[token]; c != nil {
-		return c, nil
-	}
-	return nil, errors.Errorf("proxy does not exist")
 }
 
 func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {
@@ -280,54 +249,6 @@ func (s *Topom) toSlotState(m *models.SlotMapping) *models.Slot {
 	return slot
 }
 
-func (s *Topom) maxProxyId() (maxId int) {
-	for _, p := range s.proxies {
-		if p.Id > maxId {
-			maxId = p.Id
-		}
-	}
-	return
-}
-
-func (s *Topom) CreateProxy(addr string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedTopom
-	}
-
-	c := proxy.NewApiClient(addr)
-	p, err := c.Model()
-	if err != nil {
-		log.WarnErrorf(err, "fetch proxy model failed, target = %s", addr)
-		return errors.Errorf("model init failed")
-	}
-	c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
-
-	if err := c.XPing(); err != nil {
-		log.WarnErrorf(err, "verify proxy auth failed, target = %s", addr)
-		return errors.Errorf("proxy auth failed")
-	}
-
-	if s.proxies[p.Token] != nil {
-		log.Warnf("proxy-[%s] already exists, target = %s", p.Token, addr)
-		return errors.Errorf("proxy already exists")
-	} else {
-		p.Id = s.maxProxyId() + 1
-	}
-
-	if err := s.store.CreateProxy(p.Id, p); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] create failed, target = %s", p.Token, addr)
-		return errors.Errorf("proxy create failed")
-	}
-
-	log.Infof("[%p] create proxy: %+v", s, p)
-
-	s.proxies[p.Token] = p
-	s.clients[p.Token] = c
-	return s.resyncProxy(p.Token)
-}
-
 func (s *Topom) getSlots() []*models.Slot {
 	slots := make([]*models.Slot, 0, len(s.mappings))
 	for _, m := range s.mappings {
@@ -344,105 +265,6 @@ func (s *Topom) getSlotsByGroup(groupId int) []*models.Slot {
 		}
 	}
 	return slots
-}
-
-func (s *Topom) resyncProxy(token string) error {
-	c, err := s.getApiClient(token)
-	if err != nil {
-		return err
-	}
-	if err := c.FillSlots(s.getSlots()...); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] resync failed", token)
-		return errors.Errorf("proxy fill slots failed")
-	}
-	if err := c.Start(); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] resync failed", token)
-		return errors.Errorf("proxy call start failed")
-	}
-	return nil
-}
-
-func (s *Topom) ResyncProxy(token string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedTopom
-	}
-	return s.resyncProxy(token)
-}
-
-func (s *Topom) RemoveProxy(token string, force bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedTopom
-	}
-
-	c, err := s.getApiClient(token)
-	if err != nil {
-		return err
-	}
-	p := s.proxies[token]
-
-	if err := c.Shutdown(); err != nil {
-		if !force {
-			return errors.Errorf("proxy shutdown failed")
-		}
-		log.WarnErrorf(err, "proxy-[%s] shutdown failed", token)
-	}
-
-	if err := s.store.RemoveProxy(p.Id); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] remove failed", token)
-		return errors.Errorf("proxy remove failed")
-	}
-
-	log.Infof("[%p] remove proxy: %+v", s, p)
-
-	delete(s.proxies, token)
-	delete(s.clients, token)
-	return nil
-}
-
-func (s *Topom) XPingAll() (map[string]error, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return nil, ErrClosedTopom
-	}
-	return s.xpingall(false), nil
-}
-
-func (s *Topom) xpingall(debug bool) map[string]error {
-	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		if err := c.XPing(); err != nil {
-			if debug {
-				log.WarnErrorf(err, "proxy-[%s] call xping failed", p.Token)
-			}
-			return err
-		}
-		return nil
-	})
-}
-
-func (s *Topom) StatsAll() (map[string]*proxy.Stats, map[string]error, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return nil, nil, ErrClosedTopom
-	}
-	var mulck sync.Mutex
-	var stats = make(map[string]*proxy.Stats)
-	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		x, err := c.Stats()
-		if err != nil {
-			return err
-		}
-		mulck.Lock()
-		stats[p.Token] = x
-		mulck.Unlock()
-		return nil
-	})
-	return stats, errs, nil
 }
 
 func (s *Topom) maxActionIndex() (maxIndex int) {
@@ -528,27 +350,4 @@ func (s *Topom) SlotRemoveAction(slotId int) error {
 
 	s.mappings[m.Id] = n
 	return nil
-}
-
-func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
-	var rets = &struct {
-		sync.Mutex
-		wait sync.WaitGroup
-		errs map[string]error
-	}{errs: make(map[string]error)}
-
-	for token, p := range s.proxies {
-		c := s.clients[token]
-		rets.wait.Add(1)
-		async.Call(func() {
-			defer rets.wait.Done()
-			if err := fn(p, c); err != nil {
-				rets.Lock()
-				rets.errs[token] = err
-				rets.Unlock()
-			}
-		})
-	}
-	rets.wait.Wait()
-	return rets.errs
 }
