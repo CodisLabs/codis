@@ -88,7 +88,7 @@ func (s *Topom) setup() error {
 		s.ladmin = l
 	}
 
-	if addr, err := utils.ResolveAddr("tcp", s.config.AdminAddr); err != nil {
+	if addr, err := utils.ResolveAddr("tcp", s.ladmin.Addr().String()); err != nil {
 		return err
 	} else {
 		s.model.AdminAddr = addr

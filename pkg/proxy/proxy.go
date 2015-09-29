@@ -56,7 +56,7 @@ func New(config *Config) (*Proxy, error) {
 		return nil, err
 	}
 
-	log.Infof("[%p] create new proxy: %+v", s, s.model)
+	log.Infof("[%p] create new proxy: \n%s", s, s.model.ToJson())
 
 	go s.serveAdmin()
 	go s.serveProxy()
@@ -71,7 +71,7 @@ func (s *Proxy) setup() error {
 		s.lproxy = l
 	}
 
-	if addr, err := utils.ResolveAddr(s.config.ProtoType, s.config.ProxyAddr); err != nil {
+	if addr, err := utils.ResolveAddr(s.config.ProtoType, s.lproxy.Addr().String()); err != nil {
 		return err
 	} else {
 		s.model.ProtoType = s.config.ProtoType
@@ -84,7 +84,7 @@ func (s *Proxy) setup() error {
 		s.ladmin = l
 	}
 
-	if addr, err := utils.ResolveAddr("tcp", s.config.AdminAddr); err != nil {
+	if addr, err := utils.ResolveAddr("tcp", s.ladmin.Addr().String()); err != nil {
 		return err
 	} else {
 		s.model.AdminAddr = addr
