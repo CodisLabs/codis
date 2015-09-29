@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 type Proxy struct {
 	Id        int    `json:"id,omitempty"`
 	Token     string `json:"token"`
@@ -11,4 +13,12 @@ type Proxy struct {
 
 	ProtoType string `json:"proto_type"`
 	ProxyAddr string `json:"proxy_addr"`
+}
+
+func (p *Proxy) ToJson() string {
+	b, err := json.MarshalIndent(p, "", "    ")
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
 }

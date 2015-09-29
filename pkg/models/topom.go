@@ -1,12 +1,6 @@
 package models
 
-type Topom struct {
-	StartTime string `json:"start_time"`
-	AdminAddr string `json:"admin_addr"`
-
-	Pid int    `json:"pid"`
-	Pwd string `json:"pwd"`
-}
+import "encoding/json"
 
 type Store interface {
 	Acquire(topom *Topom) error
@@ -25,4 +19,20 @@ type Store interface {
 	RemoveGroup(groupId int) error
 
 	Close() error
+}
+
+type Topom struct {
+	StartTime string `json:"start_time"`
+	AdminAddr string `json:"admin_addr"`
+
+	Pid int    `json:"pid"`
+	Pwd string `json:"pwd"`
+}
+
+func (t *Topom) ToJson() string {
+	b, err := json.MarshalIndent(t, "", "    ")
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
 }

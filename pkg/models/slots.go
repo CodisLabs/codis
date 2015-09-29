@@ -1,5 +1,7 @@
 package models
 
+import "encoding/json"
+
 const MaxSlotNum = 1024
 
 type Slot struct {
@@ -25,4 +27,12 @@ type SlotMapping struct {
 		State    string `json:"state"`
 		TargetId int    `json:"target_id"`
 	} `json:"action"`
+}
+
+func (s *SlotMapping) ToJson() string {
+	b, err := json.MarshalIndent(s, "", "    ")
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
 }
