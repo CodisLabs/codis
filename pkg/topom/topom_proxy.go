@@ -146,19 +146,19 @@ func (s *Topom) XPingAll(debug bool) (map[string]error, error) {
 			if debug {
 				log.WarnErrorf(err, "proxy-[%s] call xping failed", p.Token)
 			}
-			return errors.New("proxy xping call failed")
+			return errors.New("proxy xping failed")
 		}
 		return nil
 	}), nil
 }
 
 func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if s.closed {
 		return nil, nil, ErrClosedTopom
 	}
-	var mulck sync.Mutex
+	var lock sync.Mutex
 	var stats = make(map[string]*proxy.Stats)
 	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		x, err := c.Stats()
@@ -166,14 +166,38 @@ func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error,
 			if debug {
 				log.WarnErrorf(err, "proxy-[%s] call stats failed", p.Token)
 			}
-			return errors.New("proxy stats call failed")
+			return errors.New("proxy stats failed")
 		}
-		mulck.Lock()
+		lock.Lock()
+		defer lock.Unlock()
 		stats[p.Token] = x
-		mulck.Unlock()
 		return nil
 	})
 	return stats, errs, nil
+}
+
+func (s *Topom) SummaryAll(debug bool) (map[string]*proxy.Summary, map[string]error, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closed {
+		return nil, nil, ErrClosedTopom
+	}
+	var lock sync.Mutex
+	var sums = make(map[string]*proxy.Summary)
+	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		x, err := c.Summary()
+		if err != nil {
+			if debug {
+				log.WarnErrorf(err, "proxy-[%s] call summary failed", p.Token)
+			}
+			return errors.New("proxy summary failed")
+		}
+		lock.Lock()
+		defer lock.Unlock()
+		sums[p.Token] = x
+		return nil
+	})
+	return sums, errs, nil
 }
 
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
