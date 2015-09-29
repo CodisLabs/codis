@@ -115,8 +115,11 @@ func (s *Topom) repairGroup(groupId int) error {
 		defer s.redisp.PutClient(c)
 
 		var master = ""
-		if i != 0 {
+		if i == 0 {
+			log.Infof("group-[%d] repair [M] %s", groupId, addr)
+		} else {
 			master = g.Servers[0]
+			log.Infof("group-[%d] repair [M] %s <---> %s [S]", groupId, master, addr)
 		}
 		if err := c.SlaveOf(master); err != nil {
 			log.WarnErrorf(err, "group-[%d] repair failed, server[%d] = %s", groupId, i, addr)

@@ -53,7 +53,7 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
 
-	s.redisp = NewRedisPool(config.ProductAuth, time.Minute)
+	s.redisp = NewRedisPool(config.ProductAuth, time.Minute*30)
 
 	s.exit.C = make(chan struct{})
 
