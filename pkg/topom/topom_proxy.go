@@ -69,11 +69,11 @@ func (s *Topom) CreateProxy(addr string) error {
 		return errors.New("proxy create failed")
 	}
 
-	log.Infof("[%p] create proxy: %s", s, p.ToJson())
+	log.Infof("[%p] create proxy: \n%s", s, p.ToJson())
 
 	s.proxies[p.Token] = p
 	s.clients[p.Token] = c
-	return s.repairProxy(p.Token)
+	return s.reinitProxy(p.Token)
 }
 
 func (s *Topom) RemoveProxy(token string, force bool) error {
@@ -92,7 +92,7 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 	log.Infof("proxy-[%s] will be marked as shutdown", token)
 
 	if err := c.Shutdown(); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] shutdown failed, force = %t", token, force)
+		log.WarnErrorf(err, "proxy-[%s] shutdown failed, force remove = %t", token, force)
 		if !force {
 			return errors.New("proxy shutdown failed")
 		}
@@ -103,33 +103,33 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 		return errors.New("proxy remove failed")
 	}
 
-	log.Infof("[%p] remove proxy: %s", s, p.ToJson())
+	log.Infof("[%p] remove proxy: \n%s", s, p.ToJson())
 
 	delete(s.proxies, token)
 	delete(s.clients, token)
 	return nil
 }
 
-func (s *Topom) RepairProxy(token string) error {
+func (s *Topom) ReinitProxy(token string) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closed {
 		return ErrClosedTopom
 	}
-	return s.repairProxy(token)
+	return s.reinitProxy(token)
 }
 
-func (s *Topom) repairProxy(token string) error {
+func (s *Topom) reinitProxy(token string) error {
 	c, err := s.getProxyClient(token)
 	if err != nil {
 		return err
 	}
 	if err := c.FillSlots(s.getSlots()...); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] repair failed", token)
+		log.WarnErrorf(err, "proxy-[%s] reinit failed", token)
 		return errors.New("proxy fill slots failed")
 	}
 	if err := c.Start(); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] repair failed", token)
+		log.WarnErrorf(err, "proxy-[%s] reinit failed", token)
 		return errors.New("proxy call start failed")
 	}
 	return nil
