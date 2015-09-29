@@ -5,6 +5,7 @@ import "encoding/json"
 type Group struct {
 	Id      int      `json:"id"`
 	Servers []string `json:"servers"`
+	Locked  bool     `json:"locked,omitempty"`
 }
 
 func (g *Group) ToJson() string {
