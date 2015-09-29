@@ -77,11 +77,12 @@ func (s *Router) FillSlot(i int, addr, from string, locked bool) error {
 	if s.closed {
 		return ErrClosedRouter
 	}
-	if i < 0 || i >= len(s.slots) {
+	if i >= 0 && i < len(s.slots) {
+		s.fillSlot(i, addr, from, locked)
+		return nil
+	} else {
 		return ErrInvalidSlotId
 	}
-	s.fillSlot(i, addr, from, locked)
-	return nil
 }
 
 func (s *Router) KeepAlive() error {
