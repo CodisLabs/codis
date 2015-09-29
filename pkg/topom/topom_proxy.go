@@ -69,7 +69,7 @@ func (s *Topom) CreateProxy(addr string) error {
 		return errors.New("proxy create failed")
 	}
 
-	log.Infof("[%p] create proxy: %+v", s, p)
+	log.Infof("[%p] create proxy: %s", s, p.ToJson())
 
 	s.proxies[p.Token] = p
 	s.clients[p.Token] = c
@@ -103,7 +103,7 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 		return errors.New("proxy remove failed")
 	}
 
-	log.Infof("[%p] remove proxy: %+v", s, p)
+	log.Infof("[%p] remove proxy: %s", s, p.ToJson())
 
 	delete(s.proxies, token)
 	delete(s.clients, token)
