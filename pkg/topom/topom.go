@@ -217,24 +217,6 @@ func (s *Topom) daemonMigration() {
 	}
 }
 
-func (s *Topom) getSlots() []*models.Slot {
-	slots := make([]*models.Slot, 0, len(s.mappings))
-	for _, m := range s.mappings {
-		slots = append(slots, s.toSlotState(m))
-	}
-	return slots
-}
-
-func (s *Topom) getSlotsByGroup(groupId int) []*models.Slot {
-	slots := make([]*models.Slot, 0, len(s.mappings))
-	for _, m := range s.mappings {
-		if m.GroupId == groupId || m.Action.TargetId == groupId {
-			slots = append(slots, s.toSlotState(m))
-		}
-	}
-	return slots
-}
-
 func (s *Topom) maxActionIndex() (maxIndex int) {
 	for _, m := range s.mappings {
 		if m.Action.State != models.ActionNothing {
