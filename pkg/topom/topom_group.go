@@ -2,12 +2,26 @@ package topom
 
 import (
 	"math"
+	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
+
+func (s *Topom) daemonRedisPool() {
+	var ticker = time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.exit.C:
+			return
+		case <-ticker.C:
+			s.redisp.Cleanup()
+		}
+	}
+}
 
 func (s *Topom) ListGroup() []*models.Group {
 	s.mu.RLock()
@@ -277,7 +291,7 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string, force bool) (map[st
 		slist = append([]string{addr}, slist[1:]...)
 	}
 
-	log.Infof("group-[%d] will be locked for server promotion", groupId)
+	log.Infof("group-[%d] will be locked by force", groupId)
 
 	if errs := s.resyncGroup(groupId, true); len(errs) != 0 {
 		if !force {
@@ -305,5 +319,8 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string, force bool) (map[st
 		log.WarnErrorf(err, "group-[%d] repair failed", groupId)
 		return nil, errors.New("group repair failed")
 	}
+
+	log.Infof("group-[%d] will be recovered", groupId)
+
 	return s.resyncGroup(groupId, false), nil
 }
