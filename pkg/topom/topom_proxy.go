@@ -48,13 +48,13 @@ func (s *Topom) CreateProxy(addr string) error {
 	p, err := c.Model()
 	if err != nil {
 		log.WarnErrorf(err, "proxy fetch model failed, target = %s", addr)
-		return errors.New("fetch model failed")
+		return errors.New("proxy fetch model failed")
 	}
 	c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
 
 	if err := c.XPing(); err != nil {
 		log.WarnErrorf(err, "proxy verify auth failed, target = %s", addr)
-		return errors.New("verify auth failed")
+		return errors.New("proxy verify auth failed")
 	}
 
 	if s.proxies[p.Token] != nil {
