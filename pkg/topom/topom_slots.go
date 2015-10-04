@@ -8,7 +8,11 @@ import (
 func (s *Topom) GetSlotMappings() []*models.SlotMapping {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return append([]*models.SlotMapping{}, s.mappings[:]...)
+	mappings := make([]*models.SlotMapping, len(s.mappings))
+	for i, m := range s.mappings {
+		mappings[i] = m
+	}
+	return mappings
 }
 
 func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {
@@ -19,8 +23,8 @@ func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {
 }
 
 func (s *Topom) isGroupLocked(groupId int) bool {
-	if g := s.groups[groupId]; g != nil && g.Locked {
-		return true
+	if g := s.groups[groupId]; g != nil {
+		return g.Promoting
 	}
 	return false
 }

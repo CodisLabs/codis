@@ -89,8 +89,6 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 	}
 	p := s.proxies[token]
 
-	log.Infof("proxy-[%s] will be marked as shutdown", token)
-
 	if err := c.Shutdown(); err != nil {
 		log.WarnErrorf(err, "proxy-[%s] shutdown failed, force remove = %t", token, force)
 		if !force {
@@ -184,7 +182,7 @@ func (s *Topom) SummaryAll(debug bool) (map[string]*proxy.Summary, map[string]er
 	}
 	var lock sync.Mutex
 	var sums = make(map[string]*proxy.Summary)
-	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+	var errs = s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		x, err := c.Summary()
 		if err != nil {
 			if debug {
@@ -201,24 +199,21 @@ func (s *Topom) SummaryAll(debug bool) (map[string]*proxy.Summary, map[string]er
 }
 
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
-	var rets = &struct {
-		sync.Mutex
-		wait sync.WaitGroup
-		errs map[string]error
-	}{errs: make(map[string]error)}
-
+	var lock sync.Mutex
+	var wait sync.WaitGroup
+	var errs = make(map[string]error)
 	for token, p := range s.proxies {
 		c := s.clients[token]
-		rets.wait.Add(1)
+		wait.Add(1)
 		async.Call(func() {
-			defer rets.wait.Done()
+			defer wait.Done()
 			if err := fn(p, c); err != nil {
-				rets.Lock()
-				rets.errs[token] = err
-				rets.Unlock()
+				lock.Lock()
+				errs[token] = err
+				lock.Unlock()
 			}
 		})
 	}
-	rets.wait.Wait()
-	return rets.errs
+	wait.Wait()
+	return errs
 }
