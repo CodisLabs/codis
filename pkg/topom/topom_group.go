@@ -339,3 +339,45 @@ func (s *Topom) resyncGroup(groupId int) map[string]error {
 		return nil
 	})
 }
+
+func (s *Topom) RepairGroup(groupId int, timeout int) error {
+	s.mu.RLock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	g, err := s.getGroup(groupId)
+	if err != nil {
+		return err
+	}
+	if g.Promoting {
+		return errors.New("group is promoting")
+	}
+
+	var d time.Duration
+	if timeout > 0 {
+		d = time.Second * time.Duration(timeout)
+	}
+
+	for i, addr := range g.Servers {
+		c, err := NewRedisClient(addr, s.config.ProductAuth, d)
+		if err != nil {
+			log.WarnErrorf(err, "group-[%d] open client failed, server = %s", groupId, addr)
+			return errors.New("server open client failed")
+		}
+		defer c.Close()
+
+		var master = ""
+		if i != 0 {
+			master = s.getGroupMaster(groupId)
+		}
+		if err := c.SlaveOf(master); err != nil {
+			log.WarnErrorf(err, "group-[%d] set slaveof failed, server = %s", groupId, addr)
+			return errors.New("server set slaveof failed")
+		}
+	}
+
+	log.Infof("[%p] repair group-[%d]", s, groupId)
+	return nil
+}
