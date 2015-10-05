@@ -3,6 +3,7 @@ package topom
 import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 func (s *Topom) GetSlotMappings() []*models.SlotMapping {
@@ -92,4 +93,89 @@ func (s *Topom) getSlotsByGroup(groupId int) []*models.Slot {
 		}
 	}
 	return slots
+}
+
+func (s *Topom) maxActionIndex() int {
+	var maxIndex int
+	for _, m := range s.mappings {
+		if m.Action.State != models.ActionNothing {
+			if m.Action.Index > maxIndex {
+				maxIndex = m.Action.Index
+			}
+		}
+	}
+	return maxIndex
+}
+
+func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	g, err := s.getGroup(targetId)
+	if err != nil {
+		return err
+	}
+	if len(g.Servers) == 0 {
+		return errors.New("group is empty")
+	}
+
+	m, err := s.getSlotMapping(slotId)
+	if err != nil {
+		return err
+	}
+	if m.Action.State != models.ActionNothing {
+		return errors.New("slot already has action")
+	}
+
+	n := &models.SlotMapping{
+		Id:      slotId,
+		GroupId: m.GroupId,
+	}
+	n.Action.State = models.ActionPending
+	n.Action.Index = s.maxActionIndex() + 1
+	n.Action.TargetId = targetId
+
+	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
+		log.WarnErrorf(err, "slot-[%d] update failed", slotId)
+		return errors.New("slot update failed")
+	}
+
+	log.Infof("[%p] update slot-[%d]: \n%s", s, slotId, n.ToJson())
+
+	s.mappings[slotId] = n
+	return nil
+}
+
+func (s *Topom) SlotRemoveAction(slotId int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	m, err := s.getSlotMapping(slotId)
+	if err != nil {
+		return err
+	}
+
+	if m.Action.State != models.ActionPending {
+		return errors.New("slot state is not pending")
+	}
+
+	n := &models.SlotMapping{
+		Id:      slotId,
+		GroupId: m.GroupId,
+	}
+	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
+		log.WarnErrorf(err, "slot-[%d] update failed", slotId)
+		return errors.New("slot update failed")
+	}
+
+	log.Infof("[%p] update slot-[%d]: \n%s", s, slotId, n.ToJson())
+
+	s.mappings[slotId] = n
+	return nil
 }
