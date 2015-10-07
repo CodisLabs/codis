@@ -342,7 +342,7 @@ func (s *Topom) resyncGroup(groupId int) map[string]error {
 
 func (s *Topom) RepairGroup(groupId int, timeout int) error {
 	s.mu.RLock()
-	defer s.mu.Unlock()
+	defer s.mu.RUnlock()
 	if s.closed {
 		return ErrClosedTopom
 	}
