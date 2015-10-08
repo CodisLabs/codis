@@ -1,7 +1,10 @@
 package topom
 
 import (
+	"net"
+
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -177,4 +180,126 @@ func (s *Topom) SlotRemoveAction(slotId int) error {
 
 	s.mappings[slotId] = n
 	return nil
+}
+
+func (s *Topom) resyncSlotMapping(slotId int) error {
+	m, err := s.getSlotMapping(slotId)
+	if err != nil {
+		return err
+	}
+	slot := s.toSlotState(m)
+	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		if err := c.FillSlots(slot); err != nil {
+			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] failed", p.Token, m.Id)
+			return errors.New("proxy resync slot failed")
+		}
+		return nil
+	})
+	if len(errs) != 0 {
+		return errors.New("resync slot mapping failed")
+	}
+	return nil
+}
+
+func (s *Topom) migrationPrepare(slotId int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	m, err := s.getSlotMapping(slotId)
+	if err != nil {
+		return err
+	}
+	switch m.Action.State {
+	default:
+		return errors.New("invalid action state")
+	case models.ActionPreparing:
+		return s.resyncSlotMapping(slotId)
+	case models.ActionPending:
+	}
+
+	n := &models.SlotMapping{
+		Id:      slotId,
+		GroupId: m.GroupId,
+		Action:  m.Action,
+	}
+	n.Action.State = models.ActionPreparing
+
+	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
+		return err
+	}
+
+	log.Infof("[%p] update slot-[%d]: \n%s", s, slotId, n.ToJson())
+
+	s.mappings[slotId] = n
+	return s.resyncSlotMapping(slotId)
+}
+
+func (s *Topom) migrationComplete(slotId int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	m, err := s.getSlotMapping(slotId)
+	if err != nil {
+		return err
+	}
+
+	if m.Action.State != models.ActionMigrating {
+		return errors.New("invalid action state")
+	}
+
+	n := &models.SlotMapping{
+		Id:      slotId,
+		GroupId: m.Action.TargetId,
+	}
+	s.mappings[slotId] = n
+
+	if err := s.resyncSlotMapping(slotId); err != nil {
+		s.mappings[slotId] = m
+		return err
+	}
+
+	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
+		s.mappings[slotId] = m
+		return err
+	}
+
+	log.Infof("[%p] update slot-[%d]: \n%s", s, slotId, n.ToJson())
+	return nil
+}
+
+func (s *Topom) migrationProcess(slotId int) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closed {
+		return 0, ErrClosedTopom
+	}
+
+	m, err := s.getSlotMapping(slotId)
+	if err != nil {
+		return 0, err
+	}
+	if m.Action.State != models.ActionMigrating {
+		return 0, errors.New("invalid action state")
+	}
+	if s.isSlotLocked(m) {
+		return 0, errors.New("slot is locked")
+	}
+
+	c, err := s.redisp.GetClient(s.getGroupMaster(m.GroupId))
+	if err != nil {
+		return 0, err
+	}
+	defer s.redisp.PutClient(c)
+
+	host, port, err := net.SplitHostPort(s.getGroupMaster(m.Action.TargetId))
+	if err != nil {
+		return 0, err
+	}
+	return c.SlotsMgrtTagSlot(host, port, slotId)
 }

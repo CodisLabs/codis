@@ -9,7 +9,8 @@ import (
 
 type migrationTask struct {
 	s *Topom
-	m *models.SlotMapping
+
+	slotId int
 }
 
 func (s *Topom) newMigrationTask() *migrationTask {
@@ -28,7 +29,7 @@ func (s *Topom) newMigrationTask() *migrationTask {
 		}
 	}
 	if x != nil {
-		return &migrationTask{s, x}
+		return &migrationTask{s, x.Id}
 	}
 	return nil
 }
@@ -54,12 +55,26 @@ func (s *Topom) noopInterval() {
 func (s *Topom) daemonMigration() {
 	for !s.IsClosed() {
 		var t = s.newMigrationTask()
-		if t == nil || t.run() != nil {
-			time.Sleep(time.Second)
+		if t == nil {
+			time.Sleep(time.Millisecond * 250)
+		} else if t.run() != nil {
+			time.Sleep(time.Second * 3)
 		}
 	}
 }
 
 func (t *migrationTask) run() error {
-	panic("todo")
+	if err := t.s.migrationPrepare(t.slotId); err != nil {
+		return err
+	}
+	for {
+		n, err := t.s.migrationProcess(t.slotId)
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return t.s.migrationComplete(t.slotId)
+		}
+		t.s.noopInterval()
+	}
 }
