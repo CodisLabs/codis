@@ -6,6 +6,7 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -355,10 +356,7 @@ func (s *Topom) RepairGroup(groupId int, timeout int) error {
 		return errors.New("group is promoting")
 	}
 
-	var d time.Duration
-	if timeout > 0 {
-		d = time.Second * time.Duration(timeout)
-	}
+	var d = time.Second * time.Duration(utils.MaxInt(timeout, 0))
 
 	for i, addr := range g.Servers {
 		c, err := NewRedisClient(addr, s.config.ProductAuth, d)

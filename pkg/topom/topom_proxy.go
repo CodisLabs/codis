@@ -5,6 +5,7 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/async"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -30,9 +31,7 @@ func (s *Topom) getProxyClient(token string) (*proxy.ApiClient, error) {
 func (s *Topom) maxProxyId() int {
 	var maxId int
 	for _, p := range s.proxies {
-		if p.Id > maxId {
-			maxId = p.Id
-		}
+		maxId = utils.MaxInt(maxId, p.Id)
 	}
 	return maxId
 }

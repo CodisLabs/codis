@@ -2,6 +2,7 @@ package topom
 
 import (
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -99,9 +100,7 @@ func (s *Topom) maxActionIndex() int {
 	var maxIndex int
 	for _, m := range s.mappings {
 		if m.Action.State != models.ActionNothing {
-			if m.Action.Index > maxIndex {
-				maxIndex = m.Action.Index
-			}
+			maxIndex = utils.MaxInt(maxIndex, m.Action.Index)
 		}
 	}
 	return maxIndex

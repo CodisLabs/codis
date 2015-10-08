@@ -10,6 +10,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/atomic2"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
@@ -21,6 +22,8 @@ type Topom struct {
 	xauth string
 	model *models.Topom
 	store models.Store
+
+	intvl atomic2.Int64
 
 	exit struct {
 		C chan struct{}
@@ -52,6 +55,8 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	}
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
+
+	s.intvl.Set(1000)
 
 	s.redisp = NewRedisPool(config.ProductAuth, time.Minute*30)
 
@@ -170,15 +175,25 @@ func (s *Topom) GetConfig() *Config {
 }
 
 func (s *Topom) IsOnline() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.online && !s.closed
 }
 
 func (s *Topom) IsClosed() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.closed
+}
+
+func (s *Topom) GetInterval() int {
+	return int(s.intvl.Get())
+}
+
+func (s *Topom) SetInterval(ms int) {
+	ms = utils.MaxInt(ms, 0)
+	ms = utils.MinInt(ms, 1000)
+	s.intvl.Set(int64(ms))
 }
 
 func (s *Topom) serveAdmin() {
@@ -202,17 +217,5 @@ func (s *Topom) serveAdmin() {
 		log.Infof("[%p] admin shutdown", s)
 	case err := <-eh:
 		log.ErrorErrorf(err, "[%p] admin exit on error", s)
-	}
-}
-
-func (s *Topom) daemonMigration() {
-	for {
-		select {
-		case <-s.exit.C:
-			return
-		default:
-		}
-		// TODO
-		time.Sleep(time.Second)
 	}
 }
