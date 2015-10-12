@@ -1,7 +1,6 @@
 package proxy_test
 
 import (
-	"net"
 	"testing"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -9,21 +8,19 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 )
 
-var config = proxy.NewDefaultConfig()
+var config = newProxyConfig()
+
+func newProxyConfig() *proxy.Config {
+	config := proxy.NewDefaultConfig()
+	config.ProxyAddr = "0.0.0.0:0"
+	config.AdminAddr = "0.0.0.0:0"
+	return config
+}
 
 func openProxy() (*proxy.Proxy, string) {
-	l, err := net.Listen("tcp", "0.0.0.0:0")
-	assert.MustNoError(err)
-
-	config.ProxyAddr = "0.0.0.0:0"
-	config.AdminAddr = l.Addr().String()
-
-	l.Close()
-
 	s, err := proxy.New(config)
 	assert.MustNoError(err)
-
-	return s, s.GetConfig().AdminAddr
+	return s, s.GetModel().AdminAddr
 }
 
 func TestInfo(x *testing.T) {
