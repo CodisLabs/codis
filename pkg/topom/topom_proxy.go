@@ -11,6 +11,12 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
+var (
+	ErrProxyExists    = errors.New("proxy already exists")
+	ErrProxyNotExists = errors.New("proxy does not exist")
+	ErrProxyRpcFailed = errors.New("proxy call rpc failed")
+)
+
 func (s *Topom) ListProxy() []*models.Proxy {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -25,7 +31,7 @@ func (s *Topom) getProxyClient(token string) (*proxy.ApiClient, error) {
 	if c := s.clients[token]; c != nil {
 		return c, nil
 	}
-	return nil, errors.New("proxy does not exist")
+	return nil, errors.Trace(ErrProxyNotExists)
 }
 
 func (s *Topom) maxProxyId() int {
@@ -46,32 +52,33 @@ func (s *Topom) CreateProxy(addr string) error {
 	c := proxy.NewApiClient(addr)
 	p, err := c.Model()
 	if err != nil {
-		log.WarnErrorf(err, "proxy fetch model failed, target = %s", addr)
-		return errors.New("proxy fetch model failed")
+		log.WarnErrorf(err, "[%p] proxy@%s fetch model failed", s, addr)
+		return errors.Trace(ErrProxyRpcFailed)
 	}
 	c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
 
 	if err := c.XPing(); err != nil {
-		log.WarnErrorf(err, "proxy verify auth failed, target = %s", addr)
-		return errors.New("proxy verify auth failed")
+		log.WarnErrorf(err, "[%p] proxy@%s check xauth failed", s, addr)
+		return errors.Trace(ErrProxyRpcFailed)
 	}
 
 	if s.proxies[p.Token] != nil {
-		log.Warnf("proxy-[%s] already exists, target = %s", p.Token, addr)
-		return errors.New("proxy already exists")
+		log.Warnf("[%p] proxy@%s with token=%s already exists", s, addr, p.Token)
+		return errors.Trace(ErrProxyExists)
 	} else {
 		p.Id = s.maxProxyId() + 1
 	}
 
 	if err := s.store.CreateProxy(p.Id, p); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] create failed, target = %s", p.Token, addr)
-		return errors.New("proxy create failed")
+		log.ErrorErrorf(err, "[%p] create proxy-[%d] failed", s, p.Id)
+		return errors.Trace(ErrUpdateStore)
 	}
-
-	log.Infof("[%p] create proxy: \n%s", s, p.ToJson())
 
 	s.proxies[p.Token] = p
 	s.clients[p.Token] = c
+
+	log.Infof("[%p] create proxy-[%d]:\n%s", s, p.Id, p.Encode())
+
 	return s.reinitProxy(p.Token)
 }
 
@@ -89,21 +96,22 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 	p := s.proxies[token]
 
 	if err := c.Shutdown(); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] shutdown failed, force remove = %t", token, force)
+		log.WarnErrorf(err, "[%p] proxy-[%d] shutdown failed, force remove = %t", s, p.Id, force)
 		if !force {
-			return errors.New("proxy shutdown failed")
+			return errors.Trace(ErrProxyRpcFailed)
 		}
 	}
 
 	if err := s.store.RemoveProxy(p.Id); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] remove failed", token)
-		return errors.New("proxy remove failed")
+		log.ErrorErrorf(err, "[%p] remove proxy-[%d] failed", s, p.Id)
+		return errors.Trace(ErrUpdateStore)
 	}
-
-	log.Infof("[%p] remove proxy: \n%s", s, p.ToJson())
 
 	delete(s.proxies, token)
 	delete(s.clients, token)
+
+	log.Infof("[%p] remove proxy-[%d]:\n%s", s, p.Id, p.Encode())
+
 	return nil
 }
 
@@ -122,12 +130,12 @@ func (s *Topom) reinitProxy(token string) error {
 		return err
 	}
 	if err := c.FillSlots(s.getSlots()...); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] reinit failed", token)
-		return errors.New("proxy fill slots failed")
+		log.WarnErrorf(err, "[%p] proxy-[%s] fill slots failed", s, token)
+		return errors.Trace(ErrProxyRpcFailed)
 	}
 	if err := c.Start(); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] reinit failed", token)
-		return errors.New("proxy call start failed")
+		log.WarnErrorf(err, "[%p] proxy-[%s] call start failed", s, token)
+		return errors.Trace(ErrProxyRpcFailed)
 	}
 	return nil
 }
@@ -141,9 +149,9 @@ func (s *Topom) XPingAll(debug bool) (map[string]error, error) {
 	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		if err := c.XPing(); err != nil {
 			if debug {
-				log.WarnErrorf(err, "proxy-[%s] call xping failed", p.Token)
+				log.WarnErrorf(err, "[%p] proxy-[%s] call xping failed", s, p.Token)
 			}
-			return errors.New("proxy xping failed")
+			return errors.Trace(ErrProxyRpcFailed)
 		}
 		return nil
 	}), nil
@@ -157,13 +165,13 @@ func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error,
 	}
 	var lock sync.Mutex
 	var stats = make(map[string]*proxy.Stats)
-	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+	var errs = s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		x, err := c.Stats()
 		if err != nil {
 			if debug {
-				log.WarnErrorf(err, "proxy-[%s] call stats failed", p.Token)
+				log.WarnErrorf(err, "[%p] proxy-[%s] call stats failed", s, p.Token)
 			}
-			return errors.New("proxy stats failed")
+			return errors.Trace(ErrProxyRpcFailed)
 		}
 		lock.Lock()
 		defer lock.Unlock()
@@ -185,9 +193,9 @@ func (s *Topom) SummaryAll(debug bool) (map[string]*proxy.Summary, map[string]er
 		x, err := c.Summary()
 		if err != nil {
 			if debug {
-				log.WarnErrorf(err, "proxy-[%s] call summary failed", p.Token)
+				log.WarnErrorf(err, "[%p] proxy-[%s] call summary failed", s, p.Token)
 			}
-			return errors.New("proxy summary failed")
+			return errors.Trace(ErrProxyRpcFailed)
 		}
 		lock.Lock()
 		defer lock.Unlock()

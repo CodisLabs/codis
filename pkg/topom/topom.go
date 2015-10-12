@@ -28,7 +28,6 @@ type Topom struct {
 	exit struct {
 		C chan struct{}
 	}
-	wait sync.WaitGroup
 
 	online bool
 	closed bool
@@ -45,7 +44,10 @@ type Topom struct {
 	clients map[string]*proxy.ApiClient
 }
 
-var ErrClosedTopom = errors.New("use of closed topom")
+var (
+	ErrClosedTopom = errors.New("use of closed topom")
+	ErrUpdateStore = errors.New("update store failed")
+)
 
 func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	s := &Topom{config: config, store: store}
@@ -58,7 +60,7 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 
 	s.intvl.Set(1000)
 
-	s.redisp = NewRedisPool(config.ProductAuth, time.Minute*30)
+	s.redisp = NewRedisPool(config.ProductAuth, time.Minute)
 
 	s.exit.C = make(chan struct{})
 
@@ -67,19 +69,10 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 		return nil, err
 	}
 
-	log.Infof("[%p] create new topom: %+v", s, s.model)
+	log.Infof("[%p] create new topom:\n%s", s, s.model.Encode())
 
-	s.wait.Add(1)
-	go func() {
-		defer s.wait.Done()
-		s.daemonRedisPool()
-	}()
-
-	s.wait.Add(1)
-	go func() {
-		defer s.wait.Done()
-		s.daemonMigration()
-	}()
+	go s.daemonRedisPool()
+	go s.daemonMigration()
 
 	go s.serveAdmin()
 
@@ -87,6 +80,10 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 }
 
 func (s *Topom) setup() error {
+	if !utils.IsValidName(s.config.ProductName) {
+		return errors.New("invalid product name, empty or using invalid character")
+	}
+
 	if l, err := net.Listen("tcp", s.config.AdminAddr); err != nil {
 		return errors.Trace(err)
 	} else {
@@ -99,11 +96,7 @@ func (s *Topom) setup() error {
 		s.model.AdminAddr = addr
 	}
 
-	if !utils.IsValidName(s.config.ProductName) {
-		return errors.New("invalid product name, empty or using invalid character")
-	}
-
-	if err := s.store.Acquire(s.model); err != nil {
+	if err := s.store.Acquire(s.config.ProductName, s.model); err != nil {
 		return err
 	} else {
 		s.online = true
@@ -154,10 +147,10 @@ func (s *Topom) Close() error {
 	s.redisp.Close()
 
 	defer s.store.Close()
+
 	if !s.online {
 		return nil
 	} else {
-		s.wait.Wait()
 		return s.store.Release()
 	}
 }

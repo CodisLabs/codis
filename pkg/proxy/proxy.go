@@ -56,7 +56,7 @@ func New(config *Config) (*Proxy, error) {
 		return nil, err
 	}
 
-	log.Infof("[%p] create new proxy: \n%s", s, s.model.ToJson())
+	log.Infof("[%p] create new proxy:\n%s", s, s.model.Encode())
 
 	go s.serveAdmin()
 	go s.serveProxy()
@@ -65,6 +65,10 @@ func New(config *Config) (*Proxy, error) {
 }
 
 func (s *Proxy) setup() error {
+	if !utils.IsValidName(s.config.ProductName) {
+		return errors.New("invalid product name, empty or using invalid character")
+	}
+
 	if l, err := net.Listen(s.config.ProtoType, s.config.ProxyAddr); err != nil {
 		return errors.Trace(err)
 	} else {
@@ -90,9 +94,6 @@ func (s *Proxy) setup() error {
 		s.model.AdminAddr = addr
 	}
 
-	if !utils.IsValidName(s.config.ProductName) {
-		return errors.New("invalid product name, empty or using invalid character")
-	}
 	return nil
 }
 

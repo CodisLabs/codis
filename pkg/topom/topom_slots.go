@@ -1,13 +1,21 @@
 package topom
 
 import (
-	"net"
-
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
+)
+
+var (
+	ErrInvalidSlotId = errors.New("invalid slot id")
+
+	ErrActionExists         = errors.New("action already exists")
+	ErrActionNotExists      = errors.New("action does not exist")
+	ErrActionHasStarted     = errors.New("action has already started")
+	ErrActionResyncSlot     = errors.New("action resync slot failed")
+	ErrActionIsNotMigrating = errors.New("action should be migrating")
 )
 
 func (s *Topom) GetSlotMappings() []*models.SlotMapping {
@@ -24,12 +32,12 @@ func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {
 	if slotId >= 0 && slotId < len(s.mappings) {
 		return s.mappings[slotId], nil
 	}
-	return nil, errors.New("invalid slot id")
+	return nil, errors.Trace(ErrInvalidSlotId)
 }
 
 func (s *Topom) isGroupLocked(groupId int) bool {
-	if g := s.groups[groupId]; g != nil {
-		return g.Promoting
+	if g := s.groups[groupId]; g != nil && g.Promoting {
+		return true
 	}
 	return false
 }
@@ -116,20 +124,20 @@ func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
 		return ErrClosedTopom
 	}
 
-	g, err := s.getGroup(targetId)
-	if err != nil {
-		return err
-	}
-	if len(g.Servers) == 0 {
-		return errors.New("group is empty")
-	}
-
 	m, err := s.getSlotMapping(slotId)
 	if err != nil {
 		return err
 	}
 	if m.Action.State != models.ActionNothing {
-		return errors.New("slot already has action")
+		return errors.Trace(ErrActionExists)
+	}
+
+	g, err := s.getGroup(targetId)
+	if err != nil {
+		return err
+	}
+	if len(g.Servers) == 0 {
+		return errors.Trace(ErrGroupIsEmpty)
 	}
 
 	n := &models.SlotMapping{
@@ -141,13 +149,14 @@ func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
 	n.Action.TargetId = targetId
 
 	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		log.WarnErrorf(err, "slot-[%d] update failed", slotId)
-		return errors.New("slot update failed")
+		log.ErrorErrorf(err, "[%p] slot-[%d] update failed", s, slotId)
+		return errors.Trace(ErrUpdateStore)
 	}
 
-	log.Infof("[%p] update slot-[%d]: \n%s", s, slotId, n.ToJson())
-
 	s.mappings[slotId] = n
+
+	log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
+
 	return nil
 }
 
@@ -162,9 +171,11 @@ func (s *Topom) SlotRemoveAction(slotId int) error {
 	if err != nil {
 		return err
 	}
-
+	if m.Action.State == models.ActionNothing {
+		return errors.Trace(ErrActionNotExists)
+	}
 	if m.Action.State != models.ActionPending {
-		return errors.New("slot state is not pending")
+		return errors.Trace(ErrActionHasStarted)
 	}
 
 	n := &models.SlotMapping{
@@ -172,13 +183,14 @@ func (s *Topom) SlotRemoveAction(slotId int) error {
 		GroupId: m.GroupId,
 	}
 	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		log.WarnErrorf(err, "slot-[%d] update failed", slotId)
-		return errors.New("slot update failed")
+		log.ErrorErrorf(err, "[%p] slot-[%d] update failed", s, slotId)
+		return errors.Trace(ErrUpdateStore)
 	}
 
-	log.Infof("[%p] update slot-[%d]: \n%s", s, slotId, n.ToJson())
-
 	s.mappings[slotId] = n
+
+	log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
+
 	return nil
 }
 
@@ -190,116 +202,13 @@ func (s *Topom) resyncSlotMapping(slotId int) error {
 	slot := s.toSlotState(m)
 	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		if err := c.FillSlots(slot); err != nil {
-			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] failed", p.Token, m.Id)
-			return errors.New("proxy resync slot failed")
+			log.WarnErrorf(err, "[%p] proxy-[%s] resync slot-[%d] failed", s, p.Token, slotId)
+			return errors.Trace(ErrProxyRpcFailed)
 		}
 		return nil
 	})
 	if len(errs) != 0 {
-		return errors.New("resync slot mapping failed")
+		return errors.Trace(ErrActionResyncSlot)
 	}
 	return nil
-}
-
-func (s *Topom) migrationPrepare(slotId int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedTopom
-	}
-
-	m, err := s.getSlotMapping(slotId)
-	if err != nil {
-		return err
-	}
-	switch m.Action.State {
-	default:
-		return errors.New("invalid action state")
-	case models.ActionPreparing:
-		return s.resyncSlotMapping(slotId)
-	case models.ActionPending:
-	}
-
-	n := &models.SlotMapping{
-		Id:      slotId,
-		GroupId: m.GroupId,
-		Action:  m.Action,
-	}
-	n.Action.State = models.ActionPreparing
-
-	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		return err
-	}
-
-	log.Infof("[%p] update slot-[%d]: \n%s", s, slotId, n.ToJson())
-
-	s.mappings[slotId] = n
-	return s.resyncSlotMapping(slotId)
-}
-
-func (s *Topom) migrationComplete(slotId int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedTopom
-	}
-
-	m, err := s.getSlotMapping(slotId)
-	if err != nil {
-		return err
-	}
-
-	if m.Action.State != models.ActionMigrating {
-		return errors.New("invalid action state")
-	}
-
-	n := &models.SlotMapping{
-		Id:      slotId,
-		GroupId: m.Action.TargetId,
-	}
-	s.mappings[slotId] = n
-
-	if err := s.resyncSlotMapping(slotId); err != nil {
-		s.mappings[slotId] = m
-		return err
-	}
-
-	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		s.mappings[slotId] = m
-		return err
-	}
-
-	log.Infof("[%p] update slot-[%d]: \n%s", s, slotId, n.ToJson())
-	return nil
-}
-
-func (s *Topom) migrationProcess(slotId int) (int, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.closed {
-		return 0, ErrClosedTopom
-	}
-
-	m, err := s.getSlotMapping(slotId)
-	if err != nil {
-		return 0, err
-	}
-	if m.Action.State != models.ActionMigrating {
-		return 0, errors.New("invalid action state")
-	}
-	if s.isSlotLocked(m) {
-		return 0, errors.New("slot is locked")
-	}
-
-	c, err := s.redisp.GetClient(s.getGroupMaster(m.GroupId))
-	if err != nil {
-		return 0, err
-	}
-	defer s.redisp.PutClient(c)
-
-	host, port, err := net.SplitHostPort(s.getGroupMaster(m.Action.TargetId))
-	if err != nil {
-		return 0, err
-	}
-	return c.SlotsMgrtTagSlot(host, port, slotId)
 }

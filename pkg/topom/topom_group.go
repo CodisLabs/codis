@@ -2,27 +2,29 @@ package topom
 
 import (
 	"math"
-	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
-	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-func (s *Topom) daemonRedisPool() {
-	var ticker = time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-s.exit.C:
-			return
-		case <-ticker.C:
-			s.redisp.Cleanup()
-		}
-	}
-}
+var (
+	ErrInvalidGroupId = errors.New("invalid group id")
+
+	ErrGroupExists         = errors.New("group already exists")
+	ErrGroupNotExists      = errors.New("group does not exist")
+	ErrGroupInUse          = errors.New("group is still in use")
+	ErrGroupIsPromoting    = errors.New("group is promoting")
+	ErrGroupIsNotPromoting = errors.New("group is not promoting")
+	ErrGroupResyncSlots    = errors.New("group resync slots failed")
+	ErrGroupIsEmpty        = errors.New("group is empty")
+
+	ErrServerExists       = errors.New("server already exists")
+	ErrServerNotExists    = errors.New("server does not exist")
+	ErrServerInUse        = errors.New("server is still in use")
+	ErrServerPromoteAgain = errors.New("server is already master")
+)
 
 func (s *Topom) ListGroup() []*models.Group {
 	s.mu.RLock()
@@ -38,7 +40,7 @@ func (s *Topom) getGroup(groupId int) (*models.Group, error) {
 	if g := s.groups[groupId]; g != nil {
 		return g, nil
 	}
-	return nil, errors.New("group does not exist")
+	return nil, errors.Trace(ErrGroupNotExists)
 }
 
 func (s *Topom) getGroupMaster(groupId int) string {
@@ -56,23 +58,24 @@ func (s *Topom) CreateGroup(groupId int) error {
 	}
 
 	if groupId <= 0 || groupId > math.MaxInt16 {
-		return errors.New("invalid group id")
+		return errors.Trace(ErrInvalidGroupId)
 	}
 	if s.groups[groupId] != nil {
-		return errors.New("group already exists")
+		return errors.Trace(ErrGroupExists)
 	}
 
 	g := &models.Group{
 		Id: groupId,
 	}
 	if err := s.store.CreateGroup(groupId, g); err != nil {
-		log.WarnErrorf(err, "group-[%d] create failed", groupId)
-		return errors.New("group create failed")
+		log.ErrorErrorf(err, "[%p] create group-[%d] failed", s, groupId)
+		return errors.Trace(ErrUpdateStore)
 	}
 
-	log.Infof("[%p] create group-[%d]", s, groupId)
-
 	s.groups[groupId] = g
+
+	log.Infof("[%p] create group-[%d]:\n%s", s, groupId, g.Encode())
+
 	return nil
 }
 
@@ -83,26 +86,27 @@ func (s *Topom) RemoveGroup(groupId int) error {
 		return ErrClosedTopom
 	}
 
-	_, err := s.getGroup(groupId)
+	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
 	}
 	if len(s.getSlotsByGroup(groupId)) != 0 {
-		return errors.New("group is still busy")
+		return errors.Trace(ErrGroupInUse)
 	}
 
 	if err := s.store.RemoveGroup(groupId); err != nil {
-		log.WarnErrorf(err, "group-[%d] remove failed", groupId)
-		return errors.New("group remove failed")
+		log.ErrorErrorf(err, "[%p] remove group-[%d] failed", s, groupId)
+		return errors.Trace(ErrUpdateStore)
 	}
 
-	log.Infof("[%p] remove group-[%d]", s, groupId)
-
 	delete(s.groups, groupId)
+
+	log.Infof("[%p] remove group-[%d]:\n%s", s, groupId, g.Encode())
+
 	return nil
 }
 
-func (s *Topom) GroupAddNewServer(groupId int, addr string, force bool) error {
+func (s *Topom) GroupAddNewServer(groupId int, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -114,58 +118,30 @@ func (s *Topom) GroupAddNewServer(groupId int, addr string, force bool) error {
 		return err
 	}
 	if g.Promoting {
-		return errors.New("group is promoting")
+		return errors.Trace(ErrGroupIsPromoting)
 	}
 
 	for _, g := range s.groups {
 		for _, x := range g.Servers {
 			if x == addr {
-				return errors.New("server already exists")
+				return errors.Trace(ErrServerExists)
 			}
 		}
 	}
 
-	c, err := s.redisp.GetClient(addr)
-	if err != nil {
-		log.WarnErrorf(err, "group-[%d] open client failed, server = %s", groupId, addr)
-		return errors.New("server open client failed")
-	}
-	defer s.redisp.PutClient(c)
-
-	if _, err := c.SlotsInfo(); err != nil {
-		log.WarnErrorf(err, "group-[%d] check codis-support failed, server = %s", groupId, addr)
-		return errors.New("server check codis-supprot failed")
-	}
-
-	if !force {
-		master, err := c.GetMaster()
-		if err != nil {
-			log.WarnErrorf(err, "group-[%d] verify master failed, server = %s", groupId, addr)
-			return errors.New("server fetch master failed")
-		}
-		expect := s.getGroupMaster(groupId)
-		if master != expect {
-			log.Warnf("group-[%d] verify master failed, server = %s, master = %s, expect = %s", groupId, addr, master, expect)
-			return errors.New("server check master failed")
-		}
-	}
-
-	log.Infof("[%p] group-[%d] add server = %s", s, groupId, addr)
-
-	servers := append(g.Servers, addr)
-
 	n := &models.Group{
 		Id:      groupId,
-		Servers: servers,
+		Servers: append(g.Servers, addr),
 	}
 	if err := s.store.UpdateGroup(groupId, n); err != nil {
-		log.WarnErrorf(err, "group-[%d] update failed", groupId)
-		return errors.New("group update failed")
+		log.ErrorErrorf(err, "[%p] group-[%d] update failed", s, groupId)
+		return errors.Trace(ErrUpdateStore)
 	}
 
-	log.Infof("[%p] update group-[%d]: \n%s", s, groupId, n.ToJson())
-
 	s.groups[groupId] = n
+
+	log.Infof("[%p] update group-[%d]:\n%s", s, groupId, n.Encode())
+
 	return nil
 }
 
@@ -181,7 +157,7 @@ func (s *Topom) GroupRemoveServer(groupId int, addr string) error {
 		return err
 	}
 	if g.Promoting {
-		return errors.New("group is promoting")
+		return errors.Trace(ErrGroupIsPromoting)
 	}
 
 	servers := []string{}
@@ -191,32 +167,31 @@ func (s *Topom) GroupRemoveServer(groupId int, addr string) error {
 		}
 	}
 	if len(g.Servers) == len(servers) {
-		return errors.New("server does not exist")
+		return errors.Trace(ErrServerNotExists)
 	}
 	if addr == g.Servers[0] {
 		if len(g.Servers) != 1 || len(s.getSlotsByGroup(groupId)) != 0 {
-			return errors.New("server is still busy")
+			return errors.Trace(ErrServerInUse)
 		}
 	}
-
-	log.Infof("[%p] group-[%d] remove server = %s", s, groupId, addr)
 
 	n := &models.Group{
 		Id:      groupId,
 		Servers: servers,
 	}
 	if err := s.store.UpdateGroup(groupId, n); err != nil {
-		log.WarnErrorf(err, "group-[%d] update failed", groupId)
-		return errors.New("group update failed")
+		log.ErrorErrorf(err, "[%p] group-[%d] update failed", s, groupId)
+		return errors.Trace(ErrUpdateStore)
 	}
 
-	log.Infof("[%p] update group-[%d]: \n%s", s, groupId, n.ToJson())
-
 	s.groups[groupId] = n
+
+	log.Infof("[%p] update group-[%d]:\n%s", s, groupId, n.Encode())
+
 	return nil
 }
 
-func (s *Topom) GroupPromoteServer(groupId int, addr string, force bool) error {
+func (s *Topom) GroupPromoteServer(groupId int, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -228,7 +203,7 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string, force bool) error {
 		return err
 	}
 	if g.Promoting {
-		return errors.New("group is promoting")
+		return errors.Trace(ErrGroupIsPromoting)
 	}
 
 	servers := []string{}
@@ -238,49 +213,26 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string, force bool) error {
 		}
 	}
 	if len(g.Servers) == len(servers) {
-		return errors.New("server does not exist")
+		return errors.Trace(ErrServerNotExists)
 	}
 	if addr == g.Servers[0] {
-		return errors.New("server is already master")
+		return errors.Trace(ErrServerPromoteAgain)
 	}
-
-	c, err := s.redisp.GetClient(addr)
-	if err != nil {
-		log.WarnErrorf(err, "group-[%d] open client failed, server = %s", groupId, addr)
-		return errors.New("server open client failed")
-	}
-	defer s.redisp.PutClient(c)
-
-	if !force {
-		master, err := c.GetMaster()
-		if err != nil {
-			log.WarnErrorf(err, "group-[%d] verify master failed, server = %s", groupId, addr)
-			return errors.New("server fetch master failed")
-		}
-		expect := s.getGroupMaster(groupId)
-		if master != expect {
-			log.Warnf("group-[%d] verify master failed, server = %s, master = %s, expect = %s", groupId, addr, master, expect)
-			return errors.New("server check master failed")
-		}
-	}
-
-	log.Infof("[%p] group-[%d] promote server = %s", s, groupId, addr)
-
-	servers = append([]string{addr}, servers...)
 
 	n := &models.Group{
 		Id:        groupId,
-		Servers:   servers,
+		Servers:   append([]string{addr}, servers...),
 		Promoting: true,
 	}
 	if err := s.store.UpdateGroup(groupId, n); err != nil {
-		log.WarnErrorf(err, "group-[%d] update failed", groupId)
-		return errors.New("group update failed")
+		log.ErrorErrorf(err, "[%p] group-[%d] update failed", s, groupId)
+		return errors.Trace(ErrUpdateStore)
 	}
 
-	log.Infof("[%p] update group: \n%s", s, n.ToJson())
-
 	s.groups[groupId] = n
+
+	log.Infof("[%p] update group-[%d]:\n%s", s, groupId, n.Encode())
+
 	return nil
 }
 
@@ -296,12 +248,11 @@ func (s *Topom) GroupPromoteCommit(groupId int) error {
 		return err
 	}
 	if !g.Promoting {
-		return errors.New("group is not promoting")
+		return errors.Trace(ErrGroupIsNotPromoting)
 	}
 
-	if errs := s.resyncGroup(groupId); len(errs) != 0 {
-		log.Warnf("group-[%d] promote prepare failed", groupId)
-		return errors.New("promote prepare failed")
+	if err := s.resyncGroup(groupId); err != nil {
+		return err
 	}
 
 	n := &models.Group{
@@ -311,71 +262,43 @@ func (s *Topom) GroupPromoteCommit(groupId int) error {
 	}
 	s.groups[groupId] = n
 
-	if errs := s.resyncGroup(groupId); len(errs) != 0 {
-		s.groups[groupId] = g
-		log.Warnf("group-[%d] promote commit failed", groupId)
-		return errors.New("promote commit failed")
+	var rollback = true
+	defer func() {
+		if rollback {
+			s.groups[groupId] = g
+		}
+	}()
+
+	if err := s.resyncGroup(groupId); err != nil {
+		return err
 	}
 
 	if err := s.store.UpdateGroup(groupId, n); err != nil {
-		s.groups[groupId] = g
-		log.WarnErrorf(err, "group-[%d] update failed", groupId)
-		return errors.New("group update failed")
+		log.ErrorErrorf(err, "[%p] group-[%d] update failed", s, groupId)
+		return errors.Trace(ErrUpdateStore)
 	}
 
-	log.Infof("[%p] update group: \n%s", s, n.ToJson())
+	rollback = false
+
+	log.Infof("[%p] update group-[%d]:\n%s", s, groupId, n.Encode())
+
 	return nil
 }
 
-func (s *Topom) resyncGroup(groupId int) map[string]error {
+func (s *Topom) resyncGroup(groupId int) error {
 	slots := s.getSlotsByGroup(groupId)
 	if len(slots) == 0 {
-		return map[string]error{}
+		return nil
 	}
-	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		if err := c.FillSlots(slots...); err != nil {
-			log.WarnErrorf(err, "proxy-[%s] resync group-[%d] failed", p.Token, groupId)
-			return errors.New("proxy resync group failed")
+			log.WarnErrorf(err, "[%p] proxy-[%s] resync group-[%d] failed", s, p.Token, groupId)
+			return errors.Trace(ErrProxyRpcFailed)
 		}
 		return nil
 	})
-}
-
-func (s *Topom) RepairGroup(groupId int, timeout int) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.closed {
-		return ErrClosedTopom
+	if len(errs) != 0 {
+		return errors.Trace(ErrGroupResyncSlots)
 	}
-
-	g, err := s.getGroup(groupId)
-	if err != nil {
-		return err
-	}
-	if g.Promoting {
-		return errors.New("group is promoting")
-	}
-
-	var d = time.Second * time.Duration(utils.MaxInt(timeout, 0))
-
-	for i, addr := range g.Servers {
-		c, err := NewRedisClient(addr, s.config.ProductAuth, d)
-		if err != nil {
-			log.WarnErrorf(err, "group-[%d] open client failed, server = %s", groupId, addr)
-			return errors.New("server open client failed")
-		}
-		defer c.Close()
-
-		var master = ""
-		if i != 0 {
-			master = s.getGroupMaster(groupId)
-		}
-		if err := c.SlaveOf(master); err != nil {
-			log.WarnErrorf(err, "group-[%d] set slaveof failed, server = %s", groupId, addr)
-			return errors.New("server set slaveof failed")
-		}
-	}
-
-	log.Infof("[%p] repair group-[%d]", s, groupId)
 	return nil
 }

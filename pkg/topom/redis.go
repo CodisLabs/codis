@@ -21,6 +21,7 @@ type RedisClient struct {
 
 	LastErr error
 	LastUse time.Time
+	Timeout time.Duration
 }
 
 func NewRedisClient(addr string, auth string, timeout time.Duration) (*RedisClient, error) {
@@ -36,7 +37,7 @@ func NewRedisClient(addr string, auth string, timeout time.Duration) (*RedisClie
 		}
 	}
 	return &RedisClient{
-		conn: c, addr: addr, LastUse: time.Now(),
+		conn: c, addr: addr, LastUse: time.Now(), Timeout: timeout,
 	}, nil
 }
 
@@ -77,21 +78,6 @@ func (c *RedisClient) SlotsInfo() (map[int]int, error) {
 	}
 }
 
-func (c *RedisClient) SlotsMgrtTagSlot(host string, port string, slotId int) (int, error) {
-	if reply, err := c.command("SLOTSMGRTTAGSLOT", host, port, 30*1000, slotId); err != nil {
-		return 0, err
-	} else {
-		p, err := redis.Ints(redis.Values(reply, nil))
-		if err != nil || len(p) != 2 {
-			return 0, errors.Errorf("invalid response = %v", reply)
-		}
-		if p[0] != 0 {
-			return 0, errors.Errorf("migrate slot-%04d failed, response = %v", slotId, reply)
-		}
-		return p[1], nil
-	}
-}
-
 func (c *RedisClient) GetInfo() (map[string]string, error) {
 	if reply, err := c.command("INFO"); err != nil {
 		return nil, err
@@ -114,19 +100,6 @@ func (c *RedisClient) GetInfo() (map[string]string, error) {
 	}
 }
 
-func (c *RedisClient) GetMaster() (string, error) {
-	if info, err := c.GetInfo(); err != nil {
-		return "", err
-	} else {
-		host := info["master_host"]
-		port := info["master_port"]
-		if host == "" && port == "" {
-			return "", nil
-		}
-		return net.JoinHostPort(host, port), nil
-	}
-}
-
 func (c *RedisClient) GetMaxMemory() (float64, error) {
 	if reply, err := c.command("CONFIG", "GET", "maxmemory"); err != nil {
 		return 0, err
@@ -146,20 +119,30 @@ func (c *RedisClient) GetMaxMemory() (float64, error) {
 	}
 }
 
-func (c *RedisClient) SlaveOf(master string) error {
-	if master == c.addr {
-		return errors.Errorf("can not slave of itself")
+func (c *RedisClient) GetMaster() (string, error) {
+	if info, err := c.GetInfo(); err != nil {
+		return "", err
+	} else {
+		host := info["master_host"]
+		port := info["master_port"]
+		if host == "" && port == "" {
+			return "", nil
+		}
+		return net.JoinHostPort(host, port), nil
 	}
-	if master == "" {
+}
+
+func (c *RedisClient) SetMaster(master string) error {
+	if master == "" || master == c.addr {
 		if _, err := c.command("SLAVEOF", "NO", "ONE"); err != nil {
 			return err
-		} else {
-			return nil
 		}
 	} else {
-		if m, err := c.GetMaster(); err != nil {
+		m, err := c.GetMaster()
+		if err != nil {
 			return err
-		} else if m == master {
+		}
+		if master == m {
 			return nil
 		}
 		host, port, err := net.SplitHostPort(master)
@@ -168,9 +151,28 @@ func (c *RedisClient) SlaveOf(master string) error {
 		}
 		if _, err := c.command("SLAVEOF", host, port); err != nil {
 			return err
-		} else {
-			return nil
 		}
+	}
+	return nil
+}
+
+func (c *RedisClient) MigrateSlot(slot int, target string) (int, error) {
+	host, port, err := net.SplitHostPort(target)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	var timeout = int(c.Timeout / time.Millisecond)
+	if reply, err := c.command("SLOTSMGRTTAGSLOT", host, port, timeout, slot); err != nil {
+		return 0, err
+	} else {
+		p, err := redis.Ints(redis.Values(reply, nil))
+		if err != nil || len(p) != 2 {
+			return 0, errors.Errorf("invalid response = %v", reply)
+		}
+		if p[0] != 0 {
+			return 0, errors.Errorf("migrate slot-%04d failed, response = %v", slot, reply)
+		}
+		return p[1], nil
 	}
 }
 

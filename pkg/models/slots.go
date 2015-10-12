@@ -1,7 +1,5 @@
 package models
 
-import "encoding/json"
-
 const MaxSlotNum = 1024
 
 type Slot struct {
@@ -10,13 +8,6 @@ type Slot struct {
 	MigrateFrom string `json:"migrate_from,omitempty"`
 	Locked      bool   `json:"locked,omitempty"`
 }
-
-const (
-	ActionNothing   = ""
-	ActionPending   = "pending"
-	ActionPreparing = "preparing"
-	ActionMigrating = "migrating"
-)
 
 type SlotMapping struct {
 	Id      int `json:"id"`
@@ -29,10 +20,17 @@ type SlotMapping struct {
 	} `json:"action"`
 }
 
-func (s *SlotMapping) ToJson() string {
-	b, err := json.MarshalIndent(s, "", "    ")
-	if err != nil {
-		return "{}"
-	}
-	return string(b)
+const (
+	ActionNothing   = ""
+	ActionPending   = "pending"
+	ActionPreparing = "preparing"
+	ActionMigrating = "migrating"
+)
+
+func (s *SlotMapping) Encode() []byte {
+	return jsonEncode(s)
+}
+
+func (s *SlotMapping) Decode(b []byte) error {
+	return jsonDecode(s, b)
 }

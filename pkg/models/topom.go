@@ -1,9 +1,14 @@
 package models
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
+)
 
 type Store interface {
-	Acquire(topom *Topom) error
+	Acquire(name string, topom *Topom) error
 	Release() error
 
 	LoadSlotMapping(slotId int) (*SlotMapping, error)
@@ -29,10 +34,21 @@ type Topom struct {
 	Pwd string `json:"pwd"`
 }
 
-func (t *Topom) ToJson() string {
-	b, err := json.MarshalIndent(t, "", "    ")
+func (t *Topom) Encode() []byte {
+	return jsonEncode(t)
+}
+
+func jsonEncode(v interface{}) []byte {
+	b, err := json.MarshalIndent(v, "", "    ")
 	if err != nil {
-		return "{}"
+		log.PanicErrorf(err, "encode to json failed")
 	}
-	return string(b)
+	return b
+}
+
+func jsonDecode(v interface{}, b []byte) error {
+	if err := json.Unmarshal(b, v); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
