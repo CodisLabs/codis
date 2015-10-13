@@ -66,13 +66,74 @@ func TestTopomExclusive(x *testing.T) {
 
 	config := newTopomConfig()
 
-	t, err := topom.NewWithConfig(store, config)
+	t1, err := topom.NewWithConfig(store, config)
 	assert.MustNoError(err)
-
-	defer t.Close()
 
 	_, err = topom.NewWithConfig(store, config)
 	assert.Must(err != nil)
+
+	t1.Close()
+
+	t2, err := topom.NewWithConfig(store, config)
+	assert.MustNoError(err)
+
+	t2.Close()
+}
+
+func TestProxyCreate(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	_, c1, addr1 := openProxy()
+	defer c1.Shutdown()
+
+	assert.MustNoError(t.CreateProxy(addr1))
+	assert.Must(t.CreateProxy(addr1) != nil)
+	assert.Must(len(t.ListProxy()) == 1)
+
+	_, c2, addr2 := openProxy()
+	defer c2.Shutdown()
+
+	assert.MustNoError(c2.Shutdown())
+
+	assert.Must(t.CreateProxy(addr2) != nil)
+	assert.Must(len(t.ListProxy()) == 1)
+
+	errs1, err1 := t.XPingAll(false)
+	assert.MustNoError(err1)
+	assert.Must(len(errs1) == 0)
+
+	assert.MustNoError(c1.Shutdown())
+
+	errs2, err2 := t.XPingAll(false)
+	assert.MustNoError(err2)
+	assert.Must(len(errs2) == 1)
+}
+
+func TestProxyRemove(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	p1, c1, addr1 := openProxy()
+	defer c1.Shutdown()
+
+	assert.MustNoError(t.CreateProxy(addr1))
+	assert.Must(len(t.ListProxy()) == 1)
+
+	assert.MustNoError(t.RemoveProxy(p1.GetToken(), false))
+	assert.Must(len(t.ListProxy()) == 0)
+
+	p2, c2, addr2 := openProxy()
+	defer c2.Shutdown()
+
+	assert.MustNoError(t.CreateProxy(addr2))
+	assert.Must(len(t.ListProxy()) == 1)
+
+	assert.MustNoError(c2.Shutdown())
+
+	assert.Must(t.RemoveProxy(p2.GetToken(), false) != nil)
+	assert.MustNoError(t.RemoveProxy(p2.GetToken(), true))
+	assert.Must(len(t.ListProxy()) == 0)
 }
 
 type memStore struct {
