@@ -29,4 +29,4 @@ distclean: clean
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
 
 gotest:
-	go test ./pkg/... ./cmd/... -race
+	go test ./pkg/... ./cmd/...
