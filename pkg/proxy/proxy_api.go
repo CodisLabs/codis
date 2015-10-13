@@ -81,6 +81,9 @@ func newApiServer(p *Proxy) http.Handler {
 }
 
 func (s *apiServer) verifyXAuth(params martini.Params) error {
+	if s.proxy.IsClosed() {
+		return ErrClosedProxy
+	}
 	xauth := params["xauth"]
 	if xauth == "" {
 		return errors.New("missing xauth")
