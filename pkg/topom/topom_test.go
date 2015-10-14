@@ -54,8 +54,7 @@ func TestTopomClose(x *testing.T) {
 	t := openTopom()
 	assert.Must(t.IsOnline() && !t.IsClosed())
 
-	err := t.Close()
-	assert.MustNoError(err)
+	assert.Must(t.Close() == nil)
 
 	assert.Must(!t.IsOnline() && t.IsClosed())
 }
@@ -67,7 +66,7 @@ func TestTopomExclusive(x *testing.T) {
 	config := newTopomConfig()
 
 	t1, err := topom.NewWithConfig(store, config)
-	assert.MustNoError(err)
+	assert.Must(err == nil)
 
 	_, err = topom.NewWithConfig(store, config)
 	assert.Must(err != nil)
@@ -75,7 +74,7 @@ func TestTopomExclusive(x *testing.T) {
 	t1.Close()
 
 	t2, err := topom.NewWithConfig(store, config)
-	assert.MustNoError(err)
+	assert.Must(err == nil)
 
 	t2.Close()
 }
@@ -87,27 +86,25 @@ func TestProxyCreate(x *testing.T) {
 	_, c1, addr1 := openProxy()
 	defer c1.Shutdown()
 
-	assert.MustNoError(t.CreateProxy(addr1))
+	assert.Must(t.CreateProxy(addr1) == nil)
 	assert.Must(t.CreateProxy(addr1) != nil)
 	assert.Must(len(t.ListProxy()) == 1)
 
 	_, c2, addr2 := openProxy()
 	defer c2.Shutdown()
 
-	assert.MustNoError(c2.Shutdown())
+	assert.Must(c2.Shutdown() == nil)
 
 	assert.Must(t.CreateProxy(addr2) != nil)
 	assert.Must(len(t.ListProxy()) == 1)
 
 	errs1, err1 := t.XPingAll(false)
-	assert.MustNoError(err1)
-	assert.Must(len(errs1) == 0)
+	assert.Must(err1 == nil && len(errs1) == 0)
 
-	assert.MustNoError(c1.Shutdown())
+	assert.Must(c1.Shutdown() == nil)
 
 	errs2, err2 := t.XPingAll(false)
-	assert.MustNoError(err2)
-	assert.Must(len(errs2) == 1)
+	assert.Must(err2 == nil && len(errs2) == 1)
 }
 
 func TestProxyRemove(x *testing.T) {
@@ -117,23 +114,169 @@ func TestProxyRemove(x *testing.T) {
 	p1, c1, addr1 := openProxy()
 	defer c1.Shutdown()
 
-	assert.MustNoError(t.CreateProxy(addr1))
+	assert.Must(t.CreateProxy(addr1) == nil)
 	assert.Must(len(t.ListProxy()) == 1)
 
-	assert.MustNoError(t.RemoveProxy(p1.GetToken(), false))
+	assert.Must(t.RemoveProxy(p1.GetToken(), false) == nil)
 	assert.Must(len(t.ListProxy()) == 0)
 
 	p2, c2, addr2 := openProxy()
 	defer c2.Shutdown()
 
-	assert.MustNoError(t.CreateProxy(addr2))
+	assert.Must(t.CreateProxy(addr2) == nil)
 	assert.Must(len(t.ListProxy()) == 1)
 
-	assert.MustNoError(c2.Shutdown())
+	assert.Must(c2.Shutdown() == nil)
 
 	assert.Must(t.RemoveProxy(p2.GetToken(), false) != nil)
-	assert.MustNoError(t.RemoveProxy(p2.GetToken(), true))
+	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
 	assert.Must(len(t.ListProxy()) == 0)
+}
+
+func assertGroupList(t *topom.Topom, glist ...*models.Group) {
+	var m = make(map[int]*models.Group)
+	for _, x := range t.ListGroup() {
+		m[x.Id] = x
+	}
+	assert.Must(len(m) == len(glist))
+	for _, g := range glist {
+		x := m[g.Id]
+		assert.Must(x != nil)
+		assert.Must(x.Promoting == g.Promoting)
+		assert.Must(len(x.Servers) == len(g.Servers))
+		for i := 0; i < len(x.Servers); i++ {
+			assert.Must(x.Servers[i] == g.Servers[i])
+		}
+	}
+}
+
+func TestGroupTest1(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	assert.Must(t.CreateGroup(0) != nil)
+	assert.Must(t.CreateGroup(1) == nil)
+	assert.Must(t.CreateGroup(1) != nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:      1,
+			Servers: []string{},
+		})
+
+	var server0 = "server0:19000"
+	var server1 = "server1:19000"
+	var server2 = "server2:19000"
+
+	assert.Must(t.GroupAddNewServer(0, "") != nil)
+	assert.Must(t.GroupAddNewServer(1, server0) == nil)
+	assert.Must(t.GroupAddNewServer(1, server1) == nil)
+	assert.Must(t.GroupAddNewServer(1, server1) != nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server0, server1},
+		})
+
+	assert.Must(t.GroupRemoveServer(1, server0) != nil)
+	assert.Must(t.GroupRemoveServer(1, server2) != nil)
+	assert.Must(t.GroupRemoveServer(1, server1) == nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server0},
+		})
+
+	assert.Must(t.CreateGroup(2) == nil)
+	assert.Must(t.GroupAddNewServer(2, server0) != nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server0},
+		},
+		&models.Group{
+			Id:      2,
+			Servers: []string{},
+		})
+
+	assert.Must(t.RemoveGroup(0) != nil)
+	assert.Must(t.RemoveGroup(1) == nil)
+	assert.Must(t.RemoveGroup(1) != nil)
+
+	assert.Must(t.GroupAddNewServer(2, server0) == nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:      2,
+			Servers: []string{server0},
+		})
+}
+
+func TestGroupTest2(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	var server0 = "server0:19000"
+	var server1 = "server1:19000"
+	var server2 = "server2:19000"
+
+	assert.Must(t.CreateGroup(1) == nil)
+	assert.Must(t.GroupAddNewServer(1, server0) == nil)
+	assert.Must(t.GroupAddNewServer(1, server1) == nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server0, server1},
+		})
+
+	assert.Must(t.GroupPromoteServer(1, server0) != nil)
+	assert.Must(t.GroupPromoteServer(1, server2) != nil)
+	assert.Must(t.GroupPromoteServer(1, server1) == nil)
+	assert.Must(t.GroupPromoteServer(1, server1) != nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:        1,
+			Servers:   []string{server1, server0},
+			Promoting: true,
+		})
+	assert.Must(t.GroupRemoveServer(1, server0) != nil)
+
+	assert.Must(t.GroupPromoteCommit(0) != nil)
+	assert.Must(t.GroupPromoteCommit(1) == nil)
+	assert.Must(t.GroupRemoveServer(1, server0) == nil)
+	assert.Must(t.GroupAddNewServer(1, server2) == nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server1, server2},
+		})
+
+	assert.Must(t.SlotCreateAction(0, 1) == nil)
+
+	p1, c1, addr1 := openProxy()
+	defer c1.Shutdown()
+
+	_, c2, addr2 := openProxy()
+	defer c2.Shutdown()
+
+	assert.Must(t.CreateProxy(addr1) == nil)
+	assert.Must(t.CreateProxy(addr2) == nil)
+	assert.Must(c1.Shutdown() == nil)
+
+	assert.Must(t.GroupPromoteServer(1, server2) == nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:        1,
+			Servers:   []string{server2, server1},
+			Promoting: true,
+		})
+
+	assert.Must(t.GroupPromoteCommit(1) != nil)
+	assert.Must(t.RemoveProxy(p1.GetToken(), true) == nil)
+	assert.Must(t.GroupPromoteCommit(1) == nil)
+	assertGroupList(t,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server2, server1},
+		})
 }
 
 type memStore struct {

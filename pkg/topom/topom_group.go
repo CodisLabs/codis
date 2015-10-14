@@ -65,7 +65,8 @@ func (s *Topom) CreateGroup(groupId int) error {
 	}
 
 	g := &models.Group{
-		Id: groupId,
+		Id:      groupId,
+		Servers: []string{},
 	}
 	if err := s.store.CreateGroup(groupId, g); err != nil {
 		log.ErrorErrorf(err, "[%p] create group-[%d] failed", s, groupId)
