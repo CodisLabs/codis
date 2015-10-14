@@ -1,4 +1,4 @@
-package topom_test
+package topom
 
 import (
 	"encoding/json"
@@ -9,21 +9,20 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
-	"github.com/wandoulabs/codis/pkg/topom"
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
-func openTopom() *topom.Topom {
+func openTopom() *Topom {
 	config := newTopomConfig()
 
-	t, err := topom.NewWithConfig(newMemStore(), config)
+	t, err := NewWithConfig(newMemStore(), config)
 	assert.MustNoError(err)
 	return t
 }
 
-func newTopomConfig() *topom.Config {
-	config := topom.NewDefaultConfig()
+func newTopomConfig() *Config {
+	config := NewDefaultConfig()
 	config.AdminAddr = "0.0.0.0:0"
 	config.ProductName = "topom_test"
 	config.ProductAuth = "topom_auth"
@@ -65,15 +64,15 @@ func TestTopomExclusive(x *testing.T) {
 
 	config := newTopomConfig()
 
-	t1, err := topom.NewWithConfig(store, config)
+	t1, err := NewWithConfig(store, config)
 	assert.Must(err == nil)
 
-	_, err = topom.NewWithConfig(store, config)
+	_, err = NewWithConfig(store, config)
 	assert.Must(err != nil)
 
 	t1.Close()
 
-	t2, err := topom.NewWithConfig(store, config)
+	t2, err := NewWithConfig(store, config)
 	assert.Must(err == nil)
 
 	t2.Close()
@@ -133,7 +132,7 @@ func TestProxyRemove(x *testing.T) {
 	assert.Must(len(t.ListProxy()) == 0)
 }
 
-func assertGroupList(t *topom.Topom, glist ...*models.Group) {
+func assertGroupList(t *Topom, glist ...*models.Group) {
 	var m = make(map[int]*models.Group)
 	for _, x := range t.ListGroup() {
 		m[x.Id] = x
