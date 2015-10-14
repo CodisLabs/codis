@@ -180,8 +180,8 @@ Requirements:
 
 Codis's proxy is stateless so you can run more than one proxies to get high availability and horizontal scalability.
 
-For Java users, you can use a modified Jedis, [Jodis](https://github.com/wandoulabs/codis/tree/master/extern/jodis). It will watch the ZooKeeper to get the real-time available proxies, then query via them using a round robin policy to balance load and detect proxy online and offline automatically.
-If asynchronous request is required, you can use Nedis(https://github.com/wandoulabs/nedis) which is implemented based on Netty.
+For Java users, you can use a modified Jedis, [Jodis](https://github.com/wandoulabs/jodis). It will watch the ZooKeeper to get the real-time available proxies, then query via them using a round robin policy to balance load and detect proxy online and offline automatically.
+If asynchronous request is required, you can use [Nedis](https://github.com/wandoulabs/nedis) which is implemented based on Netty.
 
 For redis instances, the designers of codis think when a master down, system administrator should know about it and promote a slave to master by hand, not automatically. Because a crashed master may result in the data in this group not consistent.
 But we also offer a solution: [codis-ha](https://github.com/ngaut/codis-ha)。It is a tool using codis rest api to promote a slave to master when it find the master down.
