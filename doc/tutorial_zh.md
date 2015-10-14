@@ -186,6 +186,7 @@ $ bin/codis-config slot rebalance
 因为codis的proxy是无状态的，可以比较容易的搭多个proxy来实现高可用性并横向扩容。
 
 对Java用户来说，可以使用经过我们修改过的Jedis，[Jodis](https://github.com/wandoulabs/codis/tree/master/extern/jodis) ，来实现proxy层的HA。它会通过监控zk上的注册信息来实时获得当前可用的proxy列表，既可以保证高可用性，也可以通过轮流请求所有的proxy实现负载均衡。
+如果需要异步请求，可以使用我们基于Netty开发的[Nedis](https://github.com/wandoulabs/nedis)。
 
 对下层的redis实例来说，codis的设计者认为，当一个group的master挂掉的时候，应该让管理员清楚，并手动的操作，因为这涉及到了数据一致性等问题。因此codis不会自动的将某个slave升级成master。
 不过我们也提供一种解决方案：[codis-ha](https://github.com/ngaut/codis-ha)。这是一个通过codis开放的api实现自动切换主从的工具。该工具会在检测到master挂掉的时候将其下线并选择其中一个slave提升为master继续提供服务。

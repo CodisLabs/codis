@@ -131,8 +131,14 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 Codis的proxy会注册在zk上并监听新的zk事件。因为涉及到数据一致性的问题，所有proxy必须能尽快知道slot状态的改变，因此一旦和zk的连接出了问题就无法知道最新的slot信息从而可能不得不阻塞一些请求以防止数据错误或丢失。
 
 Proxy会每几秒给zk发心跳，proxy的load太高可能导致timeout时间内（默认30秒，配置文件中可以修改）没有成功发心跳导致zk认为proxy已经挂了（当然也可能proxy确实挂了），
-这时如果client用了我们修改的Jedis, [Jodis](https://github.com/wandoulabs/codis/tree/master/extern/jodis)，是会监控到zk节点上proxy少了一个从而自动避开请求这个proxy以保证客户端业务的可用性。如果用非Java语言可以根据Jodis代码DIY一个监听zk的客户端。
+这时如果client用了我们修改的Jedis, [Jodis](https://github.com/wandoulabs/jodis)，是会监控到zk节点上proxy少了一个从而自动避开请求这个proxy以保证客户端业务的可用性。如果用非Java语言可以根据Jodis代码DIY一个监听zk的客户端。
+另外，如果需要异步请求，可以使用我们基于Netty开发的[Nedis](https://github.com/wandoulabs/nedis)。
 
 当然，proxy收到session expired的错误也不意味着proxy一定要强制退出，但是这是最方便、安全的实现方式。而且实际使用中出现错误的情况通常是zk或proxy的load过高导致的，即使这时不退出可能业务的请求也会受影响，因此出现这个问题通常意味着需要加机器了。
 
 如果不依赖zk/Jodis来做proxy的高可用性（虽然我们建议这样做），可以适当延长配置文件中的超时时间以降低出这个错误的概率。
+
+### proxy异常退出
+目前proxy异常退出主要有两种可能，一种是zk的session expired错误，原因见前一节；另一种是从zk获取集群信息时超时或者报错。总体来说都是因为proxy和zk的连接不稳定导致的，而现在还没有加上重试等逻辑。
+
+不过，最新版的codis已经可以实现proxy自动启动、自动标记为online。因此可以外部通过脚本或supervisor等服务来监控proxy的进程，一旦进程退出可以直接自动重启。
