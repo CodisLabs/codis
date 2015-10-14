@@ -56,12 +56,12 @@ func (s *Topom) isSlotLocked(m *models.SlotMapping) bool {
 	return false
 }
 
-func (s *Topom) isSlotInGroup(m *models.SlotMapping, groupId int) bool {
+func (s *Topom) isGroupHasSlot(m *models.SlotMapping, groupId int) bool {
 	switch m.Action.State {
 	case models.ActionNothing:
-		fallthrough
-	case models.ActionPending:
 		return m.GroupId == groupId
+	case models.ActionPending:
+		fallthrough
 	case models.ActionPreparing:
 		fallthrough
 	case models.ActionMigrating:
@@ -100,7 +100,7 @@ func (s *Topom) getSlots() []*models.Slot {
 func (s *Topom) getSlotsByGroup(groupId int) []*models.Slot {
 	slots := make([]*models.Slot, 0, len(s.mappings))
 	for _, m := range s.mappings {
-		if s.isSlotInGroup(m, groupId) {
+		if s.isGroupHasSlot(m, groupId) {
 			slots = append(slots, s.toSlotState(m))
 		}
 	}
