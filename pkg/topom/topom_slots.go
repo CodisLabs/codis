@@ -28,6 +28,12 @@ func (s *Topom) GetSlotMappings() []*models.SlotMapping {
 	return mappings
 }
 
+func (s *Topom) GetSlots() []*models.Slot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.getSlots()
+}
+
 func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {
 	if slotId >= 0 && slotId < len(s.mappings) {
 		return s.mappings[slotId], nil

@@ -303,6 +303,96 @@ func TestGroupTest3(x *testing.T) {
 	assert.Must(t.RemoveGroup(2) == nil)
 }
 
+func verifySlotsList(expect []*models.Slot, slots []*models.Slot) {
+	var m = make(map[int]*models.Slot)
+	for _, s := range expect {
+		m[s.Id] = s
+	}
+	for _, s := range slots {
+		var x = m[s.Id]
+		assert.Must(x != nil)
+		assert.Must(x.Locked == s.Locked)
+		assert.Must(x.BackendAddr == s.BackendAddr)
+		assert.Must(x.MigrateFrom == s.MigrateFrom)
+	}
+}
+
+func assertSlotsList(t *Topom, clients []*proxy.ApiClient, slots ...*models.Slot) {
+	verifySlotsList(t.GetSlots(), slots)
+	for _, c := range clients {
+		sum, err := c.Summary()
+		assert.Must(err == nil)
+		verifySlotsList(sum.Slots, slots)
+	}
+}
+
+func TestSlotsTest1(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	var server0 = "server0:19000"
+	var server1 = "server1:19000"
+	var server2 = "server2:19000"
+
+	assert.Must(t.CreateGroup(1) == nil)
+	assert.Must(t.CreateGroup(2) == nil)
+	assert.Must(t.CreateGroup(3) == nil)
+	assert.Must(t.GroupAddNewServer(1, server0) == nil)
+	assert.Must(t.GroupAddNewServer(2, server1) == nil)
+	assert.Must(t.GroupAddNewServer(3, server2) == nil)
+
+	assert.Must(t.SlotCreateAction(1, 0) != nil)
+	assert.Must(t.SlotCreateAction(1, 1) == nil)
+	assert.Must(t.SlotCreateAction(1, 2) != nil)
+
+	assert.Must(t.SlotRemoveAction(2) != nil)
+	assert.Must(t.SlotCreateAction(2, 1) == nil)
+	assert.Must(t.SlotCreateAction(2, 2) != nil)
+	assert.Must(t.SlotRemoveAction(2) == nil)
+
+	assert.Must(t.prepareAction(2) != nil)
+	assert.Must(t.SlotCreateAction(2, 3) == nil)
+	assertSlotsList(t, nil,
+		&models.Slot{
+			Id: 2,
+		})
+
+	assert.Must(t.completeAction(2) != nil)
+
+	assert.Must(t.prepareAction(2) == nil)
+	assertSlotsList(t, nil,
+		&models.Slot{
+			Id:          2,
+			Locked:      false,
+			BackendAddr: server2,
+			MigrateFrom: "",
+		})
+
+	assert.Must(t.completeAction(2) == nil)
+	assertSlotsList(t, nil,
+		&models.Slot{
+			Id:          2,
+			BackendAddr: server2,
+		})
+
+	assert.Must(t.SlotCreateAction(2, 2) == nil)
+	assert.Must(t.prepareAction(2) == nil)
+	assertSlotsList(t, nil,
+		&models.Slot{
+			Id:          2,
+			Locked:      false,
+			BackendAddr: server1,
+			MigrateFrom: server2,
+		})
+
+	assert.Must(t.completeAction(2) == nil)
+	assertSlotsList(t, nil,
+		&models.Slot{
+			Id:          2,
+			BackendAddr: server1,
+		})
+}
+
 type memStore struct {
 	mu sync.Mutex
 
