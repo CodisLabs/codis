@@ -393,6 +393,170 @@ func TestSlotsTest1(x *testing.T) {
 		})
 }
 
+func TestSlotTest2(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	var server0 = "server0:19000"
+	var server1 = "server1:19000"
+	var server2 = "server2:19000"
+
+	assert.Must(t.CreateGroup(1) == nil)
+	assert.Must(t.CreateGroup(2) == nil)
+	assert.Must(t.CreateGroup(3) == nil)
+	assert.Must(t.GroupAddNewServer(1, server0) == nil)
+	assert.Must(t.GroupAddNewServer(2, server1) == nil)
+	assert.Must(t.GroupAddNewServer(3, server2) == nil)
+
+	_, c1, addr1 := openProxy()
+	defer c1.Shutdown()
+
+	assert.Must(t.CreateProxy(addr1) == nil)
+
+	assert.Must(t.SlotCreateAction(1, 1) == nil)
+
+	assert.Must(t.SlotCreateAction(2, 3) == nil)
+	assert.Must(t.prepareAction(2) == nil)
+	assert.Must(t.completeAction(2) == nil)
+	assertSlotsList(t, []*proxy.ApiClient{c1},
+		&models.Slot{
+			Id:          2,
+			BackendAddr: server2,
+		})
+
+	assert.Must(t.SlotCreateAction(2, 2) == nil)
+	assert.Must(t.prepareAction(2) == nil)
+	assertSlotsList(t, []*proxy.ApiClient{c1},
+		&models.Slot{
+			Id:          2,
+			Locked:      false,
+			BackendAddr: server1,
+			MigrateFrom: server2,
+		})
+
+	p2, c2, addr2 := openProxy()
+	defer c2.Shutdown()
+
+	assert.Must(t.CreateProxy(addr2) == nil)
+
+	assertSlotsList(t, []*proxy.ApiClient{c1, c2},
+		&models.Slot{
+			Id:          2,
+			Locked:      false,
+			BackendAddr: server1,
+			MigrateFrom: server2,
+		})
+
+	assert.Must(c2.Shutdown() == nil)
+	assert.Must(t.completeAction(2) != nil)
+	assertSlotsList(t, nil,
+		&models.Slot{
+			Id:          2,
+			Locked:      false,
+			BackendAddr: server1,
+			MigrateFrom: server2,
+		})
+
+	assert.Must(t.prepareAction(2) != nil)
+	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
+	assert.Must(t.prepareAction(2) == nil)
+	assert.Must(t.completeAction(2) == nil)
+	assertSlotsList(t, []*proxy.ApiClient{c1},
+		&models.Slot{
+			Id:          2,
+			BackendAddr: server1,
+		})
+}
+
+func TestSlotTest3(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	var server0 = "server0:19000"
+	var server1 = "server1:19000"
+	var server2 = "server2:19000"
+
+	assert.Must(t.CreateGroup(1) == nil)
+	assert.Must(t.CreateGroup(2) == nil)
+	assert.Must(t.CreateGroup(3) == nil)
+	assert.Must(t.GroupAddNewServer(1, server0) == nil)
+	assert.Must(t.GroupAddNewServer(2, server1) == nil)
+	assert.Must(t.GroupAddNewServer(3, server2) == nil)
+
+	_, c1, addr1 := openProxy()
+	defer c1.Shutdown()
+
+	p2, c2, addr2 := openProxy()
+	defer c2.Shutdown()
+
+	assert.Must(t.CreateProxy(addr1) == nil)
+	assert.Must(t.CreateProxy(addr2) == nil)
+
+	assert.Must(t.SlotCreateAction(1, 1) == nil)
+
+	assert.Must(t.SlotCreateAction(2, 3) == nil)
+	assert.Must(t.prepareAction(2) == nil)
+	assert.Must(t.completeAction(2) == nil)
+	assertSlotsList(t, []*proxy.ApiClient{c1, c2},
+		&models.Slot{
+			Id:          2,
+			BackendAddr: server2,
+		})
+
+	assert.Must(c2.Shutdown() == nil)
+
+	assert.Must(t.SlotCreateAction(2, 2) == nil)
+	assert.Must(t.prepareAction(2) != nil)
+	assertSlotsList(t, []*proxy.ApiClient{c1},
+		&models.Slot{
+			Id:          2,
+			Locked:      true,
+			BackendAddr: server1,
+			MigrateFrom: server2,
+		})
+
+	p3, c3, addr3 := openProxy()
+	defer c3.Shutdown()
+
+	assert.Must(t.CreateProxy(addr3) == nil)
+	assertSlotsList(t, []*proxy.ApiClient{c1, c3},
+		&models.Slot{
+			Id:          2,
+			Locked:      true,
+			BackendAddr: server1,
+			MigrateFrom: server2,
+		})
+	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
+
+	assert.Must(t.prepareAction(2) == nil)
+	assertSlotsList(t, []*proxy.ApiClient{c1, c3},
+		&models.Slot{
+			Id:          2,
+			Locked:      false,
+			BackendAddr: server1,
+			MigrateFrom: server2,
+		})
+
+	assert.Must(c3.Shutdown() == nil)
+	assert.Must(t.completeAction(2) != nil)
+	assertSlotsList(t, nil,
+		&models.Slot{
+			Id:          2,
+			Locked:      false,
+			BackendAddr: server1,
+			MigrateFrom: server2,
+		})
+
+	assert.Must(t.RemoveProxy(p3.GetToken(), true) == nil)
+	assert.Must(t.prepareAction(2) == nil)
+	assert.Must(t.completeAction(2) == nil)
+	assertSlotsList(t, nil,
+		&models.Slot{
+			Id:          2,
+			BackendAddr: server1,
+		})
+}
+
 type memStore struct {
 	mu sync.Mutex
 
