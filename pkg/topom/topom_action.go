@@ -153,6 +153,15 @@ func (s *Topom) prepareAction(slotId int) error {
 		s.mappings[slotId] = n
 
 		log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
+
+		fallthrough
+
+	case models.ActionMigrating:
+
+		if err := s.resyncSlotMapping(slotId); err != nil {
+			return err
+		}
+
 	}
 	return nil
 }
