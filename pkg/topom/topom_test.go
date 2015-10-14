@@ -279,6 +279,31 @@ func TestGroupTest2(x *testing.T) {
 		})
 }
 
+func TestGroupTest3(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	var server0 = "server0:19000"
+	var server1 = "server1:19000"
+	var server2 = "server2:19000"
+
+	assert.Must(t.CreateGroup(1) == nil)
+	assert.Must(t.GroupAddNewServer(1, server0) == nil)
+	assert.Must(t.SlotCreateAction(1, 1) == nil)
+
+	assert.Must(t.CreateGroup(2) == nil)
+	assert.Must(t.GroupAddNewServer(2, server1) == nil)
+	assert.Must(t.GroupAddNewServer(2, server2) == nil)
+	assert.Must(t.SlotCreateAction(2, 2) == nil)
+
+	assert.Must(t.RemoveGroup(2) != nil)
+	assert.Must(t.SlotRemoveAction(2) == nil)
+
+	assert.Must(t.GroupRemoveServer(2, server2) == nil)
+	assert.Must(t.GroupRemoveServer(2, server1) == nil)
+	assert.Must(t.RemoveGroup(2) == nil)
+}
+
 type memStore struct {
 	mu sync.Mutex
 
