@@ -50,10 +50,9 @@ func TestStats(x *testing.T) {
 }
 
 func verifySlots(c *proxy.ApiClient, expect map[int]*models.Slot) {
-	sum, err := c.Summary()
+	slots, err := c.Slots()
 	assert.MustNoError(err)
 
-	slots := sum.Slots
 	assert.Must(len(slots) == models.MaxSlotNum)
 
 	for i, slot := range expect {

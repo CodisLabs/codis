@@ -317,12 +317,12 @@ func verifySlotsList(expect []*models.Slot, slots []*models.Slot) {
 	}
 }
 
-func assertSlotsList(t *Topom, clients []*proxy.ApiClient, slots ...*models.Slot) {
-	verifySlotsList(t.GetSlots(), slots)
+func assertSlotsList(t *Topom, clients []*proxy.ApiClient, expect ...*models.Slot) {
+	verifySlotsList(t.GetSlots(), expect)
 	for _, c := range clients {
-		sum, err := c.Summary()
+		slots, err := c.Slots()
 		assert.Must(err == nil)
-		verifySlotsList(sum.Slots, slots)
+		verifySlotsList(slots, expect)
 	}
 }
 

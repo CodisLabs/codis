@@ -16,20 +16,10 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
 )
 
-type Summary struct {
-	Version string `json:"version"`
-	Compile string `json:"compile"`
-
-	Online bool    `json:"online"`
-	Closed bool    `json:"closed"`
-	Config *Config `json:"config"`
-
-	Model *models.Proxy  `json:"model"`
-	Slots []*models.Slot `json:"slots,omitempty"`
-	Stats *Stats         `json:"stats,omitempty"`
-}
-
 type Stats struct {
+	Online bool `json:"online"`
+	Closed bool `json:"closed"`
+
 	Ops struct {
 		Total int64             `json:"total"`
 		Cmds  []*router.OpStats `json:"cmds,omitempty"`
@@ -70,6 +60,7 @@ func newApiServer(p *Proxy) http.Handler {
 	r.Get("/", api.Summary)
 	r.Get("/api/model", api.Model)
 	r.Get("/api/stats/:xauth", api.Stats)
+	r.Get("/api/slots/:xauth", api.Slots)
 	r.Put("/api/start/:xauth", api.Start)
 	r.Put("/api/xping/:xauth", api.XPing)
 	r.Put("/api/shutdown/:xauth", api.Shutdown)
@@ -97,25 +88,33 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 func (s *apiServer) Summary() (int, string) {
 	s.RLock()
 	defer s.RUnlock()
-	sum := &Summary{
-		Version: utils.Version,
-		Compile: utils.Compile,
+	sum := &struct {
+		Version string         `json:"version"`
+		Compile string         `json:"compile"`
+		Config  *Config        `json:"config,omitempty"`
+		Model   *models.Proxy  `json:"model,omitempty"`
+		Slots   []*models.Slot `json:"slots,omitempty"`
+		Stats   *Stats         `json:"stats,omitempty"`
+	}{
+		utils.Version,
+		utils.Compile,
+		s.proxy.GetConfig(),
+		s.proxy.GetModel(),
+		s.proxy.GetSlots(),
+		s.newStats(),
 	}
-	sum.Online = s.proxy.IsOnline()
-	sum.Closed = s.proxy.IsClosed()
-	sum.Config = s.proxy.GetConfig()
-
-	sum.Slots = s.proxy.GetSlots()
-	sum.Model = s.proxy.GetModel()
-
-	sum.Stats = s.newStats()
 	return rpc.ApiResponseJson(sum)
 }
 
 func (s *apiServer) newStats() *Stats {
 	stats := &Stats{}
+
+	stats.Online = s.proxy.IsOnline()
+	stats.Closed = s.proxy.IsClosed()
+
 	stats.Ops.Total = router.OpsTotal()
 	stats.Ops.Cmds = router.GetAllOpStats()
+
 	stats.Sessions.Total = router.SessionsTotal()
 	stats.Sessions.Actived = router.SessionsActived()
 	return stats
@@ -134,6 +133,16 @@ func (s *apiServer) Stats(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson(s.newStats())
+	}
+}
+
+func (s *apiServer) Slots(params martini.Params) (int, string) {
+	s.RLock()
+	defer s.RUnlock()
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson(s.proxy.GetSlots())
 	}
 }
 
@@ -204,15 +213,6 @@ func (c *ApiClient) encodeURL(format string, args ...interface{}) string {
 	return rpc.EncodeURL(c.addr, format, args...)
 }
 
-func (c *ApiClient) Summary() (*Summary, error) {
-	url := c.encodeURL("/")
-	sum := &Summary{}
-	if err := rpc.ApiGetJson(url, sum); err != nil {
-		return nil, err
-	}
-	return sum, nil
-}
-
 func (c *ApiClient) Model() (*models.Proxy, error) {
 	url := c.encodeURL("/api/model")
 	model := &models.Proxy{}
@@ -226,6 +226,15 @@ func (c *ApiClient) Stats() (*Stats, error) {
 	url := c.encodeURL("/api/stats/%s", c.xauth)
 	stats := &Stats{}
 	if err := rpc.ApiGetJson(url, stats); err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+func (c *ApiClient) Slots() ([]*models.Slot, error) {
+	url := c.encodeURL("/api/slots/%s", c.xauth)
+	stats := []*models.Slot{}
+	if err := rpc.ApiGetJson(url, &stats); err != nil {
 		return nil, err
 	}
 	return stats, nil

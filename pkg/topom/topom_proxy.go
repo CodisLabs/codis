@@ -181,30 +181,6 @@ func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error,
 	return stats, errs, nil
 }
 
-func (s *Topom) SummaryAll(debug bool) (map[string]*proxy.Summary, map[string]error, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.closed {
-		return nil, nil, ErrClosedTopom
-	}
-	var lock sync.Mutex
-	var sums = make(map[string]*proxy.Summary)
-	var errs = s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		x, err := c.Summary()
-		if err != nil {
-			if debug {
-				log.WarnErrorf(err, "[%p] proxy-[%s] call summary failed", s, p.Token)
-			}
-			return errors.Trace(ErrProxyRpcFailed)
-		}
-		lock.Lock()
-		defer lock.Unlock()
-		sums[p.Token] = x
-		return nil
-	})
-	return sums, errs, nil
-}
-
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
 	var lock sync.Mutex
 	var wait sync.WaitGroup
