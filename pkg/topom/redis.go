@@ -2,8 +2,8 @@ package topom
 
 import (
 	"container/list"
-	"math"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -79,6 +79,7 @@ func (c *RedisClient) SlotsInfo() (map[int]int, error) {
 }
 
 func (c *RedisClient) GetInfo() (map[string]string, error) {
+	var info map[string]string
 	if reply, err := c.command("INFO"); err != nil {
 		return nil, err
 	} else {
@@ -86,7 +87,7 @@ func (c *RedisClient) GetInfo() (map[string]string, error) {
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		info := make(map[string]string)
+		info = make(map[string]string)
 		for _, line := range strings.Split(text, "\n") {
 			kv := strings.SplitN(line, ":", 2)
 			if len(kv) != 2 {
@@ -96,55 +97,34 @@ func (c *RedisClient) GetInfo() (map[string]string, error) {
 				info[key] = strings.TrimSpace(kv[1])
 			}
 		}
-		return info, nil
+		host := info["master_host"]
+		port := info["master_port"]
+		if host != "" || port != "" {
+			info["master_addr"] = net.JoinHostPort(host, port)
+		}
 	}
-}
-
-func (c *RedisClient) GetMaxMemory() (float64, error) {
 	if reply, err := c.command("CONFIG", "GET", "maxmemory"); err != nil {
-		return 0, err
+		return nil, err
 	} else {
 		p, err := redis.Values(reply, nil)
 		if err != nil || len(p) != 2 {
-			return 0, errors.Errorf("invalid response = %v", reply)
+			return nil, errors.Errorf("invalid response = %v", reply)
 		}
 		v, err := redis.Int(p[1], nil)
 		if err != nil {
-			return 0, errors.Errorf("invalid response = %v", reply)
+			return nil, errors.Errorf("invalid response = %v", reply)
 		}
-		if v != 0 {
-			return float64(v), nil
-		}
-		return math.Inf(0), nil
+		info["maxmemory"] = strconv.Itoa(v)
 	}
-}
-
-func (c *RedisClient) GetMaster() (string, error) {
-	if info, err := c.GetInfo(); err != nil {
-		return "", err
-	} else {
-		host := info["master_host"]
-		port := info["master_port"]
-		if host == "" && port == "" {
-			return "", nil
-		}
-		return net.JoinHostPort(host, port), nil
-	}
+	return info, nil
 }
 
 func (c *RedisClient) SetMaster(master string) error {
-	if master == "" || master == c.addr {
+	if master == "" {
 		if _, err := c.command("SLAVEOF", "NO", "ONE"); err != nil {
 			return err
 		}
 	} else {
-		m, err := c.GetMaster()
-		if err != nil {
-			return err
-		}
-		if master == m {
-			return nil
-		}
 		host, port, err := net.SplitHostPort(master)
 		if err != nil {
 			return errors.Trace(err)

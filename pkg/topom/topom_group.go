@@ -36,6 +36,18 @@ func (s *Topom) ListGroup() []*models.Group {
 	return glist
 }
 
+func (s *Topom) GetGroup(groupId int) (*models.Group, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.getGroup(groupId)
+}
+
+func (s *Topom) GetGroupMaster(groupId int) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.getGroupMaster(groupId)
+}
+
 func (s *Topom) getGroup(groupId int) (*models.Group, error) {
 	if g := s.groups[groupId]; g != nil {
 		return g, nil
@@ -107,7 +119,7 @@ func (s *Topom) RemoveGroup(groupId int) error {
 	return nil
 }
 
-func (s *Topom) GroupAddNewServer(groupId int, addr string) error {
+func (s *Topom) GroupAddServer(groupId int, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -146,7 +158,7 @@ func (s *Topom) GroupAddNewServer(groupId int, addr string) error {
 	return nil
 }
 
-func (s *Topom) GroupRemoveServer(groupId int, addr string) error {
+func (s *Topom) GroupDelServer(groupId int, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {

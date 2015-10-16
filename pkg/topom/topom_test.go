@@ -166,19 +166,19 @@ func TestGroupTest1(x *testing.T) {
 	var server1 = "server1:19000"
 	var server2 = "server2:19000"
 
-	assert.Must(t.GroupAddNewServer(0, "") != nil)
-	assert.Must(t.GroupAddNewServer(1, server0) == nil)
-	assert.Must(t.GroupAddNewServer(1, server1) == nil)
-	assert.Must(t.GroupAddNewServer(1, server1) != nil)
+	assert.Must(t.GroupAddServer(0, "") != nil)
+	assert.Must(t.GroupAddServer(1, server0) == nil)
+	assert.Must(t.GroupAddServer(1, server1) == nil)
+	assert.Must(t.GroupAddServer(1, server1) != nil)
 	assertGroupList(t,
 		&models.Group{
 			Id:      1,
 			Servers: []string{server0, server1},
 		})
 
-	assert.Must(t.GroupRemoveServer(1, server0) != nil)
-	assert.Must(t.GroupRemoveServer(1, server2) != nil)
-	assert.Must(t.GroupRemoveServer(1, server1) == nil)
+	assert.Must(t.GroupDelServer(1, server0) != nil)
+	assert.Must(t.GroupDelServer(1, server2) != nil)
+	assert.Must(t.GroupDelServer(1, server1) == nil)
 	assertGroupList(t,
 		&models.Group{
 			Id:      1,
@@ -186,7 +186,7 @@ func TestGroupTest1(x *testing.T) {
 		})
 
 	assert.Must(t.CreateGroup(2) == nil)
-	assert.Must(t.GroupAddNewServer(2, server0) != nil)
+	assert.Must(t.GroupAddServer(2, server0) != nil)
 	assertGroupList(t,
 		&models.Group{
 			Id:      1,
@@ -201,7 +201,7 @@ func TestGroupTest1(x *testing.T) {
 	assert.Must(t.RemoveGroup(1) == nil)
 	assert.Must(t.RemoveGroup(1) != nil)
 
-	assert.Must(t.GroupAddNewServer(2, server0) == nil)
+	assert.Must(t.GroupAddServer(2, server0) == nil)
 	assertGroupList(t,
 		&models.Group{
 			Id:      2,
@@ -218,8 +218,8 @@ func TestGroupTest2(x *testing.T) {
 	var server2 = "server2:19000"
 
 	assert.Must(t.CreateGroup(1) == nil)
-	assert.Must(t.GroupAddNewServer(1, server0) == nil)
-	assert.Must(t.GroupAddNewServer(1, server1) == nil)
+	assert.Must(t.GroupAddServer(1, server0) == nil)
+	assert.Must(t.GroupAddServer(1, server1) == nil)
 	assertGroupList(t,
 		&models.Group{
 			Id:      1,
@@ -236,12 +236,12 @@ func TestGroupTest2(x *testing.T) {
 			Servers:   []string{server1, server0},
 			Promoting: true,
 		})
-	assert.Must(t.GroupRemoveServer(1, server0) != nil)
+	assert.Must(t.GroupDelServer(1, server0) != nil)
 
 	assert.Must(t.GroupPromoteCommit(0) != nil)
 	assert.Must(t.GroupPromoteCommit(1) == nil)
-	assert.Must(t.GroupRemoveServer(1, server0) == nil)
-	assert.Must(t.GroupAddNewServer(1, server2) == nil)
+	assert.Must(t.GroupDelServer(1, server0) == nil)
+	assert.Must(t.GroupAddServer(1, server2) == nil)
 	assertGroupList(t,
 		&models.Group{
 			Id:      1,
@@ -287,19 +287,19 @@ func TestGroupTest3(x *testing.T) {
 	var server2 = "server2:19000"
 
 	assert.Must(t.CreateGroup(1) == nil)
-	assert.Must(t.GroupAddNewServer(1, server0) == nil)
+	assert.Must(t.GroupAddServer(1, server0) == nil)
 	assert.Must(t.SlotCreateAction(1, 1) == nil)
 
 	assert.Must(t.CreateGroup(2) == nil)
-	assert.Must(t.GroupAddNewServer(2, server1) == nil)
-	assert.Must(t.GroupAddNewServer(2, server2) == nil)
+	assert.Must(t.GroupAddServer(2, server1) == nil)
+	assert.Must(t.GroupAddServer(2, server2) == nil)
 	assert.Must(t.SlotCreateAction(2, 2) == nil)
 
 	assert.Must(t.RemoveGroup(2) != nil)
 	assert.Must(t.SlotRemoveAction(2) == nil)
 
-	assert.Must(t.GroupRemoveServer(2, server2) == nil)
-	assert.Must(t.GroupRemoveServer(2, server1) == nil)
+	assert.Must(t.GroupDelServer(2, server2) == nil)
+	assert.Must(t.GroupDelServer(2, server1) == nil)
 	assert.Must(t.RemoveGroup(2) == nil)
 }
 
@@ -337,9 +337,9 @@ func TestSlotsTest1(x *testing.T) {
 	assert.Must(t.CreateGroup(1) == nil)
 	assert.Must(t.CreateGroup(2) == nil)
 	assert.Must(t.CreateGroup(3) == nil)
-	assert.Must(t.GroupAddNewServer(1, server0) == nil)
-	assert.Must(t.GroupAddNewServer(2, server1) == nil)
-	assert.Must(t.GroupAddNewServer(3, server2) == nil)
+	assert.Must(t.GroupAddServer(1, server0) == nil)
+	assert.Must(t.GroupAddServer(2, server1) == nil)
+	assert.Must(t.GroupAddServer(3, server2) == nil)
 
 	assert.Must(t.SlotCreateAction(1, 0) != nil)
 	assert.Must(t.SlotCreateAction(1, 1) == nil)
@@ -404,9 +404,9 @@ func TestSlotTest2(x *testing.T) {
 	assert.Must(t.CreateGroup(1) == nil)
 	assert.Must(t.CreateGroup(2) == nil)
 	assert.Must(t.CreateGroup(3) == nil)
-	assert.Must(t.GroupAddNewServer(1, server0) == nil)
-	assert.Must(t.GroupAddNewServer(2, server1) == nil)
-	assert.Must(t.GroupAddNewServer(3, server2) == nil)
+	assert.Must(t.GroupAddServer(1, server0) == nil)
+	assert.Must(t.GroupAddServer(2, server1) == nil)
+	assert.Must(t.GroupAddServer(3, server2) == nil)
 
 	_, c1, addr1 := openProxy()
 	defer c1.Shutdown()
@@ -479,9 +479,9 @@ func TestSlotTest3(x *testing.T) {
 	assert.Must(t.CreateGroup(1) == nil)
 	assert.Must(t.CreateGroup(2) == nil)
 	assert.Must(t.CreateGroup(3) == nil)
-	assert.Must(t.GroupAddNewServer(1, server0) == nil)
-	assert.Must(t.GroupAddNewServer(2, server1) == nil)
-	assert.Must(t.GroupAddNewServer(3, server2) == nil)
+	assert.Must(t.GroupAddServer(1, server0) == nil)
+	assert.Must(t.GroupAddServer(2, server1) == nil)
+	assert.Must(t.GroupAddServer(3, server2) == nil)
 
 	_, c1, addr1 := openProxy()
 	defer c1.Shutdown()
