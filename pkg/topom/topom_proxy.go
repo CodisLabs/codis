@@ -6,7 +6,6 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/utils/async"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -180,16 +179,15 @@ func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) ma
 	var wait sync.WaitGroup
 	var errs = make(map[string]error)
 	for token, p := range s.proxies {
-		c := s.clients[token]
 		wait.Add(1)
-		async.Call(func() {
+		go func(p *models.Proxy, c *proxy.ApiClient) {
 			defer wait.Done()
 			if err := fn(p, c); err != nil {
 				lock.Lock()
-				errs[token] = err
+				errs[p.Token] = err
 				lock.Unlock()
 			}
-		})
+		}(p, s.clients[token])
 	}
 	wait.Wait()
 	return errs
