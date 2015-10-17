@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-martini/martini"
 
+	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
@@ -55,6 +56,7 @@ func newApiServer(t *Topom) http.Handler {
 
 	r := martini.NewRouter()
 
+	r.Get("/", api.Summary)
 	r.Get("/api/model", api.Model)
 	r.Get("/api/slots/:xauth", api.Slots)
 	r.Get("/api/proxy/list/:xauth", api.ListProxy)
@@ -81,11 +83,6 @@ func newApiServer(t *Topom) http.Handler {
 	r.Put("/api/shutdown/:xauth", api.Shutdown)
 	r.Put("/api/set/interval/:xauth/:intvl", api.SetInterval)
 
-	/*
-		r.Get("/", api.Summary)
-		r.Get("/api/stats/:xauth/:timeout", api.Stats)
-	*/
-
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
 	return m
@@ -105,7 +102,30 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	return nil
 }
 
-func (s *apiServer) Model(params martini.Params) (int, string) {
+func (s *apiServer) Summary() (int, string) {
+	s.RLock()
+	defer s.RUnlock()
+	sum := &struct {
+		Version string                `json:"version"`
+		Compile string                `json:"compile"`
+		Config  *Config               `json:"config,omitempty"`
+		Model   *models.Topom         `json:"model,omitempty"`
+		Slots   []*models.SlotMapping `json:"slots,omitempty"`
+		Groups  []*models.Group       `json:"groups,omitempty"`
+		Proxies []*models.Proxy       `json:"proxies,omitempty"`
+	}{
+		utils.Version,
+		utils.Compile,
+		s.topom.GetConfig(),
+		s.topom.GetModel(),
+		s.topom.GetSlotMappings(),
+		s.topom.ListGroup(),
+		s.topom.ListProxy(),
+	}
+	return rpc.ApiResponseJson(sum)
+}
+
+func (s *apiServer) Model() (int, string) {
 	s.RLock()
 	defer s.RUnlock()
 	return rpc.ApiResponseJson(s.topom.GetModel())
