@@ -24,18 +24,14 @@ func (s *Topom) daemonRedisPool() {
 }
 
 func (s *Topom) daemonMigration() {
-	for {
-		select {
-		case <-s.exit.C:
-			return
-		default:
-			slotId := s.nextActionSlotId()
-			if slotId < 0 {
-				time.Sleep(time.Millisecond * 250)
-			} else if err := s.doAction(slotId); err != nil {
-				log.WarnErrorf(err, "[%p] action on slot-[%d] failed", s, slotId)
-				time.Sleep(time.Second * 3)
-			}
+	for !s.IsClosed() {
+		if slotId := s.nextActionSlotId(); slotId < 0 {
+			s.noopInterval()
+		} else if err := s.doAction(slotId); err != nil {
+			log.WarnErrorf(err, "[%p] action on slot-[%d] failed", s, slotId)
+			time.Sleep(time.Second * 3)
+		} else {
+			s.noopInterval()
 		}
 	}
 }

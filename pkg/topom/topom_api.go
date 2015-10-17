@@ -32,7 +32,7 @@ type Stats struct {
 type ProxyStats struct {
 	Model *models.Proxy `json:"model"`
 	Stats *proxy.Stats  `json:"stats,omitempty"`
-	Error error         `json:"error,omitempty"`
+	Error bool          `json:"error,omitempty"`
 }
 
 type ServerStats struct {
@@ -40,7 +40,7 @@ type ServerStats struct {
 	Address string            `json:"address"`
 	Slave   bool              `json:"slave,omitempty"`
 	Infos   map[string]string `json:"infos,omitempty"`
-	Error   error             `json:"error,omitempty"`
+	Error   bool              `json:"error,omitempty"`
 }
 
 type apiServer struct {
@@ -149,11 +149,11 @@ func (s *apiServer) newStats() *Stats {
 	stats.Proxies = make([]*ProxyStats, 0, len(plist))
 	smap, emap := s.topom.StatsAll(false)
 	for _, p := range plist {
-		stats.Proxies = append(stats.Proxies, &ProxyStats{
-			Model: p,
-			Stats: smap[p.Token],
-			Error: emap[p.Token],
-		})
+		x := &ProxyStats{Model: p, Stats: smap[p.Token]}
+		if _, ok := emap[p.Token]; ok {
+			x.Error = true
+		}
+		stats.Proxies = append(stats.Proxies, x)
 	}
 	return stats
 }
@@ -194,7 +194,11 @@ func (s *apiServer) XPingAll(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		return rpc.ApiResponseJson(s.topom.XPingAll(debug))
+		fails := make(map[string]bool)
+		for token, _ := range s.topom.XPingAll(debug) {
+			fails[token] = true
+		}
+		return rpc.ApiResponseJson(fails)
 	}
 }
 
@@ -202,7 +206,7 @@ func (s *apiServer) runServerStats(addr string, timeout time.Duration) *ServerSt
 	var ch = make(chan *ServerStats, 1)
 	go func() (infos map[string]string, err error) {
 		defer func() {
-			ch <- &ServerStats{Infos: infos, Error: err}
+			ch <- &ServerStats{Infos: infos, Error: err != nil}
 		}()
 		c, err := s.topom.redisp.GetClient(addr)
 		if err != nil {
@@ -593,13 +597,13 @@ func (c *ApiClient) Stats() (*Stats, error) {
 	return stats, nil
 }
 
-func (c *ApiClient) XPingAll(debug bool) (map[string]error, error) {
+func (c *ApiClient) XPingAll(debug bool) (map[string]bool, error) {
 	url := c.encodeURL("/api/xpingall/%s/%v", c.xauth, debug)
-	var errs map[string]error
-	if err := rpc.ApiGetJson(url, &errs); err != nil {
+	var fails map[string]bool
+	if err := rpc.ApiGetJson(url, &fails); err != nil {
 		return nil, err
 	}
-	return errs, nil
+	return fails, nil
 }
 
 func (c *ApiClient) StatsAllServers(msecs int) ([]*ServerStats, error) {

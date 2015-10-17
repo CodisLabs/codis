@@ -557,6 +557,148 @@ func TestSlotTest3(x *testing.T) {
 		})
 }
 
+func newApiClient(t *Topom) *ApiClient {
+	config := t.GetConfig()
+	c := NewApiClient(t.GetModel().AdminAddr)
+	c.SetXAuth(config.ProductName, config.ProductAuth)
+	return c
+}
+
+func TestApiModel(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	c := newApiClient(t)
+
+	p, err := c.Model()
+	assert.Must(err == nil)
+	assert.Must(p.ProductName == t.GetConfig().ProductName)
+}
+
+func TestApiXPing(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	c := newApiClient(t)
+	assert.Must(c.XPing() == nil)
+
+	assert.Must(c.Shutdown() == nil)
+	assert.Must(c.XPing() != nil)
+}
+
+func TestApiStats(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	c := newApiClient(t)
+
+	var server0 = "server0:19000"
+	var server1 = "server1:19000"
+	var server2 = "server2:19000"
+
+	assert.Must(t.CreateGroup(1) == nil)
+	assert.Must(t.GroupAddServer(1, server0) == nil)
+	assert.Must(t.GroupAddServer(1, server1) == nil)
+
+	stats1, err := c.Stats()
+	assert.Must(err == nil)
+	assertGroupList(t, stats1.Groups...)
+
+	assert.Must(t.CreateGroup(2) == nil)
+	assert.Must(t.GroupAddServer(2, server2) == nil)
+
+	stats2, err := c.Stats()
+	assert.Must(err == nil)
+	assertGroupList(t, stats2.Groups...)
+}
+
+func TestApiXPingAll(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	c := newApiClient(t)
+	fails1, err := c.XPingAll(false)
+	assert.Must(err == nil && len(fails1) == 0)
+
+	p1, c1, addr1 := openProxy()
+	defer c1.Shutdown()
+	assert.Must(t.CreateProxy(addr1) == nil)
+	assert.Must(len(t.ListProxy()) == 1)
+
+	p2, c2, addr2 := openProxy()
+	defer c2.Shutdown()
+	assert.Must(t.CreateProxy(addr2) == nil)
+	assert.Must(len(t.ListProxy()) == 2)
+
+	fails2, err := c.XPingAll(false)
+	assert.Must(err == nil && len(fails2) == 0)
+
+	assert.Must(c1.Shutdown() == nil)
+	fails3, err := c.XPingAll(true)
+	assert.Must(err == nil && len(fails3) == 1)
+	assert.Must(fails3[p1.GetToken()])
+
+	stats1, err := c.Stats()
+	assert.Must(err == nil)
+	assert.Must(len(stats1.Proxies) == 2)
+
+	assert.Must(c2.Shutdown() == nil)
+	fails4, err := c.XPingAll(true)
+	assert.Must(err == nil && len(fails4) == 2)
+	assert.Must(fails4[p1.GetToken()])
+	assert.Must(fails4[p2.GetToken()])
+
+	stats2, err := c.Stats()
+	assert.Must(err == nil)
+	assert.Must(len(stats2.Proxies) == 2)
+	assert.Must(stats2.Proxies[0].Error && stats2.Proxies[1].Error)
+
+	assert.Must(t.RemoveProxy(p1.GetToken(), true) == nil)
+	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
+
+	fails5, err := c.XPingAll(false)
+	assert.Must(err == nil && len(fails5) == 0)
+
+	stats3, err := c.Stats()
+	assert.Must(err == nil)
+	assert.Must(len(stats3.Proxies) == 0)
+}
+
+func TestApiProxy(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	c := newApiClient(t)
+
+	p1, c1, addr1 := openProxy()
+	defer c1.Shutdown()
+
+	assert.Must(c.CreateProxy(addr1) == nil)
+	assert.Must(c.CreateProxy(addr1) != nil)
+	assert.Must(c.RemoveProxy(p1.GetToken(), false) == nil)
+
+	p2, c2, addr2 := openProxy()
+	defer c2.Shutdown()
+	assert.Must(c.ReinitProxy(p2.GetToken()) != nil)
+	assert.Must(c.CreateProxy(addr2) == nil)
+	assert.Must(c.ReinitProxy(p2.GetToken()) == nil)
+
+	assert.Must(c2.Shutdown() == nil)
+	assert.Must(c.ReinitProxy(p2.GetToken()) != nil)
+}
+
+func TestApiGroup(x *testing.T) {
+}
+
+func TestApiGroupServer(x *testing.T) {
+}
+
+func TestApiGroupPromote(x *testing.T) {
+}
+
+func TestApiAction(x *testing.T) {
+}
+
 type memStore struct {
 	mu sync.Mutex
 
