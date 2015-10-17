@@ -44,6 +44,7 @@ func New(config *Config) (*Proxy, error) {
 	s.model = &models.Proxy{
 		Token: s.token, StartTime: time.Now().String(),
 	}
+	s.model.ProductName = config.ProductName
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
 

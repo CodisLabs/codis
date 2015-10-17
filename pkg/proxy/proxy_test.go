@@ -23,7 +23,7 @@ func openProxy() (*proxy.Proxy, string) {
 	return s, s.GetModel().AdminAddr
 }
 
-func TestInfo(x *testing.T) {
+func TestModel(x *testing.T) {
 	s, addr := openProxy()
 	defer s.Close()
 
@@ -32,6 +32,7 @@ func TestInfo(x *testing.T) {
 	p, err := c.Model()
 	assert.MustNoError(err)
 	assert.Must(p.Token == s.GetToken())
+	assert.Must(p.ProductName == config.ProductName)
 }
 
 func TestStats(x *testing.T) {

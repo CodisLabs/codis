@@ -55,6 +55,7 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	s.model = &models.Topom{
 		StartTime: time.Now().String(),
 	}
+	s.model.ProductName = config.ProductName
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
 

@@ -30,6 +30,8 @@ type Topom struct {
 	StartTime string `json:"start_time"`
 	AdminAddr string `json:"admin_addr"`
 
+	ProductName string `json:"product_name"`
+
 	Pid int    `json:"pid"`
 	Pwd string `json:"pwd"`
 }
