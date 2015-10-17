@@ -78,11 +78,24 @@ func TestTopomExclusive(x *testing.T) {
 	t2.Close()
 }
 
+func assertErrors(errs map[string]error, expect []string) {
+	var cnt = 0
+	for _, err := range errs {
+		if err != nil {
+			cnt++
+		}
+	}
+	assert.Must(len(expect) == cnt)
+	for _, token := range expect {
+		assert.Must(errs[token] != nil)
+	}
+}
+
 func TestProxyCreate(x *testing.T) {
 	t := openTopom()
 	defer t.Close()
 
-	_, c1, addr1 := openProxy()
+	p1, c1, addr1 := openProxy()
 	defer c1.Shutdown()
 
 	assert.Must(t.CreateProxy(addr1) == nil)
@@ -98,12 +111,12 @@ func TestProxyCreate(x *testing.T) {
 	assert.Must(len(t.ListProxy()) == 1)
 
 	errs1 := t.XPingAll(false)
-	assert.Must(len(errs1) == 0)
+	assertErrors(errs1, []string{})
 
 	assert.Must(c1.Shutdown() == nil)
 
 	errs2 := t.XPingAll(false)
-	assert.Must(len(errs2) == 1)
+	assertErrors(errs2, []string{p1.GetToken()})
 }
 
 func TestProxyRemove(x *testing.T) {
@@ -617,8 +630,9 @@ func TestApiXPingAll(x *testing.T) {
 	defer t.Close()
 
 	c := newApiClient(t)
-	fails1, err := c.XPingAll(false)
-	assert.Must(err == nil && len(fails1) == 0)
+	errs1, err := c.XPingAll(false)
+	assert.Must(err == nil)
+	assertErrors(errs1, []string{})
 
 	p1, c1, addr1 := openProxy()
 	defer c1.Shutdown()
@@ -630,34 +644,35 @@ func TestApiXPingAll(x *testing.T) {
 	assert.Must(t.CreateProxy(addr2) == nil)
 	assert.Must(len(t.ListProxy()) == 2)
 
-	fails2, err := c.XPingAll(false)
-	assert.Must(err == nil && len(fails2) == 0)
+	errs2, err := c.XPingAll(false)
+	assert.Must(err == nil)
+	assertErrors(errs2, []string{})
 
 	assert.Must(c1.Shutdown() == nil)
-	fails3, err := c.XPingAll(true)
-	assert.Must(err == nil && len(fails3) == 1)
-	assert.Must(fails3[p1.GetToken()])
+	errs3, err := c.XPingAll(true)
+	assert.Must(err == nil)
+	assertErrors(errs3, []string{p1.GetToken()})
 
 	stats1, err := c.Stats()
 	assert.Must(err == nil)
 	assert.Must(len(stats1.Proxies) == 2)
 
 	assert.Must(c2.Shutdown() == nil)
-	fails4, err := c.XPingAll(true)
-	assert.Must(err == nil && len(fails4) == 2)
-	assert.Must(fails4[p1.GetToken()])
-	assert.Must(fails4[p2.GetToken()])
+	errs4, err := c.XPingAll(true)
+	assert.Must(err == nil)
+	assertErrors(errs4, []string{p1.GetToken(), p2.GetToken()})
 
 	stats2, err := c.Stats()
 	assert.Must(err == nil)
 	assert.Must(len(stats2.Proxies) == 2)
-	assert.Must(stats2.Proxies[0].Error && stats2.Proxies[1].Error)
+	assert.Must(stats2.Proxies[0].Error != nil && stats2.Proxies[1].Error != nil)
 
 	assert.Must(t.RemoveProxy(p1.GetToken(), true) == nil)
 	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
 
-	fails5, err := c.XPingAll(false)
-	assert.Must(err == nil && len(fails5) == 0)
+	errs5, err := c.XPingAll(false)
+	assert.Must(err == nil)
+	assertErrors(errs5, []string{})
 
 	stats3, err := c.Stats()
 	assert.Must(err == nil)

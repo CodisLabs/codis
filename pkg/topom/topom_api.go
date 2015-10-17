@@ -30,9 +30,9 @@ type Stats struct {
 }
 
 type ProxyStats struct {
-	Model *models.Proxy `json:"model"`
-	Stats *proxy.Stats  `json:"stats,omitempty"`
-	Error bool          `json:"error,omitempty"`
+	Model *models.Proxy    `json:"model"`
+	Stats *proxy.Stats     `json:"stats,omitempty"`
+	Error *rpc.RemoteError `json:"error,omitempty"`
 }
 
 type ServerStats struct {
@@ -40,7 +40,7 @@ type ServerStats struct {
 	Address string            `json:"address"`
 	Slave   bool              `json:"slave,omitempty"`
 	Infos   map[string]string `json:"infos,omitempty"`
-	Error   bool              `json:"error,omitempty"`
+	Error   *rpc.RemoteError  `json:"error,omitempty"`
 }
 
 type apiServer struct {
@@ -149,11 +149,11 @@ func (s *apiServer) newStats() *Stats {
 	stats.Proxies = make([]*ProxyStats, 0, len(plist))
 	smap, emap := s.topom.StatsAll(false)
 	for _, p := range plist {
-		x := &ProxyStats{Model: p, Stats: smap[p.Token]}
-		if _, ok := emap[p.Token]; ok {
-			x.Error = true
-		}
-		stats.Proxies = append(stats.Proxies, x)
+		stats.Proxies = append(stats.Proxies, &ProxyStats{
+			Model: p,
+			Stats: smap[p.Token],
+			Error: rpc.ToRemoteError(emap[p.Token]),
+		})
 	}
 	return stats
 }
@@ -194,11 +194,11 @@ func (s *apiServer) XPingAll(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		fails := make(map[string]bool)
-		for token, _ := range s.topom.XPingAll(debug) {
-			fails[token] = true
+		emap := make(map[string]*rpc.RemoteError)
+		for token, err := range s.topom.XPingAll(debug) {
+			emap[token] = rpc.ToRemoteError(err)
 		}
-		return rpc.ApiResponseJson(fails)
+		return rpc.ApiResponseJson(emap)
 	}
 }
 
@@ -206,7 +206,7 @@ func (s *apiServer) runServerStats(addr string, timeout time.Duration) *ServerSt
 	var ch = make(chan *ServerStats, 1)
 	go func() (infos map[string]string, err error) {
 		defer func() {
-			ch <- &ServerStats{Infos: infos, Error: err != nil}
+			ch <- &ServerStats{Infos: infos, Error: rpc.ToRemoteError(err)}
 		}()
 		c, err := s.topom.redisp.GetClient(addr)
 		if err != nil {
@@ -597,13 +597,17 @@ func (c *ApiClient) Stats() (*Stats, error) {
 	return stats, nil
 }
 
-func (c *ApiClient) XPingAll(debug bool) (map[string]bool, error) {
+func (c *ApiClient) XPingAll(debug bool) (map[string]error, error) {
 	url := c.encodeURL("/api/xpingall/%s/%v", c.xauth, debug)
-	var fails map[string]bool
-	if err := rpc.ApiGetJson(url, &fails); err != nil {
+	var emap map[string]*rpc.RemoteError
+	if err := rpc.ApiGetJson(url, &emap); err != nil {
 		return nil, err
 	}
-	return fails, nil
+	var errs = make(map[string]error)
+	for token, err := range emap {
+		errs[token] = err.ToError()
+	}
+	return errs, nil
 }
 
 func (c *ApiClient) StatsAllServers(msecs int) ([]*ServerStats, error) {

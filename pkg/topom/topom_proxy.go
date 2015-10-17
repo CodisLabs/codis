@@ -157,8 +157,8 @@ func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var lock sync.Mutex
-	var stats = make(map[string]*proxy.Stats)
-	var errs = s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+	var smap = make(map[string]*proxy.Stats)
+	var emap = s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		x, err := c.Stats()
 		if err != nil {
 			if debug {
@@ -167,28 +167,27 @@ func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error)
 			return errors.Trace(ErrProxyRpcFailed)
 		}
 		lock.Lock()
-		defer lock.Unlock()
-		stats[p.Token] = x
+		smap[p.Token] = x
+		lock.Unlock()
 		return nil
 	})
-	return stats, errs
+	return smap, emap
 }
 
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
 	var lock sync.Mutex
 	var wait sync.WaitGroup
-	var errs = make(map[string]error)
+	var emap = make(map[string]error)
 	for token, p := range s.proxies {
 		wait.Add(1)
 		go func(p *models.Proxy, c *proxy.ApiClient) {
 			defer wait.Done()
-			if err := fn(p, c); err != nil {
-				lock.Lock()
-				errs[p.Token] = err
-				lock.Unlock()
-			}
+			err := fn(p, c)
+			lock.Lock()
+			emap[p.Token] = err
+			lock.Unlock()
 		}(p, s.clients[token])
 	}
 	wait.Wait()
-	return errs
+	return emap
 }

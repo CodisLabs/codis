@@ -310,8 +310,10 @@ func (s *Topom) resyncGroup(groupId int) error {
 		}
 		return nil
 	})
-	if len(errs) != 0 {
-		return errors.Trace(ErrGroupResyncSlots)
+	for _, err := range errs {
+		if err != nil {
+			return errors.Trace(ErrGroupResyncSlots)
+		}
 	}
 	return nil
 }

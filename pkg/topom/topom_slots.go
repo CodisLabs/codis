@@ -213,8 +213,10 @@ func (s *Topom) resyncSlotMapping(slotId int) error {
 		}
 		return nil
 	})
-	if len(errs) != 0 {
-		return errors.Trace(ErrActionResyncSlot)
+	for _, err := range errs {
+		if err != nil {
+			return errors.Trace(ErrActionResyncSlot)
+		}
 	}
 	return nil
 }

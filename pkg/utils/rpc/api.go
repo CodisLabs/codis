@@ -47,9 +47,29 @@ func init() {
 	}()
 }
 
-type rpcError struct {
+type RemoteError struct {
 	Cause string
 	Stack trace.Stack
+}
+
+func (e *RemoteError) ToError() error {
+	if e == nil {
+		return nil
+	}
+	return &errors.TracedError{
+		Cause: errors.New("[Remote Error] " + e.Cause),
+		Stack: e.Stack,
+	}
+}
+
+func ToRemoteError(err error) *RemoteError {
+	if err == nil {
+		return nil
+	}
+	return &RemoteError{
+		Cause: err.Error(),
+		Stack: errors.Stack(err),
+	}
 }
 
 func responseBodyAsBytes(rsp *http.Response) ([]byte, error) {
@@ -68,14 +88,11 @@ func responseBodyAsError(rsp *http.Response) (error, error) {
 	if len(b) == 0 {
 		return nil, errors.Errorf("[Remote Error] Unknown Error")
 	}
-	e := &rpcError{}
+	e := &RemoteError{}
 	if err := json.Unmarshal(b, e); err != nil {
 		return nil, errors.Trace(err)
 	}
-	return &errors.TracedError{
-		Cause: errors.New("[Remote Error] " + e.Cause),
-		Stack: e.Stack,
-	}, nil
+	return e.ToError(), nil
 }
 
 func apiRequestJson(method string, url string, args, reply interface{}) error {
@@ -144,11 +161,7 @@ func ApiResponseError(err error) (int, string) {
 	if err == nil {
 		return 1500, ""
 	}
-	e := &rpcError{
-		Cause: err.Error(),
-		Stack: errors.Stack(err),
-	}
-	b, err := json.MarshalIndent(e, "", "    ")
+	b, err := json.MarshalIndent(ToRemoteError(err), "", "    ")
 	if err != nil {
 		return 1500, ""
 	} else {
