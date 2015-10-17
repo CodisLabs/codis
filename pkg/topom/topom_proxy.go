@@ -140,12 +140,9 @@ func (s *Topom) reinitProxy(token string) error {
 	return nil
 }
 
-func (s *Topom) XPingAll(debug bool) (map[string]error, error) {
+func (s *Topom) XPingAll(debug bool) map[string]error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.closed {
-		return nil, ErrClosedTopom
-	}
 	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		if err := c.XPing(); err != nil {
 			if debug {
@@ -154,15 +151,12 @@ func (s *Topom) XPingAll(debug bool) (map[string]error, error) {
 			return errors.Trace(ErrProxyRpcFailed)
 		}
 		return nil
-	}), nil
+	})
 }
 
-func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error, error) {
+func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.closed {
-		return nil, nil, ErrClosedTopom
-	}
 	var lock sync.Mutex
 	var stats = make(map[string]*proxy.Stats)
 	var errs = s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
@@ -178,7 +172,7 @@ func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error,
 		stats[p.Token] = x
 		return nil
 	})
-	return stats, errs, nil
+	return stats, errs
 }
 
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {

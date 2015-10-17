@@ -97,13 +97,13 @@ func TestProxyCreate(x *testing.T) {
 	assert.Must(t.CreateProxy(addr2) != nil)
 	assert.Must(len(t.ListProxy()) == 1)
 
-	errs1, err1 := t.XPingAll(false)
-	assert.Must(err1 == nil && len(errs1) == 0)
+	errs1 := t.XPingAll(false)
+	assert.Must(len(errs1) == 0)
 
 	assert.Must(c1.Shutdown() == nil)
 
-	errs2, err2 := t.XPingAll(false)
-	assert.Must(err2 == nil && len(errs2) == 1)
+	errs2 := t.XPingAll(false)
+	assert.Must(len(errs2) == 1)
 }
 
 func TestProxyRemove(x *testing.T) {
