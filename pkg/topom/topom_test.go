@@ -3,6 +3,7 @@ package topom
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -703,15 +704,92 @@ func TestApiProxy(x *testing.T) {
 }
 
 func TestApiGroup(x *testing.T) {
-}
+	t := openTopom()
+	defer t.Close()
 
-func TestApiGroupServer(x *testing.T) {
+	c := newApiClient(t)
+
+	assert.Must(c.CreateGroup(0) != nil)
+	assert.Must(c.CreateGroup(math.MaxInt32) != nil)
+
+	assert.Must(c.CreateGroup(1) == nil)
+	assert.Must(c.CreateGroup(1) != nil)
+
+	var server0 = "server0:19000"
+	var server1 = "server1:19000"
+	var server2 = "server2:19000"
+
+	assert.Must(c.GroupAddServer(2, server0) != nil)
+	assert.Must(c.GroupAddServer(1, server0) == nil)
+	assert.Must(c.GroupAddServer(1, server1) == nil)
+	assert.Must(c.GroupDelServer(1, server2) != nil)
+
+	stats1, err := c.Stats()
+	assert.Must(err == nil)
+	assertGroupList(t, stats1.Groups...)
 }
 
 func TestApiGroupPromote(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	c := newApiClient(t)
+
+	assert.Must(c.CreateGroup(1) == nil)
+
+	var server0 = "server0:19000"
+	var server1 = "server1:19000"
+	var server2 = "server2:19000"
+
+	assert.Must(c.GroupAddServer(1, server0) == nil)
+	assert.Must(c.GroupAddServer(1, server1) == nil)
+
+	assert.Must(c.GroupPromoteServer(1, server2) != nil)
+	assert.Must(c.GroupPromoteServer(1, server0) != nil)
+
+	assert.Must(c.GroupPromoteServer(1, server1) == nil)
+
+	stats1, err := c.Stats()
+	assert.Must(err == nil)
+	assertGroupList(t, stats1.Groups...)
+
+	assert.Must(c.GroupAddServer(1, server2) != nil)
+	assert.Must(c.GroupPromoteCommit(1) == nil)
+
+	stats2, err := c.Stats()
+	assert.Must(err == nil)
+	assertGroupList(t, stats2.Groups...)
+
+	assert.Must(c.GroupDelServer(1, server1) != nil)
+	assert.Must(c.GroupDelServer(1, server0) == nil)
+	assert.Must(c.GroupDelServer(1, server1) == nil)
 }
 
 func TestApiAction(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	c := newApiClient(t)
+
+	var server0 = "server0:19000"
+
+	assert.Must(c.CreateGroup(1) == nil)
+	assert.Must(c.SlotCreateAction(0, 1) != nil)
+
+	assert.Must(c.GroupAddServer(1, server0) == nil)
+	assert.Must(c.SlotCreateAction(0, 1) == nil)
+
+	assert.Must(c.SlotCreateAction(1, 1) == nil)
+	assert.Must(c.SlotRemoveAction(1) == nil)
+
+	assert.Must(c.SlotCreateAction(1, 1) == nil)
+	assert.Must(t.prepareAction(1) == nil)
+	assert.Must(c.SlotRemoveAction(1) != nil)
+	assert.Must(c.SlotCreateAction(1, 1) != nil)
+
+	assert.Must(t.completeAction(1) == nil)
+	assert.Must(c.SlotRemoveAction(1) != nil)
+	assert.Must(c.SlotCreateAction(1, 1) == nil)
 }
 
 type memStore struct {

@@ -26,7 +26,7 @@ func (s *Topom) daemonRedisPool() {
 func (s *Topom) daemonMigration() {
 	for !s.IsClosed() {
 		if slotId := s.nextActionSlotId(); slotId < 0 {
-			s.noopInterval()
+			time.Sleep(time.Millisecond * 200)
 		} else if err := s.doAction(slotId); err != nil {
 			log.WarnErrorf(err, "[%p] action on slot-[%d] failed", s, slotId)
 			time.Sleep(time.Second * 3)
