@@ -123,9 +123,6 @@ func (s *Topom) RemoveGroup(groupId int) error {
 	}
 
 	delete(s.groups, groupId)
-	for _, addr := range g.Servers {
-		delete(s.stats.servers, addr)
-	}
 
 	log.Infof("[%p] remove group-[%d]:\n%s", s, groupId, g.Encode())
 
