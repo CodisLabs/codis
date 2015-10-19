@@ -86,6 +86,8 @@ func (s *Topom) PrepareAction(slotId int) error {
 		return errors.Trace(ErrActionNotExists)
 	}
 
+	log.Infof("[%p] prepare action on slot-[%d]\n%s", s, slotId, m.Encode())
+
 	switch m.Action.State {
 	case models.ActionPending:
 
@@ -155,6 +157,7 @@ func (s *Topom) ProcessAction(slotId int) (int, error) {
 	if m.Action.State != models.ActionMigrating {
 		return 0, errors.Trace(ErrActionIsNotMigrating)
 	}
+
 	if s.isSlotLocked(m) {
 		return int(math.MaxInt32), nil
 	}
@@ -187,6 +190,8 @@ func (s *Topom) CompleteAction(slotId int) error {
 	if m.Action.State != models.ActionMigrating {
 		return errors.Trace(ErrActionIsNotMigrating)
 	}
+
+	log.Infof("[%p] complete action on slot-[%d]\n%s", s, slotId, m.Encode())
 
 	n := &models.SlotMapping{
 		Id:      slotId,

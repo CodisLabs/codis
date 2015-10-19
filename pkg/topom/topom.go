@@ -252,7 +252,7 @@ func (s *Topom) StartDaemonRoutines() {
 			for !s.IsClosed() {
 				if a := s.NextAction(); a != nil {
 					if err := a.Do(); err != nil {
-						log.WarnErrorf(err, "[%p] action of slot-[%d] failed", s, a.SlotId)
+						log.WarnErrorf(err, "[%p] action on slot-[%d] failed", s, a.SlotId)
 						time.Sleep(time.Second * 3)
 					}
 				} else {
