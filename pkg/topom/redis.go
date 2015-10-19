@@ -165,14 +165,36 @@ type RedisPool struct {
 	pool    map[string]*list.List
 	timeout time.Duration
 
+	exit struct {
+		C chan struct{}
+	}
+
 	closed bool
 }
 
 func NewRedisPool(auth string, timeout time.Duration) *RedisPool {
-	return &RedisPool{
+	p := &RedisPool{
 		auth: auth, timeout: timeout,
 		pool: make(map[string]*list.List),
 	}
+	p.exit.C = make(chan struct{})
+
+	if timeout != 0 {
+		go func() {
+			var ticker = time.NewTicker(timeout)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-p.exit.C:
+					return
+				case <-ticker.C:
+					p.Cleanup()
+				}
+			}
+		}()
+	}
+
+	return p
 }
 
 func (p *RedisPool) isRecyclable(c *RedisClient) bool {
@@ -193,6 +215,7 @@ func (p *RedisPool) Close() error {
 		return nil
 	}
 	p.closed = true
+	close(p.exit.C)
 
 	for addr, list := range p.pool {
 		for i := list.Len(); i != 0; i-- {

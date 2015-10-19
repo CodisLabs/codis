@@ -72,7 +72,6 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 
 	log.Infof("[%p] create new topom:\n%s", s, s.model.Encode())
 
-	go s.daemonRedisPool()
 	go s.daemonMigration()
 
 	go s.serveAdmin()

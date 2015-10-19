@@ -10,19 +10,6 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-func (s *Topom) daemonRedisPool() {
-	var ticker = time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-s.exit.C:
-			return
-		case <-ticker.C:
-			s.redisp.Cleanup()
-		}
-	}
-}
-
 func (s *Topom) daemonMigration() {
 	for !s.IsClosed() {
 		if slotId := s.nextActionSlotId(); slotId < 0 {
