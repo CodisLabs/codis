@@ -249,24 +249,18 @@ func (s *Topom) serveAdmin() {
 func (s *Topom) StartDaemonRoutines() {
 	s.start.Do(func() {
 		go func() {
-			for {
-				wg := s.RefreshServerStats(time.Second)
-				if wg != nil {
+			for !s.IsClosed() {
+				if wg := s.RefreshServerStats(time.Second); wg != nil {
 					wg.Wait()
-				} else {
-					return
 				}
 				time.Sleep(time.Second)
 			}
 		}()
 
 		go func() {
-			for {
-				wg := s.RefreshProxyStats(time.Second)
-				if wg != nil {
+			for !s.IsClosed() {
+				if wg := s.RefreshProxyStats(time.Second); wg != nil {
 					wg.Wait()
-				} else {
-					return
 				}
 				time.Sleep(time.Second)
 			}
