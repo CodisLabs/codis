@@ -42,6 +42,11 @@ type Topom struct {
 	groups  map[int]*models.Group
 	proxies map[string]*models.Proxy
 	clients map[string]*proxy.ApiClient
+
+	stats struct {
+		servers map[string]*ServerStats
+		proxies map[string]*ProxyStats
+	}
 }
 
 var (
@@ -64,6 +69,13 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	s.redisp = NewRedisPool(config.ProductAuth, time.Minute)
 
 	s.exit.C = make(chan struct{})
+
+	s.groups = make(map[int]*models.Group)
+	s.proxies = make(map[string]*models.Proxy)
+	s.clients = make(map[string]*proxy.ApiClient)
+
+	s.stats.servers = make(map[string]*ServerStats)
+	s.stats.proxies = make(map[string]*ProxyStats)
 
 	if err := s.setup(); err != nil {
 		s.Close()
@@ -113,7 +125,6 @@ func (s *Topom) setup() error {
 	if glist, err := s.store.ListGroup(); err != nil {
 		return err
 	} else {
-		s.groups = make(map[int]*models.Group)
 		for _, g := range glist {
 			s.groups[g.Id] = g
 		}
@@ -122,13 +133,12 @@ func (s *Topom) setup() error {
 	if plist, err := s.store.ListProxy(); err != nil {
 		return err
 	} else {
-		s.proxies = make(map[string]*models.Proxy)
-		s.clients = make(map[string]*proxy.ApiClient)
 		for _, p := range plist {
 			c := proxy.NewApiClient(p.AdminAddr)
 			c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
 			s.proxies[p.Token] = p
 			s.clients[p.Token] = c
+			s.stats.proxies[p.Token] = nil
 		}
 	}
 	return nil

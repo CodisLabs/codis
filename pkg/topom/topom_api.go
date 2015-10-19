@@ -8,12 +8,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/go-martini/martini"
+	"github.com/martini-contrib/render"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
@@ -23,24 +22,15 @@ type Stats struct {
 	Online bool `json:"online"`
 	Closed bool `json:"closed"`
 
-	Intvl   int                   `json:"action_intvl"`
-	Slots   []*models.SlotMapping `json:"slots,omitempty"`
-	Groups  []*models.Group       `json:"groups,omitempty"`
-	Proxies []*ProxyStats         `json:"proxies,omitempty"`
-}
+	Intvl     int                   `json:"action_intvl"`
+	Slots     []*models.SlotMapping `json:"slots,omitempty"`
+	GroupList []*models.Group       `json:"group_list,omitempty"`
+	ProxyList []*models.Proxy       `json:"proxy_list:omitempty"`
 
-type ProxyStats struct {
-	Model *models.Proxy    `json:"model"`
-	Stats *proxy.Stats     `json:"stats,omitempty"`
-	Error *rpc.RemoteError `json:"error,omitempty"`
-}
-
-type ServerStats struct {
-	GroupId int               `json:"gid"`
-	Address string            `json:"address"`
-	Slave   bool              `json:"slave,omitempty"`
-	Infos   map[string]string `json:"infos,omitempty"`
-	Error   *rpc.RemoteError  `json:"error,omitempty"`
+	Stats struct {
+		Servers map[string]*ServerStats `json:"servers,omitempty"`
+		Proxies map[string]*ProxyStats  `json:"proxies,omitempty"`
+	} `json:"stats"`
 }
 
 type apiServer struct {
@@ -51,6 +41,7 @@ type apiServer struct {
 func newApiServer(t *Topom) http.Handler {
 	m := martini.New()
 	m.Use(martini.Recovery())
+	m.Use(render.Renderer())
 	m.Use(func(w http.ResponseWriter, req *http.Request, c martini.Context) {
 		addr := req.Header.Get("X-Real-IP")
 		if addr == "" {
@@ -69,14 +60,14 @@ func newApiServer(t *Topom) http.Handler {
 	api := &apiServer{topom: t}
 
 	r := martini.NewRouter()
+	r.Get("/", func(r render.Render) {
+		r.Redirect("/overview")
+	})
 
-	r.Get("/", api.Summary)
+	r.Get("/overview", api.Overview)
 	r.Get("/api/model", api.Model)
 	r.Get("/api/xping/:xauth", api.XPing)
 	r.Get("/api/stats/:xauth", api.Stats)
-	r.Get("/api/xpingall/:xauth/:debug", api.XPingAll)
-
-	r.Get("/api/servers/:xauth/:msecs", api.StatsAllServers)
 
 	r.Put("/api/proxy/create/:xauth/:xaddr", api.CreateProxy)
 	r.Put("/api/proxy/reinit/:xauth/:token", api.ReinitProxy)
@@ -95,6 +86,7 @@ func newApiServer(t *Topom) http.Handler {
 	r.Put("/api/action/remove/:xauth/:sid", api.SlotRemoveAction)
 
 	r.Put("/api/shutdown/:xauth", api.Shutdown)
+
 	r.Put("/api/set/interval/:xauth/:intvl", api.SetInterval)
 
 	m.MapTo(r, (*martini.Routes)(nil))
@@ -116,10 +108,10 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	return nil
 }
 
-func (s *apiServer) Summary() (int, string) {
+func (s *apiServer) Overview() (int, string) {
 	s.RLock()
 	defer s.RUnlock()
-	sum := &struct {
+	overview := &struct {
 		Version string        `json:"version"`
 		Compile string        `json:"compile"`
 		Config  *Config       `json:"config,omitempty"`
@@ -132,7 +124,7 @@ func (s *apiServer) Summary() (int, string) {
 		s.topom.GetModel(),
 		s.newStats(),
 	}
-	return rpc.ApiResponseJson(sum)
+	return rpc.ApiResponseJson(overview)
 }
 
 func (s *apiServer) newStats() *Stats {
@@ -143,17 +135,19 @@ func (s *apiServer) newStats() *Stats {
 	stats.Intvl = s.topom.GetInterval()
 
 	stats.Slots = s.topom.GetSlotMappings()
-	stats.Groups = s.topom.ListGroup()
+	stats.GroupList = s.topom.ListGroup()
+	stats.ProxyList = s.topom.ListProxy()
 
-	plist := s.topom.ListProxy()
-	stats.Proxies = make([]*ProxyStats, 0, len(plist))
-	smap, emap := s.topom.StatsAll(false)
-	for _, p := range plist {
-		stats.Proxies = append(stats.Proxies, &ProxyStats{
-			Model: p,
-			Stats: smap[p.Token],
-			Error: rpc.ToRemoteError(emap[p.Token]),
-		})
+	stats.Stats.Servers = make(map[string]*ServerStats)
+	for _, g := range stats.GroupList {
+		for _, addr := range g.Servers {
+			stats.Stats.Servers[addr] = s.topom.GetServerStats(addr)
+		}
+	}
+
+	stats.Stats.Proxies = make(map[string]*ProxyStats)
+	for _, p := range stats.ProxyList {
+		stats.Stats.Proxies[p.Token] = s.topom.GetProxyStats(p.Token)
 	}
 	return stats
 }
@@ -181,96 +175,6 @@ func (s *apiServer) Stats(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson(s.newStats())
-	}
-}
-
-func (s *apiServer) XPingAll(params martini.Params) (int, string) {
-	s.RLock()
-	defer s.RUnlock()
-	if err := s.verifyXAuth(params); err != nil {
-		return rpc.ApiResponseError(err)
-	}
-	debug, err := s.parseBoolean(params, "debug")
-	if err != nil {
-		return rpc.ApiResponseError(err)
-	} else {
-		emap := make(map[string]*rpc.RemoteError)
-		for token, err := range s.topom.XPingAll(debug) {
-			emap[token] = rpc.ToRemoteError(err)
-		}
-		return rpc.ApiResponseJson(emap)
-	}
-}
-
-func (s *apiServer) runServerStats(addr string, timeout time.Duration) *ServerStats {
-	var ch = make(chan *ServerStats, 1)
-	go func() (infos map[string]string, err error) {
-		defer func() {
-			ch <- &ServerStats{Infos: infos, Error: rpc.ToRemoteError(err)}
-		}()
-		c, err := s.topom.redisp.GetClient(addr)
-		if err != nil {
-			return nil, err
-		}
-		defer s.topom.redisp.PutClient(c)
-		return c.GetInfo()
-	}()
-
-	select {
-	case stats := <-ch:
-		return stats
-	case <-time.After(timeout):
-		return &ServerStats{}
-	}
-}
-
-func (s *apiServer) runStatsAllServers(params martini.Params) (chan *ServerStats, error) {
-	s.RLock()
-	defer s.RUnlock()
-	if err := s.verifyXAuth(params); err != nil {
-		return nil, err
-	}
-	msecs, err := s.parseInteger(params, "msecs")
-	if err != nil {
-		return nil, err
-	}
-	msecs = utils.MaxInt(msecs, 1)
-	msecs = utils.MinInt(msecs, 1000)
-
-	timeout := time.Millisecond * time.Duration(msecs)
-
-	var ch = make(chan *ServerStats)
-	var wg sync.WaitGroup
-	for _, g := range s.topom.ListGroup() {
-		for i, addr := range g.Servers {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				stats := s.runServerStats(addr, timeout)
-				stats.Address = addr
-				stats.GroupId = g.Id
-				stats.Slave = (i != 0)
-				ch <- stats
-			}()
-		}
-	}
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-	return ch, nil
-}
-
-func (s *apiServer) StatsAllServers(params martini.Params) (int, string) {
-	c, err := s.runStatsAllServers(params)
-	if err != nil {
-		return rpc.ApiResponseError(err)
-	} else {
-		var array []*ServerStats
-		for stats := range c {
-			array = append(array, stats)
-		}
-		return rpc.ApiResponseJson(array)
 	}
 }
 
@@ -592,28 +496,6 @@ func (c *ApiClient) Stats() (*Stats, error) {
 	url := c.encodeURL("/api/stats/%s", c.xauth)
 	stats := &Stats{}
 	if err := rpc.ApiGetJson(url, stats); err != nil {
-		return nil, err
-	}
-	return stats, nil
-}
-
-func (c *ApiClient) XPingAll(debug bool) (map[string]error, error) {
-	url := c.encodeURL("/api/xpingall/%s/%v", c.xauth, debug)
-	var emap map[string]*rpc.RemoteError
-	if err := rpc.ApiGetJson(url, &emap); err != nil {
-		return nil, err
-	}
-	var errs = make(map[string]error)
-	for token, err := range emap {
-		errs[token] = err.ToError()
-	}
-	return errs, nil
-}
-
-func (c *ApiClient) StatsAllServers(msecs int) ([]*ServerStats, error) {
-	url := c.encodeURL("/api/servers/%s/%d", c.xauth, msecs)
-	var stats []*ServerStats
-	if err := rpc.ApiGetJson(url, &stats); err != nil {
 		return nil, err
 	}
 	return stats, nil

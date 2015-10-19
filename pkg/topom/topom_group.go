@@ -36,6 +36,12 @@ func (s *Topom) ListGroup() []*models.Group {
 	return glist
 }
 
+func (s *Topom) GetServerStats(addr string) *ServerStats {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.stats.servers[addr]
+}
+
 func (s *Topom) GetGroup(groupId int) (*models.Group, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -113,6 +119,9 @@ func (s *Topom) RemoveGroup(groupId int) error {
 	}
 
 	delete(s.groups, groupId)
+	for _, addr := range g.Servers {
+		delete(s.stats.servers, addr)
+	}
 
 	log.Infof("[%p] remove group-[%d]:\n%s", s, groupId, g.Encode())
 
@@ -126,20 +135,16 @@ func (s *Topom) GroupAddServer(groupId int, addr string) error {
 		return ErrClosedTopom
 	}
 
+	if _, ok := s.stats.servers[addr]; ok {
+		return errors.Trace(ErrServerExists)
+	}
+
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
 	}
 	if g.Promoting {
 		return errors.Trace(ErrGroupIsPromoting)
-	}
-
-	for _, g := range s.groups {
-		for _, x := range g.Servers {
-			if x == addr {
-				return errors.Trace(ErrServerExists)
-			}
-		}
 	}
 
 	n := &models.Group{
@@ -152,6 +157,7 @@ func (s *Topom) GroupAddServer(groupId int, addr string) error {
 	}
 
 	s.groups[groupId] = n
+	s.stats.servers[addr] = nil
 
 	log.Infof("[%p] update group-[%d]:\n%s", s, groupId, n.Encode())
 
@@ -163,6 +169,10 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 	defer s.mu.Unlock()
 	if s.closed {
 		return ErrClosedTopom
+	}
+
+	if _, ok := s.stats.servers[addr]; !ok {
+		return errors.Trace(ErrServerNotExists)
 	}
 
 	g, err := s.getGroup(groupId)
@@ -198,6 +208,7 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 	}
 
 	s.groups[groupId] = n
+	delete(s.stats.servers, addr)
 
 	log.Infof("[%p] update group-[%d]:\n%s", s, groupId, n.Encode())
 

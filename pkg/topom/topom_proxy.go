@@ -26,6 +26,12 @@ func (s *Topom) ListProxy() []*models.Proxy {
 	return plist
 }
 
+func (s *Topom) GetProxyStats(token string) *ProxyStats {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.stats.proxies[token]
+}
+
 func (s *Topom) getProxyClient(token string) (*proxy.ApiClient, error) {
 	if c := s.clients[token]; c != nil {
 		return c, nil
@@ -75,6 +81,7 @@ func (s *Topom) CreateProxy(addr string) error {
 
 	s.proxies[p.Token] = p
 	s.clients[p.Token] = c
+	s.stats.proxies[p.Token] = nil
 
 	log.Infof("[%p] create proxy-[%d]:\n%s", s, p.Id, p.Encode())
 
@@ -108,6 +115,7 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 
 	delete(s.proxies, token)
 	delete(s.clients, token)
+	delete(s.stats.proxies, token)
 
 	log.Infof("[%p] remove proxy-[%d]:\n%s", s, p.Id, p.Encode())
 
@@ -139,55 +147,21 @@ func (s *Topom) reinitProxy(token string) error {
 	return nil
 }
 
-func (s *Topom) XPingAll(debug bool) map[string]error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		if err := c.XPing(); err != nil {
-			if debug {
-				log.WarnErrorf(err, "[%p] proxy-[%s] call xping failed", s, p.Token)
-			}
-			return errors.Trace(ErrProxyRpcFailed)
-		}
-		return nil
-	})
-}
-
-func (s *Topom) StatsAll(debug bool) (map[string]*proxy.Stats, map[string]error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var lock sync.Mutex
-	var smap = make(map[string]*proxy.Stats)
-	var emap = s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		x, err := c.Stats()
-		if err != nil {
-			if debug {
-				log.WarnErrorf(err, "[%p] proxy-[%s] call stats failed", s, p.Token)
-			}
-			return errors.Trace(ErrProxyRpcFailed)
-		}
-		lock.Lock()
-		smap[p.Token] = x
-		lock.Unlock()
-		return nil
-	})
-	return smap, emap
-}
-
 func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) map[string]error {
 	var lock sync.Mutex
 	var wait sync.WaitGroup
-	var emap = make(map[string]error)
-	for token, p := range s.proxies {
+	var errs = make(map[string]error)
+	for token, _ := range s.proxies {
 		wait.Add(1)
-		go func(p *models.Proxy, c *proxy.ApiClient) {
+		go func(token string, p *models.Proxy, c *proxy.ApiClient) {
 			defer wait.Done()
-			err := fn(p, c)
-			lock.Lock()
-			emap[p.Token] = err
-			lock.Unlock()
-		}(p, s.clients[token])
+			if err := fn(p, c); err != nil {
+				lock.Lock()
+				errs[token] = err
+				lock.Unlock()
+			}
+		}(token, s.proxies[token], s.clients[token])
 	}
 	wait.Wait()
-	return emap
+	return errs
 }

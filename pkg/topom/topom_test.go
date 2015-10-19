@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
@@ -79,16 +80,35 @@ func TestTopomExclusive(x *testing.T) {
 	t2.Close()
 }
 
-func assertErrors(errs map[string]error, expect []string) {
-	var cnt = 0
-	for _, err := range errs {
-		if err != nil {
-			cnt++
+func assertProxyStats(t *Topom, c *ApiClient, fails []string) {
+	wg := t.RefreshProxyStats(time.Second)
+	assert.Must(wg != nil)
+	wg.Wait()
+
+	fn := func(m map[string]*ProxyStats) {
+		for _, token := range fails {
+			stats := m[token]
+			assert.Must(stats != nil && stats.Error != nil)
 		}
+		var cnt int
+		for _, stats := range m {
+			if stats.Error != nil {
+				cnt++
+			}
+		}
+		assert.Must(cnt == len(fails))
 	}
-	assert.Must(len(expect) == cnt)
-	for _, token := range expect {
-		assert.Must(errs[token] != nil)
+	var m = make(map[string]*ProxyStats)
+	for _, p := range t.ListProxy() {
+		stats := t.GetProxyStats(p.Token)
+		assert.Must(stats != nil)
+		m[p.Token] = stats
+	}
+	fn(m)
+	if c != nil {
+		stats, err := c.Stats()
+		assert.Must(err == nil)
+		fn(stats.Stats.Proxies)
 	}
 }
 
@@ -111,13 +131,11 @@ func TestProxyCreate(x *testing.T) {
 	assert.Must(t.CreateProxy(addr2) != nil)
 	assert.Must(len(t.ListProxy()) == 1)
 
-	errs1 := t.XPingAll(false)
-	assertErrors(errs1, []string{})
+	assertProxyStats(t, nil, []string{})
 
 	assert.Must(c1.Shutdown() == nil)
 
-	errs2 := t.XPingAll(false)
-	assertErrors(errs2, []string{p1.GetToken()})
+	assertProxyStats(t, nil, []string{p1.GetToken()})
 }
 
 func TestProxyRemove(x *testing.T) {
@@ -146,20 +164,28 @@ func TestProxyRemove(x *testing.T) {
 	assert.Must(len(t.ListProxy()) == 0)
 }
 
-func assertGroupList(t *Topom, glist ...*models.Group) {
-	var m = make(map[int]*models.Group)
-	for _, x := range t.ListGroup() {
-		m[x.Id] = x
-	}
-	assert.Must(len(m) == len(glist))
-	for _, g := range glist {
-		x := m[g.Id]
-		assert.Must(x != nil)
-		assert.Must(x.Promoting == g.Promoting)
-		assert.Must(len(x.Servers) == len(g.Servers))
-		for i := 0; i < len(x.Servers); i++ {
-			assert.Must(x.Servers[i] == g.Servers[i])
+func assertGroupList(t *Topom, c *ApiClient, glist ...*models.Group) {
+	fn := func(array []*models.Group) {
+		var m = make(map[int]*models.Group)
+		for _, x := range array {
+			m[x.Id] = x
 		}
+		assert.Must(len(m) == len(glist))
+		for _, g := range glist {
+			x := m[g.Id]
+			assert.Must(x != nil)
+			assert.Must(x.Promoting == g.Promoting)
+			assert.Must(len(x.Servers) == len(g.Servers))
+			for i := 0; i < len(x.Servers); i++ {
+				assert.Must(x.Servers[i] == g.Servers[i])
+			}
+		}
+	}
+	fn(t.ListGroup())
+	if c != nil {
+		stats, err := c.Stats()
+		assert.Must(err == nil)
+		fn(stats.GroupList)
 	}
 }
 
@@ -170,7 +196,7 @@ func TestGroupTest1(x *testing.T) {
 	assert.Must(t.CreateGroup(0) != nil)
 	assert.Must(t.CreateGroup(1) == nil)
 	assert.Must(t.CreateGroup(1) != nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:      1,
 			Servers: []string{},
@@ -184,7 +210,7 @@ func TestGroupTest1(x *testing.T) {
 	assert.Must(t.GroupAddServer(1, server0) == nil)
 	assert.Must(t.GroupAddServer(1, server1) == nil)
 	assert.Must(t.GroupAddServer(1, server1) != nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:      1,
 			Servers: []string{server0, server1},
@@ -193,7 +219,7 @@ func TestGroupTest1(x *testing.T) {
 	assert.Must(t.GroupDelServer(1, server0) != nil)
 	assert.Must(t.GroupDelServer(1, server2) != nil)
 	assert.Must(t.GroupDelServer(1, server1) == nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:      1,
 			Servers: []string{server0},
@@ -201,7 +227,7 @@ func TestGroupTest1(x *testing.T) {
 
 	assert.Must(t.CreateGroup(2) == nil)
 	assert.Must(t.GroupAddServer(2, server0) != nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:      1,
 			Servers: []string{server0},
@@ -216,7 +242,7 @@ func TestGroupTest1(x *testing.T) {
 	assert.Must(t.RemoveGroup(1) != nil)
 
 	assert.Must(t.GroupAddServer(2, server0) == nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:      2,
 			Servers: []string{server0},
@@ -234,7 +260,7 @@ func TestGroupTest2(x *testing.T) {
 	assert.Must(t.CreateGroup(1) == nil)
 	assert.Must(t.GroupAddServer(1, server0) == nil)
 	assert.Must(t.GroupAddServer(1, server1) == nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:      1,
 			Servers: []string{server0, server1},
@@ -244,7 +270,7 @@ func TestGroupTest2(x *testing.T) {
 	assert.Must(t.GroupPromoteServer(1, server2) != nil)
 	assert.Must(t.GroupPromoteServer(1, server1) == nil)
 	assert.Must(t.GroupPromoteServer(1, server1) != nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:        1,
 			Servers:   []string{server1, server0},
@@ -256,7 +282,7 @@ func TestGroupTest2(x *testing.T) {
 	assert.Must(t.GroupPromoteCommit(1) == nil)
 	assert.Must(t.GroupDelServer(1, server0) == nil)
 	assert.Must(t.GroupAddServer(1, server2) == nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:      1,
 			Servers: []string{server1, server2},
@@ -275,7 +301,7 @@ func TestGroupTest2(x *testing.T) {
 	assert.Must(c1.Shutdown() == nil)
 
 	assert.Must(t.GroupPromoteServer(1, server2) == nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:        1,
 			Servers:   []string{server2, server1},
@@ -285,7 +311,7 @@ func TestGroupTest2(x *testing.T) {
 	assert.Must(t.GroupPromoteCommit(1) != nil)
 	assert.Must(t.RemoveProxy(p1.GetToken(), true) == nil)
 	assert.Must(t.GroupPromoteCommit(1) == nil)
-	assertGroupList(t,
+	assertGroupList(t, nil,
 		&models.Group{
 			Id:      1,
 			Servers: []string{server2, server1},
@@ -600,7 +626,7 @@ func TestApiXPing(x *testing.T) {
 	assert.Must(c.XPing() != nil)
 }
 
-func TestApiStats(x *testing.T) {
+func TestApiStats1(x *testing.T) {
 	t := openTopom()
 	defer t.Close()
 
@@ -614,26 +640,32 @@ func TestApiStats(x *testing.T) {
 	assert.Must(t.GroupAddServer(1, server0) == nil)
 	assert.Must(t.GroupAddServer(1, server1) == nil)
 
-	stats1, err := c.Stats()
-	assert.Must(err == nil)
-	assertGroupList(t, stats1.Groups...)
+	assertGroupList(t, c,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server0, server1},
+		})
 
 	assert.Must(t.CreateGroup(2) == nil)
 	assert.Must(t.GroupAddServer(2, server2) == nil)
 
-	stats2, err := c.Stats()
-	assert.Must(err == nil)
-	assertGroupList(t, stats2.Groups...)
+	assertGroupList(t, c,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server0, server1},
+		},
+		&models.Group{
+			Id:      2,
+			Servers: []string{server2},
+		})
 }
 
-func TestApiXPingAll(x *testing.T) {
+func TestApiStats2(x *testing.T) {
 	t := openTopom()
 	defer t.Close()
 
 	c := newApiClient(t)
-	errs1, err := c.XPingAll(false)
-	assert.Must(err == nil)
-	assertErrors(errs1, []string{})
+	assertProxyStats(t, c, []string{})
 
 	p1, c1, addr1 := openProxy()
 	defer c1.Shutdown()
@@ -644,40 +676,17 @@ func TestApiXPingAll(x *testing.T) {
 	defer c2.Shutdown()
 	assert.Must(t.CreateProxy(addr2) == nil)
 	assert.Must(len(t.ListProxy()) == 2)
-
-	errs2, err := c.XPingAll(false)
-	assert.Must(err == nil)
-	assertErrors(errs2, []string{})
+	assertProxyStats(t, c, []string{})
 
 	assert.Must(c1.Shutdown() == nil)
-	errs3, err := c.XPingAll(true)
-	assert.Must(err == nil)
-	assertErrors(errs3, []string{p1.GetToken()})
-
-	stats1, err := c.Stats()
-	assert.Must(err == nil)
-	assert.Must(len(stats1.Proxies) == 2)
+	assertProxyStats(t, c, []string{p1.GetToken()})
 
 	assert.Must(c2.Shutdown() == nil)
-	errs4, err := c.XPingAll(true)
-	assert.Must(err == nil)
-	assertErrors(errs4, []string{p1.GetToken(), p2.GetToken()})
-
-	stats2, err := c.Stats()
-	assert.Must(err == nil)
-	assert.Must(len(stats2.Proxies) == 2)
-	assert.Must(stats2.Proxies[0].Error != nil && stats2.Proxies[1].Error != nil)
+	assertProxyStats(t, c, []string{p1.GetToken(), p2.GetToken()})
 
 	assert.Must(t.RemoveProxy(p1.GetToken(), true) == nil)
 	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
-
-	errs5, err := c.XPingAll(false)
-	assert.Must(err == nil)
-	assertErrors(errs5, []string{})
-
-	stats3, err := c.Stats()
-	assert.Must(err == nil)
-	assert.Must(len(stats3.Proxies) == 0)
+	assertProxyStats(t, c, []string{})
 }
 
 func TestApiProxy(x *testing.T) {
@@ -724,9 +733,11 @@ func TestApiGroup(x *testing.T) {
 	assert.Must(c.GroupAddServer(1, server1) == nil)
 	assert.Must(c.GroupDelServer(1, server2) != nil)
 
-	stats1, err := c.Stats()
-	assert.Must(err == nil)
-	assertGroupList(t, stats1.Groups...)
+	assertGroupList(t, c,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server0, server1},
+		})
 }
 
 func TestApiGroupPromote(x *testing.T) {
@@ -749,16 +760,21 @@ func TestApiGroupPromote(x *testing.T) {
 
 	assert.Must(c.GroupPromoteServer(1, server1) == nil)
 
-	stats1, err := c.Stats()
-	assert.Must(err == nil)
-	assertGroupList(t, stats1.Groups...)
+	assertGroupList(t, c,
+		&models.Group{
+			Id:        1,
+			Servers:   []string{server1, server0},
+			Promoting: true,
+		})
 
 	assert.Must(c.GroupAddServer(1, server2) != nil)
 	assert.Must(c.GroupPromoteCommit(1) == nil)
 
-	stats2, err := c.Stats()
-	assert.Must(err == nil)
-	assertGroupList(t, stats2.Groups...)
+	assertGroupList(t, c,
+		&models.Group{
+			Id:      1,
+			Servers: []string{server1, server0},
+		})
 
 	assert.Must(c.GroupDelServer(1, server1) != nil)
 	assert.Must(c.GroupDelServer(1, server0) == nil)
