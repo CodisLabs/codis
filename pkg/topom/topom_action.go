@@ -9,17 +9,15 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-type Action struct {
-	*Topom
-	SlotId int
-}
-
-func (s *Action) Do() error {
-	if err := s.PrepareAction(s.SlotId); err != nil {
+func (s *Topom) ProcessAction(slotId int) error {
+	if err := s.PrepareAction(slotId); err != nil {
 		return err
 	}
 	for {
-		n, err := s.ProcessAction(s.SlotId)
+		for s.GetActionDisabled() {
+			time.Sleep(time.Millisecond * 10)
+		}
+		n, err := s.MigrateSlot(slotId)
 		if err != nil {
 			return err
 		}
@@ -27,18 +25,18 @@ func (s *Action) Do() error {
 		case n > 0:
 			s.NoopInterval()
 		case n < 0:
-			time.Sleep(time.Millisecond)
+			time.Sleep(time.Millisecond * 10)
 		default:
-			return s.CompleteAction(s.SlotId)
+			return s.CompleteAction(slotId)
 		}
 	}
 }
 
-func (s *Topom) NextAction() *Action {
+func (s *Topom) NextActionSlotId() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closed {
-		return nil
+		return -1
 	}
 
 	var x *models.SlotMapping
@@ -50,12 +48,12 @@ func (s *Topom) NextAction() *Action {
 		}
 	}
 	if x == nil {
-		return nil
+		return -1
 	}
-	return &Action{s, x.Id}
+	return x.Id
 }
 
-func (s *Action) NoopInterval() int {
+func (s *Topom) NoopInterval() int {
 	var ms int
 	for {
 		if d := s.GetActionInterval() - ms; d <= 0 {
@@ -235,7 +233,7 @@ func (s *Topom) releaseActionFragment(f *actionFragment) {
 	s.releaseGroupLock(f.Dest.GroupId)
 }
 
-func (s *Topom) ProcessAction(slotId int) (int, error) {
+func (s *Topom) MigrateSlot(slotId int) (int, error) {
 	f, err := s.newActionFragment(slotId)
 	if err != nil {
 		return 0, err
