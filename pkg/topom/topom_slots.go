@@ -41,7 +41,7 @@ func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {
 	return nil, errors.Trace(ErrInvalidSlotId)
 }
 
-func (s *Topom) isGroupLocked(groupId int) bool {
+func (s *Topom) isGroupPromoting(groupId int) bool {
 	if g := s.groups[groupId]; g != nil && g.Promoting {
 		return true
 	}
@@ -53,11 +53,11 @@ func (s *Topom) isSlotLocked(m *models.SlotMapping) bool {
 	case models.ActionNothing:
 		fallthrough
 	case models.ActionPending:
-		return s.isGroupLocked(m.GroupId)
+		return s.isGroupPromoting(m.GroupId)
 	case models.ActionPreparing:
 		return true
 	case models.ActionMigrating:
-		return s.isGroupLocked(m.GroupId) || s.isGroupLocked(m.Action.TargetId)
+		return s.isGroupPromoting(m.GroupId) || s.isGroupPromoting(m.Action.TargetId)
 	}
 	return false
 }

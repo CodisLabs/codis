@@ -5,6 +5,7 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
+	"github.com/wandoulabs/codis/pkg/utils/atomic2"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -20,6 +21,7 @@ var (
 	ErrGroupResyncSlots    = errors.New("group resync slots failed")
 	ErrGroupIsEmpty        = errors.New("group is empty")
 	ErrGroupIsNotEmpty     = errors.New("group is not empty")
+	ErrGroupIsLocked       = errors.New("group is locked")
 
 	ErrServerExists       = errors.New("server already exists")
 	ErrServerNotExists    = errors.New("server does not exist")
@@ -69,6 +71,25 @@ func (s *Topom) getGroupMaster(groupId int) string {
 	return ""
 }
 
+func (s *Topom) acquireGroupLock(groupId int) {
+	if l := s.glocks[groupId]; l != nil {
+		l.Add(1)
+	}
+}
+
+func (s *Topom) releaseGroupLock(groupId int) {
+	if l := s.glocks[groupId]; l != nil {
+		l.Sub(1)
+	}
+}
+
+func (s *Topom) isGroupLocked(groupId int) bool {
+	if l := s.glocks[groupId]; l != nil {
+		return l.Get() != 0
+	}
+	return false
+}
+
 func (s *Topom) CreateGroup(groupId int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -93,6 +114,7 @@ func (s *Topom) CreateGroup(groupId int) error {
 	}
 
 	s.groups[groupId] = g
+	s.glocks[groupId] = &atomic2.Int64{}
 
 	log.Infof("[%p] create group-[%d]:\n%s", s, groupId, g.Encode())
 
@@ -123,6 +145,7 @@ func (s *Topom) RemoveGroup(groupId int) error {
 	}
 
 	delete(s.groups, groupId)
+	delete(s.glocks, groupId)
 
 	log.Infof("[%p] remove group-[%d]:\n%s", s, groupId, g.Encode())
 
@@ -138,6 +161,10 @@ func (s *Topom) GroupAddServer(groupId int, addr string) error {
 
 	if _, ok := s.stats.servers[addr]; ok {
 		return errors.Trace(ErrServerExists)
+	}
+
+	if s.isGroupLocked(groupId) {
+		return errors.Trace(ErrGroupIsLocked)
 	}
 
 	g, err := s.getGroup(groupId)
@@ -174,6 +201,10 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 
 	if _, ok := s.stats.servers[addr]; !ok {
 		return errors.Trace(ErrServerNotExists)
+	}
+
+	if s.isGroupLocked(groupId) {
+		return errors.Trace(ErrGroupIsLocked)
 	}
 
 	g, err := s.getGroup(groupId)
@@ -223,6 +254,10 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string) error {
 		return ErrClosedTopom
 	}
 
+	if s.isGroupLocked(groupId) {
+		return errors.Trace(ErrGroupIsLocked)
+	}
+
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
@@ -266,6 +301,10 @@ func (s *Topom) GroupPromoteCommit(groupId int) error {
 	defer s.mu.Unlock()
 	if s.closed {
 		return ErrClosedTopom
+	}
+
+	if s.isGroupLocked(groupId) {
+		return errors.Trace(ErrGroupIsLocked)
 	}
 
 	g, err := s.getGroup(groupId)

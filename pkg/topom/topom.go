@@ -37,7 +37,9 @@ type Topom struct {
 
 	mappings [models.MaxSlotNum]*models.SlotMapping
 
-	groups  map[int]*models.Group
+	groups map[int]*models.Group
+	glocks map[int]*atomic2.Int64
+
 	proxies map[string]*models.Proxy
 	clients map[string]*proxy.ApiClient
 
@@ -75,6 +77,8 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	s.exit.C = make(chan struct{})
 
 	s.groups = make(map[int]*models.Group)
+	s.glocks = make(map[int]*atomic2.Int64)
+
 	s.proxies = make(map[string]*models.Proxy)
 	s.clients = make(map[string]*proxy.ApiClient)
 
