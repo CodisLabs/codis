@@ -19,6 +19,7 @@ var (
 	ErrGroupIsNotPromoting = errors.New("group is not promoting")
 	ErrGroupResyncSlots    = errors.New("group resync slots failed")
 	ErrGroupIsEmpty        = errors.New("group is empty")
+	ErrGroupIsNotEmpty     = errors.New("group is not empty")
 
 	ErrServerExists       = errors.New("server already exists")
 	ErrServerNotExists    = errors.New("server does not exist")
@@ -108,6 +109,9 @@ func (s *Topom) RemoveGroup(groupId int) error {
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
+	}
+	if len(g.Servers) != 0 {
+		return errors.Trace(ErrGroupIsNotEmpty)
 	}
 	if len(s.getSlotsByGroup(groupId)) != 0 {
 		return errors.Trace(ErrGroupInUse)

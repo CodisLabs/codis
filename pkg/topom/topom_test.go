@@ -238,6 +238,8 @@ func TestGroupTest1(x *testing.T) {
 		})
 
 	assert.Must(t.RemoveGroup(0) != nil)
+	assert.Must(t.RemoveGroup(1) != nil)
+	assert.Must(t.GroupDelServer(1, server0) == nil)
 	assert.Must(t.RemoveGroup(1) == nil)
 	assert.Must(t.RemoveGroup(1) != nil)
 
