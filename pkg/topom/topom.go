@@ -127,6 +127,11 @@ func (s *Topom) setup() error {
 		for _, g := range glist {
 			s.groups[g.Id] = g
 		}
+		for _, g := range glist {
+			for _, addr := range g.Servers {
+				s.stats.servers[addr] = nil
+			}
+		}
 	}
 
 	if plist, err := s.store.ListProxy(); err != nil {
@@ -137,7 +142,9 @@ func (s *Topom) setup() error {
 			c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
 			s.proxies[p.Token] = p
 			s.clients[p.Token] = c
-			s.stats.proxies[p.Token] = nil
+		}
+		for _, p := range plist {
+			s.stats.servers[p.Token] = nil
 		}
 	}
 	return nil
