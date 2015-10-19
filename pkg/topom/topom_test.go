@@ -390,16 +390,16 @@ func TestSlotsTest1(x *testing.T) {
 	assert.Must(t.SlotCreateAction(2, 2) != nil)
 	assert.Must(t.SlotRemoveAction(2) == nil)
 
-	assert.Must(t.prepareAction(2) != nil)
+	assert.Must(t.PrepareAction(2) != nil)
 	assert.Must(t.SlotCreateAction(2, 3) == nil)
 	assertSlotsList(t, nil,
 		&models.Slot{
 			Id: 2,
 		})
 
-	assert.Must(t.completeAction(2) != nil)
+	assert.Must(t.CompleteAction(2) != nil)
 
-	assert.Must(t.prepareAction(2) == nil)
+	assert.Must(t.PrepareAction(2) == nil)
 	assertSlotsList(t, nil,
 		&models.Slot{
 			Id:          2,
@@ -408,7 +408,7 @@ func TestSlotsTest1(x *testing.T) {
 			MigrateFrom: "",
 		})
 
-	assert.Must(t.completeAction(2) == nil)
+	assert.Must(t.CompleteAction(2) == nil)
 	assertSlotsList(t, nil,
 		&models.Slot{
 			Id:          2,
@@ -416,7 +416,7 @@ func TestSlotsTest1(x *testing.T) {
 		})
 
 	assert.Must(t.SlotCreateAction(2, 2) == nil)
-	assert.Must(t.prepareAction(2) == nil)
+	assert.Must(t.PrepareAction(2) == nil)
 	assertSlotsList(t, nil,
 		&models.Slot{
 			Id:          2,
@@ -425,7 +425,7 @@ func TestSlotsTest1(x *testing.T) {
 			MigrateFrom: server2,
 		})
 
-	assert.Must(t.completeAction(2) == nil)
+	assert.Must(t.CompleteAction(2) == nil)
 	assertSlotsList(t, nil,
 		&models.Slot{
 			Id:          2,
@@ -456,8 +456,8 @@ func TestSlotTest2(x *testing.T) {
 	assert.Must(t.SlotCreateAction(1, 1) == nil)
 
 	assert.Must(t.SlotCreateAction(2, 3) == nil)
-	assert.Must(t.prepareAction(2) == nil)
-	assert.Must(t.completeAction(2) == nil)
+	assert.Must(t.PrepareAction(2) == nil)
+	assert.Must(t.CompleteAction(2) == nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1},
 		&models.Slot{
 			Id:          2,
@@ -465,7 +465,7 @@ func TestSlotTest2(x *testing.T) {
 		})
 
 	assert.Must(t.SlotCreateAction(2, 2) == nil)
-	assert.Must(t.prepareAction(2) == nil)
+	assert.Must(t.PrepareAction(2) == nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1},
 		&models.Slot{
 			Id:          2,
@@ -488,7 +488,7 @@ func TestSlotTest2(x *testing.T) {
 		})
 
 	assert.Must(c2.Shutdown() == nil)
-	assert.Must(t.completeAction(2) != nil)
+	assert.Must(t.CompleteAction(2) != nil)
 	assertSlotsList(t, nil,
 		&models.Slot{
 			Id:          2,
@@ -497,10 +497,10 @@ func TestSlotTest2(x *testing.T) {
 			MigrateFrom: server2,
 		})
 
-	assert.Must(t.prepareAction(2) != nil)
+	assert.Must(t.PrepareAction(2) != nil)
 	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
-	assert.Must(t.prepareAction(2) == nil)
-	assert.Must(t.completeAction(2) == nil)
+	assert.Must(t.PrepareAction(2) == nil)
+	assert.Must(t.CompleteAction(2) == nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1},
 		&models.Slot{
 			Id:          2,
@@ -535,8 +535,8 @@ func TestSlotTest3(x *testing.T) {
 	assert.Must(t.SlotCreateAction(1, 1) == nil)
 
 	assert.Must(t.SlotCreateAction(2, 3) == nil)
-	assert.Must(t.prepareAction(2) == nil)
-	assert.Must(t.completeAction(2) == nil)
+	assert.Must(t.PrepareAction(2) == nil)
+	assert.Must(t.CompleteAction(2) == nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1, c2},
 		&models.Slot{
 			Id:          2,
@@ -546,7 +546,7 @@ func TestSlotTest3(x *testing.T) {
 	assert.Must(c2.Shutdown() == nil)
 
 	assert.Must(t.SlotCreateAction(2, 2) == nil)
-	assert.Must(t.prepareAction(2) != nil)
+	assert.Must(t.PrepareAction(2) != nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1},
 		&models.Slot{
 			Id:          2,
@@ -568,7 +568,7 @@ func TestSlotTest3(x *testing.T) {
 		})
 	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
 
-	assert.Must(t.prepareAction(2) == nil)
+	assert.Must(t.PrepareAction(2) == nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1, c3},
 		&models.Slot{
 			Id:          2,
@@ -578,7 +578,7 @@ func TestSlotTest3(x *testing.T) {
 		})
 
 	assert.Must(c3.Shutdown() == nil)
-	assert.Must(t.completeAction(2) != nil)
+	assert.Must(t.CompleteAction(2) != nil)
 	assertSlotsList(t, nil,
 		&models.Slot{
 			Id:          2,
@@ -588,8 +588,8 @@ func TestSlotTest3(x *testing.T) {
 		})
 
 	assert.Must(t.RemoveProxy(p3.GetToken(), true) == nil)
-	assert.Must(t.prepareAction(2) == nil)
-	assert.Must(t.completeAction(2) == nil)
+	assert.Must(t.PrepareAction(2) == nil)
+	assert.Must(t.CompleteAction(2) == nil)
 	assertSlotsList(t, nil,
 		&models.Slot{
 			Id:          2,
@@ -799,11 +799,11 @@ func TestApiAction(x *testing.T) {
 	assert.Must(c.SlotRemoveAction(1) == nil)
 
 	assert.Must(c.SlotCreateAction(1, 1) == nil)
-	assert.Must(t.prepareAction(1) == nil)
+	assert.Must(t.PrepareAction(1) == nil)
 	assert.Must(c.SlotRemoveAction(1) != nil)
 	assert.Must(c.SlotCreateAction(1, 1) != nil)
 
-	assert.Must(t.completeAction(1) == nil)
+	assert.Must(t.CompleteAction(1) == nil)
 	assert.Must(c.SlotRemoveAction(1) != nil)
 	assert.Must(c.SlotCreateAction(1, 1) == nil)
 }

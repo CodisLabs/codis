@@ -10,24 +10,16 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-func (s *Topom) daemonMigration() {
-	for !s.IsClosed() {
-		if slotId := s.nextActionSlotId(); slotId < 0 {
-			time.Sleep(time.Millisecond * 200)
-		} else if err := s.doAction(slotId); err != nil {
-			log.WarnErrorf(err, "[%p] action on slot-[%d] failed", s, slotId)
-			time.Sleep(time.Second * 3)
-		} else {
-			s.noopInterval()
-		}
-	}
+type Action struct {
+	*Topom
+	SlotId int
 }
 
-func (s *Topom) nextActionSlotId() int {
+func (s *Topom) NextAction() *Action {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closed {
-		return -1
+		return nil
 	}
 
 	var x *models.SlotMapping
@@ -39,29 +31,29 @@ func (s *Topom) nextActionSlotId() int {
 		}
 	}
 	if x == nil {
-		return -1
+		return nil
 	}
-	return x.Id
+	return &Action{s, x.Id}
 }
 
-func (s *Topom) doAction(slotId int) error {
-	if err := s.prepareAction(slotId); err != nil {
+func (s *Action) Do() error {
+	if err := s.PrepareAction(s.SlotId); err != nil {
 		return err
 	}
 	for {
-		n, err := s.processAction(slotId)
+		n, err := s.ProcessAction(s.SlotId)
 		if err != nil {
 			return err
 		}
 		if n == 0 {
-			return s.completeAction(slotId)
+			return s.CompleteAction(s.SlotId)
 		} else {
-			s.noopInterval()
+			s.NoopInterval()
 		}
 	}
 }
 
-func (s *Topom) noopInterval() {
+func (s *Action) NoopInterval() {
 	var ms int
 	for {
 		if d := int(s.intvl.Get()) - ms; d <= 0 {
@@ -79,7 +71,7 @@ func (s *Topom) noopInterval() {
 	}
 }
 
-func (s *Topom) prepareAction(slotId int) error {
+func (s *Topom) PrepareAction(slotId int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -149,7 +141,7 @@ func (s *Topom) prepareAction(slotId int) error {
 	return nil
 }
 
-func (s *Topom) processAction(slotId int) (int, error) {
+func (s *Topom) ProcessAction(slotId int) (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closed {
@@ -181,7 +173,7 @@ func (s *Topom) processAction(slotId int) (int, error) {
 	return c.MigrateSlot(slotId, s.getGroupMaster(m.Action.TargetId))
 }
 
-func (s *Topom) completeAction(slotId int) error {
+func (s *Topom) CompleteAction(slotId int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {

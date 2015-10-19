@@ -47,6 +47,7 @@ type Topom struct {
 		servers map[string]*ServerStats
 		proxies map[string]*ProxyStats
 	}
+	start sync.Once
 }
 
 var (
@@ -83,8 +84,6 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	}
 
 	log.Infof("[%p] create new topom:\n%s", s, s.model.Encode())
-
-	go s.daemonMigration()
 
 	go s.serveAdmin()
 
@@ -221,4 +220,45 @@ func (s *Topom) serveAdmin() {
 	case err := <-eh:
 		log.ErrorErrorf(err, "[%p] admin exit on error", s)
 	}
+}
+
+func (s *Topom) StartDaemonRoutines() {
+	s.start.Do(func() {
+		go func() {
+			for {
+				wg := s.RefreshServerStats(time.Second)
+				if wg != nil {
+					wg.Wait()
+				} else {
+					return
+				}
+				time.Sleep(time.Second)
+			}
+		}()
+
+		go func() {
+			for {
+				wg := s.RefreshProxyStats(time.Second)
+				if wg != nil {
+					wg.Wait()
+				} else {
+					return
+				}
+				time.Sleep(time.Second)
+			}
+		}()
+
+		go func() {
+			for !s.IsClosed() {
+				if a := s.NextAction(); a != nil {
+					if err := a.Do(); err != nil {
+						log.WarnErrorf(err, "[%p] action of slot-[%d] failed", s, a.SlotId)
+						time.Sleep(time.Second * 3)
+					}
+				} else {
+					time.Sleep(time.Millisecond * 200)
+				}
+			}
+		}()
+	})
 }
