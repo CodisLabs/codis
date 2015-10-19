@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/binding"
+	"github.com/martini-contrib/render"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/router"
@@ -39,6 +40,7 @@ type apiServer struct {
 func newApiServer(p *Proxy) http.Handler {
 	m := martini.New()
 	m.Use(martini.Recovery())
+	m.Use(render.Renderer())
 	m.Use(func(w http.ResponseWriter, req *http.Request, c martini.Context) {
 		addr := req.Header.Get("X-Real-IP")
 		if addr == "" {
@@ -57,7 +59,11 @@ func newApiServer(p *Proxy) http.Handler {
 	api := &apiServer{proxy: p}
 
 	r := martini.NewRouter()
-	r.Get("/", api.Summary)
+	r.Get("/", func(r render.Render) {
+		r.Redirect("/overview")
+	})
+
+	r.Get("/overview", api.Overview)
 	r.Get("/api/model", api.Model)
 	r.Get("/api/xping/:xauth", api.XPing)
 	r.Get("/api/stats/:xauth", api.Stats)
@@ -86,10 +92,10 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	return nil
 }
 
-func (s *apiServer) Summary() (int, string) {
+func (s *apiServer) Overview() (int, string) {
 	s.RLock()
 	defer s.RUnlock()
-	sum := &struct {
+	overview := &struct {
 		Version string         `json:"version"`
 		Compile string         `json:"compile"`
 		Config  *Config        `json:"config,omitempty"`
@@ -104,7 +110,7 @@ func (s *apiServer) Summary() (int, string) {
 		s.proxy.GetSlots(),
 		s.newStats(),
 	}
-	return rpc.ApiResponseJson(sum)
+	return rpc.ApiResponseJson(overview)
 }
 
 func (s *apiServer) newStats() *Stats {
