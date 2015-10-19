@@ -23,8 +23,6 @@ type Topom struct {
 	model *models.Topom
 	store models.Store
 
-	intvl atomic2.Int64
-
 	exit struct {
 		C chan struct{}
 	}
@@ -48,6 +46,11 @@ type Topom struct {
 		proxies map[string]*ProxyStats
 	}
 	start sync.Once
+
+	action struct {
+		interval atomic2.Int64
+		disabled atomic2.Bool
+	}
 }
 
 var (
@@ -65,7 +68,7 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
 
-	s.intvl.Set(1000)
+	s.action.interval.Set(1000)
 
 	s.redisp = NewRedisPool(config.ProductAuth, time.Minute)
 
@@ -195,14 +198,24 @@ func (s *Topom) IsClosed() bool {
 	return s.closed
 }
 
-func (s *Topom) GetInterval() int {
-	return int(s.intvl.Get())
+func (s *Topom) GetActionInterval() int {
+	return int(s.action.interval.Get())
 }
 
-func (s *Topom) SetInterval(ms int) {
+func (s *Topom) SetActionInterval(ms int) {
 	ms = utils.MaxInt(ms, 0)
 	ms = utils.MinInt(ms, 1000)
-	s.intvl.Set(int64(ms))
+	s.action.interval.Set(int64(ms))
+	log.Infof("[%p] set action interval = %d", s, ms)
+}
+
+func (s *Topom) GetActionDisabled() bool {
+	return s.action.disabled.Get()
+}
+
+func (s *Topom) SetActionDisabled(value bool) {
+	s.action.disabled.Set(value)
+	log.Infof("[%p] set action disabled = %d", s, value)
 }
 
 func (s *Topom) serveAdmin() {

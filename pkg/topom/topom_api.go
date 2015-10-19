@@ -22,15 +22,19 @@ type Stats struct {
 	Online bool `json:"online"`
 	Closed bool `json:"closed"`
 
-	Intvl     int                   `json:"action_intvl"`
-	Slots     []*models.SlotMapping `json:"slots,omitempty"`
-	GroupList []*models.Group       `json:"group_list,omitempty"`
-	ProxyList []*models.Proxy       `json:"proxy_list:omitempty"`
+	GroupList []*models.Group `json:"group_list,omitempty"`
+	ProxyList []*models.Proxy `json:"proxy_list:omitempty"`
 
+	Slots []*models.SlotMapping `json:"slots,omitempty"`
 	Stats struct {
 		Servers map[string]*ServerStats `json:"servers,omitempty"`
 		Proxies map[string]*ProxyStats  `json:"proxies,omitempty"`
 	} `json:"stats"`
+
+	Action struct {
+		Interval int  `json:"interval"`
+		Disabled bool `json:"disabled"`
+	} `json:action`
 }
 
 type apiServer struct {
@@ -87,7 +91,8 @@ func newApiServer(t *Topom) http.Handler {
 
 	r.Put("/api/shutdown/:xauth", api.Shutdown)
 
-	r.Put("/api/set/interval/:xauth/:intvl", api.SetInterval)
+	r.Put("/api/set/action/interval/:xauth/:value", api.SetActionInterval)
+	r.Put("/api/set/action/disabled/:xauth/:value", api.SetActionDisabled)
 
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
@@ -132,12 +137,14 @@ func (s *apiServer) newStats() *Stats {
 
 	stats.Online = s.topom.IsOnline()
 	stats.Closed = s.topom.IsClosed()
-	stats.Intvl = s.topom.GetInterval()
 
-	stats.Slots = s.topom.GetSlotMappings()
 	stats.GroupList = s.topom.ListGroup()
 	stats.ProxyList = s.topom.ListProxy()
 
+	stats.Action.Interval = s.topom.GetActionInterval()
+	stats.Action.Disabled = s.topom.GetActionDisabled()
+
+	stats.Slots = s.topom.GetSlotMappings()
 	stats.Stats.Servers = make(map[string]*ServerStats)
 	for _, g := range stats.GroupList {
 		for _, addr := range g.Servers {
@@ -442,17 +449,32 @@ func (s *apiServer) Shutdown(params martini.Params) (int, string) {
 	}
 }
 
-func (s *apiServer) SetInterval(params martini.Params) (int, string) {
+func (s *apiServer) SetActionInterval(params martini.Params) (int, string) {
 	s.RLock()
 	defer s.RUnlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	intvl, err := s.parseInteger(params, "intvl")
+	value, err := s.parseInteger(params, "value")
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		s.topom.SetInterval(intvl)
+		s.topom.SetActionInterval(value)
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) SetActionDisabled(params martini.Params) (int, string) {
+	s.RLock()
+	defer s.RUnlock()
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	value, err := s.parseBoolean(params, "value")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		s.topom.SetActionDisabled(value)
 		return rpc.ApiResponseJson("OK")
 	}
 }
@@ -561,7 +583,7 @@ func (c *ApiClient) Shutdown() error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) SetInterval(intvl int) error {
-	url := c.encodeURL("/api/set/interval/%s/%d", c.xauth, intvl)
+func (c *ApiClient) SetActionInterval(value int) error {
+	url := c.encodeURL("/api/set/action/interval/%s/%d", c.xauth, value)
 	return rpc.ApiPutJson(url, nil, nil)
 }

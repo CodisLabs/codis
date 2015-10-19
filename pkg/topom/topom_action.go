@@ -53,17 +53,17 @@ func (s *Action) Do() error {
 	}
 }
 
-func (s *Action) NoopInterval() {
+func (s *Action) NoopInterval() int {
 	var ms int
 	for {
-		if d := int(s.intvl.Get()) - ms; d <= 0 {
-			return
+		if d := s.GetActionInterval() - ms; d <= 0 {
+			return ms
 		} else {
 			d = utils.MinInt(d, 50)
 			time.Sleep(time.Millisecond * time.Duration(d))
 			select {
 			case <-s.exit.C:
-				return
+				return ms
 			default:
 				ms += d
 			}
