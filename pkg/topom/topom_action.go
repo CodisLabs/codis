@@ -1,7 +1,6 @@
 package topom
 
 import (
-	"math"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -13,6 +12,26 @@ import (
 type Action struct {
 	*Topom
 	SlotId int
+}
+
+func (s *Action) Do() error {
+	if err := s.PrepareAction(s.SlotId); err != nil {
+		return err
+	}
+	for {
+		n, err := s.ProcessAction(s.SlotId)
+		if err != nil {
+			return err
+		}
+		switch {
+		case n > 0:
+			s.NoopInterval()
+		case n < 0:
+			time.Sleep(time.Millisecond)
+		default:
+			return s.CompleteAction(s.SlotId)
+		}
+	}
 }
 
 func (s *Topom) NextAction() *Action {
@@ -34,23 +53,6 @@ func (s *Topom) NextAction() *Action {
 		return nil
 	}
 	return &Action{s, x.Id}
-}
-
-func (s *Action) Do() error {
-	if err := s.PrepareAction(s.SlotId); err != nil {
-		return err
-	}
-	for {
-		n, err := s.ProcessAction(s.SlotId)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			return s.CompleteAction(s.SlotId)
-		} else {
-			s.NoopInterval()
-		}
-	}
 }
 
 func (s *Action) NoopInterval() int {
@@ -143,39 +145,6 @@ func (s *Topom) PrepareAction(slotId int) error {
 	return nil
 }
 
-func (s *Topom) ProcessAction(slotId int) (int, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.closed {
-		return 0, ErrClosedTopom
-	}
-
-	m, err := s.getSlotMapping(slotId)
-	if err != nil {
-		return 0, err
-	}
-	if m.Action.State != models.ActionMigrating {
-		return 0, errors.Trace(ErrActionIsNotMigrating)
-	}
-
-	if s.isSlotLocked(m) {
-		return int(math.MaxInt32), nil
-	}
-
-	master := s.getGroupMaster(m.GroupId)
-	if master == "" {
-		return 0, nil
-	}
-
-	c, err := s.redisp.GetClient(master)
-	if err != nil {
-		return 0, err
-	}
-	defer s.redisp.PutClient(c)
-
-	return c.MigrateSlot(slotId, s.getGroupMaster(m.Action.TargetId))
-}
-
 func (s *Topom) CompleteAction(slotId int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -220,4 +189,70 @@ func (s *Topom) CompleteAction(slotId int) error {
 	log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
 
 	return nil
+}
+
+type actionFragment struct {
+	From, Dest struct {
+		Master  string
+		GroupId int
+	}
+	Locked bool
+}
+
+func (s *Topom) newActionFragment(slotId int) (*actionFragment, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closed {
+		return nil, ErrClosedTopom
+	}
+
+	m, err := s.getSlotMapping(slotId)
+	if err != nil {
+		return nil, err
+	}
+	if m.Action.State != models.ActionMigrating {
+		return nil, errors.Trace(ErrActionIsNotMigrating)
+	}
+
+	f := &actionFragment{
+		Locked: s.isSlotLocked(m),
+	}
+	f.From.Master = s.getGroupMaster(m.GroupId)
+	f.From.GroupId = m.GroupId
+	f.Dest.Master = s.getGroupMaster(m.Action.TargetId)
+	f.Dest.GroupId = m.Action.TargetId
+
+	s.acquireGroupLock(f.From.GroupId)
+	s.acquireGroupLock(f.Dest.GroupId)
+	return f, nil
+}
+
+func (s *Topom) releaseActionFragment(f *actionFragment) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	s.releaseGroupLock(f.From.GroupId)
+	s.releaseGroupLock(f.Dest.GroupId)
+}
+
+func (s *Topom) ProcessAction(slotId int) (int, error) {
+	f, err := s.newActionFragment(slotId)
+	if err != nil {
+		return 0, err
+	}
+	defer s.releaseActionFragment(f)
+
+	if f.Locked {
+		return -1, nil
+	}
+	if f.From.Master == "" {
+		return 0, nil
+	}
+
+	c, err := s.redisp.GetClient(f.From.Master)
+	if err != nil {
+		return 0, err
+	}
+	defer s.redisp.PutClient(c)
+	return c.MigrateSlot(slotId, f.Dest.Master)
 }

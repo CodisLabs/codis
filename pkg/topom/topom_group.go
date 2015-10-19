@@ -71,6 +71,13 @@ func (s *Topom) getGroupMaster(groupId int) string {
 	return ""
 }
 
+func (s *Topom) isGroupPromoting(groupId int) bool {
+	if g := s.groups[groupId]; g != nil {
+		return g.Promoting
+	}
+	return false
+}
+
 func (s *Topom) acquireGroupLock(groupId int) {
 	if l := s.glocks[groupId]; l != nil {
 		l.Add(1)
