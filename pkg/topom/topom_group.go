@@ -80,13 +80,17 @@ func (s *Topom) isGroupPromoting(groupId int) bool {
 
 func (s *Topom) acquireGroupLock(groupId int) {
 	if l := s.glocks[groupId]; l != nil {
-		l.Add(1)
+		if n := l.Incr(); n > 128 {
+			log.Warnf("[%p] glocks-[%d] incr = %d", s, groupId, n)
+		}
 	}
 }
 
 func (s *Topom) releaseGroupLock(groupId int) {
 	if l := s.glocks[groupId]; l != nil {
-		l.Sub(1)
+		if n := l.Decr(); n < 0 {
+			log.Panicf("[%p] glocks-[%d] decr = %d", s, groupId, n)
+		}
 	}
 }
 
