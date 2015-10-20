@@ -15,7 +15,6 @@ var (
 
 	ErrGroupExists         = errors.New("group already exists")
 	ErrGroupNotExists      = errors.New("group does not exist")
-	ErrGroupInUse          = errors.New("group is still in use")
 	ErrGroupIsPromoting    = errors.New("group is promoting")
 	ErrGroupIsNotPromoting = errors.New("group is not promoting")
 	ErrGroupResyncSlots    = errors.New("group resync slots failed")
@@ -25,7 +24,7 @@ var (
 
 	ErrServerExists       = errors.New("server already exists")
 	ErrServerNotExists    = errors.New("server does not exist")
-	ErrServerInUse        = errors.New("server is still in use")
+	ErrServerIsBusy       = errors.New("server is still busy")
 	ErrServerPromoteAgain = errors.New("server is already master")
 )
 
@@ -81,7 +80,7 @@ func (s *Topom) isGroupPromoting(groupId int) bool {
 func (s *Topom) acquireGroupLock(groupId int) {
 	if l := s.glocks[groupId]; l != nil {
 		if n := l.Incr(); n > 128 {
-			log.Warnf("[%p] glocks-[%d] incr = %d", s, groupId, n)
+			log.Warnf("[%p] glocks-[%d] increase to %d", s, groupId, n)
 		}
 	}
 }
@@ -89,7 +88,7 @@ func (s *Topom) acquireGroupLock(groupId int) {
 func (s *Topom) releaseGroupLock(groupId int) {
 	if l := s.glocks[groupId]; l != nil {
 		if n := l.Decr(); n < 0 {
-			log.Panicf("[%p] glocks-[%d] decr = %d", s, groupId, n)
+			log.Panicf("[%p] glocks-[%d] decrease to %d", s, groupId, n)
 		}
 	}
 }
@@ -145,9 +144,6 @@ func (s *Topom) RemoveGroup(groupId int) error {
 	}
 	if len(g.Servers) != 0 {
 		return errors.Trace(ErrGroupIsNotEmpty)
-	}
-	if len(s.getSlotsByGroup(groupId)) != 0 {
-		return errors.Trace(ErrGroupInUse)
 	}
 
 	if err := s.store.RemoveGroup(groupId); err != nil {
@@ -237,7 +233,7 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 	}
 	if addr == g.Servers[0] {
 		if len(g.Servers) != 1 || len(s.getSlotsByGroup(groupId)) != 0 {
-			return errors.Trace(ErrServerInUse)
+			return errors.Trace(ErrServerIsBusy)
 		}
 	}
 

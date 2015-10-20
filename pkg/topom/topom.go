@@ -99,7 +99,7 @@ func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
 
 func (s *Topom) setup() error {
 	if !utils.IsValidName(s.config.ProductName) {
-		return errors.New("invalid product name, empty or using invalid character")
+		return errors.New("invalid product name")
 	}
 
 	if l, err := net.Listen("tcp", s.config.AdminAddr); err != nil {

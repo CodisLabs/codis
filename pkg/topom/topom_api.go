@@ -534,7 +534,7 @@ func (c *ApiClient) ReinitProxy(token string) error {
 }
 
 func (c *ApiClient) RemoveProxy(token string, force bool) error {
-	url := c.encodeURL("/api/proxy/remove/%s/%s/%v", c.xauth, token, force)
+	url := c.encodeURL("/api/proxy/remove/%s/%s/%t", c.xauth, token, force)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -585,5 +585,10 @@ func (c *ApiClient) Shutdown() error {
 
 func (c *ApiClient) SetActionInterval(value int) error {
 	url := c.encodeURL("/api/set/action/interval/%s/%d", c.xauth, value)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) SetActionDisabled(value bool) error {
+	url := c.encodeURL("/api/set/action/disabled/%s/%t", c.xauth, value)
 	return rpc.ApiPutJson(url, nil, nil)
 }

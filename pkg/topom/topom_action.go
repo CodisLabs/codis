@@ -55,20 +55,16 @@ func (s *Topom) NextActionSlotId() int {
 
 func (s *Topom) NoopInterval() int {
 	var ms int
-	for {
+	for !s.IsClosed() {
 		if d := s.GetActionInterval() - ms; d <= 0 {
 			return ms
 		} else {
 			d = utils.MinInt(d, 50)
 			time.Sleep(time.Millisecond * time.Duration(d))
-			select {
-			case <-s.exit.C:
-				return ms
-			default:
-				ms += d
-			}
+			ms += d
 		}
 	}
+	return ms
 }
 
 func (s *Topom) PrepareAction(slotId int) error {
@@ -189,15 +185,15 @@ func (s *Topom) CompleteAction(slotId int) error {
 	return nil
 }
 
-type actionFragment struct {
+type actionTask struct {
 	From, Dest struct {
 		Master  string
 		GroupId int
 	}
-	Locked bool
+	Ignore bool
 }
 
-func (s *Topom) newActionFragment(slotId int) (*actionFragment, error) {
+func (s *Topom) newActionTask(slotId int) (*actionTask, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closed {
@@ -212,45 +208,45 @@ func (s *Topom) newActionFragment(slotId int) (*actionFragment, error) {
 		return nil, errors.Trace(ErrActionIsNotMigrating)
 	}
 
-	f := &actionFragment{
-		Locked: s.isSlotLocked(m),
+	t := &actionTask{
+		Ignore: s.isSlotLocked(m),
 	}
-	f.From.Master = s.getGroupMaster(m.GroupId)
-	f.From.GroupId = m.GroupId
-	f.Dest.Master = s.getGroupMaster(m.Action.TargetId)
-	f.Dest.GroupId = m.Action.TargetId
+	t.From.Master = s.getGroupMaster(m.GroupId)
+	t.From.GroupId = m.GroupId
+	t.Dest.Master = s.getGroupMaster(m.Action.TargetId)
+	t.Dest.GroupId = m.Action.TargetId
 
-	s.acquireGroupLock(f.From.GroupId)
-	s.acquireGroupLock(f.Dest.GroupId)
-	return f, nil
+	s.acquireGroupLock(t.From.GroupId)
+	s.acquireGroupLock(t.Dest.GroupId)
+	return t, nil
 }
 
-func (s *Topom) releaseActionFragment(f *actionFragment) {
+func (s *Topom) releaseActionTask(t *actionTask) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	s.releaseGroupLock(f.From.GroupId)
-	s.releaseGroupLock(f.Dest.GroupId)
+	s.releaseGroupLock(t.From.GroupId)
+	s.releaseGroupLock(t.Dest.GroupId)
 }
 
 func (s *Topom) MigrateSlot(slotId int) (int, error) {
-	f, err := s.newActionFragment(slotId)
+	t, err := s.newActionTask(slotId)
 	if err != nil {
 		return 0, err
 	}
-	defer s.releaseActionFragment(f)
+	defer s.releaseActionTask(t)
 
-	if f.Locked {
+	if t.Ignore {
 		return -1, nil
 	}
-	if f.From.Master == "" {
+	if t.From.Master == "" {
 		return 0, nil
 	}
 
-	c, err := s.redisp.GetClient(f.From.Master)
+	c, err := s.redisp.GetClient(t.From.Master)
 	if err != nil {
 		return 0, err
 	}
 	defer s.redisp.PutClient(c)
-	return c.MigrateSlot(slotId, f.Dest.Master)
+	return c.MigrateSlot(slotId, t.Dest.Master)
 }
