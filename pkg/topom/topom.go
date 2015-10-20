@@ -115,6 +115,7 @@ func (s *Topom) setup() error {
 	}
 
 	if err := s.store.Acquire(s.config.ProductName, s.model); err != nil {
+		log.WarnErrorf(err, "acquire lock for %s failed", s.config.ProductName)
 		return err
 	} else {
 		s.online = true
@@ -124,6 +125,9 @@ func (s *Topom) setup() error {
 		if m, err := s.store.LoadSlotMapping(i); err != nil {
 			return err
 		} else {
+			if m == nil {
+				m = &models.SlotMapping{Id: i}
+			}
 			s.mappings[i] = m
 		}
 	}
@@ -173,8 +177,12 @@ func (s *Topom) Close() error {
 
 	if !s.online {
 		return nil
+	}
+	if err := s.store.Release(); err != nil {
+		log.WarnErrorf(err, "release lock for %s failed", s.config.ProductName)
+		return err
 	} else {
-		return s.store.Release()
+		return nil
 	}
 }
 

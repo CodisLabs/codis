@@ -854,16 +854,15 @@ func (s *memStore) LoadSlotMapping(slotId int) (*models.SlotMapping, error) {
 	defer s.mu.Unlock()
 
 	var k = fmt.Sprintf("slot-%04d", slotId)
-	var m = &models.SlotMapping{}
 
 	if b, ok := s.data[k]; ok {
-		if err := json.Unmarshal(b, m); err != nil {
+		slot := &models.SlotMapping{}
+		if err := json.Unmarshal(b, slot); err != nil {
 			return nil, errors.Trace(err)
 		}
-	} else {
-		m.Id = slotId
+		return slot, nil
 	}
-	return m, nil
+	return nil, nil
 }
 
 func (s *memStore) SaveSlotMapping(slotId int, slot *models.SlotMapping) error {
