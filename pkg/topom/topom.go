@@ -60,7 +60,7 @@ var (
 	ErrUpdateStore = errors.New("update store failed")
 )
 
-func NewWithConfig(store models.Store, config *Config) (*Topom, error) {
+func New(store models.Store, config *Config) (*Topom, error) {
 	s := &Topom{config: config, store: store}
 	s.xauth = rpc.NewXAuth(config.ProductName, config.ProductAuth)
 	s.model = &models.Topom{

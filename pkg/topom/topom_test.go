@@ -18,7 +18,7 @@ import (
 func openTopom() *Topom {
 	config := newTopomConfig()
 
-	t, err := NewWithConfig(newMemStore(), config)
+	t, err := New(newMemStore(), config)
 	assert.MustNoError(err)
 	return t
 }
@@ -66,15 +66,15 @@ func TestTopomExclusive(x *testing.T) {
 
 	config := newTopomConfig()
 
-	t1, err := NewWithConfig(store, config)
+	t1, err := New(store, config)
 	assert.Must(err == nil)
 
-	_, err = NewWithConfig(store, config)
+	_, err = New(store, config)
 	assert.Must(err != nil)
 
 	t1.Close()
 
-	t2, err := NewWithConfig(store, config)
+	t2, err := New(store, config)
 	assert.Must(err == nil)
 
 	t2.Close()

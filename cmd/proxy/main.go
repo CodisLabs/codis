@@ -105,23 +105,20 @@ Options:
 
 	s, err := proxy.New(config)
 	if err != nil {
-		log.PanicErrorf(err, "create proxy config file failed\n%s\n", config)
+		log.PanicErrorf(err, "create proxy with config file failed\n%s\n", config)
 	}
 	defer s.Close()
 
 	log.Infof("create proxy with config\n%s\n", config)
 
-	for {
+	for !s.IsClosed() && !s.IsOnline() {
+		log.Infof("[%p] proxy waiting online ...", s)
 		time.Sleep(time.Second)
-		if s.IsOnline() {
-			continue
-		}
-		if s.IsClosed() {
-			log.Infof("[%p] proxy exiting ...", s)
-			time.Sleep(time.Second)
-			return
-		} else {
-			log.Infof("[%p] proxy waiting online ...", s)
-		}
 	}
+
+	for !s.IsClosed() {
+		time.Sleep(time.Second)
+	}
+
+	log.Infof("[%p] proxy exiting ...", s)
 }
