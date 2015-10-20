@@ -23,7 +23,7 @@ type Stats struct {
 	Closed bool `json:"closed"`
 
 	GroupList []*models.Group `json:"group_list,omitempty"`
-	ProxyList []*models.Proxy `json:"proxy_list:omitempty"`
+	ProxyList []*models.Proxy `json:"proxy_list,omitempty"`
 
 	Slots []*models.SlotMapping `json:"slots,omitempty"`
 	Stats struct {
