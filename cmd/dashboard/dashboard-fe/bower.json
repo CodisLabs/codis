@@ -1,0 +1,12 @@
+{
+  "name": "codis-web",
+  "private": true,
+  "dependencies": {
+    "angular" : "~1.2.x",
+    "angular-bootstrap" : "latest",
+    "bootstrap" : "latest",
+    "angular-resource" : "latest",
+    "highcharts-ng" : "latest",
+    "highcharts" : "latest"
+  }
+}

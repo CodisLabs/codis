@@ -59,11 +59,8 @@ func newApiServer(p *Proxy) http.Handler {
 	api := &apiServer{proxy: p}
 
 	r := martini.NewRouter()
-	r.Get("/", func(r render.Render) {
-		r.Redirect("/overview")
-	})
-
 	r.Get("/overview", api.Overview)
+
 	r.Get("/api/model", api.Model)
 	r.Get("/api/xping/:xauth", api.XPing)
 	r.Get("/api/stats/:xauth", api.Stats)

@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/go-martini/martini"
+	"github.com/martini-contrib/cors"
 	"github.com/martini-contrib/render"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -46,6 +49,7 @@ func newApiServer(t *Topom) http.Handler {
 	m := martini.New()
 	m.Use(martini.Recovery())
 	m.Use(render.Renderer())
+
 	m.Use(func(w http.ResponseWriter, req *http.Request, c martini.Context) {
 		addr := req.Header.Get("X-Real-IP")
 		if addr == "" {
@@ -64,11 +68,32 @@ func newApiServer(t *Topom) http.Handler {
 	api := &apiServer{topom: t}
 
 	r := martini.NewRouter()
-	r.Get("/", func(r render.Render) {
-		r.Redirect("/overview")
-	})
-
 	r.Get("/overview", api.Overview)
+
+	if binpath, err := filepath.Abs(filepath.Dir(os.Args[0])); err != nil {
+		log.WarnErrorf(err, "obtain binpath failed")
+	} else if info, err := os.Stat(filepath.Join(binpath, "assets")); err != nil || !info.IsDir() {
+		log.WarnErrorf(err, "assets doesn't exist or isn't a directory")
+	} else {
+		m.Use(martini.Static(filepath.Join(binpath, "assets/statics"), martini.StaticOptions{SkipLogging: true}))
+		m.Use(render.Renderer(render.Options{
+			Directory:  filepath.Join(binpath, "assets/template"),
+			Extensions: []string{".tmpl", ".html"},
+			Charset:    "UTF-8",
+			IndentJSON: true,
+		}))
+		m.Use(cors.Allow(&cors.Options{
+			AllowOrigins:     []string{"*"},
+			AllowMethods:     []string{"GET", "PUT"},
+			AllowHeaders:     []string{"Origin", "x-requested-with", "Content-Type", "Content-Range", "Content-Disposition", "Content-Description"},
+			ExposeHeaders:    []string{"Content-Length"},
+			AllowCredentials: false,
+		}))
+		r.Get("/", func(r render.Render) {
+			r.Redirect("/admin")
+		})
+	}
+
 	r.Get("/api/model", api.Model)
 	r.Get("/api/xping/:xauth", api.XPing)
 	r.Get("/api/stats/:xauth", api.Stats)
