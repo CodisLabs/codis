@@ -98,10 +98,10 @@ func (s *apiServer) Overview() (int, string) {
 	overview := &struct {
 		Version string         `json:"version"`
 		Compile string         `json:"compile"`
-		Config  *Config        `json:"config,omitempty"`
-		Model   *models.Proxy  `json:"model,omitempty"`
-		Slots   []*models.Slot `json:"slots,omitempty"`
-		Stats   *Stats         `json:"stats,omitempty"`
+		Config  *Config        `json:"config"`
+		Model   *models.Proxy  `json:"model"`
+		Slots   []*models.Slot `json:"slots"`
+		Stats   *Stats         `json:"stats"`
 	}{
 		utils.Version,
 		utils.Compile,

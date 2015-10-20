@@ -22,19 +22,19 @@ type Stats struct {
 	Online bool `json:"online"`
 	Closed bool `json:"closed"`
 
-	GroupList []*models.Group `json:"group_list,omitempty"`
-	ProxyList []*models.Proxy `json:"proxy_list,omitempty"`
+	GroupList []*models.Group `json:"group_list"`
+	ProxyList []*models.Proxy `json:"proxy_list"`
 
-	Slots []*models.SlotMapping `json:"slots,omitempty"`
+	Slots []*models.SlotMapping `json:"slots"`
 	Stats struct {
-		Servers map[string]*ServerStats `json:"servers,omitempty"`
-		Proxies map[string]*ProxyStats  `json:"proxies,omitempty"`
+		Servers map[string]*ServerStats `json:"servers"`
+		Proxies map[string]*ProxyStats  `json:"proxies"`
 	} `json:"stats"`
 
 	Action struct {
 		Interval int  `json:"interval"`
 		Disabled bool `json:"disabled"`
-	} `json:action`
+	} `json:"action"`
 }
 
 type apiServer struct {
@@ -119,9 +119,9 @@ func (s *apiServer) Overview() (int, string) {
 	overview := &struct {
 		Version string        `json:"version"`
 		Compile string        `json:"compile"`
-		Config  *Config       `json:"config,omitempty"`
-		Model   *models.Topom `json:"model,omitempty"`
-		Stats   *Stats        `json:"stats,omitempty"`
+		Config  *Config       `json:"config"`
+		Model   *models.Topom `json:"model"`
+		Stats   *Stats        `json:"stats"`
 	}{
 		utils.Version,
 		utils.Compile,
