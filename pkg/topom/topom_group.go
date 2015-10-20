@@ -170,10 +170,6 @@ func (s *Topom) GroupAddServer(groupId int, addr string) error {
 		return errors.Trace(ErrServerExists)
 	}
 
-	if s.isGroupLocked(groupId) {
-		return errors.Trace(ErrGroupIsLocked)
-	}
-
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
@@ -208,10 +204,6 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 
 	if _, ok := s.stats.servers[addr]; !ok {
 		return errors.Trace(ErrServerNotExists)
-	}
-
-	if s.isGroupLocked(groupId) {
-		return errors.Trace(ErrGroupIsLocked)
 	}
 
 	g, err := s.getGroup(groupId)
