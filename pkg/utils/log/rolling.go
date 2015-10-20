@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -48,6 +48,12 @@ func (r *rollingFile) roll() error {
 	}
 	r.fileFrag = suffix
 	r.filePath = fmt.Sprintf("%s.%s", r.basePath, r.fileFrag)
+
+	if dir, _ := filepath.Split(r.basePath); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0777); err != nil {
+			return errors.Trace(err)
+		}
+	}
 
 	f, err := os.OpenFile(r.filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err != nil {
@@ -95,7 +101,7 @@ func (r *rollingFile) Write(b []byte) (int, error) {
 }
 
 func NewRollingFile(basePath string, rolling string) (io.WriteCloser, error) {
-	if _, file := path.Split(basePath); file == "" {
+	if _, file := filepath.Split(basePath); file == "" {
 		return nil, errors.Errorf("invalid base-path = %s, file name is required", basePath)
 	}
 	return &rollingFile{basePath: basePath, rolling: rolling}, nil
