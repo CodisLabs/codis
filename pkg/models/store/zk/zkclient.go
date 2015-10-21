@@ -8,7 +8,6 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/wandoulabs/codis/pkg/utils/errors"
-	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var ErrClosedZkClient = errors.New("use of closed zk client")
@@ -21,13 +20,18 @@ type ZkClient struct {
 
 	dialAt time.Time
 	closed bool
+
+	logger *zkLogger
 }
 
-type logger struct {
+type zkLogger struct {
+	logfn func(format string, v ...interface{})
 }
 
-func (l *logger) Printf(format string, v ...interface{}) {
-	log.Infof(format, v...)
+func (l *zkLogger) Printf(format string, v ...interface{}) {
+	if l != nil && l.logfn != nil {
+		l.logfn(format, v...)
+	}
 }
 
 func NewClient(addr []string) (*ZkClient, error) {
@@ -50,13 +54,20 @@ func (c *ZkClient) reset() error {
 		c.conn.Close()
 	}
 	c.conn = conn
-	conn.SetLogger(&logger{})
+	c.conn.SetLogger(c.logger)
 
 	go func() {
 		for _ = range events {
 		}
 	}()
 	return nil
+}
+
+func (c *ZkClient) SetLogger(logfn func(format string, v ...interface{})) {
+	c.Lock()
+	defer c.Unlock()
+	c.logger = &zkLogger{logfn}
+	c.conn.SetLogger(c.logger)
 }
 
 func (c *ZkClient) Close() error {

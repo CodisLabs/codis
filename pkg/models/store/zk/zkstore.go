@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var (
@@ -31,6 +32,9 @@ func NewStore(addr []string) (*ZkStore, error) {
 	if err != nil {
 		return nil, err
 	}
+	client.SetLogger(func(format string, v ...interface{}) {
+		log.Infof(format, v...)
+	})
 	return &ZkStore{
 		client: client,
 	}, nil
