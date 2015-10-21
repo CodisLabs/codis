@@ -116,7 +116,7 @@ func (s *Topom) setup() error {
 
 	if err := s.store.Acquire(s.config.ProductName, s.model); err != nil {
 		log.WarnErrorf(err, "acquire lock for %s failed", s.config.ProductName)
-		return err
+		return errors.Trace(ErrUpdateStore)
 	} else {
 		s.online = true
 	}
@@ -180,7 +180,7 @@ func (s *Topom) Close() error {
 	}
 	if err := s.store.Release(); err != nil {
 		log.WarnErrorf(err, "release lock for %s failed", s.config.ProductName)
-		return err
+		return errors.Trace(ErrUpdateStore)
 	} else {
 		return nil
 	}
