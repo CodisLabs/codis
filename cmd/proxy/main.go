@@ -14,6 +14,7 @@ import (
 	"github.com/docopt/docopt-go"
 
 	"github.com/wandoulabs/codis/pkg/proxy"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -29,6 +30,7 @@ func main() {
 	const usage = `
 Usage:
 	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--ulimit=NLIMIT]
+	codis-proxy version
 
 Options:
 	--ncpu=N                    set runtime.GOMAXPROCS to N, default is runtime.NumCPU().
@@ -41,6 +43,12 @@ Options:
 	d, err := docopt.Parse(usage, nil, true, "", false)
 	if err != nil {
 		log.PanicError(err, "parse arguments failed")
+	}
+
+	if v, ok := d["version"].(bool); ok && v {
+		fmt.Println("version:", utils.Version)
+		fmt.Println("compile:", utils.Compile)
+		return
 	}
 
 	if s, ok := d["--ulimit"].(string); ok && s != "" {
