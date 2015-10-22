@@ -178,7 +178,7 @@ func (s *Topom) Close() error {
 	if !s.online {
 		return nil
 	}
-	if err := s.store.Release(); err != nil {
+	if err := s.store.Release(false); err != nil {
 		log.WarnErrorf(err, "release lock for %s failed", s.config.ProductName)
 		return errors.Trace(ErrUpdateStore)
 	} else {

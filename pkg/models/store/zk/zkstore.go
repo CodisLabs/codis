@@ -91,13 +91,13 @@ func (s *ZkStore) Acquire(name string, topom *models.Topom) error {
 	return nil
 }
 
-func (s *ZkStore) Release() error {
+func (s *ZkStore) Release(force bool) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
 		return ErrClosedZkStore
 	}
-	if !s.locked {
+	if !s.locked && !force {
 		return ErrReleaseAgain
 	}
 

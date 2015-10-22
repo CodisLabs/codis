@@ -837,7 +837,7 @@ func (s *memStore) Acquire(name string, topom *models.Topom) error {
 	return nil
 }
 
-func (s *memStore) Release() error {
+func (s *memStore) Release(force bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

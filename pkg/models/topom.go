@@ -9,7 +9,7 @@ import (
 
 type Store interface {
 	Acquire(name string, topom *Topom) error
-	Release() error
+	Release(force bool) error
 
 	LoadSlotMapping(slotId int) (*SlotMapping, error)
 	SaveSlotMapping(slotId int, slot *SlotMapping) error
