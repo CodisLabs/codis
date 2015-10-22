@@ -21,7 +21,8 @@ type ZkClient struct {
 	dialAt time.Time
 	closed bool
 
-	logger *zkLogger
+	logger  *zkLogger
+	timeout time.Duration
 }
 
 type zkLogger struct {
@@ -34,9 +35,9 @@ func (l *zkLogger) Printf(format string, v ...interface{}) {
 	}
 }
 
-func NewClient(addr []string) (*ZkClient, error) {
+func NewClient(addr []string, timeout time.Duration) (*ZkClient, error) {
 	c := &ZkClient{
-		addr: addr,
+		addr: addr, timeout: timeout,
 	}
 	if err := c.reset(); err != nil {
 		return nil, err
@@ -46,7 +47,7 @@ func NewClient(addr []string) (*ZkClient, error) {
 
 func (c *ZkClient) reset() error {
 	c.dialAt = time.Now()
-	conn, events, err := zk.Connect(c.addr, time.Minute)
+	conn, events, err := zk.Connect(c.addr, c.timeout)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -145,15 +146,44 @@ func (c *ZkClient) Create(path string, data []byte) error {
 		return errors.Trace(ErrClosedZkClient)
 	}
 	return c.do(func(conn *zk.Conn) error {
-		return c.create(conn, path, data)
+		return c.create(conn, path, data, false)
 	})
 }
 
-func (c *ZkClient) create(conn *zk.Conn, path string, data []byte) error {
+func (c *ZkClient) CreateEphemeral(path string, data []byte) (<-chan struct{}, error) {
+	c.Lock()
+	defer c.Unlock()
+	if c.closed {
+		return nil, errors.Trace(ErrClosedZkClient)
+	}
+	var watch chan struct{}
+	err := c.do(func(conn *zk.Conn) error {
+		if err := c.create(conn, path, data, true); err != nil {
+			return err
+		}
+		if _, _, w, err := conn.GetW(path); err != nil {
+			return errors.Trace(err)
+		} else {
+			watch = make(chan struct{})
+			go func() {
+				<-w
+				close(watch)
+			}()
+			return nil
+		}
+	})
+	return watch, err
+}
+
+func (c *ZkClient) create(conn *zk.Conn, path string, data []byte, ephemeral bool) error {
 	if err := c.mkdir(conn, filepath.Dir(path)); err != nil {
 		return err
 	}
-	_, err := conn.Create(path, data, 0, zk.WorldACL(zk.PermAdmin|zk.PermRead|zk.PermWrite))
+	var flag int32
+	if ephemeral {
+		flag |= zk.FlagEphemeral
+	}
+	_, err := conn.Create(path, data, flag, zk.WorldACL(zk.PermAdmin|zk.PermRead|zk.PermWrite))
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -172,7 +202,7 @@ func (c *ZkClient) Update(path string, data []byte) error {
 }
 
 func (c *ZkClient) update(conn *zk.Conn, path string, data []byte) error {
-	if err := c.create(conn, path, data); err != nil {
+	if err := c.create(conn, path, data, false); err != nil {
 		if errors.NotEqual(err, zk.ErrNodeExists) {
 			return err
 		}

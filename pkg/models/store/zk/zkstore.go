@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -28,7 +29,7 @@ type ZkStore struct {
 }
 
 func NewStore(addr []string) (*ZkStore, error) {
-	client, err := NewClient(addr)
+	client, err := NewClient(addr, time.Minute)
 	if err != nil {
 		return nil, err
 	}
