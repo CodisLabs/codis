@@ -53,27 +53,27 @@ func (s *ZkStore) Close() error {
 	return nil
 }
 
-func (s *ZkStore) lockPath() string {
+func (s *ZkStore) LockPath() string {
 	return filepath.Join(s.prefix, "topom")
 }
 
-func (s *ZkStore) slotPath(slotId int) string {
+func (s *ZkStore) SlotPath(slotId int) string {
 	return filepath.Join(s.prefix, "slots", fmt.Sprintf("slot-%04d", slotId))
 }
 
-func (s *ZkStore) proxyBase() string {
+func (s *ZkStore) ProxyBase() string {
 	return filepath.Join(s.prefix, "proxy")
 }
 
-func (s *ZkStore) proxyPath(proxyId int) string {
+func (s *ZkStore) ProxyPath(proxyId int) string {
 	return filepath.Join(s.prefix, "proxy", fmt.Sprintf("proxy-%4d", proxyId))
 }
 
-func (s *ZkStore) groupBase() string {
+func (s *ZkStore) GroupBase() string {
 	return filepath.Join(s.prefix, "group")
 }
 
-func (s *ZkStore) groupPath(groupId int) string {
+func (s *ZkStore) GroupPath(groupId int) string {
 	return filepath.Join(s.prefix, "group", fmt.Sprintf("group-%04d", groupId))
 }
 
@@ -88,7 +88,7 @@ func (s *ZkStore) Acquire(name string, topom *models.Topom) error {
 	}
 	s.prefix = filepath.Join("/zk/codis2", name)
 
-	if err := s.client.Create(s.lockPath(), topom.Encode()); err != nil {
+	if err := s.client.Create(s.LockPath(), topom.Encode()); err != nil {
 		return err
 	}
 	s.locked = true
@@ -105,7 +105,7 @@ func (s *ZkStore) Release() error {
 		return ErrReleaseAgain
 	}
 
-	if err := s.client.Delete(s.lockPath()); err != nil {
+	if err := s.client.Delete(s.LockPath()); err != nil {
 		return err
 	}
 	s.locked = false
@@ -122,7 +122,7 @@ func (s *ZkStore) LoadSlotMapping(slotId int) (*models.SlotMapping, error) {
 		return nil, ErrNoProtection
 	}
 
-	b, err := s.client.LoadData(s.slotPath(slotId))
+	b, err := s.client.LoadData(s.SlotPath(slotId))
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func (s *ZkStore) SaveSlotMapping(slotId int, slot *models.SlotMapping) error {
 		return ErrNoProtection
 	}
 
-	return s.client.Update(s.slotPath(slotId), slot.Encode())
+	return s.client.Update(s.SlotPath(slotId), slot.Encode())
 }
 
 func (s *ZkStore) ListProxy() ([]*models.Proxy, error) {
@@ -159,7 +159,7 @@ func (s *ZkStore) ListProxy() ([]*models.Proxy, error) {
 		return nil, ErrNoProtection
 	}
 
-	files, err := s.client.ListFile(s.proxyBase())
+	files, err := s.client.ListFile(s.ProxyBase())
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func (s *ZkStore) CreateProxy(proxyId int, proxy *models.Proxy) error {
 		return ErrNoProtection
 	}
 
-	return s.client.Create(s.proxyPath(proxyId), proxy.Encode())
+	return s.client.Create(s.ProxyPath(proxyId), proxy.Encode())
 }
 
 func (s *ZkStore) RemoveProxy(proxyId int) error {
@@ -202,7 +202,7 @@ func (s *ZkStore) RemoveProxy(proxyId int) error {
 		return ErrNoProtection
 	}
 
-	return s.client.Delete(s.proxyPath(proxyId))
+	return s.client.Delete(s.ProxyPath(proxyId))
 }
 
 func (s *ZkStore) ListGroup() ([]*models.Group, error) {
@@ -215,7 +215,7 @@ func (s *ZkStore) ListGroup() ([]*models.Group, error) {
 		return nil, ErrNoProtection
 	}
 
-	files, err := s.client.ListFile(s.groupBase())
+	files, err := s.client.ListFile(s.GroupBase())
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +245,7 @@ func (s *ZkStore) CreateGroup(groupId int, group *models.Group) error {
 		return ErrNoProtection
 	}
 
-	return s.client.Create(s.groupPath(groupId), group.Encode())
+	return s.client.Create(s.GroupPath(groupId), group.Encode())
 }
 
 func (s *ZkStore) UpdateGroup(groupId int, group *models.Group) error {
@@ -258,7 +258,7 @@ func (s *ZkStore) UpdateGroup(groupId int, group *models.Group) error {
 		return ErrNoProtection
 	}
 
-	return s.client.Update(s.groupPath(groupId), group.Encode())
+	return s.client.Update(s.GroupPath(groupId), group.Encode())
 }
 
 func (s *ZkStore) RemoveGroup(groupId int) error {
@@ -271,5 +271,5 @@ func (s *ZkStore) RemoveGroup(groupId int) error {
 		return ErrNoProtection
 	}
 
-	return s.client.Delete(s.groupPath(groupId))
+	return s.client.Delete(s.GroupPath(groupId))
 }
