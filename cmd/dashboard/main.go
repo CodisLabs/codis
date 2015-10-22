@@ -119,7 +119,7 @@ Options:
 		signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM)
 
 		sig := <-c
-		log.Infof("dashboard receive signal = '%v'", sig)
+		log.Infof("[%s] dashboard receive signal = '%v'", s, sig)
 	}()
 
 	for !s.IsClosed() {

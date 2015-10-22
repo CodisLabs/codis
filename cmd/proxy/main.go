@@ -5,10 +5,13 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"os/signal"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/docopt/docopt-go"
@@ -118,6 +121,15 @@ Options:
 	defer s.Close()
 
 	log.Infof("create proxy with config\n%s\n", config)
+
+	go func() {
+		defer s.Close()
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM)
+
+		sig := <-c
+		log.Infof("[%p] proxy receive signal = '%v'", s, sig)
+	}()
 
 	for !s.IsClosed() && !s.IsOnline() {
 		log.Infof("[%p] proxy waiting online ...", s)

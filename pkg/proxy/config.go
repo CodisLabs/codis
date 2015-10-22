@@ -12,6 +12,7 @@ type Config struct {
 	ProtoType string `toml:"proto_type" json:"proto_type"`
 	ProxyAddr string `toml:"proxy_addr" json:"proxy_addr"`
 	AdminAddr string `toml:"admin_addr" json:"admin_addr"`
+	JodisAddr string `toml:"jodis_addr" json:"jodis_addr"`
 
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
@@ -28,6 +29,7 @@ func NewDefaultConfig() *Config {
 		ProtoType: "tcp4",
 		ProxyAddr: "0.0.0.0:9000",
 		AdminAddr: "0.0.0.0:7953",
+		JodisAddr: "",
 
 		ProductName: "Demo2",
 		ProductAuth: "",

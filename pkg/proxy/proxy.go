@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +22,8 @@ type Proxy struct {
 	token string
 	xauth string
 	model *models.Proxy
+
+	jodis *Jodis
 
 	init, exit struct {
 		C chan struct{}
@@ -51,6 +54,10 @@ func New(config *Config) (*Proxy, error) {
 	s.router = router.NewWithAuth(config.ProductAuth)
 	s.init.C = make(chan struct{})
 	s.exit.C = make(chan struct{})
+
+	if addr := strings.Split(config.JodisAddr, ","); len(addr) != 0 {
+		s.jodis = NewJodis(addr, s.model)
+	}
 
 	if err := s.setup(); err != nil {
 		s.Close()
@@ -124,6 +131,10 @@ func (s *Proxy) Close() error {
 	s.ladmin.Close()
 	s.lproxy.Close()
 	s.router.Close()
+
+	if s.jodis != nil {
+		s.jodis.Close()
+	}
 	return nil
 }
 
@@ -231,6 +242,10 @@ func (s *Proxy) serveProxy() {
 
 	go s.keepAlive()
 
+	if s.jodis != nil {
+		go s.jodis.Run()
+	}
+
 	select {
 	case <-s.exit.C:
 		log.Infof("[%p] proxy shutdown", s)
@@ -271,15 +286,10 @@ func (s *Proxy) acceptConn(l net.Listener) (net.Conn, error) {
 		c, err := l.Accept()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
-				if delay == 0 {
-					delay = time.Millisecond * 10
-				} else {
-					delay = delay * 2
-					if maxDelay := time.Second; delay > maxDelay {
-						delay = maxDelay
-					}
-				}
 				log.WarnErrorf(err, "[%p] proxy accept new connection failed", s)
+				delay = delay * 2
+				delay = utils.MaxDuration(delay, time.Millisecond*10)
+				delay = utils.MinDuration(delay, time.Millisecond*500)
 				time.Sleep(delay)
 				continue
 			}

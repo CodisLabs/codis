@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var (
@@ -29,13 +28,10 @@ type ZkStore struct {
 }
 
 func NewStore(addr []string) (*ZkStore, error) {
-	client, err := NewClient(addr, time.Minute)
+	client, err := NewClient(addr, time.Minute, DefaultLogfunc)
 	if err != nil {
 		return nil, err
 	}
-	client.SetLogger(func(format string, v ...interface{}) {
-		log.Infof(format, v...)
-	})
 	return &ZkStore{
 		client: client,
 	}, nil

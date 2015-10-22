@@ -1,6 +1,7 @@
 package zkstore
 
 import (
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -8,9 +9,14 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 
 	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var ErrClosedZkClient = errors.New("use of closed zk client")
+
+var DefaultLogfunc = func(format string, v ...interface{}) {
+	log.Info("zookeeper - " + fmt.Sprintf(format, v...))
+}
 
 type ZkClient struct {
 	sync.Mutex
@@ -26,18 +32,18 @@ type ZkClient struct {
 }
 
 type zkLogger struct {
-	logfn func(format string, v ...interface{})
+	logfunc func(format string, v ...interface{})
 }
 
 func (l *zkLogger) Printf(format string, v ...interface{}) {
-	if l != nil && l.logfn != nil {
-		l.logfn(format, v...)
+	if l != nil && l.logfunc != nil {
+		l.logfunc(format, v...)
 	}
 }
 
-func NewClient(addr []string, timeout time.Duration) (*ZkClient, error) {
+func NewClient(addr []string, timeout time.Duration, logfunc func(foramt string, v ...interface{})) (*ZkClient, error) {
 	c := &ZkClient{
-		addr: addr, timeout: timeout,
+		addr: addr, timeout: timeout, logger: &zkLogger{logfunc},
 	}
 	if err := c.reset(); err != nil {
 		return nil, err
@@ -57,18 +63,13 @@ func (c *ZkClient) reset() error {
 	c.conn = conn
 	c.conn.SetLogger(c.logger)
 
+	c.logger.Printf("zkclient create new connection to %s", c.addr)
+
 	go func() {
 		for _ = range events {
 		}
 	}()
 	return nil
-}
-
-func (c *ZkClient) SetLogger(logfn func(format string, v ...interface{})) {
-	c.Lock()
-	defer c.Unlock()
-	c.logger = &zkLogger{logfn}
-	c.conn.SetLogger(c.logger)
 }
 
 func (c *ZkClient) Close() error {
