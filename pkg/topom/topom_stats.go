@@ -6,39 +6,44 @@ import (
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/proxy"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
 )
 
-type ServerStats struct {
-	Stats map[string]string
-	Error error
+var (
+	ErrStatsTimeout = errors.New("update stats timeout")
+)
 
-	UnixTime int64
+type ServerStats struct {
+	Infomap map[string]string
+	Slotmap map[int]int
+	Error   error
 }
 
 func (s *ServerStats) MarshalJSON() ([]byte, error) {
 	var v = &struct {
-		Stats    map[string]string `json:"stats,omitempty"`
-		Error    *rpc.RemoteError  `json:"error,omitempty"`
-		UnixTime int64             `json:"unixtime"`
+		Infomap map[string]string `json:"infomap,omitempty"`
+		Slotmap map[int]int       `json:"slotmap,omitempty"`
+		Error   *rpc.RemoteError  `json:"error,omitempty"`
 	}{
-		s.Stats, rpc.ToRemoteError(s.Error), s.UnixTime,
+		s.Infomap, s.Slotmap,
+		rpc.ToRemoteError(s.Error),
 	}
 	return json.Marshal(v)
 }
 
 func (s *ServerStats) UnmarshalJSON(b []byte) error {
 	var v = &struct {
-		Stats    map[string]string `json:"stats,omitempty"`
-		Error    *rpc.RemoteError  `json:"error,omitempty"`
-		UnixTime int64             `json:"unixtime"`
+		Infomap map[string]string `json:"infomap,omitempty"`
+		Slotmap map[int]int       `json:"slotmap,omitempty"`
+		Error   *rpc.RemoteError  `json:"error,omitempty"`
 	}{}
 	if err := json.Unmarshal(b, v); err != nil {
 		return err
 	} else {
-		s.Stats = v.Stats
+		s.Infomap = v.Infomap
+		s.Slotmap = v.Slotmap
 		s.Error = v.Error.ToError()
-		s.UnixTime = v.UnixTime
 		return nil
 	}
 }
@@ -58,27 +63,37 @@ func (s *Topom) updateServerStats(addr string, stats *ServerStats) bool {
 }
 
 func (s *Topom) runServerStats(addr string, timeout time.Duration) *ServerStats {
-	var ch = make(chan *ServerStats, 1)
+	var sigch = make(chan struct{})
+	var stats = &ServerStats{}
 
-	go func() (stats map[string]string, err error) {
+	go func() (err error) {
 		defer func() {
-			ch <- &ServerStats{
-				Stats: stats, Error: err,
-			}
+			stats.Error = err
+			close(sigch)
 		}()
 		c, err := s.redisp.GetClient(addr)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		defer s.redisp.PutClient(c)
-		return c.GetInfo()
+		infomap, err := c.GetInfo()
+		if err != nil {
+			return err
+		}
+		slotmap, err := c.SlotsInfo()
+		if err != nil {
+			return err
+		}
+		stats.Infomap = infomap
+		stats.Slotmap = slotmap
+		return nil
 	}()
 
 	select {
-	case stats := <-ch:
+	case <-sigch:
 		return stats
 	case <-time.After(timeout):
-		return &ServerStats{}
+		return &ServerStats{Error: ErrStatsTimeout}
 	}
 }
 
@@ -94,7 +109,6 @@ func (s *Topom) RefreshServerStats(timeout time.Duration) *sync.WaitGroup {
 		go func(addr string) {
 			defer wg.Done()
 			stats := s.runServerStats(addr, timeout)
-			stats.UnixTime = time.Now().Unix()
 			s.updateServerStats(addr, stats)
 		}(addr)
 	}
@@ -104,33 +118,28 @@ func (s *Topom) RefreshServerStats(timeout time.Duration) *sync.WaitGroup {
 type ProxyStats struct {
 	Stats *proxy.Stats
 	Error error
-
-	UnixTime int64
 }
 
 func (s *ProxyStats) MarshalJSON() ([]byte, error) {
 	var v = &struct {
-		Stats    *proxy.Stats     `json:"stats,omitempty"`
-		Error    *rpc.RemoteError `json:"error,omitempty"`
-		UnixTime int64            `json:"unixtime"`
+		Stats *proxy.Stats     `json:"stats,omitempty"`
+		Error *rpc.RemoteError `json:"error,omitempty"`
 	}{
-		s.Stats, rpc.ToRemoteError(s.Error), s.UnixTime,
+		s.Stats, rpc.ToRemoteError(s.Error),
 	}
 	return json.Marshal(v)
 }
 
 func (s *ProxyStats) UnmarshalJSON(b []byte) error {
 	var v = &struct {
-		Stats    *proxy.Stats     `json:"stats,omitempty"`
-		Error    *rpc.RemoteError `json:"error,omitempty"`
-		UnixTime int64            `json:"unixtime"`
+		Stats *proxy.Stats     `json:"stats,omitempty"`
+		Error *rpc.RemoteError `json:"error,omitempty"`
 	}{}
 	if err := json.Unmarshal(b, v); err != nil {
 		return err
 	} else {
 		s.Stats = v.Stats
 		s.Error = v.Error.ToError()
-		s.UnixTime = v.UnixTime
 		return nil
 	}
 }
@@ -150,22 +159,27 @@ func (s *Topom) updateProxyStats(token string, stats *ProxyStats) bool {
 }
 
 func (s *Topom) runProxyStats(c *proxy.ApiClient, timeout time.Duration) *ProxyStats {
-	var ch = make(chan *ProxyStats, 1)
+	var sigch = make(chan struct{})
+	var stats = &ProxyStats{}
 
-	go func() (stats *proxy.Stats, err error) {
+	go func() (err error) {
 		defer func() {
-			ch <- &ProxyStats{
-				Stats: stats, Error: err,
-			}
+			stats.Error = err
+			close(sigch)
 		}()
-		return c.Stats()
+		x, err := c.Stats()
+		if err != nil {
+			return err
+		}
+		stats.Stats = x
+		return nil
 	}()
 
 	select {
-	case stats := <-ch:
+	case <-sigch:
 		return stats
-	case <-time.After(time.Second):
-		return &ProxyStats{}
+	case <-time.After(timeout):
+		return &ProxyStats{Error: ErrStatsTimeout}
 	}
 }
 
@@ -181,7 +195,6 @@ func (s *Topom) RefreshProxyStats(timeout time.Duration) *sync.WaitGroup {
 		go func(token string, c *proxy.ApiClient) {
 			defer wg.Done()
 			stats := s.runProxyStats(c, timeout)
-			stats.UnixTime = time.Now().Unix()
 			s.updateProxyStats(token, stats)
 		}(token, c)
 	}
