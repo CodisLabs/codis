@@ -69,6 +69,10 @@ func LoadConf(configFile string) (*Config, error) {
 	conf.maxTimeout = loadConfInt("session_max_timeout", 1800)
 	conf.maxBufSize = loadConfInt("session_max_bufsize", 131072)
 	conf.maxPipeline = loadConfInt("session_max_pipeline", 1024)
-	conf.zkSessionTimeout = loadConfInt("zk_session_timeout", 30)
+	conf.zkSessionTimeout = loadConfInt("zk_session_timeout", 30000)
+	if conf.zkSessionTimeout <= 100 {
+		conf.zkSessionTimeout *= 1000
+		log.Warn("zkSessionTimeout is to small, it is ms not second")
+	}
 	return conf, nil
 }
