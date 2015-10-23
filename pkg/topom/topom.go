@@ -72,7 +72,7 @@ func New(store models.Store, config *Config) (*Topom, error) {
 
 	s.action.interval.Set(1000)
 
-	s.redisp = NewRedisPool(config.ProductAuth, time.Minute)
+	s.redisp = NewRedisPool(config.ProductAuth, time.Second*10)
 
 	s.exit.C = make(chan struct{})
 
