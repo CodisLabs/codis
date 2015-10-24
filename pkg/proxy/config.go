@@ -27,8 +27,8 @@ type Config struct {
 func NewDefaultConfig() *Config {
 	return &Config{
 		ProtoType: "tcp4",
-		ProxyAddr: "0.0.0.0:9000",
-		AdminAddr: "0.0.0.0:7953",
+		ProxyAddr: "0.0.0.0:19000",
+		AdminAddr: "0.0.0.0:11000",
 		JodisAddr: "",
 
 		ProductName: "Demo2",

@@ -17,7 +17,7 @@ type Config struct {
 
 func NewDefaultConfig() *Config {
 	return &Config{
-		AdminAddr: "0.0.0.0:7797",
+		AdminAddr: "0.0.0.0:18080",
 
 		ProductName: "Demo2",
 		ProductAuth: "",
