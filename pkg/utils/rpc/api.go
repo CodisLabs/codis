@@ -114,6 +114,8 @@ func apiRequestJson(method string, url string, args, reply interface{}) error {
 		req.Header.Set("Content-Length", strconv.Itoa(len(body)))
 	}
 
+	var start = time.Now()
+
 	rsp, err := client.Do(req)
 	if err != nil {
 		return errors.Trace(err)
@@ -121,6 +123,7 @@ func apiRequestJson(method string, url string, args, reply interface{}) error {
 	defer func() {
 		io.Copy(ioutil.Discard, rsp.Body)
 		rsp.Body.Close()
+		log.Debugf("call rpc [%s] %s in %v", method, url, time.Since(start))
 	}()
 
 	switch rsp.StatusCode {
