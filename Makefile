@@ -1,6 +1,6 @@
 all: build
 
-build: build-version build-proxy build-server
+build: build-version build-server build-proxy build-admin
 
 build-version:
 	@bash genver.sh
@@ -8,9 +8,12 @@ build-version:
 build-proxy:
 	go build -o bin/codis-proxy ./cmd/proxy
 
-build-config:
-	go build -o bin/codis-config ./cmd/cconfig
-	@rm -rf bin/assets && cp -r cmd/cconfig/assets bin/
+build-admin:
+	go build -o bin/codis-admin ./cmd/admin
+
+# build-config:
+# 	go build -o bin/codis-config ./cmd/cconfig
+# 	@rm -rf bin/assets && cp -r cmd/cconfig/assets bin/
 
 build-server:
 	@mkdir -p bin

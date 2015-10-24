@@ -217,6 +217,19 @@ func (c *ApiClient) encodeURL(format string, args ...interface{}) string {
 	return rpc.EncodeURL(c.addr, format, args...)
 }
 
+func (c *ApiClient) Overview() (map[string]interface{}, error) {
+	url := c.encodeURL("/overview")
+	var v interface{}
+	if err := rpc.ApiGetJson(url, &v); err != nil {
+		return nil, err
+	}
+	if m, ok := v.(map[string]interface{}); ok {
+		return m, nil
+	} else {
+		return nil, errors.New("invalid json map")
+	}
+}
+
 func (c *ApiClient) Model() (*models.Proxy, error) {
 	url := c.encodeURL("/api/model")
 	model := &models.Proxy{}
