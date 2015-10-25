@@ -99,7 +99,7 @@ func assertProxyStats(t *Topom, c *ApiClient, fails []string) {
 		assert.Must(cnt == len(fails))
 	}
 	var m = make(map[string]*ProxyStats)
-	for _, p := range t.ListProxy() {
+	for _, p := range t.ProxyModels() {
 		stats := t.GetProxyStats(p.Token)
 		assert.Must(stats != nil)
 		m[p.Token] = stats
@@ -108,7 +108,7 @@ func assertProxyStats(t *Topom, c *ApiClient, fails []string) {
 	if c != nil {
 		stats, err := c.Stats()
 		assert.Must(err == nil)
-		fn(stats.Stats.Proxies)
+		fn(stats.Proxy.Stats)
 	}
 }
 
@@ -121,7 +121,7 @@ func TestProxyCreate(x *testing.T) {
 
 	assert.Must(t.CreateProxy(addr1) == nil)
 	assert.Must(t.CreateProxy(addr1) != nil)
-	assert.Must(len(t.ListProxy()) == 1)
+	assert.Must(len(t.ProxyModels()) == 1)
 
 	_, c2, addr2 := openProxy()
 	defer c2.Shutdown()
@@ -129,7 +129,7 @@ func TestProxyCreate(x *testing.T) {
 	assert.Must(c2.Shutdown() == nil)
 
 	assert.Must(t.CreateProxy(addr2) != nil)
-	assert.Must(len(t.ListProxy()) == 1)
+	assert.Must(len(t.ProxyModels()) == 1)
 
 	assertProxyStats(t, nil, []string{})
 
@@ -146,22 +146,22 @@ func TestProxyRemove(x *testing.T) {
 	defer c1.Shutdown()
 
 	assert.Must(t.CreateProxy(addr1) == nil)
-	assert.Must(len(t.ListProxy()) == 1)
+	assert.Must(len(t.ProxyModels()) == 1)
 
 	assert.Must(t.RemoveProxy(p1.GetToken(), false) == nil)
-	assert.Must(len(t.ListProxy()) == 0)
+	assert.Must(len(t.ProxyModels()) == 0)
 
 	p2, c2, addr2 := openProxy()
 	defer c2.Shutdown()
 
 	assert.Must(t.CreateProxy(addr2) == nil)
-	assert.Must(len(t.ListProxy()) == 1)
+	assert.Must(len(t.ProxyModels()) == 1)
 
 	assert.Must(c2.Shutdown() == nil)
 
 	assert.Must(t.RemoveProxy(p2.GetToken(), false) != nil)
 	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
-	assert.Must(len(t.ListProxy()) == 0)
+	assert.Must(len(t.ProxyModels()) == 0)
 }
 
 func assertGroupList(t *Topom, c *ApiClient, glist ...*models.Group) {
@@ -181,11 +181,11 @@ func assertGroupList(t *Topom, c *ApiClient, glist ...*models.Group) {
 			}
 		}
 	}
-	fn(t.ListGroup())
+	fn(t.GroupModels())
 	if c != nil {
 		stats, err := c.Stats()
 		assert.Must(err == nil)
-		fn(stats.GroupList)
+		fn(stats.Group.Models)
 	}
 }
 
@@ -672,12 +672,12 @@ func TestApiStats2(x *testing.T) {
 	p1, c1, addr1 := openProxy()
 	defer c1.Shutdown()
 	assert.Must(t.CreateProxy(addr1) == nil)
-	assert.Must(len(t.ListProxy()) == 1)
+	assert.Must(len(t.ProxyModels()) == 1)
 
 	p2, c2, addr2 := openProxy()
 	defer c2.Shutdown()
 	assert.Must(t.CreateProxy(addr2) == nil)
-	assert.Must(len(t.ListProxy()) == 2)
+	assert.Must(len(t.ProxyModels()) == 2)
 	assertProxyStats(t, c, []string{})
 
 	assert.Must(c1.Shutdown() == nil)

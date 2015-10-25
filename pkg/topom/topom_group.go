@@ -28,7 +28,7 @@ var (
 	ErrServerPromoteAgain = errors.New("server is already master")
 )
 
-func (s *Topom) ListGroup() []*models.Group {
+func (s *Topom) GroupModels() []*models.Group {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	glist := make([]*models.Group, 0, len(s.groups))

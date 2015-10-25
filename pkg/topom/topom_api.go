@@ -25,14 +25,15 @@ type Stats struct {
 	Online bool `json:"online"`
 	Closed bool `json:"closed"`
 
-	GroupList []*models.Group `json:"group_list"`
-	ProxyList []*models.Proxy `json:"proxy_list"`
-
 	Slots []*models.SlotMapping `json:"slots"`
-	Stats struct {
-		Servers map[string]*ServerStats `json:"servers"`
-		Proxies map[string]*ProxyStats  `json:"proxies"`
-	} `json:"stats"`
+	Group struct {
+		Models []*models.Group         `json:"models"`
+		Stats  map[string]*ServerStats `json:"stats"`
+	} `json:"group"`
+	Proxy struct {
+		Models []*models.Proxy        `json:"models"`
+		Stats  map[string]*ProxyStats `json:"stats"`
+	} `json:"proxy"`
 
 	Action struct {
 		Interval int  `json:"interval"`
@@ -163,23 +164,23 @@ func (s *apiServer) newStats() *Stats {
 	stats.Online = s.topom.IsOnline()
 	stats.Closed = s.topom.IsClosed()
 
-	stats.GroupList = s.topom.ListGroup()
-	stats.ProxyList = s.topom.ListProxy()
+	stats.Slots = s.topom.GetSlotMappings()
+	stats.Group.Models = s.topom.GroupModels()
+	stats.Proxy.Models = s.topom.ProxyModels()
 
 	stats.Action.Interval = s.topom.GetActionInterval()
 	stats.Action.Disabled = s.topom.GetActionDisabled()
 
-	stats.Slots = s.topom.GetSlotMappings()
-	stats.Stats.Servers = make(map[string]*ServerStats)
-	for _, g := range stats.GroupList {
+	stats.Group.Stats = make(map[string]*ServerStats)
+	for _, g := range stats.Group.Models {
 		for _, addr := range g.Servers {
-			stats.Stats.Servers[addr] = s.topom.GetServerStats(addr)
+			stats.Group.Stats[addr] = s.topom.GetServerStats(addr)
 		}
 	}
 
-	stats.Stats.Proxies = make(map[string]*ProxyStats)
-	for _, p := range stats.ProxyList {
-		stats.Stats.Proxies[p.Token] = s.topom.GetProxyStats(p.Token)
+	stats.Proxy.Stats = make(map[string]*ProxyStats)
+	for _, p := range stats.Proxy.Models {
+		stats.Proxy.Stats[p.Token] = s.topom.GetProxyStats(p.Token)
 	}
 	return stats
 }

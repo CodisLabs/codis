@@ -12,9 +12,9 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-admin [--debug] --proxy=ADDR     [simple|config|model|slots|stats|overview] [--output=FILE]
+	codis-admin [--debug] --proxy=ADDR     [simple|config|model|stats|slots|overview] [--output=FILE]
 	codis-admin [--debug] --proxy=ADDR      shutdown --product_name=NAME [--product_auth=AUTH]
-	codis-admin [--debug] --dashboard=ADDR [simple|config|model|stats|overview] [--output=FILE]
+	codis-admin [--debug] --dashboard=ADDR [simple|config|model|stats|slots|group|proxy|overview] [--output=FILE]
 	codis-admin [--debug] --dashboard=ADDR  shutdown --product_name=NAME [--product_auth=AUTH]
 
 Options:

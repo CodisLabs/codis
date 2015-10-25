@@ -35,7 +35,7 @@ func (c *cmdDashboard) Main(d map[string]interface{}) {
 		c.product.auth = s
 	}
 
-	for _, t := range []string{"simple", "config", "model", "stats", "overview", "shutdown"} {
+	for _, t := range []string{"simple", "config", "model", "stats", "slots", "group", "proxy", "overview", "shutdown"} {
 		if d[t].(bool) {
 			c.subcmd = t
 		}
@@ -84,6 +84,8 @@ func (c *cmdDashboard) handleOverview() {
 		result = o
 	case "config", "model", "stats":
 		result = o[c.subcmd]
+	case "slots", "group", "proxy":
+		result = o["stats"].(map[string]interface{})[c.subcmd]
 	case "simple":
 		result = map[string]interface{}{
 			"version": o["version"],

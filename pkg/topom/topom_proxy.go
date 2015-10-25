@@ -16,7 +16,7 @@ var (
 	ErrProxyRpcFailed = errors.New("proxy call rpc failed")
 )
 
-func (s *Topom) ListProxy() []*models.Proxy {
+func (s *Topom) ProxyModels() []*models.Proxy {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	plist := make([]*models.Proxy, 0, len(s.proxies))
