@@ -28,7 +28,7 @@ type ZkStore struct {
 }
 
 func NewStore(addr []string) (*ZkStore, error) {
-	client, err := NewClient(addr, time.Minute, DefaultLogfunc)
+	client, err := NewClient(addr, time.Minute)
 	if err != nil {
 		return nil, err
 	}

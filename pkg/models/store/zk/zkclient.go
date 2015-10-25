@@ -41,7 +41,11 @@ func (l *zkLogger) Printf(format string, v ...interface{}) {
 	}
 }
 
-func NewClient(addr []string, timeout time.Duration, logfunc func(foramt string, v ...interface{})) (*ZkClient, error) {
+func NewClient(addr []string, timeout time.Duration) (*ZkClient, error) {
+	return NewClientWithLogfunc(addr, timeout, DefaultLogfunc)
+}
+
+func NewClientWithLogfunc(addr []string, timeout time.Duration, logfunc func(foramt string, v ...interface{})) (*ZkClient, error) {
 	c := &ZkClient{
 		addr: addr, timeout: timeout, logger: &zkLogger{logfunc},
 	}
@@ -66,7 +70,8 @@ func (c *ZkClient) reset() error {
 	c.logger.Printf("zkclient create new connection to %s", c.addr)
 
 	go func() {
-		for _ = range events {
+		for e := range events {
+			log.Debugf("zookeeper event: %+v", e)
 		}
 	}()
 	return nil
