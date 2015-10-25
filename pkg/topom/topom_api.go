@@ -525,6 +525,19 @@ func (c *ApiClient) encodeXAddr(addr string) string {
 	return base64.StdEncoding.EncodeToString([]byte(addr))
 }
 
+func (c *ApiClient) Overview() (map[string]interface{}, error) {
+	url := c.encodeURL("/overview")
+	var v interface{}
+	if err := rpc.ApiGetJson(url, &v); err != nil {
+		return nil, err
+	}
+	if m, ok := v.(map[string]interface{}); ok {
+		return m, nil
+	} else {
+		return nil, errors.New("invalid json map")
+	}
+}
+
 func (c *ApiClient) Model() (*models.Topom, error) {
 	url := c.encodeURL("/api/model")
 	model := &models.Topom{}

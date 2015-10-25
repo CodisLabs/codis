@@ -1,6 +1,6 @@
 all: build
 
-build: build-version build-server build-proxy build-admin
+build: build-version build-server build-proxy build-admin build-dashboard
 
 build-version:
 	@bash genver.sh
@@ -10,6 +10,9 @@ build-proxy:
 
 build-admin:
 	go build -o bin/codis-admin ./cmd/admin
+
+build-dashboard:
+	go build -o bin/codis-dashboard ./cmd/dashboard
 
 # build-config:
 # 	go build -o bin/codis-config ./cmd/cconfig

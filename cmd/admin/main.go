@@ -12,8 +12,10 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-admin --proxy=ADDR [simple|config|model|slots|stats|overview] [--output=FILE] [--debug]
-	codis-admin --proxy=ADDR shutdown --product_name=NAME [--product_auth=AUTH] [--debug]
+	codis-admin [--debug] --proxy=ADDR     [simple|config|model|slots|stats|overview] [--output=FILE]
+	codis-admin [--debug] --proxy=ADDR      shutdown --product_name=NAME [--product_auth=AUTH]
+	codis-admin [--debug] --dashboard=ADDR [simple|config|model|stats|overview] [--output=FILE]
+	codis-admin [--debug] --dashboard=ADDR  shutdown --product_name=NAME [--product_auth=AUTH]
 
 Options:
 	-o FILE, --output=FILE
@@ -34,5 +36,7 @@ Options:
 	switch {
 	case d["--proxy"] != nil:
 		new(cmdProxy).Main(d)
+	case d["--dashboard"] != nil:
+		new(cmdDashboard).Main(d)
 	}
 }
