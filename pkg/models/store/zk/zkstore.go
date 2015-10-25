@@ -27,7 +27,7 @@ type ZkStore struct {
 	closed bool
 }
 
-func NewStore(addr []string) (*ZkStore, error) {
+func NewStore(addr string) (*ZkStore, error) {
 	client, err := NewClient(addr, time.Minute)
 	if err != nil {
 		return nil, err

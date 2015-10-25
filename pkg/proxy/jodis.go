@@ -19,9 +19,9 @@ var ErrClosedJodis = errors.New("use of closed jodis")
 type Jodis struct {
 	mu sync.Mutex
 
+	addr string
 	path string
 	data []byte
-	addr []string
 
 	client *zkstore.ZkClient
 	closed bool
@@ -29,7 +29,7 @@ type Jodis struct {
 	watching bool
 }
 
-func NewJodis(addr []string, s *models.Proxy) *Jodis {
+func NewJodis(addr string, s *models.Proxy) *Jodis {
 	var m = map[string]string{
 		"addr":     s.ProxyAddr,
 		"start_at": s.StartTime,
@@ -95,7 +95,7 @@ func (j *Jodis) Rewatch() (<-chan struct{}, error) {
 
 	if j.client == nil {
 		timeout := time.Second * 10
-		client, err := zkstore.NewClient(j.addr, timeout, zkstore.DefaultLogfunc)
+		client, err := zkstore.NewClient(j.addr, timeout)
 		if err != nil {
 			return nil, err
 		}

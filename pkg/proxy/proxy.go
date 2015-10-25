@@ -4,7 +4,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -55,8 +54,8 @@ func New(config *Config) (*Proxy, error) {
 	s.init.C = make(chan struct{})
 	s.exit.C = make(chan struct{})
 
-	if addr := strings.Split(config.JodisAddr, ","); len(addr) != 0 {
-		s.jodis = NewJodis(addr, s.model)
+	if config.JodisAddr != "" {
+		s.jodis = NewJodis(config.JodisAddr, s.model)
 	}
 
 	if err := s.setup(); err != nil {

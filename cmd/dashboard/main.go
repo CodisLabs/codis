@@ -103,7 +103,7 @@ Options:
 	var store models.Store
 	switch {
 	case d["--zookeeper"] != nil:
-		store, err = zkstore.NewStore(strings.Split(d["--zookeeper"].(string), ","))
+		store, err = zkstore.NewStore(d["--zookeeper"].(string))
 		if err != nil {
 			log.PanicErrorf(err, "create zkstore failed")
 		}

@@ -3,6 +3,7 @@ package zkstore
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +23,7 @@ type ZkClient struct {
 	sync.Mutex
 
 	conn *zk.Conn
-	addr []string
+	addr string
 
 	dialAt time.Time
 	closed bool
@@ -41,11 +42,11 @@ func (l *zkLogger) Printf(format string, v ...interface{}) {
 	}
 }
 
-func NewClient(addr []string, timeout time.Duration) (*ZkClient, error) {
+func NewClient(addr string, timeout time.Duration) (*ZkClient, error) {
 	return NewClientWithLogfunc(addr, timeout, DefaultLogfunc)
 }
 
-func NewClientWithLogfunc(addr []string, timeout time.Duration, logfunc func(foramt string, v ...interface{})) (*ZkClient, error) {
+func NewClientWithLogfunc(addr string, timeout time.Duration, logfunc func(foramt string, v ...interface{})) (*ZkClient, error) {
 	c := &ZkClient{
 		addr: addr, timeout: timeout, logger: &zkLogger{logfunc},
 	}
@@ -57,7 +58,7 @@ func NewClientWithLogfunc(addr []string, timeout time.Duration, logfunc func(for
 
 func (c *ZkClient) reset() error {
 	c.dialAt = time.Now()
-	conn, events, err := zk.Connect(c.addr, c.timeout)
+	conn, events, err := zk.Connect(strings.Split(c.addr, ","), c.timeout)
 	if err != nil {
 		return errors.Trace(err)
 	}
