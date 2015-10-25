@@ -829,11 +829,11 @@ func (s *memStore) Acquire(name string, topom *models.Topom) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.data["meta"]; ok {
+	if _, ok := s.data["topom"]; ok {
 		return errors.Trace(ErrNodeExists)
 	}
 
-	s.data["meta"] = topom.Encode()
+	s.data["topom"] = topom.Encode()
 	return nil
 }
 
@@ -841,11 +841,11 @@ func (s *memStore) Release(force bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.data["meta"]; !ok {
+	if _, ok := s.data["topom"]; !ok {
 		return errors.Trace(ErrNodeNotExists)
 	}
 
-	delete(s.data, "meta")
+	delete(s.data, "topom")
 	return nil
 }
 

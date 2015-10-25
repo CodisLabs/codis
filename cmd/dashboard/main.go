@@ -15,6 +15,7 @@ import (
 
 	"github.com/docopt/docopt-go"
 
+	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/models/store/zk"
 	"github.com/wandoulabs/codis/pkg/topom"
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -32,7 +33,7 @@ const banner = `
 func main() {
 	const usage = `
 Usage:
-	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL]
+	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] (--zookeeper=ADDR|--etcd=ADDR)
 	codis-dashboard version
 
 Options:
@@ -99,9 +100,19 @@ Options:
 		}
 	}
 
-	store, err := zkstore.NewStore([]string{"127.0.0.1:2181"})
-	if err != nil {
-		log.PanicErrorf(err, "create zkstore failed")
+	var store models.Store
+	switch {
+	case d["--zookeeper"] != nil:
+		store, err = zkstore.NewStore(strings.Split(d["--zookeeper"].(string), ","))
+		if err != nil {
+			log.PanicErrorf(err, "create zkstore failed")
+		}
+	case d["--etcd"] != nil:
+		log.Panicf("etcd is not supported yet!!")
+	}
+
+	if store == nil {
+		log.Panicf("nil store for topom")
 	}
 	defer store.Close()
 
@@ -119,7 +130,7 @@ Options:
 		signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM)
 
 		sig := <-c
-		log.Infof("[%s] dashboard receive signal = '%v'", s, sig)
+		log.Infof("[%p] dashboard receive signal = '%v'", s, sig)
 	}()
 
 	for !s.IsClosed() {
