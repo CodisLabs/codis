@@ -192,3 +192,6 @@ $ bin/codis-config slot rebalance
 不过我们也提供一种解决方案：[codis-ha](https://github.com/ngaut/codis-ha)。这是一个通过codis开放的api实现自动切换主从的工具。该工具会在检测到master挂掉的时候将其下线并选择其中一个slave提升为master继续提供服务。
 
 需要注意，codis将其中一个slave升级为master时，该组内其他slave实例是不会自动改变状态的，这些slave仍将试图从旧的master上同步数据，因而会导致组内新的master和其他slave之间的数据不一致。因为redis的slave of命令切换master时会丢弃slave上的全部数据，从新master完整同步，会消耗master资源。因此建议在知情的情况下手动操作。使用 `codis-config server add <group_id> <redis_addr> slave` 命令刷新这些节点的状态即可。codis-ha不会自动刷新其他slave的状态。
+
+##升级
+我们会不断改进codis、修复bug，因此建议永远尽量使用master上的最新版。根据安装教程执行对应命令会自动更新代码，重新编译后用新的二级制文件替换旧的然后重启进程即可。如果没有特殊说明，codis是允许集群中存在多个版本的proxy或者proxy和dashboard版本不一致的，但是建议只作为升级过程的中间阶段，不要让这种混合多版本的状态持续过长时间。
