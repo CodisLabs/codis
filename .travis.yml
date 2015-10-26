@@ -11,4 +11,5 @@ before_script:
     - echo "before script"
 
 script: 
-    - ./bootstrap.sh
+    - make
+    - make gotest
