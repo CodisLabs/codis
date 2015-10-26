@@ -1,15 +1,19 @@
 all: build
 
-build: build-version build-proxy build-config build-server
+build: build-version godep build-proxy build-config build-server
+
+godep:
+	@go get -u github.com/tools/godep
+	GOPATH=`godep path` godep restore
 
 build-version:
 	@bash genver.sh
 
 build-proxy:
-	go build -o bin/codis-proxy ./cmd/proxy
+	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-proxy ./cmd/proxy
 
 build-config:
-	go build -o bin/codis-config ./cmd/cconfig
+	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-config ./cmd/cconfig
 	@rm -rf bin/assets && cp -r cmd/cconfig/assets bin/
 
 build-server:
