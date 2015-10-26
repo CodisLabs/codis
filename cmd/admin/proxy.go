@@ -1,9 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
-	"os"
+	"fmt"
 
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -15,99 +14,75 @@ type cmdProxy struct {
 		name string
 		auth string
 	}
-	subcmd string
-	output string
 }
 
-func (c *cmdProxy) Main(d map[string]interface{}) {
-	c.address = d["--proxy"].(string)
-
-	if file, ok := d["--output"].(string); ok {
-		c.output = file
-	} else {
-		c.output = "/dev/stdout"
-	}
+func (t *cmdProxy) Main(d map[string]interface{}) {
+	t.address = d["--proxy"].(string)
 
 	if s, ok := d["--product_name"].(string); ok {
-		c.product.name = s
+		t.product.name = s
 	}
 	if s, ok := d["--product_auth"].(string); ok {
-		c.product.auth = s
+		t.product.auth = s
 	}
 
-	for _, t := range []string{"simple", "config", "model", "slots", "stats", "overview", "shutdown"} {
-		if d[t].(bool) {
-			c.subcmd = t
+	var cmd string
+	for _, s := range []string{"overview", "config", "model", "slots", "stats", "shutdown"} {
+		if d[s].(bool) {
+			cmd = s
 		}
 	}
-	if c.subcmd == "" {
-		c.subcmd = "simple"
-	}
 
-	log.Debugf("args.address = %s", c.address)
-	log.Debugf("args.subcmd = %s", c.subcmd)
-	switch c.subcmd {
+	log.Debugf("args.command = %s", cmd)
+	log.Debugf("args.address = %s", t.address)
+	log.Debugf("args.product.name = %s", t.product.name)
+	log.Debugf("args.product.auth = %s", t.product.auth)
+
+	switch cmd {
 	default:
-		log.Debugf("args.output = %s", c.output)
-		c.handleOverview()
+		t.handleOverview(cmd)
 	case "shutdown":
-		log.Debugf("args.product.name = %s", c.product.name)
-		log.Debugf("args.product.auth = %s", c.product.auth)
-		c.handleShutdown()
+		t.handleShutdown()
 	}
 }
 
-func (c *cmdProxy) handleOverview() {
-	f, err := os.OpenFile(c.output, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
-	if err != nil {
-		log.PanicErrorf(err, "can't open file %s", c.output)
-	}
-	defer f.Close()
-
-	w := bufio.NewWriter(f)
-	defer func() {
-		if err := w.Flush(); err != nil {
-			log.PanicErrorf(err, "flush outout failed")
-		}
-	}()
-
-	client := proxy.NewApiClient(c.address)
+func (t *cmdProxy) handleOverview(cmd string) {
+	client := proxy.NewApiClient(t.address)
 
 	o, err := client.Overview()
 	if err != nil {
 		log.PanicErrorf(err, "call rpc overview failed")
 	}
 
-	var result interface{}
-	switch c.subcmd {
+	var obj interface{}
+	switch cmd {
+	default:
+		o.Slots = nil
+		o.Stats = nil
+		fallthrough
 	case "overview":
-		result = o
-	case "config", "model", "slots", "stats":
-		result = o[c.subcmd]
-	case "simple":
-		result = map[string]interface{}{
-			"version": o["version"],
-			"compile": o["compile"],
-			"config":  o["config"], "model": o["model"],
-		}
+		obj = o
+	case "config":
+		obj = o.Config
+	case "model":
+		obj = o.Model
+	case "slots":
+		obj = o.Slots
+	case "stats":
+		obj = o.Stats
 	}
 
-	b, err := json.MarshalIndent(result, "", "    ")
+	b, err := json.MarshalIndent(obj, "", "    ")
 	if err != nil {
 		log.PanicErrorf(err, "json marshal failed")
 	}
-	log.Debugf("total bytes = %d", len(b)+1)
+	log.Debugf("total bytes = %d", len(b))
 
-	if _, err := w.Write(b); err != nil {
-		log.PanicErrorf(err, "write output failed")
-	}
-	if _, err := w.WriteString("\n"); err != nil {
-		log.PanicErrorf(err, "write output failed")
-	}
+	fmt.Println(string(b))
 }
 
-func (c *cmdProxy) handleShutdown() {
-	client := proxy.NewApiClient(c.address)
+func (t *cmdProxy) handleShutdown() {
+	client := proxy.NewApiClient(t.address)
 
 	p, err := client.Model()
 	if err != nil {
@@ -115,16 +90,18 @@ func (c *cmdProxy) handleShutdown() {
 	}
 	log.Debugf("get proxy model =\n%s", p.Encode())
 
-	if p.ProductName != c.product.name {
+	if p.ProductName != t.product.name {
 		log.Panicf("wrong product name, should be = %s", p.ProductName)
 	}
 
-	client.SetXAuth(c.product.name, c.product.auth, p.Token)
+	client.SetXAuth(p.ProductName, t.product.auth, p.Token)
 	if err := client.XPing(); err != nil {
 		log.Panicf("call rpc xping failed, invalid password")
 	}
 
 	if err := client.Shutdown(); err != nil {
 		log.Panicf("call rpc shutdown failed")
+	} else {
+		log.Infof("shutdown-proxy successfully")
 	}
 }
