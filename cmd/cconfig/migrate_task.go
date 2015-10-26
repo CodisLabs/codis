@@ -103,7 +103,6 @@ func (t *MigrateTask) migrateSingleSlot(slotId int, to int) error {
 		return nil
 	}
 
-
 	// modify slot status
 	if err := s.SetMigrateStatus(t.zkConn, from, to); err != nil {
 		log.ErrorErrorf(err, "set migrate status failed")

@@ -7,7 +7,7 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/alicebob/miniredis",
-			"Rev": "c92a63681772281d5b7c962f6e3c9893db93d6a7"
+			"Rev": "aa1f227171fe11d5f551dc5ba7efedfb8656520e"
 		},
 		{
 			"ImportPath": "github.com/bsm/redeo",
@@ -24,8 +24,8 @@
 		},
 		{
 			"ImportPath": "github.com/codegangsta/martini",
-			"Comment": "v1.0-130-g17752b2",
-			"Rev": "17752b20aa29c599c7b6c22f1901d63983c5c25b"
+			"Comment": "v1.0-166-g9987fc5",
+			"Rev": "9987fc59f060a063247d22472c2fb48654bac5f6"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/martini-contrib/binding",
@@ -39,8 +39,8 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/error",
-			"Comment": "v2.1.0-rc.0-32-g5be545b",
-			"Rev": "5be545b872a5a5938f9664668c0022ca877c5439"
+			"Comment": "v2.2.0-274-gd44b79c",
+			"Rev": "d44b79c3c9cd8641db8c821fb05ea03e73da94e0"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
@@ -54,16 +54,16 @@
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/internal",
-			"Rev": "a47585eaae68b1d14b02940d2af1b9194f3caa9c"
+			"Rev": "3d0709611e0e29c05a4e925e8447b065abb4eef6"
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Rev": "a47585eaae68b1d14b02940d2af1b9194f3caa9c"
+			"Rev": "3d0709611e0e29c05a4e925e8447b065abb4eef6"
 		},
 		{
 			"ImportPath": "github.com/go-martini/martini",
-			"Comment": "v1.0-130-g17752b2",
-			"Rev": "17752b20aa29c599c7b6c22f1901d63983c5c25b"
+			"Comment": "v1.0-166-g9987fc5",
+			"Rev": "9987fc59f060a063247d22472c2fb48654bac5f6"
 		},
 		{
 			"ImportPath": "github.com/martini-contrib/cors",
@@ -75,7 +75,7 @@
 		},
 		{
 			"ImportPath": "github.com/ngaut/log",
-			"Rev": "a370e11a897352d792b9a6cba4db829368271c41"
+			"Rev": "37d3e0f43b4fe05429e1adb75e835bf31fc1bba6"
 		},
 		{
 			"ImportPath": "github.com/ngaut/pools",
@@ -91,11 +91,11 @@
 		},
 		{
 			"ImportPath": "github.com/wandoulabs/go-zookeeper/zk",
-			"Rev": "b1b28a63b55c6cbf89a73fde62b3e92675c90d4e"
+			"Rev": "bae3e93ee8dc2a96b1e3b01d623ac22f4d254a5c"
 		},
 		{
 			"ImportPath": "github.com/wandoulabs/zkhelper",
-			"Rev": "324e3770c089e7a489248872efb3e5eb16c35e7b"
+			"Rev": "1024c0c6f27aec7eb85076c073554d19b0b0f9fd"
 		}
 	]
 }

@@ -128,6 +128,8 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 说明没有正确的设置go项目路径导致生成的文件找不到。见[安装教程](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#build-codis-proxy--codis-config)来正确配置环境变量并用正确的方式下载代码。
 
 ### zk: session has been expired by the server
+因为使用的go-zookeeper库代码注释里写的session超时时间参数单位是秒，但实际上该参数的单位是毫秒，所以<=2.0.7的版本错误的将默认配置设成30。因此请将配置文件修改为30000。此外2.0.8起如果配置文件中的参数过小则自动将秒转化为毫秒。
+
 Codis的proxy会注册在zk上并监听新的zk事件。因为涉及到数据一致性的问题，所有proxy必须能尽快知道slot状态的改变，因此一旦和zk的连接出了问题就无法知道最新的slot信息从而可能不得不阻塞一些请求以防止数据错误或丢失。
 
 Proxy会每几秒给zk发心跳，proxy的load太高可能导致timeout时间内（默认30秒，配置文件中可以修改）没有成功发心跳导致zk认为proxy已经挂了（当然也可能proxy确实挂了），
