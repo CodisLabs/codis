@@ -16,20 +16,18 @@ var (
 	ErrProxyRpcFailed = errors.New("proxy call rpc failed")
 )
 
-func (s *Topom) ProxyModels() []*models.Proxy {
+func (s *Topom) GetProxyModels() []*models.Proxy {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.getProxyModels()
+}
+
+func (s *Topom) getProxyModels() []*models.Proxy {
 	plist := make([]*models.Proxy, 0, len(s.proxies))
 	for _, p := range s.proxies {
 		plist = append(plist, p)
 	}
 	return plist
-}
-
-func (s *Topom) GetProxyStats(token string) *ProxyStats {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.stats.proxies[token]
 }
 
 func (s *Topom) getProxyClient(token string) (*proxy.ApiClient, error) {

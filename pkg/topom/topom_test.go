@@ -98,13 +98,7 @@ func assertProxyStats(t *Topom, c *ApiClient, fails []string) {
 		}
 		assert.Must(cnt == len(fails))
 	}
-	var m = make(map[string]*ProxyStats)
-	for _, p := range t.ProxyModels() {
-		stats := t.GetProxyStats(p.Token)
-		assert.Must(stats != nil)
-		m[p.Token] = stats
-	}
-	fn(m)
+	fn(t.GetStats().Proxy.Stats)
 	if c != nil {
 		stats, err := c.Stats()
 		assert.Must(err == nil)
@@ -121,7 +115,7 @@ func TestProxyCreate(x *testing.T) {
 
 	assert.Must(t.CreateProxy(addr1) == nil)
 	assert.Must(t.CreateProxy(addr1) != nil)
-	assert.Must(len(t.ProxyModels()) == 1)
+	assert.Must(len(t.GetProxyModels()) == 1)
 
 	_, c2, addr2 := openProxy()
 	defer c2.Shutdown()
@@ -129,7 +123,7 @@ func TestProxyCreate(x *testing.T) {
 	assert.Must(c2.Shutdown() == nil)
 
 	assert.Must(t.CreateProxy(addr2) != nil)
-	assert.Must(len(t.ProxyModels()) == 1)
+	assert.Must(len(t.GetProxyModels()) == 1)
 
 	assertProxyStats(t, nil, []string{})
 
@@ -146,22 +140,22 @@ func TestProxyRemove(x *testing.T) {
 	defer c1.Shutdown()
 
 	assert.Must(t.CreateProxy(addr1) == nil)
-	assert.Must(len(t.ProxyModels()) == 1)
+	assert.Must(len(t.GetProxyModels()) == 1)
 
 	assert.Must(t.RemoveProxy(p1.GetToken(), false) == nil)
-	assert.Must(len(t.ProxyModels()) == 0)
+	assert.Must(len(t.GetProxyModels()) == 0)
 
 	p2, c2, addr2 := openProxy()
 	defer c2.Shutdown()
 
 	assert.Must(t.CreateProxy(addr2) == nil)
-	assert.Must(len(t.ProxyModels()) == 1)
+	assert.Must(len(t.GetProxyModels()) == 1)
 
 	assert.Must(c2.Shutdown() == nil)
 
 	assert.Must(t.RemoveProxy(p2.GetToken(), false) != nil)
 	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
-	assert.Must(len(t.ProxyModels()) == 0)
+	assert.Must(len(t.GetProxyModels()) == 0)
 }
 
 func assertGroupList(t *Topom, c *ApiClient, glist ...*models.Group) {
@@ -181,7 +175,7 @@ func assertGroupList(t *Topom, c *ApiClient, glist ...*models.Group) {
 			}
 		}
 	}
-	fn(t.GroupModels())
+	fn(t.GetGroupModels())
 	if c != nil {
 		stats, err := c.Stats()
 		assert.Must(err == nil)
@@ -672,12 +666,12 @@ func TestApiStats2(x *testing.T) {
 	p1, c1, addr1 := openProxy()
 	defer c1.Shutdown()
 	assert.Must(t.CreateProxy(addr1) == nil)
-	assert.Must(len(t.ProxyModels()) == 1)
+	assert.Must(len(t.GetProxyModels()) == 1)
 
 	p2, c2, addr2 := openProxy()
 	defer c2.Shutdown()
 	assert.Must(t.CreateProxy(addr2) == nil)
-	assert.Must(len(t.ProxyModels()) == 2)
+	assert.Must(len(t.GetProxyModels()) == 2)
 	assertProxyStats(t, c, []string{})
 
 	assert.Must(c1.Shutdown() == nil)

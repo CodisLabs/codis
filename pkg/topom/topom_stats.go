@@ -48,7 +48,7 @@ func (s *ServerStats) UnmarshalJSON(b []byte) error {
 	}
 }
 
-func (s *Topom) updateServerStats(addr string, stats *ServerStats) bool {
+func (s *Topom) UpdateServerStats(addr string, stats *ServerStats) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -109,7 +109,7 @@ func (s *Topom) RefreshServerStats(timeout time.Duration) *sync.WaitGroup {
 		go func(addr string) {
 			defer wg.Done()
 			stats := s.runServerStats(addr, timeout)
-			s.updateServerStats(addr, stats)
+			s.UpdateServerStats(addr, stats)
 		}(addr)
 	}
 	return &wg
@@ -144,7 +144,7 @@ func (s *ProxyStats) UnmarshalJSON(b []byte) error {
 	}
 }
 
-func (s *Topom) updateProxyStats(token string, stats *ProxyStats) bool {
+func (s *Topom) UpdateProxyStats(token string, stats *ProxyStats) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -195,7 +195,7 @@ func (s *Topom) RefreshProxyStats(timeout time.Duration) *sync.WaitGroup {
 		go func(token string, c *proxy.ApiClient) {
 			defer wg.Done()
 			stats := s.runProxyStats(c, timeout)
-			s.updateProxyStats(token, stats)
+			s.UpdateProxyStats(token, stats)
 		}(token, c)
 	}
 	return &wg

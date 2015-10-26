@@ -194,6 +194,52 @@ func (s *Topom) GetModel() *models.Topom {
 	return s.model
 }
 
+func (s *Topom) GetStats() *Stats {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats := &Stats{}
+	stats.Online = s.online
+	stats.Closed = s.closed
+
+	stats.Slots = s.getSlotMappings()
+
+	stats.Group.Models = s.getGroupModels()
+	stats.Group.Stats = make(map[string]*ServerStats)
+	for k, v := range s.stats.servers {
+		stats.Group.Stats[k] = v
+	}
+
+	stats.Proxy.Models = s.getProxyModels()
+	stats.Proxy.Stats = make(map[string]*ProxyStats)
+	for k, v := range s.stats.proxies {
+		stats.Proxy.Stats[k] = v
+	}
+
+	stats.Action.Interval = s.action.interval.Get()
+	stats.Action.Disabled = s.action.disabled.Get()
+	return stats
+}
+
+type Stats struct {
+	Online bool `json:"online"`
+	Closed bool `json:"closed"`
+
+	Slots []*models.SlotMapping `json:"slots"`
+	Group struct {
+		Models []*models.Group         `json:"models"`
+		Stats  map[string]*ServerStats `json:"stats"`
+	} `json:"group"`
+	Proxy struct {
+		Models []*models.Proxy        `json:"models"`
+		Stats  map[string]*ProxyStats `json:"stats"`
+	} `json:"proxy"`
+
+	Action struct {
+		Interval int64 `json:"interval"`
+		Disabled bool  `json:"disabled"`
+	} `json:"action"`
+}
+
 func (s *Topom) GetConfig() *Config {
 	return s.config
 }

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/cors"
@@ -21,29 +20,8 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
 )
 
-type Stats struct {
-	Online bool `json:"online"`
-	Closed bool `json:"closed"`
-
-	Slots []*models.SlotMapping `json:"slots"`
-	Group struct {
-		Models []*models.Group         `json:"models"`
-		Stats  map[string]*ServerStats `json:"stats"`
-	} `json:"group"`
-	Proxy struct {
-		Models []*models.Proxy        `json:"models"`
-		Stats  map[string]*ProxyStats `json:"stats"`
-	} `json:"proxy"`
-
-	Action struct {
-		Interval int  `json:"interval"`
-		Disabled bool `json:"disabled"`
-	} `json:"action"`
-}
-
 type apiServer struct {
 	topom *Topom
-	sync.RWMutex
 }
 
 func newApiServer(t *Topom) http.Handler {
@@ -139,61 +117,29 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	return nil
 }
 
-func (s *apiServer) Overview() (int, string) {
-	s.RLock()
-	defer s.RUnlock()
-	overview := &struct {
-		Version string        `json:"version"`
-		Compile string        `json:"compile"`
-		Config  *Config       `json:"config"`
-		Model   *models.Topom `json:"model"`
-		Stats   *Stats        `json:"stats"`
-	}{
-		utils.Version,
-		utils.Compile,
-		s.topom.GetConfig(),
-		s.topom.GetModel(),
-		s.newStats(),
-	}
-	return rpc.ApiResponseJson(overview)
+type Overview struct {
+	Version string        `json:"version"`
+	Compile string        `json:"compile"`
+	Config  *Config       `json:"config,omitempty"`
+	Model   *models.Topom `json:"model,omitempty"`
+	Stats   *Stats        `json:"stats,omitempty"`
 }
 
-func (s *apiServer) newStats() *Stats {
-	stats := &Stats{}
-
-	stats.Online = s.topom.IsOnline()
-	stats.Closed = s.topom.IsClosed()
-
-	stats.Slots = s.topom.GetSlotMappings()
-	stats.Group.Models = s.topom.GroupModels()
-	stats.Proxy.Models = s.topom.ProxyModels()
-
-	stats.Action.Interval = s.topom.GetActionInterval()
-	stats.Action.Disabled = s.topom.GetActionDisabled()
-
-	stats.Group.Stats = make(map[string]*ServerStats)
-	for _, g := range stats.Group.Models {
-		for _, addr := range g.Servers {
-			stats.Group.Stats[addr] = s.topom.GetServerStats(addr)
-		}
-	}
-
-	stats.Proxy.Stats = make(map[string]*ProxyStats)
-	for _, p := range stats.Proxy.Models {
-		stats.Proxy.Stats[p.Token] = s.topom.GetProxyStats(p.Token)
-	}
-	return stats
+func (s *apiServer) Overview() (int, string) {
+	return rpc.ApiResponseJson(&Overview{
+		Version: utils.Version,
+		Compile: utils.Compile,
+		Config:  s.topom.GetConfig(),
+		Model:   s.topom.GetModel(),
+		Stats:   s.topom.GetStats(),
+	})
 }
 
 func (s *apiServer) Model() (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	return rpc.ApiResponseJson(s.topom.GetModel())
 }
 
 func (s *apiServer) XPing(params martini.Params) (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
@@ -202,12 +148,10 @@ func (s *apiServer) XPing(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) Stats(params martini.Params) (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		return rpc.ApiResponseJson(s.newStats())
+		return rpc.ApiResponseJson(s.topom.GetStats())
 	}
 }
 
@@ -256,8 +200,6 @@ func (s *apiServer) parseBoolean(params martini.Params, entry string) (bool, err
 }
 
 func (s *apiServer) CreateProxy(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -273,8 +215,6 @@ func (s *apiServer) CreateProxy(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) ReinitProxy(params martini.Params) (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -290,8 +230,6 @@ func (s *apiServer) ReinitProxy(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) RemoveProxy(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -311,8 +249,6 @@ func (s *apiServer) RemoveProxy(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) CreateGroup(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -328,8 +264,6 @@ func (s *apiServer) CreateGroup(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) RemoveGroup(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -345,8 +279,6 @@ func (s *apiServer) RemoveGroup(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) GroupAddServer(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -366,8 +298,6 @@ func (s *apiServer) GroupAddServer(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) GroupDelServer(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -387,8 +317,6 @@ func (s *apiServer) GroupDelServer(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) GroupPromoteServer(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -408,8 +336,6 @@ func (s *apiServer) GroupPromoteServer(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) GroupPromoteCommit(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -425,8 +351,6 @@ func (s *apiServer) GroupPromoteCommit(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) SlotCreateAction(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -446,8 +370,6 @@ func (s *apiServer) SlotCreateAction(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) SlotRemoveAction(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -463,8 +385,6 @@ func (s *apiServer) SlotRemoveAction(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) Shutdown(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -476,8 +396,6 @@ func (s *apiServer) Shutdown(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) SetActionInterval(params martini.Params) (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -491,8 +409,6 @@ func (s *apiServer) SetActionInterval(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) SetActionDisabled(params martini.Params) (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -526,17 +442,13 @@ func (c *ApiClient) encodeXAddr(addr string) string {
 	return base64.StdEncoding.EncodeToString([]byte(addr))
 }
 
-func (c *ApiClient) Overview() (map[string]interface{}, error) {
+func (c *ApiClient) Overview() (*Overview, error) {
 	url := c.encodeURL("/overview")
-	var v interface{}
-	if err := rpc.ApiGetJson(url, &v); err != nil {
+	var o = &Overview{}
+	if err := rpc.ApiGetJson(url, o); err != nil {
 		return nil, err
 	}
-	if m, ok := v.(map[string]interface{}); ok {
-		return m, nil
-	} else {
-		return nil, errors.New("invalid json map")
-	}
+	return o, nil
 }
 
 func (c *ApiClient) Model() (*models.Topom, error) {

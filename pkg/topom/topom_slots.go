@@ -21,17 +21,21 @@ var (
 func (s *Topom) GetSlotMappings() []*models.SlotMapping {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	mappings := make([]*models.SlotMapping, len(s.mappings))
-	for i, m := range s.mappings {
-		mappings[i] = m
-	}
-	return mappings
+	return s.getSlotMappings()
 }
 
 func (s *Topom) GetSlots() []*models.Slot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.getSlots()
+}
+
+func (s *Topom) getSlotMappings() []*models.SlotMapping {
+	mappings := make([]*models.SlotMapping, len(s.mappings))
+	for i, m := range s.mappings {
+		mappings[i] = m
+	}
+	return mappings
 }
 
 func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {

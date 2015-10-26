@@ -28,32 +28,18 @@ var (
 	ErrServerPromoteAgain = errors.New("server is already master")
 )
 
-func (s *Topom) GroupModels() []*models.Group {
+func (s *Topom) GetGroupModels() []*models.Group {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	return s.getGroupModels()
+}
+
+func (s *Topom) getGroupModels() []*models.Group {
 	glist := make([]*models.Group, 0, len(s.groups))
 	for _, g := range s.groups {
 		glist = append(glist, g)
 	}
 	return glist
-}
-
-func (s *Topom) GetServerStats(addr string) *ServerStats {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.stats.servers[addr]
-}
-
-func (s *Topom) GetGroup(groupId int) (*models.Group, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.getGroup(groupId)
-}
-
-func (s *Topom) GetGroupMaster(groupId int) string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.getGroupMaster(groupId)
 }
 
 func (s *Topom) getGroup(groupId int) (*models.Group, error) {

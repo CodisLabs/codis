@@ -3,7 +3,6 @@ package proxy
 import (
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/binding"
@@ -17,24 +16,8 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
 )
 
-type Stats struct {
-	Online bool `json:"online"`
-	Closed bool `json:"closed"`
-
-	Ops struct {
-		Total int64             `json:"total"`
-		Cmds  []*router.OpStats `json:"cmds,omitempty"`
-	} `json:"ops"`
-
-	Sessions struct {
-		Total   int64 `json:"total"`
-		Actived int64 `json:"actived"`
-	} `json:"sessions"`
-}
-
 type apiServer struct {
 	proxy *Proxy
-	sync.RWMutex
 }
 
 func newApiServer(p *Proxy) http.Handler {
@@ -89,30 +72,43 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	return nil
 }
 
-func (s *apiServer) Overview() (int, string) {
-	s.RLock()
-	defer s.RUnlock()
-	overview := &struct {
-		Version string         `json:"version"`
-		Compile string         `json:"compile"`
-		Config  *Config        `json:"config"`
-		Model   *models.Proxy  `json:"model"`
-		Slots   []*models.Slot `json:"slots"`
-		Stats   *Stats         `json:"stats"`
-	}{
-		utils.Version,
-		utils.Compile,
-		s.proxy.GetConfig(),
-		s.proxy.GetModel(),
-		s.proxy.GetSlots(),
-		s.newStats(),
-	}
-	return rpc.ApiResponseJson(overview)
+type Overview struct {
+	Version string         `json:"version"`
+	Compile string         `json:"compile"`
+	Config  *Config        `json:"config,omitempty"`
+	Model   *models.Proxy  `json:"model,omitempty"`
+	Slots   []*models.Slot `json:"slots,omitempty"`
+	Stats   *Stats         `json:"stats,omitempty"`
 }
 
-func (s *apiServer) newStats() *Stats {
-	stats := &Stats{}
+type Stats struct {
+	Online bool `json:"online"`
+	Closed bool `json:"closed"`
 
+	Ops struct {
+		Total int64             `json:"total"`
+		Cmds  []*router.OpStats `json:"cmds,omitempty"`
+	} `json:"ops"`
+
+	Sessions struct {
+		Total   int64 `json:"total"`
+		Actived int64 `json:"actived"`
+	} `json:"sessions"`
+}
+
+func (s *apiServer) Overview() (int, string) {
+	return rpc.ApiResponseJson(&Overview{
+		Version: utils.Version,
+		Compile: utils.Compile,
+		Config:  s.proxy.GetConfig(),
+		Model:   s.proxy.GetModel(),
+		Slots:   s.proxy.GetSlots(),
+		Stats:   s.NewStats(),
+	})
+}
+
+func (s *apiServer) NewStats() *Stats {
+	stats := &Stats{}
 	stats.Online = s.proxy.IsOnline()
 	stats.Closed = s.proxy.IsClosed()
 
@@ -125,24 +121,18 @@ func (s *apiServer) newStats() *Stats {
 }
 
 func (s *apiServer) Model() (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	return rpc.ApiResponseJson(s.proxy.GetModel())
 }
 
 func (s *apiServer) Stats(params martini.Params) (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		return rpc.ApiResponseJson(s.newStats())
+		return rpc.ApiResponseJson(s.NewStats())
 	}
 }
 
 func (s *apiServer) XPing(params martini.Params) (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
@@ -151,8 +141,6 @@ func (s *apiServer) XPing(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) Slots(params martini.Params) (int, string) {
-	s.RLock()
-	defer s.RUnlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
@@ -161,8 +149,6 @@ func (s *apiServer) Slots(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) Start(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -174,8 +160,6 @@ func (s *apiServer) Start(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) Shutdown(params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -187,15 +171,11 @@ func (s *apiServer) Shutdown(params martini.Params) (int, string) {
 }
 
 func (s *apiServer) FillSlots(slots []*models.Slot, params martini.Params) (int, string) {
-	s.Lock()
-	defer s.Unlock()
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	for _, slot := range slots {
-		if err := s.proxy.FillSlot(slot.Id, slot.BackendAddr, slot.MigrateFrom, slot.Locked); err != nil {
-			return rpc.ApiResponseError(err)
-		}
+	if err := s.proxy.FillSlots(slots); err != nil {
+		return rpc.ApiResponseError(err)
 	}
 	return rpc.ApiResponseJson("OK")
 }
@@ -217,17 +197,13 @@ func (c *ApiClient) encodeURL(format string, args ...interface{}) string {
 	return rpc.EncodeURL(c.addr, format, args...)
 }
 
-func (c *ApiClient) Overview() (map[string]interface{}, error) {
+func (c *ApiClient) Overview() (*Overview, error) {
 	url := c.encodeURL("/overview")
-	var v interface{}
-	if err := rpc.ApiGetJson(url, &v); err != nil {
+	var o = &Overview{}
+	if err := rpc.ApiGetJson(url, o); err != nil {
 		return nil, err
 	}
-	if m, ok := v.(map[string]interface{}); ok {
-		return m, nil
-	} else {
-		return nil, errors.New("invalid json map")
-	}
+	return o, nil
 }
 
 func (c *ApiClient) Model() (*models.Proxy, error) {
