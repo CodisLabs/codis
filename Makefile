@@ -1,8 +1,8 @@
 all: build
 
-build: build-version godep build-proxy build-config build-server build-dashboard
+build: build-godep build-version build-proxy build-server build-dashboard
 
-godep:
+build-godep:
 	@go get -u github.com/tools/godep
 	GOPATH=`godep path` godep restore
 
@@ -18,9 +18,9 @@ build-admin:
 build-dashboard:
 	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-dashboard ./cmd/dashboard
 
-build-config:
-	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-config ./cmd/cconfig
-	@rm -rf bin/assets && cp -r cmd/cconfig/assets bin/
+# build-config:
+# 	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-config ./cmd/cconfig
+# 	@rm -rf bin/assets && cp -r cmd/cconfig/assets bin/
 
 build-server:
 	@mkdir -p bin
@@ -39,4 +39,4 @@ distclean: clean
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
 
 gotest:
-	GOPATH=`godep path`:$$GOPATH go test ./pkg/... ./cmd/...
+	# GOPATH=`godep path`:$$GOPATH go test ./pkg/... ./cmd/...
