@@ -20,16 +20,13 @@ Codis 依赖 ZooKeeper 来存放数据路由表和 codis-proxy 节点的元信�
 Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name 的产品, 各项配置都不会冲突.
 
 ##Build codis-proxy & codis-config
-------------------
 
-安装go[参考这里](https://golang.org/doc/install), 根据教程正确设置$GOPATH环境变量。注意$GOPATH是本机所有go项目（包括项目依赖的第三方库）的所在目录，而非单纯codis的所在目录。
+* 安装go[参考这里](https://golang.org/doc/install)
+* 根据教程正确设置$GOPATH环境变量。注意$GOPATH是本机所有go项目（包括项目依赖的第三方库）的所在目录，而非单纯codis的所在目录。
+* 将$GOPATH/bin设为$PATH的其中一个目录，例如直接PATH=$GOPATH/bin:$PATH，方便执行通过go get安装的命令
+* 执行`go get -u -d github.com/wandoulabs/codis`下载codis代码
+* 切换到`$GOPATH/src/github.com/wandoulabs/codis`目录执行`make`命令编译代码，并执行`make gotest`来跑测试
 
-```
-go get -u -d github.com/wandoulabs/codis
-cd $GOPATH/src/github.com/wandoulabs/codis
-./bootstrap.sh
-make gotest
-```
 建议只通过go get命令来下载codis，除非你非常熟悉go语言的目录引用形式从而不会导致代码放错地方。该命令会下载master分支的最新版，我们会确保master分支的稳定。
 
 执行全部指令后，会在 bin 文件夹生成 codis-config, codis-proxy 两个可执行文件, (另外, bin/assets 文件夹是 codis-config 的 dashboard http 服务需要的前端资源, 需要和 codis-config 放置在同一文件夹下)
@@ -77,13 +74,17 @@ options:
 
 ###流程
 
-**0. 启动 dashboard**, 执行 `bin/codis-config dashboard`, 该命令会启动 dashboard
+####启动 dashboard
+执行 `bin/codis-config dashboard`, 该命令会启动 dashboard
 
-**1. 初始化 slots** , 执行 `bin/codis-config slot init`，该命令会在zookeeper上创建slot相关信息
+####初始化 slots
+执行 `bin/codis-config slot init`，该命令会在zookeeper上创建slot相关信息
 
-**2. 启动 Codis Redis** , 和官方的Redis Server参数一样
+####启动 Codis Redis
+和官方的Redis Server参数一样
 
-**3. 添加 Redis Server Group** , 每一个 Server Group 作为一个 Redis 服务器组存在, 只允许有一个 master, 可以有多个 slave, ***group id 仅支持大于等于1的整数***
+####添加 Redis Server Group
+每一个 Server Group 作为一个 Redis 服务器组存在, 只允许有一个 master, 可以有多个 slave, ***group id 仅支持大于等于1的整数***
 
 ```
 $ bin/codis-config server -h                                                                                                                                                                                                                   usage:
@@ -111,7 +112,7 @@ $ bin/codis-config server add 2 localhost:6479 master
 $ bin/codis-config server add 2 localhost:6480 slave
 ```
 
-**4. 设置 server group 服务的 slot 范围**
+####设置 server group 服务的 slot 范围
    Codis 采用 Pre-sharding 的技术来实现数据的分片, 默认分成 1024 个 slots (0-1023), 对于每个key来说, 通过以下公式确定所属的 Slot Id : SlotId = crc32(key) % 1024 
    每一个 slot 都会有一个且必须有一个特定的 server group id 来表示这个 slot 的数据由哪个 server group 来提供.
 
@@ -134,7 +135,7 @@ $ bin/codis-config slot range-set 0 511 1 online
 $ bin/codis-config slot range-set 512 1023 2 online
 ```
 
- **5. 启动 codis-proxy**
+####启动 codis-proxy
 ```
  bin/codis-proxy -c config.ini -L ./log/proxy.log  --cpu=8 --addr=0.0.0.0:19000 --http-addr=0.0.0.0:11000
 ```
@@ -143,9 +144,8 @@ $ bin/codis-config slot range-set 512 1023 2 online
  bin/codis-config -c config.ini proxy online <proxy_name>  <---- proxy的id, 如 proxy_1
 ```
 
- **6. 打开浏览器 http://localhost:18087/admin**
- 
- 现在可以在浏览器里面完成各种操作了， 玩得开心
+####打开浏览器
+ 访问http://localhost:18087/admin ， 现在可以在浏览器里面完成各种操作了， 玩得开心
   
 
 ##数据迁移
@@ -192,3 +192,6 @@ $ bin/codis-config slot rebalance
 不过我们也提供一种解决方案：[codis-ha](https://github.com/ngaut/codis-ha)。这是一个通过codis开放的api实现自动切换主从的工具。该工具会在检测到master挂掉的时候将其下线并选择其中一个slave提升为master继续提供服务。
 
 需要注意，codis将其中一个slave升级为master时，该组内其他slave实例是不会自动改变状态的，这些slave仍将试图从旧的master上同步数据，因而会导致组内新的master和其他slave之间的数据不一致。因为redis的slave of命令切换master时会丢弃slave上的全部数据，从新master完整同步，会消耗master资源。因此建议在知情的情况下手动操作。使用 `codis-config server add <group_id> <redis_addr> slave` 命令刷新这些节点的状态即可。codis-ha不会自动刷新其他slave的状态。
+
+##升级
+我们会不断改进codis、修复bug，因此建议永远尽量使用master上的最新版。根据安装教程执行对应命令会自动更新代码，重新编译后用新的二级制文件替换旧的然后重启进程即可。如果没有特殊说明，codis是允许集群中存在多个版本的proxy或者proxy和dashboard版本不一致的，但是建议只作为升级过程的中间阶段，不要让这种混合多版本的状态持续过长时间。

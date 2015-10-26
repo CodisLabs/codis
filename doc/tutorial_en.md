@@ -20,14 +20,11 @@ Codis support namespace, configs of products with different name  won’t be con
 
 ## Build codis-proxy & codis-config
 
-Install Go please check [this document](https://github.com/astaxie/build-web-application-with-golang/blob/master/ebook/01.1.md). Then follow these hints:
 
-```
-go get -d github.com/wandoulabs/codis
-cd $GOPATH/src/github.com/wandoulabs/codis
-./bootstrap.sh
-make gotest
-```
+* install go [see official doc](https://golang.org/doc/install)
+* set $GOPATH correctly and set PATH=$GOPATH/bin:$PATH to execute commands installed by `go get`
+* execute `go get -u -d github.com/wandoulabs/codis` to download codis
+* change directory to `$GOPATH/src/github.com/wandoulabs/codis` and execute `make` to compile, execute `make gotest` to run unit test
 
 Two executable file `codas-config` and `codis-proxy` should be generated in `codis/bin`(`bin/assets` is the resources for `codis-config` dashboard, should be placed at same directory with `codis-config`).
 
