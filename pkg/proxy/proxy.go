@@ -127,9 +127,15 @@ func (s *Proxy) Close() error {
 	s.closed = true
 	close(s.exit.C)
 
-	s.ladmin.Close()
-	s.lproxy.Close()
-	s.router.Close()
+	if s.ladmin != nil {
+		s.ladmin.Close()
+	}
+	if s.lproxy != nil {
+		s.lproxy.Close()
+	}
+	if s.router != nil {
+		s.router.Close()
+	}
 
 	if s.jodis != nil {
 		s.jodis.Close()
