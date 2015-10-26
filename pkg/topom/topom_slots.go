@@ -160,6 +160,11 @@ func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
 
 	log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
 
+	select {
+	case s.action.notify <- true:
+	default:
+	}
+
 	return nil
 }
 

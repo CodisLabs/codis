@@ -52,6 +52,8 @@ type Topom struct {
 	action struct {
 		interval atomic2.Int64
 		disabled atomic2.Bool
+
+		notify chan bool
 	}
 }
 
@@ -71,6 +73,7 @@ func New(store models.Store, config *Config) (*Topom, error) {
 	s.model.Pwd, _ = os.Getwd()
 
 	s.action.interval.Set(1000)
+	s.action.notify = make(chan bool, 1)
 
 	s.redisp = NewRedisPool(config.ProductAuth, time.Second*10)
 
@@ -321,6 +324,8 @@ func (s *Topom) StartDaemonRoutines() {
 		}()
 
 		go func() {
+			var ticker = time.NewTicker(time.Second)
+			defer ticker.Stop()
 			for !s.IsClosed() {
 				var slotId int = -1
 				if !s.GetActionDisabled() {
@@ -332,7 +337,12 @@ func (s *Topom) StartDaemonRoutines() {
 						time.Sleep(time.Second * 3)
 					}
 				} else {
-					time.Sleep(time.Millisecond * 200)
+					select {
+					case <-s.exit.C:
+						return
+					case <-ticker.C:
+					case <-s.action.notify:
+					}
 				}
 			}
 		}()
