@@ -104,13 +104,12 @@ func checkUlimit(min int) {
 }
 
 func main() {
-	fmt.Print(banner)
-
-	args, err := docopt.Parse(usage, nil, true, "codis proxy v0.1", true)
+	args, err := docopt.Parse(usage, nil, true, utils.Version, true)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	fmt.Print(banner)
 
 	// set config file
 	if args["-c"] != nil {

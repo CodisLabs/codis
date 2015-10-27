@@ -18,6 +18,7 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/wandoulabs/codis/pkg/utils"
 )
 
 // global objects
@@ -104,7 +105,7 @@ func main() {
 		log.Panicf("ctrl-c or SIGTERM found, exit")
 	}()
 
-	args, err := docopt.Parse(usage, nil, true, "codis config v0.1", true)
+	args, err := docopt.Parse(usage, nil, true, utils.Version, true)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
