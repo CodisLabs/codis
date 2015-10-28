@@ -122,6 +122,8 @@ Options:
 	}
 	defer s.Close()
 
+	s.StartDaemonRoutines()
+
 	log.Infof("create topom with config\n%s\n", config)
 
 	go func() {
