@@ -187,18 +187,6 @@ func (s *apiServer) parseInteger(params martini.Params, entry string) (int, erro
 	return v, nil
 }
 
-func (s *apiServer) parseBoolean(params martini.Params, entry string) (bool, error) {
-	text := params[entry]
-	if text == "" {
-		return false, fmt.Errorf("missing %s", entry)
-	}
-	v, err := strconv.ParseBool(text)
-	if err != nil {
-		return false, fmt.Errorf("invalid %s", entry)
-	}
-	return v, nil
-}
-
 func (s *apiServer) CreateProxy(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -237,11 +225,11 @@ func (s *apiServer) RemoveProxy(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	force, err := s.parseBoolean(params, "force")
+	force, err := s.parseInteger(params, "force")
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	if err := s.topom.RemoveProxy(token, force); err != nil {
+	if err := s.topom.RemoveProxy(token, force != 0); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -412,11 +400,11 @@ func (s *apiServer) SetActionDisabled(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	value, err := s.parseBoolean(params, "value")
+	value, err := s.parseInteger(params, "value")
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		s.topom.SetActionDisabled(value)
+		s.topom.SetActionDisabled(value != 0)
 		return rpc.ApiResponseJson("OK")
 	}
 }
@@ -485,7 +473,11 @@ func (c *ApiClient) ReinitProxy(token string) error {
 }
 
 func (c *ApiClient) RemoveProxy(token string, force bool) error {
-	url := c.encodeURL("/api/proxy/remove/%s/%s/%t", c.xauth, token, force)
+	var value int
+	if force {
+		value = 1
+	}
+	url := c.encodeURL("/api/proxy/remove/%s/%s/%d", c.xauth, token, value)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -534,12 +526,16 @@ func (c *ApiClient) Shutdown() error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) SetActionInterval(value int) error {
-	url := c.encodeURL("/api/set/action/interval/%s/%d", c.xauth, value)
+func (c *ApiClient) SetActionInterval(msecs int) error {
+	url := c.encodeURL("/api/set/action/interval/%s/%d", c.xauth, msecs)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) SetActionDisabled(value bool) error {
-	url := c.encodeURL("/api/set/action/disabled/%s/%t", c.xauth, value)
+func (c *ApiClient) SetActionDisabled(disabled bool) error {
+	var value int
+	if disabled {
+		value = 1
+	}
+	url := c.encodeURL("/api/set/action/disabled/%s/%d", c.xauth, value)
 	return rpc.ApiPutJson(url, nil, nil)
 }
