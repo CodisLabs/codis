@@ -90,6 +90,8 @@ func newApiServer(t *Topom) http.Handler {
 	r.Put("/api/group/promote/:xauth/:gid/:xaddr", api.GroupPromoteServer)
 	r.Put("/api/group/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
 
+	r.Put("/api/group/repair-master/:xauth/:gid/:xaddr", api.GroupRepairMaster)
+
 	r.Put("/api/action/create/:xauth/:sid/:gid", api.SlotCreateAction)
 	r.Put("/api/action/remove/:xauth/:sid", api.SlotRemoveAction)
 
@@ -338,6 +340,25 @@ func (s *apiServer) GroupPromoteCommit(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) GroupRepairMaster(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	groupId, err := s.parseInteger(params, "gid")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	addr, err := s.decodeXAddr(params)
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.GroupRepairMaster(groupId, addr); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
 func (s *apiServer) SlotCreateAction(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -508,6 +529,11 @@ func (c *ApiClient) GroupPromoteServer(groupId int, addr string) error {
 
 func (c *ApiClient) GroupPromoteCommit(groupId int) error {
 	url := c.encodeURL("/api/group/promote-commit/%s/%d", c.xauth, groupId)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) GroupRepairMaster(groupId int, addr string) error {
+	url := c.encodeURL("/api/group/repair-master/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
