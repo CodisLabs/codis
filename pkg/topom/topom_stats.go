@@ -2,6 +2,7 @@ package topom
 
 import (
 	"encoding/json"
+	"strconv"
 	"sync"
 	"time"
 
@@ -23,11 +24,17 @@ type ServerStats struct {
 func (s *ServerStats) MarshalJSON() ([]byte, error) {
 	var v = &struct {
 		Infomap map[string]string `json:"infomap,omitempty"`
-		Slotmap map[int]int       `json:"slotmap,omitempty"`
+		Slotmap map[string]int    `json:"slotmap,omitempty"`
 		Error   *rpc.RemoteError  `json:"error,omitempty"`
 	}{
-		s.Infomap, s.Slotmap,
+		s.Infomap, nil,
 		rpc.ToRemoteError(s.Error),
+	}
+	if s.Slotmap != nil {
+		v.Slotmap = make(map[string]int)
+		for i, val := range s.Slotmap {
+			v.Slotmap[strconv.Itoa(i)] = val
+		}
 	}
 	return json.Marshal(v)
 }
@@ -35,15 +42,24 @@ func (s *ServerStats) MarshalJSON() ([]byte, error) {
 func (s *ServerStats) UnmarshalJSON(b []byte) error {
 	var v = &struct {
 		Infomap map[string]string `json:"infomap,omitempty"`
-		Slotmap map[int]int       `json:"slotmap,omitempty"`
+		Slotmap map[string]int    `json:"slotmap,omitempty"`
 		Error   *rpc.RemoteError  `json:"error,omitempty"`
 	}{}
 	if err := json.Unmarshal(b, v); err != nil {
 		return err
 	} else {
 		s.Infomap = v.Infomap
-		s.Slotmap = v.Slotmap
 		s.Error = v.Error.ToError()
+		if v.Slotmap != nil {
+			s.Slotmap = make(map[int]int)
+			for a, val := range v.Slotmap {
+				i, err := strconv.Atoi(a)
+				if err != nil {
+					return errors.Trace(err)
+				}
+				s.Slotmap[i] = val
+			}
+		}
 		return nil
 	}
 }
