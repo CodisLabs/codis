@@ -120,7 +120,7 @@ func (c *RedisClient) GetInfo() (map[string]string, error) {
 }
 
 func (c *RedisClient) SetMaster(master string) error {
-	if master == "" {
+	if master == "" || strings.ToUpper(master) == "NO:ONE" {
 		if _, err := c.command("SLAVEOF", "NO", "ONE"); err != nil {
 			return err
 		}
@@ -148,9 +148,6 @@ func (c *RedisClient) MigrateSlot(slot int, target string) (int, error) {
 		p, err := redis.Ints(redis.Values(reply, nil))
 		if err != nil || len(p) != 2 {
 			return 0, errors.Errorf("invalid response = %v", reply)
-		}
-		if p[0] != 0 {
-			return 0, errors.Errorf("migrate slot-%04d failed, response = %v", slot, reply)
 		}
 		return p[1], nil
 	}

@@ -2,6 +2,7 @@ package topom
 
 import (
 	"math"
+	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
@@ -20,11 +21,11 @@ var (
 	ErrGroupResyncSlots    = errors.New("group resync slots failed")
 	ErrGroupIsEmpty        = errors.New("group is empty")
 	ErrGroupIsNotEmpty     = errors.New("group is not empty")
-	ErrGroupIsLocked       = errors.New("group is locked")
+	ErrGroupMasterLocked   = errors.New("group master is locked")
+	ErrGroupMasterIsBusy   = errors.New("group master is still in use")
 
 	ErrServerExists       = errors.New("server already exists")
 	ErrServerNotExists    = errors.New("server does not exist")
-	ErrServerIsBusy       = errors.New("server is still busy")
 	ErrServerPromoteAgain = errors.New("server is already master")
 )
 
@@ -66,24 +67,24 @@ func (s *Topom) isGroupPromoting(groupId int) bool {
 	return false
 }
 
-func (s *Topom) acquireGroupLock(groupId int) {
-	if l := s.glocks[groupId]; l != nil {
+func (s *Topom) lockGroupMaster(groupId int) {
+	if l := s.mlocks[groupId]; l != nil {
 		if n := l.Incr(); n > 128 {
-			log.Warnf("[%p] glocks-[%d] increase to %d", s, groupId, n)
+			log.Warnf("[%p] mlocks-[%d] increase to %d", s, groupId, n)
 		}
 	}
 }
 
-func (s *Topom) releaseGroupLock(groupId int) {
-	if l := s.glocks[groupId]; l != nil {
+func (s *Topom) unlockGroupMaster(groupId int) {
+	if l := s.mlocks[groupId]; l != nil {
 		if n := l.Decr(); n < 0 {
-			log.Panicf("[%p] glocks-[%d] decrease to %d", s, groupId, n)
+			log.Panicf("[%p] mlocks-[%d] decrease to %d", s, groupId, n)
 		}
 	}
 }
 
-func (s *Topom) isGroupLocked(groupId int) bool {
-	if l := s.glocks[groupId]; l != nil {
+func (s *Topom) isGroupMasterLocked(groupId int) bool {
+	if l := s.mlocks[groupId]; l != nil {
 		return l.Get() != 0
 	}
 	return false
@@ -113,7 +114,7 @@ func (s *Topom) CreateGroup(groupId int) error {
 	}
 
 	s.groups[groupId] = g
-	s.glocks[groupId] = &atomic2.Int64{}
+	s.mlocks[groupId] = &atomic2.Int64{}
 
 	log.Infof("[%p] create group-[%d]:\n%s", s, groupId, g.Encode())
 
@@ -141,7 +142,7 @@ func (s *Topom) RemoveGroup(groupId int) error {
 	}
 
 	delete(s.groups, groupId)
-	delete(s.glocks, groupId)
+	delete(s.mlocks, groupId)
 
 	log.Infof("[%p] remove group-[%d]:\n%s", s, groupId, g.Encode())
 
@@ -159,12 +160,13 @@ func (s *Topom) GroupAddServer(groupId int, addr string) error {
 		return errors.Trace(ErrServerExists)
 	}
 
+	if s.isGroupPromoting(groupId) {
+		return errors.Trace(ErrGroupIsPromoting)
+	}
+
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
-	}
-	if g.Promoting {
-		return errors.Trace(ErrGroupIsPromoting)
 	}
 
 	n := &models.Group{
@@ -195,12 +197,13 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 		return errors.Trace(ErrServerNotExists)
 	}
 
+	if s.isGroupPromoting(groupId) {
+		return errors.Trace(ErrGroupIsPromoting)
+	}
+
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
-	}
-	if g.Promoting {
-		return errors.Trace(ErrGroupIsPromoting)
 	}
 
 	servers := []string{}
@@ -214,7 +217,10 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 	}
 	if addr == g.Servers[0] {
 		if len(g.Servers) != 1 || len(s.getSlotsByGroup(groupId)) != 0 {
-			return errors.Trace(ErrServerIsBusy)
+			return errors.Trace(ErrGroupMasterIsBusy)
+		}
+		if s.isGroupMasterLocked(groupId) {
+			return errors.Trace(ErrGroupMasterLocked)
 		}
 	}
 
@@ -242,16 +248,16 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string) error {
 		return ErrClosedTopom
 	}
 
-	if s.isGroupLocked(groupId) {
-		return errors.Trace(ErrGroupIsLocked)
+	if s.isGroupMasterLocked(groupId) {
+		return errors.Trace(ErrGroupMasterLocked)
+	}
+	if s.isGroupPromoting(groupId) {
+		return errors.Trace(ErrGroupIsPromoting)
 	}
 
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
-	}
-	if g.Promoting {
-		return errors.Trace(ErrGroupIsPromoting)
 	}
 
 	servers := []string{}
@@ -291,10 +297,6 @@ func (s *Topom) GroupPromoteCommit(groupId int) error {
 		return ErrClosedTopom
 	}
 
-	if s.isGroupLocked(groupId) {
-		return errors.Trace(ErrGroupIsLocked)
-	}
-
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
@@ -308,9 +310,8 @@ func (s *Topom) GroupPromoteCommit(groupId int) error {
 	}
 
 	n := &models.Group{
-		Id:        groupId,
-		Servers:   g.Servers,
-		Promoting: false,
+		Id:      groupId,
+		Servers: g.Servers,
 	}
 	s.groups[groupId] = n
 
@@ -333,6 +334,68 @@ func (s *Topom) GroupPromoteCommit(groupId int) error {
 	rollback = false
 
 	log.Infof("[%p] update group-[%d]:\n%s", s, groupId, n.Encode())
+
+	return nil
+}
+
+func (s *Topom) GroupRepairMaster(groupId int, addr string) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+
+	g, err := s.getGroup(groupId)
+	if err != nil {
+		return err
+	}
+
+	var index = -1
+	for i, x := range g.Servers {
+		if x == addr {
+			index = i
+		}
+	}
+
+	var master = "NO:ONE"
+	switch {
+	case index < 0:
+		return errors.Trace(ErrServerNotExists)
+	case index > 0:
+		master = g.Servers[0]
+	}
+
+	s.lockGroupMaster(groupId)
+
+	go func() {
+		defer s.unlockGroupMaster(groupId)
+		if master != "NO:ONE" {
+			c, err := s.redisp.GetClient(master)
+			if err != nil {
+				log.WarnErrorf(err, "server %s create client failed", master)
+				return
+			}
+			defer s.redisp.PutClient(c)
+			if err := c.SetMaster("NO:ONE"); err != nil {
+				log.WarnErrorf(err, "server %s set master = NO:ONE failed", master)
+				return
+			}
+			log.Infof("[%p] repair-[%d]: server %s set master to NO:ONE OK", s, groupId, master)
+		}
+		c, err := NewRedisClient(addr, s.config.ProductAuth, time.Minute*15)
+		if err != nil {
+			log.WarnErrorf(err, "server %s create client failed", addr)
+			return
+		}
+		defer c.Close()
+		if err := c.SetMaster(master); err != nil {
+			log.WarnErrorf(err, "server %s set master = %s failed", addr, master)
+			return
+		}
+		log.Infof("[%p] repair-[%d]: server %s set master to %s OK", s, groupId, addr, master)
+	}()
+
+	log.Infof("[%p] repair-[%d]: server %s set master to %s, pending...", s, groupId, addr, master)
 
 	return nil
 }

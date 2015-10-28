@@ -216,8 +216,8 @@ func (s *Topom) newActionTask(slotId int) (*actionTask, error) {
 	t.Dest.Master = s.getGroupMaster(m.Action.TargetId)
 	t.Dest.GroupId = m.Action.TargetId
 
-	s.acquireGroupLock(t.From.GroupId)
-	s.acquireGroupLock(t.Dest.GroupId)
+	s.lockGroupMaster(t.From.GroupId)
+	s.lockGroupMaster(t.Dest.GroupId)
 	return t, nil
 }
 
@@ -225,8 +225,8 @@ func (s *Topom) releaseActionTask(t *actionTask) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	s.releaseGroupLock(t.From.GroupId)
-	s.releaseGroupLock(t.Dest.GroupId)
+	s.unlockGroupMaster(t.From.GroupId)
+	s.unlockGroupMaster(t.Dest.GroupId)
 }
 
 func (s *Topom) MigrateSlot(slotId int) (int, error) {
