@@ -93,6 +93,7 @@ func newApiServer(t *Topom) http.Handler {
 	r.Put("/api/group/repair-master/:xauth/:gid/:xaddr", api.GroupRepairMaster)
 
 	r.Put("/api/action/create/:xauth/:sid/:gid", api.SlotCreateAction)
+	r.Put("/api/action/create-range/:xauth/:beg/:end/:gid", api.SlotCreateActionRange)
 	r.Put("/api/action/remove/:xauth/:sid", api.SlotRemoveAction)
 
 	r.Put("/api/shutdown/:xauth", api.Shutdown)
@@ -378,6 +379,34 @@ func (s *apiServer) SlotCreateAction(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) SlotCreateActionRange(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	beg, err := s.parseInteger(params, "beg")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	end, err := s.parseInteger(params, "end")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	groupId, err := s.parseInteger(params, "gid")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if beg >= 0 && beg < end && end < models.MaxSlotNum {
+		for slotId := beg; slotId <= end; slotId++ {
+			if err := s.topom.SlotCreateAction(slotId, groupId); err != nil {
+				return rpc.ApiResponseError(err)
+			}
+		}
+		return rpc.ApiResponseJson("OK")
+	} else {
+		return rpc.ApiResponseError(fmt.Errorf("invalid slot range [%d,%d]", beg, end))
+	}
+}
+
 func (s *apiServer) SlotRemoveAction(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -539,6 +568,11 @@ func (c *ApiClient) GroupRepairMaster(groupId int, addr string) error {
 
 func (c *ApiClient) SlotCreateAction(slotId int, groupId int) error {
 	url := c.encodeURL("/api/action/create/%s/%d/%d", c.xauth, slotId, groupId)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) SlotCreateActionRange(beg, end int, groupId int) error {
+	url := c.encodeURL("/api/action/create-range/%s/%d/%d/%d", c.xauth, beg, end, groupId)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
