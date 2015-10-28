@@ -27,6 +27,9 @@ func (s *Topom) getProxyModels() []*models.Proxy {
 	for _, p := range s.proxies {
 		plist = append(plist, p)
 	}
+	models.SortProxy(plist, func(p1, p2 *models.Proxy) bool {
+		return p1.Id < p2.Id
+	})
 	return plist
 }
 

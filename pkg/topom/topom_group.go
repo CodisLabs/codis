@@ -39,6 +39,9 @@ func (s *Topom) getGroupModels() []*models.Group {
 	for _, g := range s.groups {
 		glist = append(glist, g)
 	}
+	models.SortGroup(glist, func(g1, g2 *models.Group) bool {
+		return g1.Id < g2.Id
+	})
 	return glist
 }
 

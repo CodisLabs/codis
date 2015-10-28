@@ -1,5 +1,7 @@
 package models
 
+import "sort"
+
 type Proxy struct {
 	Id        int    `json:"id,omitempty"`
 	Token     string `json:"token"`
@@ -21,4 +23,25 @@ func (p *Proxy) Encode() []byte {
 
 func (p *Proxy) Decode(b []byte) error {
 	return jsonDecode(p, b)
+}
+
+type proxySorter struct {
+	list []*Proxy
+	less func(p1, p2 *Proxy) bool
+}
+
+func (s *proxySorter) Len() int {
+	return len(s.list)
+}
+
+func (s *proxySorter) Swap(i, j int) {
+	s.list[i], s.list[j] = s.list[j], s.list[i]
+}
+
+func (s *proxySorter) Less(i, j int) bool {
+	return s.less(s.list[i], s.list[j])
+}
+
+func SortProxy(list []*Proxy, less func(p1, p2 *Proxy) bool) {
+	sort.Sort(&proxySorter{list, less})
 }
