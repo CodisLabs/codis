@@ -801,7 +801,6 @@ func TestApiAction(x *testing.T) {
 
 	assert.Must(t.CompleteAction(1) == nil)
 	assert.Must(c.SlotRemoveAction(1) != nil)
-	assert.Must(c.SlotCreateAction(1, 1) == nil)
 }
 
 type memStore struct {

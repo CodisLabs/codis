@@ -16,6 +16,7 @@ var (
 	ErrActionHasStarted     = errors.New("action has already started")
 	ErrActionResyncSlot     = errors.New("action resync slot failed")
 	ErrActionIsNotMigrating = errors.New("action should be migrating")
+	ErrActionSameGroup      = errors.New("action has the same source & destination group")
 )
 
 func (s *Topom) GetSlotMappings() []*models.SlotMapping {
@@ -141,6 +142,9 @@ func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
 	}
 	if len(g.Servers) == 0 {
 		return errors.Trace(ErrGroupIsEmpty)
+	}
+	if m.GroupId == targetId {
+		return errors.Trace(ErrActionSameGroup)
 	}
 
 	n := &models.SlotMapping{
