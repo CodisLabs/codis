@@ -23,13 +23,14 @@ type Jodis struct {
 	path string
 	data []byte
 
-	client *zkstore.ZkClient
-	closed bool
+	client  *zkstore.ZkClient
+	closed  bool
+	timeout time.Duration
 
 	watching bool
 }
 
-func NewJodis(addr string, s *models.Proxy) *Jodis {
+func NewJodis(addr string, timeout int, s *models.Proxy) *Jodis {
 	var m = map[string]string{
 		"addr":     s.ProxyAddr,
 		"start_at": s.StartTime,
@@ -41,7 +42,8 @@ func NewJodis(addr string, s *models.Proxy) *Jodis {
 		log.PanicErrorf(err, "json marshal failed")
 	}
 	p := filepath.Join("/zk/codis", fmt.Sprintf("db_%s", s.ProductName), "proxy", s.Token)
-	return &Jodis{path: p, data: b, addr: addr}
+	t := time.Duration(timeout) * time.Second
+	return &Jodis{path: p, data: b, addr: addr, timeout: t}
 }
 
 func (j *Jodis) Path() string {
@@ -94,8 +96,7 @@ func (j *Jodis) Rewatch() (<-chan struct{}, error) {
 	}
 
 	if j.client == nil {
-		timeout := time.Second * 10
-		client, err := zkstore.NewClient(j.addr, timeout)
+		client, err := zkstore.NewClient(j.addr, j.timeout)
 		if err != nil {
 			return nil, err
 		}

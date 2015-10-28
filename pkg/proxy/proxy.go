@@ -55,7 +55,7 @@ func New(config *Config) (*Proxy, error) {
 	s.exit.C = make(chan struct{})
 
 	if config.JodisAddr != "" {
-		s.jodis = NewJodis(config.JodisAddr, s.model)
+		s.jodis = NewJodis(config.JodisAddr, config.JodisTimeout, s.model)
 	}
 
 	if err := s.setup(); err != nil {
