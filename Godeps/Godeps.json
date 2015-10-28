@@ -1,51 +1,19 @@
 {
 	"ImportPath": "github.com/wandoulabs/codis",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.5.1",
 	"Packages": [
 		"./..."
 	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/alicebob/miniredis",
-			"Rev": "aa1f227171fe11d5f551dc5ba7efedfb8656520e"
-		},
-		{
-			"ImportPath": "github.com/bsm/redeo",
-			"Rev": "436f4440f2ee191b0bfbdf9d12894fe0f1eedd9b"
-		},
-		{
-			"ImportPath": "github.com/c4pt0r/cfg",
-			"Rev": "429e6985f0b07bceaa33b57ee612fbca4797a9a6"
+			"ImportPath": "github.com/BurntSushi/toml",
+			"Comment": "v0.1.0-21-g056c9bc",
+			"Rev": "056c9bc7be7190eaa7715723883caffa5f8fa3e4"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/inject",
 			"Comment": "v1.0-rc1-10-g33e0aa1",
 			"Rev": "33e0aa1cb7c019ccc3fbe049a8262a6403d30504"
-		},
-		{
-			"ImportPath": "github.com/codegangsta/martini",
-			"Comment": "v1.0-166-g9987fc5",
-			"Rev": "9987fc59f060a063247d22472c2fb48654bac5f6"
-		},
-		{
-			"ImportPath": "github.com/codegangsta/martini-contrib/binding",
-			"Comment": "v0.1-159-g8ce6181",
-			"Rev": "8ce6181c2609699e4c7cd30994b76a850a9cdadc"
-		},
-		{
-			"ImportPath": "github.com/codegangsta/martini-contrib/render",
-			"Comment": "v0.1-159-g8ce6181",
-			"Rev": "8ce6181c2609699e4c7cd30994b76a850a9cdadc"
-		},
-		{
-			"ImportPath": "github.com/coreos/etcd/error",
-			"Comment": "v2.2.0-274-gd44b79c",
-			"Rev": "d44b79c3c9cd8641db8c821fb05ea03e73da94e0"
-		},
-		{
-			"ImportPath": "github.com/coreos/go-etcd/etcd",
-			"Comment": "v2.0.0-18-gc904d70",
-			"Rev": "c904d7032a70da6551c43929f199244f6a45f4c1"
 		},
 		{
 			"ImportPath": "github.com/docopt/docopt-go",
@@ -66,36 +34,24 @@
 			"Rev": "9987fc59f060a063247d22472c2fb48654bac5f6"
 		},
 		{
+			"ImportPath": "github.com/martini-contrib/binding",
+			"Rev": "8aaceec3b52c275477f32c95ea5c6e8ccaba04c5"
+		},
+		{
 			"ImportPath": "github.com/martini-contrib/cors",
 			"Rev": "553b9208d353a39b0850c02355f478ba020c86d7"
 		},
 		{
-			"ImportPath": "github.com/ngaut/gostats",
-			"Rev": "faefc939c0359a8930e92767bfa425546a38f69a"
+			"ImportPath": "github.com/martini-contrib/render",
+			"Rev": "ec18f8345a1181146728238980606fb1d6f40e8c"
 		},
 		{
-			"ImportPath": "github.com/ngaut/log",
-			"Rev": "37d3e0f43b4fe05429e1adb75e835bf31fc1bba6"
+			"ImportPath": "github.com/oxtoacart/bpool",
+			"Rev": "4e1c5567d7c2dd59fa4c7c83d34c2f3528b025d6"
 		},
 		{
-			"ImportPath": "github.com/ngaut/pools",
-			"Rev": "6352e005618615ffaf1cb1c6622b8e91435751fe"
-		},
-		{
-			"ImportPath": "github.com/ngaut/sync2",
-			"Rev": "7a24ed77b2efb460c1468b7dc917821c66e80e55"
-		},
-		{
-			"ImportPath": "github.com/ugorji/go/codec",
-			"Rev": "821cda7e48749cacf7cad2c6ed01e96457ca7e9d"
-		},
-		{
-			"ImportPath": "github.com/wandoulabs/go-zookeeper/zk",
-			"Rev": "bae3e93ee8dc2a96b1e3b01d623ac22f4d254a5c"
-		},
-		{
-			"ImportPath": "github.com/wandoulabs/zkhelper",
-			"Rev": "1024c0c6f27aec7eb85076c073554d19b0b0f9fd"
+			"ImportPath": "github.com/samuel/go-zookeeper/zk",
+			"Rev": "913027ed60abbe2436b35cf960193b06b00105cf"
 		}
 	]
 }

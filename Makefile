@@ -1,21 +1,19 @@
 all: build
 
-build: build-godep build-version build-proxy build-server build-dashboard
+build: build-server build-proxy build-dashboard
 
 build-godep:
+	@bash genver.sh
 	@go get -u github.com/tools/godep
 	GOPATH=`godep path` godep restore
 
-build-version:
-	@bash genver.sh
-
-build-proxy:
+build-proxy: build-godep
 	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-proxy ./cmd/proxy
 
-build-admin:
+build-admin: build-godep
 	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-admin ./cmd/admin
 
-build-dashboard:
+build-dashboard: build-godep
 	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-dashboard ./cmd/dashboard
 
 # build-config:
