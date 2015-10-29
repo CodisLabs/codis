@@ -95,10 +95,14 @@ func responseBodyAsError(rsp *http.Response) (error, error) {
 	return e.ToError(), nil
 }
 
+func apiMarshalJson(v interface{}) ([]byte, error) {
+	return json.Marshal(v)
+}
+
 func apiRequestJson(method string, url string, args, reply interface{}) error {
 	var body []byte
 	if args != nil {
-		b, err := json.MarshalIndent(args, "", "    ")
+		b, err := apiMarshalJson(args)
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -164,7 +168,7 @@ func ApiResponseError(err error) (int, string) {
 	if err == nil {
 		return 1500, ""
 	}
-	b, err := json.MarshalIndent(ToRemoteError(err), "", "    ")
+	b, err := apiMarshalJson(ToRemoteError(err))
 	if err != nil {
 		return 1500, ""
 	} else {
@@ -173,7 +177,7 @@ func ApiResponseError(err error) (int, string) {
 }
 
 func ApiResponseJson(v interface{}) (int, string) {
-	b, err := json.MarshalIndent(v, "", "    ")
+	b, err := apiMarshalJson(v)
 	if err != nil {
 		return ApiResponseError(errors.Trace(err))
 	} else {
