@@ -190,7 +190,7 @@ type actionTask struct {
 		Master  string
 		GroupId int
 	}
-	Ignore bool
+	Locked bool
 }
 
 func (s *Topom) newActionTask(slotId int) (*actionTask, error) {
@@ -209,7 +209,7 @@ func (s *Topom) newActionTask(slotId int) (*actionTask, error) {
 	}
 
 	t := &actionTask{
-		Ignore: s.isSlotLocked(m),
+		Locked: s.isSlotLocked(m),
 	}
 	t.From.Master = s.getGroupMaster(m.GroupId)
 	t.From.GroupId = m.GroupId
@@ -236,7 +236,7 @@ func (s *Topom) MigrateSlot(slotId int) (int, error) {
 	}
 	defer s.releaseActionTask(t)
 
-	if t.Ignore {
+	if t.Locked {
 		return -1, nil
 	}
 	if t.From.Master == "" {
