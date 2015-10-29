@@ -12,17 +12,14 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-admin [-v]  --proxy=ADDR                                           [overview|config|model|stats|slots]
-	codis-admin [-v]  --proxy=ADDR --product-name=NAME [--product-auth=AUTH]  shutdown
+	codis-admin [-v]  --proxy-admin=ADDR                                           [overview|config|model|stats|slots]
+	codis-admin [-v]  --proxy-admin=ADDR --product-name=NAME [--product-auth=AUTH]  shutdown
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR)                                             [overview|config|model|stats|slots]
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR  --product-name=NAME  [--product-auth=AUTH])  shutdown
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH]) (proxy|group) [--list|--stats-map]
-
-
-
-	codis-admin [-v] --dashboard=ADDR  proxy --create  --addr=ADDR                                  [--product-name=NAME] [--product-auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  proxy --remove (--addr=ADDR|--token=TOKEN|--proxy-id=ID) [--force] [--product-name=NAME] [--product-auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  proxy --reinit (--addr=ADDR|--token=TOKEN|--proxy-id=ID)           [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy --create  --addr=ADDR
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy --remove (--addr=ADDR|--token=TOKEN|--proxy-id=ID) [--force]
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy --reinit (--addr=ADDR|--token=TOKEN|--proxy-id=ID)
 
 	codis-admin [-v] --dashboard=ADDR  group --create=GID   [--product-name=NAME] [--product-auth=AUTH]
 	codis-admin [-v] --dashboard=ADDR  group --remove=GID   [--product-name=NAME] [--product-auth=AUTH]
@@ -40,7 +37,11 @@ Options:
 	-c CONF, --config=CONF
 	-n NAME, --product-name=NAME
 	-x ADDR, --addr=ADDR
-	-l, --list
+	-t TOKEN, --token=TOKEN
+	-i INDEX, --index=INDEX
+	-p ID, --proxy-id=ID
+	-g ID, --group-id=ID
+	-s ID, --slot-id=ID
 `
 
 	d, err := docopt.Parse(usage, nil, true, "", false)

@@ -53,13 +53,13 @@ func (s *Topom) CreateProxy(addr string) error {
 	p, err := c.Model()
 	if err != nil {
 		log.WarnErrorf(err, "[%p] proxy@%s fetch model failed", s, addr)
-		return errors.Errorf("rpc model failed")
+		return errors.Errorf("call rpc model failed")
 	}
 	c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
 
 	if err := c.XPing(); err != nil {
 		log.WarnErrorf(err, "[%p] proxy@%s check xauth failed", s, addr)
-		return errors.Errorf("rpc xauth failed")
+		return errors.Errorf("call rpc xauth failed")
 	}
 
 	if s.proxies[p.Token] != nil {
@@ -99,7 +99,7 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 	if err := c.Shutdown(); err != nil {
 		log.WarnErrorf(err, "[%p] proxy-[%d] shutdown failed, force remove = %t", s, p.Id, force)
 		if !force {
-			return errors.Errorf("rpc shutdown failed")
+			return errors.Errorf("call rpc shutdown failed")
 		}
 	}
 
@@ -133,11 +133,11 @@ func (s *Topom) reinitProxy(token string) error {
 	}
 	if err := c.FillSlots(s.getSlots()...); err != nil {
 		log.WarnErrorf(err, "[%p] proxy-[%s] fill slots failed", s, token)
-		return errors.Errorf("rpc fillslots failed")
+		return errors.Errorf("call rpc fillslots failed")
 	}
 	if err := c.Start(); err != nil {
 		log.WarnErrorf(err, "[%p] proxy-[%s] call start failed", s, token)
-		return errors.Errorf("rpc start failed")
+		return errors.Errorf("call rpc start failed")
 	}
 	return nil
 }

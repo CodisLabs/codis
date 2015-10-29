@@ -17,7 +17,7 @@ type cmdProxy struct {
 }
 
 func (t *cmdProxy) Main(d map[string]interface{}) {
-	t.address = d["--proxy"].(string)
+	t.address = d["--proxy-admin"].(string)
 	if s, ok := d["--product-name"].(string); ok {
 		t.product.name = s
 	}
@@ -88,7 +88,8 @@ func (t *cmdProxy) handleShutdown() {
 	if err != nil {
 		log.PanicErrorf(err, "call rpc model failed")
 	}
-	log.Debugf("call rpc model OK, model =\n%s", p.Encode())
+	log.Debugf("call rpc model OK")
+	log.Debugf("proxy model =\n%s", p.Encode())
 
 	if t.product.name != p.ProductName {
 		log.Panicf("wrong product name, should be = %s", p.ProductName)
