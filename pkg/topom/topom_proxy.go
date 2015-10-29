@@ -10,12 +10,6 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-var (
-	ErrProxyExists    = errors.New("proxy already exists")
-	ErrProxyNotExists = errors.New("proxy does not exist")
-	ErrProxyRpcFailed = errors.New("proxy call rpc failed")
-)
-
 func (s *Topom) GetProxyModels() []*models.Proxy {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -37,7 +31,7 @@ func (s *Topom) getProxyClient(token string) (*proxy.ApiClient, error) {
 	if c := s.clients[token]; c != nil {
 		return c, nil
 	}
-	return nil, errors.Trace(ErrProxyNotExists)
+	return nil, errors.Errorf("proxy-[%s] doesn't exist", token)
 }
 
 func (s *Topom) maxProxyId() int {
@@ -59,25 +53,25 @@ func (s *Topom) CreateProxy(addr string) error {
 	p, err := c.Model()
 	if err != nil {
 		log.WarnErrorf(err, "[%p] proxy@%s fetch model failed", s, addr)
-		return errors.Trace(ErrProxyRpcFailed)
+		return errors.Errorf("rpc model failed")
 	}
 	c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
 
 	if err := c.XPing(); err != nil {
 		log.WarnErrorf(err, "[%p] proxy@%s check xauth failed", s, addr)
-		return errors.Trace(ErrProxyRpcFailed)
+		return errors.Errorf("rpc xauth failed")
 	}
 
 	if s.proxies[p.Token] != nil {
-		log.Warnf("[%p] proxy@%s with token=%s already exists", s, addr, p.Token)
-		return errors.Trace(ErrProxyExists)
+		log.Warnf("[%p] proxy@%s with token = %s already exists", s, addr, p.Token)
+		return errors.Errorf("proxy-[%s] already exists", p.Token)
 	} else {
 		p.Id = s.maxProxyId() + 1
 	}
 
 	if err := s.store.CreateProxy(p.Id, p); err != nil {
 		log.ErrorErrorf(err, "[%p] create proxy-[%d] failed", s, p.Id)
-		return errors.Trace(ErrUpdateStore)
+		return errors.Errorf("store: create proxy-[%d] failed", p.Id)
 	}
 
 	s.proxies[p.Token] = p
@@ -105,13 +99,13 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 	if err := c.Shutdown(); err != nil {
 		log.WarnErrorf(err, "[%p] proxy-[%d] shutdown failed, force remove = %t", s, p.Id, force)
 		if !force {
-			return errors.Trace(ErrProxyRpcFailed)
+			return errors.Errorf("rpc shutdown failed")
 		}
 	}
 
 	if err := s.store.RemoveProxy(p.Id); err != nil {
 		log.ErrorErrorf(err, "[%p] remove proxy-[%d] failed", s, p.Id)
-		return errors.Trace(ErrUpdateStore)
+		return errors.Errorf("store: remove proxy-[%d] failed", p.Id)
 	}
 
 	delete(s.proxies, token)
@@ -139,11 +133,11 @@ func (s *Topom) reinitProxy(token string) error {
 	}
 	if err := c.FillSlots(s.getSlots()...); err != nil {
 		log.WarnErrorf(err, "[%p] proxy-[%s] fill slots failed", s, token)
-		return errors.Trace(ErrProxyRpcFailed)
+		return errors.Errorf("rpc fillslots failed")
 	}
 	if err := c.Start(); err != nil {
 		log.WarnErrorf(err, "[%p] proxy-[%s] call start failed", s, token)
-		return errors.Trace(ErrProxyRpcFailed)
+		return errors.Errorf("rpc start failed")
 	}
 	return nil
 }

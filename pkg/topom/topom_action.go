@@ -79,10 +79,10 @@ func (s *Topom) PrepareAction(slotId int) error {
 		return err
 	}
 	if m.Action.State == models.ActionNothing {
-		return errors.Trace(ErrActionNotExists)
+		return errors.Errorf("action of slot-[%d] is not empty", slotId)
 	}
 
-	log.Infof("[%p] prepare action on slot-[%d]\n%s", s, slotId, m.Encode())
+	log.Infof("[%p] prepare action of slot-[%d]\n%s", s, slotId, m.Encode())
 
 	switch m.Action.State {
 	case models.ActionPending:
@@ -95,8 +95,8 @@ func (s *Topom) PrepareAction(slotId int) error {
 		n.Action.State = models.ActionPreparing
 
 		if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-			log.ErrorErrorf(err, "[%p] slot-[%d] update failed", s, slotId)
-			return errors.Trace(ErrUpdateStore)
+			log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
+			return errors.Errorf("store: update slot-[%d] failed", slotId)
 		}
 
 		s.mappings[slotId] = n
@@ -119,8 +119,8 @@ func (s *Topom) PrepareAction(slotId int) error {
 		n.Action.State = models.ActionMigrating
 
 		if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-			log.ErrorErrorf(err, "[%p] slot-[%d] update failed", s, slotId)
-			return errors.Trace(ErrUpdateStore)
+			log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
+			return errors.Errorf("store: update slot-[%d] failed", slotId)
 		}
 
 		s.mappings[slotId] = n
@@ -151,10 +151,10 @@ func (s *Topom) CompleteAction(slotId int) error {
 		return err
 	}
 	if m.Action.State != models.ActionMigrating {
-		return errors.Trace(ErrActionIsNotMigrating)
+		return errors.Errorf("action of slot-[%d] is not migrating", slotId)
 	}
 
-	log.Infof("[%p] complete action on slot-[%d]\n%s", s, slotId, m.Encode())
+	log.Infof("[%p] complete action of slot-[%d]\n%s", s, slotId, m.Encode())
 
 	n := &models.SlotMapping{
 		Id:      slotId,
@@ -174,8 +174,8 @@ func (s *Topom) CompleteAction(slotId int) error {
 	}
 
 	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] slot-[%d] update failed", s, slotId)
-		return errors.Trace(ErrUpdateStore)
+		log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
+		return errors.Errorf("store: update slot-[%d] failed", slotId)
 	}
 
 	rollback = false
@@ -205,7 +205,7 @@ func (s *Topom) newActionTask(slotId int) (*actionTask, error) {
 		return nil, err
 	}
 	if m.Action.State != models.ActionMigrating {
-		return nil, errors.Trace(ErrActionIsNotMigrating)
+		return nil, errors.Errorf("action of slot-[%d] is not migrating", slotId)
 	}
 
 	t := &actionTask{

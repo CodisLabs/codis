@@ -11,9 +11,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
 )
 
-var (
-	ErrStatsTimeout = errors.New("update stats timeout")
-)
+var ErrStatsTimeout = errors.New("update stats timeout")
 
 type ServerStats struct {
 	Infomap map[string]string

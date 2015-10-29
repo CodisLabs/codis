@@ -11,24 +11,6 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-var (
-	ErrInvalidGroupId = errors.New("invalid group id")
-
-	ErrGroupExists         = errors.New("group already exists")
-	ErrGroupNotExists      = errors.New("group does not exist")
-	ErrGroupIsPromoting    = errors.New("group is promoting")
-	ErrGroupIsNotPromoting = errors.New("group is not promoting")
-	ErrGroupResyncSlots    = errors.New("group resync slots failed")
-	ErrGroupIsEmpty        = errors.New("group is empty")
-	ErrGroupIsNotEmpty     = errors.New("group is not empty")
-	ErrGroupMasterLocked   = errors.New("group master is locked")
-	ErrGroupMasterIsBusy   = errors.New("group master is still in use")
-
-	ErrServerExists       = errors.New("server already exists")
-	ErrServerNotExists    = errors.New("server does not exist")
-	ErrServerPromoteAgain = errors.New("server is already master")
-)
-
 func (s *Topom) GetGroupModels() []*models.Group {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -50,7 +32,7 @@ func (s *Topom) getGroup(groupId int) (*models.Group, error) {
 	if g := s.groups[groupId]; g != nil {
 		return g, nil
 	}
-	return nil, errors.Trace(ErrGroupNotExists)
+	return nil, errors.Errorf("group-[%d] doesn't exist", groupId)
 }
 
 func (s *Topom) getGroupMaster(groupId int) string {
@@ -98,10 +80,10 @@ func (s *Topom) CreateGroup(groupId int) error {
 	}
 
 	if groupId <= 0 || groupId > math.MaxInt16 {
-		return errors.Trace(ErrInvalidGroupId)
+		return errors.Errorf("invalid group id, out of range")
 	}
 	if s.groups[groupId] != nil {
-		return errors.Trace(ErrGroupExists)
+		return errors.Errorf("group-[%d] already exists", groupId)
 	}
 
 	g := &models.Group{
@@ -110,7 +92,7 @@ func (s *Topom) CreateGroup(groupId int) error {
 	}
 	if err := s.store.CreateGroup(groupId, g); err != nil {
 		log.ErrorErrorf(err, "[%p] create group-[%d] failed", s, groupId)
-		return errors.Trace(ErrUpdateStore)
+		return errors.Errorf("store: create group-[%d] failed", groupId)
 	}
 
 	s.groups[groupId] = g
@@ -133,12 +115,12 @@ func (s *Topom) RemoveGroup(groupId int) error {
 		return err
 	}
 	if len(g.Servers) != 0 {
-		return errors.Trace(ErrGroupIsNotEmpty)
+		return errors.Errorf("group-[%d] isn't empty", groupId)
 	}
 
 	if err := s.store.RemoveGroup(groupId); err != nil {
 		log.ErrorErrorf(err, "[%p] remove group-[%d] failed", s, groupId)
-		return errors.Trace(ErrUpdateStore)
+		return errors.Errorf("store: remove group-[%d] failed", groupId)
 	}
 
 	delete(s.groups, groupId)
@@ -156,12 +138,16 @@ func (s *Topom) GroupAddServer(groupId int, addr string) error {
 		return ErrClosedTopom
 	}
 
+	if addr == "" {
+		return errors.Errorf("invalid server address")
+	}
+
 	if _, ok := s.stats.servers[addr]; ok {
-		return errors.Trace(ErrServerExists)
+		return errors.Errorf("server %s is already exists", addr)
 	}
 
 	if s.isGroupPromoting(groupId) {
-		return errors.Trace(ErrGroupIsPromoting)
+		return errors.Errorf("group-[%d] is promoting", groupId)
 	}
 
 	g, err := s.getGroup(groupId)
@@ -174,8 +160,8 @@ func (s *Topom) GroupAddServer(groupId int, addr string) error {
 		Servers: append(g.Servers, addr),
 	}
 	if err := s.store.UpdateGroup(groupId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] group-[%d] update failed", s, groupId)
-		return errors.Trace(ErrUpdateStore)
+		log.ErrorErrorf(err, "[%p] update group-[%d] failed", s, groupId)
+		return errors.Errorf("store: update group-[%d] failed", groupId)
 	}
 
 	s.groups[groupId] = n
@@ -193,12 +179,16 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 		return ErrClosedTopom
 	}
 
+	if addr == "" {
+		return errors.Errorf("invalid server address")
+	}
+
 	if _, ok := s.stats.servers[addr]; !ok {
-		return errors.Trace(ErrServerNotExists)
+		return errors.Errorf("server %s doesn't exist", addr)
 	}
 
 	if s.isGroupPromoting(groupId) {
-		return errors.Trace(ErrGroupIsPromoting)
+		return errors.Errorf("group-[%d] is promoting", groupId)
 	}
 
 	g, err := s.getGroup(groupId)
@@ -213,14 +203,14 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 		}
 	}
 	if len(g.Servers) == len(servers) {
-		return errors.Trace(ErrServerNotExists)
+		return errors.Errorf("group-[%d] doesn't have server %s", groupId, addr)
 	}
 	if addr == g.Servers[0] {
 		if len(g.Servers) != 1 || len(s.getSlotsByGroup(groupId)) != 0 {
-			return errors.Trace(ErrGroupMasterIsBusy)
+			return errors.Errorf("master of group-[%d] is still busy", groupId)
 		}
 		if s.isGroupMasterLocked(groupId) {
-			return errors.Trace(ErrGroupMasterLocked)
+			return errors.Errorf("master of group-[%d] is locked", groupId)
 		}
 	}
 
@@ -229,8 +219,8 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 		Servers: servers,
 	}
 	if err := s.store.UpdateGroup(groupId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] group-[%d] update failed", s, groupId)
-		return errors.Trace(ErrUpdateStore)
+		log.ErrorErrorf(err, "[%p] update group-[%d] failed", s, groupId)
+		return errors.Errorf("store: update group-[%d] failed", groupId)
 	}
 
 	s.groups[groupId] = n
@@ -248,11 +238,15 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string) error {
 		return ErrClosedTopom
 	}
 
+	if addr == "" {
+		return errors.Errorf("invalid server address")
+	}
+
 	if s.isGroupMasterLocked(groupId) {
-		return errors.Trace(ErrGroupMasterLocked)
+		return errors.Errorf("master of group-[%d] is locked", groupId)
 	}
 	if s.isGroupPromoting(groupId) {
-		return errors.Trace(ErrGroupIsPromoting)
+		return errors.Errorf("group-[%d] is promoting", groupId)
 	}
 
 	g, err := s.getGroup(groupId)
@@ -267,10 +261,10 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string) error {
 		}
 	}
 	if len(g.Servers) == len(servers) {
-		return errors.Trace(ErrServerNotExists)
+		return errors.Errorf("group-[%d] doesn't have server %s", groupId, addr)
 	}
 	if addr == g.Servers[0] {
-		return errors.Trace(ErrServerPromoteAgain)
+		return errors.Errorf("promote master of group-[%d] again", groupId)
 	}
 
 	n := &models.Group{
@@ -279,8 +273,8 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string) error {
 		Promoting: true,
 	}
 	if err := s.store.UpdateGroup(groupId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] group-[%d] update failed", s, groupId)
-		return errors.Trace(ErrUpdateStore)
+		log.ErrorErrorf(err, "[%p] update group-[%d] failed", s, groupId)
+		return errors.Errorf("store: update group-[%d] failed", groupId)
 	}
 
 	s.groups[groupId] = n
@@ -302,7 +296,7 @@ func (s *Topom) GroupPromoteCommit(groupId int) error {
 		return err
 	}
 	if !g.Promoting {
-		return errors.Trace(ErrGroupIsNotPromoting)
+		return errors.Errorf("group-[%d] isn't promoting")
 	}
 
 	if err := s.resyncGroup(groupId); err != nil {
@@ -327,8 +321,8 @@ func (s *Topom) GroupPromoteCommit(groupId int) error {
 	}
 
 	if err := s.store.UpdateGroup(groupId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] group-[%d] update failed", s, groupId)
-		return errors.Trace(ErrUpdateStore)
+		log.ErrorErrorf(err, "[%p] update group-[%d] failed", s, groupId)
+		return errors.Errorf("store: update group-[%d] failed", groupId)
 	}
 
 	rollback = false
@@ -360,7 +354,7 @@ func (s *Topom) GroupRepairMaster(groupId int, addr string) error {
 	var master = "NO:ONE"
 	switch {
 	case index < 0:
-		return errors.Trace(ErrServerNotExists)
+		return errors.Errorf("group-[%d] doesn't have server %s", groupId, addr)
 	case index > 0:
 		master = g.Servers[0]
 	}
@@ -408,13 +402,13 @@ func (s *Topom) resyncGroup(groupId int) error {
 	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		if err := c.FillSlots(slots...); err != nil {
 			log.WarnErrorf(err, "[%p] proxy-[%s] resync group-[%d] failed", s, p.Token, groupId)
-			return errors.Trace(ErrProxyRpcFailed)
+			return err
 		}
 		return nil
 	})
-	for _, err := range errs {
+	for t, err := range errs {
 		if err != nil {
-			return errors.Trace(ErrGroupResyncSlots)
+			return errors.Errorf("proxy-[%s] resync group-[%d] failed", t, groupId)
 		}
 	}
 	return nil

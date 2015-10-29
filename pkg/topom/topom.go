@@ -57,10 +57,7 @@ type Topom struct {
 	}
 }
 
-var (
-	ErrClosedTopom = errors.New("use of closed topom")
-	ErrUpdateStore = errors.New("update store failed")
-)
+var ErrClosedTopom = errors.New("use of closed topom")
 
 func New(store models.Store, config *Config) (*Topom, error) {
 	s := &Topom{config: config, store: store}
@@ -118,15 +115,16 @@ func (s *Topom) setup() error {
 	}
 
 	if err := s.store.Acquire(s.config.ProductName, s.model); err != nil {
-		log.WarnErrorf(err, "acquire lock for %s failed", s.config.ProductName)
-		return errors.Trace(ErrUpdateStore)
+		log.ErrorErrorf(err, "[%p] acquire lock for %s failed", s, s.config.ProductName)
+		return errors.Errorf("store: acquire lock for %s failed", s.config.ProductName)
 	} else {
 		s.online = true
 	}
 
 	for i := 0; i < len(s.mappings); i++ {
 		if m, err := s.store.LoadSlotMapping(i); err != nil {
-			return err
+			log.ErrorErrorf(err, "[%p] load slot-[%d] failed", s, i)
+			return errors.Errorf("store: load slot-[%d] failed", i)
 		} else {
 			if m == nil {
 				m = &models.SlotMapping{Id: i}
@@ -136,7 +134,8 @@ func (s *Topom) setup() error {
 	}
 
 	if glist, err := s.store.ListGroup(); err != nil {
-		return err
+		log.ErrorErrorf(err, "[%p] list group failed", s)
+		return errors.Errorf("store: list group failed")
 	} else {
 		for _, g := range glist {
 			s.groups[g.Id] = g
@@ -149,7 +148,8 @@ func (s *Topom) setup() error {
 	}
 
 	if plist, err := s.store.ListProxy(); err != nil {
-		return err
+		log.ErrorErrorf(err, "[%p] list proxy failed", s)
+		return errors.Errorf("store: list proxy failed")
 	} else {
 		for _, p := range plist {
 			c := proxy.NewApiClient(p.AdminAddr)
@@ -182,8 +182,8 @@ func (s *Topom) Close() error {
 		return nil
 	}
 	if err := s.store.Release(false); err != nil {
-		log.WarnErrorf(err, "release lock for %s failed", s.config.ProductName)
-		return errors.Trace(ErrUpdateStore)
+		log.ErrorErrorf(err, "[%p] release lock for %s failed", s, s.config.ProductName)
+		return errors.Errorf("store: release lock for %s failed", s.config.ProductName)
 	} else {
 		return nil
 	}

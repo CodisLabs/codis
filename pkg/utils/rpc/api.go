@@ -86,7 +86,7 @@ func responseBodyAsError(rsp *http.Response) (error, error) {
 		return nil, err
 	}
 	if len(b) == 0 {
-		return nil, errors.Errorf("[Remote Error] Unknown Error")
+		return nil, errors.Errorf("remote error is empty")
 	}
 	e := &RemoteError{}
 	if err := json.Unmarshal(b, e); err != nil {

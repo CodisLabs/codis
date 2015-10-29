@@ -8,17 +8,6 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-var (
-	ErrInvalidSlotId = errors.New("invalid slot id")
-
-	ErrActionExists         = errors.New("action already exists")
-	ErrActionNotExists      = errors.New("action does not exist")
-	ErrActionHasStarted     = errors.New("action has already started")
-	ErrActionResyncSlot     = errors.New("action resync slot failed")
-	ErrActionIsNotMigrating = errors.New("action should be migrating")
-	ErrActionSameGroup      = errors.New("action has the same source & destination group")
-)
-
 func (s *Topom) GetSlotMappings() []*models.SlotMapping {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -43,7 +32,7 @@ func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {
 	if slotId >= 0 && slotId < len(s.mappings) {
 		return s.mappings[slotId], nil
 	}
-	return nil, errors.Trace(ErrInvalidSlotId)
+	return nil, errors.Errorf("invalid slot id, out of range")
 }
 
 func (s *Topom) isSlotLocked(m *models.SlotMapping) bool {
@@ -133,7 +122,7 @@ func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
 		return err
 	}
 	if m.Action.State != models.ActionNothing {
-		return errors.Trace(ErrActionExists)
+		return errors.Errorf("action of slot-[%d] already exists", slotId)
 	}
 
 	g, err := s.getGroup(targetId)
@@ -141,10 +130,10 @@ func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
 		return err
 	}
 	if len(g.Servers) == 0 {
-		return errors.Trace(ErrGroupIsEmpty)
+		return errors.Errorf("group-[%d] is empty", targetId)
 	}
 	if m.GroupId == targetId {
-		return errors.Trace(ErrActionSameGroup)
+		return errors.Errorf("slot-[%d] already in group-[%d]", slotId, targetId)
 	}
 
 	n := &models.SlotMapping{
@@ -156,8 +145,8 @@ func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
 	n.Action.TargetId = targetId
 
 	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] slot-[%d] update failed", s, slotId)
-		return errors.Trace(ErrUpdateStore)
+		log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
+		return errors.Errorf("store: update slot-[%d] failed", slotId)
 	}
 
 	s.mappings[slotId] = n
@@ -184,10 +173,10 @@ func (s *Topom) SlotRemoveAction(slotId int) error {
 		return err
 	}
 	if m.Action.State == models.ActionNothing {
-		return errors.Trace(ErrActionNotExists)
+		return errors.Errorf("action of slot-[%d] is empty", slotId)
 	}
 	if m.Action.State != models.ActionPending {
-		return errors.Trace(ErrActionHasStarted)
+		return errors.Errorf("action of slot-[%d] is not pending", slotId)
 	}
 
 	n := &models.SlotMapping{
@@ -195,8 +184,8 @@ func (s *Topom) SlotRemoveAction(slotId int) error {
 		GroupId: m.GroupId,
 	}
 	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] slot-[%d] update failed", s, slotId)
-		return errors.Trace(ErrUpdateStore)
+		log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
+		return errors.Errorf("store: update slot-[%d] failed", slotId)
 	}
 
 	s.mappings[slotId] = n
@@ -215,13 +204,13 @@ func (s *Topom) resyncSlotMapping(slotId int) error {
 	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		if err := c.FillSlots(slot); err != nil {
 			log.WarnErrorf(err, "[%p] proxy-[%s] resync slot-[%d] failed", s, p.Token, slotId)
-			return errors.Trace(ErrProxyRpcFailed)
+			return err
 		}
 		return nil
 	})
-	for _, err := range errs {
+	for t, err := range errs {
 		if err != nil {
-			return errors.Trace(ErrActionResyncSlot)
+			return errors.Errorf("proxy-[%s] resync slot-[%d] failed", t, slotId)
 		}
 	}
 	return nil
