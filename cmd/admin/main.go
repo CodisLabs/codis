@@ -12,6 +12,11 @@ import (
 func main() {
 	const usage = `
 Usage:
+	codis-admin [-v] --proxy=ADDR                                           [overview|config|model|stats|slots]
+	codis-admin [-v] --proxy=ADDR --product_name=NAME [--product_auth=AUTH]  shutdown
+
+
+
 	codis-admin [-v] --proxy=ADDR     [overview|config|model|stats|slots]
 	codis-admin [-v] --proxy=ADDR      shutdown --product_name=NAME [--product_auth=AUTH]
 	codis-admin [-v] --dashboard=ADDR [overview|config|model|stats|slots]
