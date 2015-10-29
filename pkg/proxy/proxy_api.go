@@ -33,7 +33,7 @@ func newApiServer(p *Proxy) http.Handler {
 			}
 		}
 		path := req.URL.Path
-		if req.Method != "GET" && strings.HasPrefix(path, "/api") {
+		if req.Method != "GET" && strings.HasPrefix(path, "/api/") {
 			log.Infof("[%p] API from %s call %s", p, addr, path)
 		}
 		c.Next()
@@ -42,16 +42,16 @@ func newApiServer(p *Proxy) http.Handler {
 	api := &apiServer{proxy: p}
 
 	r := martini.NewRouter()
-	r.Get("/overview", api.Overview)
 
-	r.Get("/api/model", api.Model)
-	r.Get("/api/xping/:xauth", api.XPing)
-	r.Get("/api/stats/:xauth", api.Stats)
-	r.Get("/api/slots/:xauth", api.Slots)
+	r.Get("/api/proxy", api.Overview)
+	r.Get("/api/proxy/model", api.Model)
+	r.Get("/api/proxy/xping/:xauth", api.XPing)
+	r.Get("/api/proxy/stats/:xauth", api.Stats)
+	r.Get("/api/proxy/slots/:xauth", api.Slots)
 
-	r.Put("/api/start/:xauth", api.Start)
-	r.Put("/api/shutdown/:xauth", api.Shutdown)
-	r.Put("/api/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
+	r.Put("/api/proxy/start/:xauth", api.Start)
+	r.Put("/api/proxy/shutdown/:xauth", api.Shutdown)
+	r.Put("/api/proxy/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
 
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
@@ -198,7 +198,7 @@ func (c *ApiClient) encodeURL(format string, args ...interface{}) string {
 }
 
 func (c *ApiClient) Overview() (*Overview, error) {
-	url := c.encodeURL("/overview")
+	url := c.encodeURL("/api/proxy")
 	var o = &Overview{}
 	if err := rpc.ApiGetJson(url, o); err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func (c *ApiClient) Overview() (*Overview, error) {
 }
 
 func (c *ApiClient) Model() (*models.Proxy, error) {
-	url := c.encodeURL("/api/model")
+	url := c.encodeURL("/api/proxy/model")
 	model := &models.Proxy{}
 	if err := rpc.ApiGetJson(url, model); err != nil {
 		return nil, err
@@ -216,12 +216,12 @@ func (c *ApiClient) Model() (*models.Proxy, error) {
 }
 
 func (c *ApiClient) XPing() error {
-	url := c.encodeURL("/api/xping/%s", c.xauth)
+	url := c.encodeURL("/api/proxy/xping/%s", c.xauth)
 	return rpc.ApiGetJson(url, nil)
 }
 
 func (c *ApiClient) Stats() (*Stats, error) {
-	url := c.encodeURL("/api/stats/%s", c.xauth)
+	url := c.encodeURL("/api/proxy/stats/%s", c.xauth)
 	stats := &Stats{}
 	if err := rpc.ApiGetJson(url, stats); err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func (c *ApiClient) Stats() (*Stats, error) {
 }
 
 func (c *ApiClient) Slots() ([]*models.Slot, error) {
-	url := c.encodeURL("/api/slots/%s", c.xauth)
+	url := c.encodeURL("/api/proxy/slots/%s", c.xauth)
 	slots := []*models.Slot{}
 	if err := rpc.ApiGetJson(url, &slots); err != nil {
 		return nil, err
@@ -239,16 +239,16 @@ func (c *ApiClient) Slots() ([]*models.Slot, error) {
 }
 
 func (c *ApiClient) Start() error {
-	url := c.encodeURL("/api/start/%s", c.xauth)
+	url := c.encodeURL("/api/proxy/start/%s", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) Shutdown() error {
-	url := c.encodeURL("/api/shutdown/%s", c.xauth)
+	url := c.encodeURL("/api/proxy/shutdown/%s", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) FillSlots(slots ...*models.Slot) error {
-	url := c.encodeURL("/api/fillslots/%s", c.xauth)
+	url := c.encodeURL("/api/proxy/fillslots/%s", c.xauth)
 	return rpc.ApiPutJson(url, slots, nil)
 }

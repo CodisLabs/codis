@@ -38,7 +38,7 @@ func newApiServer(t *Topom) http.Handler {
 			}
 		}
 		path := req.URL.Path
-		if req.Method != "GET" && strings.HasPrefix(path, "/api") {
+		if req.Method != "GET" && strings.HasPrefix(path, "/api/") {
 			log.Infof("[%p] API from %s call %s", t, addr, path)
 		}
 		c.Next()
@@ -47,7 +47,6 @@ func newApiServer(t *Topom) http.Handler {
 	api := &apiServer{topom: t}
 
 	r := martini.NewRouter()
-	r.Get("/overview", api.Overview)
 
 	if binpath, err := filepath.Abs(filepath.Dir(os.Args[0])); err != nil {
 		log.WarnErrorf(err, "obtain binpath failed")
@@ -73,33 +72,34 @@ func newApiServer(t *Topom) http.Handler {
 		})
 	}
 
-	r.Get("/api/model", api.Model)
-	r.Get("/api/xping/:xauth", api.XPing)
-	r.Get("/api/stats/:xauth", api.Stats)
+	r.Get("/api/topom", api.Overview)
+	r.Get("/api/topom/model", api.Model)
+	r.Get("/api/topom/xping/:xauth", api.XPing)
+	r.Get("/api/topom/stats/:xauth", api.Stats)
 
-	r.Put("/api/proxy/create/:xauth/:xaddr", api.CreateProxy)
-	r.Put("/api/proxy/reinit/:xauth/:token", api.ReinitProxy)
-	r.Put("/api/proxy/remove/:xauth/:token/:force", api.RemoveProxy)
+	r.Put("/api/topom/proxy/create/:xauth/:xaddr", api.CreateProxy)
+	r.Put("/api/topom/proxy/reinit/:xauth/:token", api.ReinitProxy)
+	r.Put("/api/topom/proxy/remove/:xauth/:token/:force", api.RemoveProxy)
 
-	r.Put("/api/group/create/:xauth/:gid", api.CreateGroup)
-	r.Put("/api/group/remove/:xauth/:gid", api.RemoveGroup)
+	r.Put("/api/topom/group/create/:xauth/:gid", api.CreateGroup)
+	r.Put("/api/topom/group/remove/:xauth/:gid", api.RemoveGroup)
 
-	r.Put("/api/group/add/:xauth/:gid/:xaddr", api.GroupAddServer)
-	r.Put("/api/group/del/:xauth/:gid/:xaddr", api.GroupDelServer)
+	r.Put("/api/topom/group/add/:xauth/:gid/:xaddr", api.GroupAddServer)
+	r.Put("/api/topom/group/del/:xauth/:gid/:xaddr", api.GroupDelServer)
 
-	r.Put("/api/group/promote/:xauth/:gid/:xaddr", api.GroupPromoteServer)
-	r.Put("/api/group/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
+	r.Put("/api/topom/group/promote/:xauth/:gid/:xaddr", api.GroupPromoteServer)
+	r.Put("/api/topom/group/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
 
-	r.Put("/api/group/repair-master/:xauth/:gid/:xaddr", api.GroupRepairMaster)
+	r.Put("/api/topom/group/repair-master/:xauth/:gid/:xaddr", api.GroupRepairMaster)
 
-	r.Put("/api/action/create/:xauth/:sid/:gid", api.SlotCreateAction)
-	r.Put("/api/action/create-range/:xauth/:beg/:end/:gid", api.SlotCreateActionRange)
-	r.Put("/api/action/remove/:xauth/:sid", api.SlotRemoveAction)
+	r.Put("/api/topom/action/create/:xauth/:sid/:gid", api.SlotCreateAction)
+	r.Put("/api/topom/action/create-range/:xauth/:beg/:end/:gid", api.SlotCreateActionRange)
+	r.Put("/api/topom/action/remove/:xauth/:sid", api.SlotRemoveAction)
 
-	r.Put("/api/shutdown/:xauth", api.Shutdown)
+	r.Put("/api/topom/shutdown/:xauth", api.Shutdown)
 
-	r.Put("/api/set/action/interval/:xauth/:value", api.SetActionInterval)
-	r.Put("/api/set/action/disabled/:xauth/:value", api.SetActionDisabled)
+	r.Put("/api/topom/set/action/interval/:xauth/:value", api.SetActionInterval)
+	r.Put("/api/topom/set/action/disabled/:xauth/:value", api.SetActionDisabled)
 
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
@@ -481,7 +481,7 @@ func (c *ApiClient) encodeXAddr(addr string) string {
 }
 
 func (c *ApiClient) Overview() (*Overview, error) {
-	url := c.encodeURL("/overview")
+	url := c.encodeURL("/api/topom")
 	var o = &Overview{}
 	if err := rpc.ApiGetJson(url, o); err != nil {
 		return nil, err
@@ -490,7 +490,7 @@ func (c *ApiClient) Overview() (*Overview, error) {
 }
 
 func (c *ApiClient) Model() (*models.Topom, error) {
-	url := c.encodeURL("/api/model")
+	url := c.encodeURL("/api/topom/model")
 	model := &models.Topom{}
 	if err := rpc.ApiGetJson(url, model); err != nil {
 		return nil, err
@@ -499,12 +499,12 @@ func (c *ApiClient) Model() (*models.Topom, error) {
 }
 
 func (c *ApiClient) XPing() error {
-	url := c.encodeURL("/api/xping/%s", c.xauth)
+	url := c.encodeURL("/api/topom/xping/%s", c.xauth)
 	return rpc.ApiGetJson(url, nil)
 }
 
 func (c *ApiClient) Stats() (*Stats, error) {
-	url := c.encodeURL("/api/stats/%s", c.xauth)
+	url := c.encodeURL("/api/topom/stats/%s", c.xauth)
 	stats := &Stats{}
 	if err := rpc.ApiGetJson(url, stats); err != nil {
 		return nil, err
@@ -513,12 +513,12 @@ func (c *ApiClient) Stats() (*Stats, error) {
 }
 
 func (c *ApiClient) CreateProxy(addr string) error {
-	url := c.encodeURL("/api/proxy/create/%s/%s", c.xauth, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/proxy/create/%s/%s", c.xauth, c.encodeXAddr(addr))
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) ReinitProxy(token string) error {
-	url := c.encodeURL("/api/proxy/reinit/%s/%s", c.xauth, token)
+	url := c.encodeURL("/api/topom/proxy/reinit/%s/%s", c.xauth, token)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -527,67 +527,67 @@ func (c *ApiClient) RemoveProxy(token string, force bool) error {
 	if force {
 		value = 1
 	}
-	url := c.encodeURL("/api/proxy/remove/%s/%s/%d", c.xauth, token, value)
+	url := c.encodeURL("/api/topom/proxy/remove/%s/%s/%d", c.xauth, token, value)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) CreateGroup(groupId int) error {
-	url := c.encodeURL("/api/group/create/%s/%d", c.xauth, groupId)
+	url := c.encodeURL("/api/topom/group/create/%s/%d", c.xauth, groupId)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) RemoveGroup(groupId int) error {
-	url := c.encodeURL("/api/group/remove/%s/%d", c.xauth, groupId)
+	url := c.encodeURL("/api/topom/group/remove/%s/%d", c.xauth, groupId)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) GroupAddServer(groupId int, addr string) error {
-	url := c.encodeURL("/api/group/add/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/group/add/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) GroupDelServer(groupId int, addr string) error {
-	url := c.encodeURL("/api/group/del/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/group/del/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) GroupPromoteServer(groupId int, addr string) error {
-	url := c.encodeURL("/api/group/promote/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/group/promote/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) GroupPromoteCommit(groupId int) error {
-	url := c.encodeURL("/api/group/promote-commit/%s/%d", c.xauth, groupId)
+	url := c.encodeURL("/api/topom/group/promote-commit/%s/%d", c.xauth, groupId)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) GroupRepairMaster(groupId int, addr string) error {
-	url := c.encodeURL("/api/group/repair-master/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/group/repair-master/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) SlotCreateAction(slotId int, groupId int) error {
-	url := c.encodeURL("/api/action/create/%s/%d/%d", c.xauth, slotId, groupId)
+	url := c.encodeURL("/api/topom/action/create/%s/%d/%d", c.xauth, slotId, groupId)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) SlotCreateActionRange(beg, end int, groupId int) error {
-	url := c.encodeURL("/api/action/create-range/%s/%d/%d/%d", c.xauth, beg, end, groupId)
+	url := c.encodeURL("/api/topom/action/create-range/%s/%d/%d/%d", c.xauth, beg, end, groupId)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) SlotRemoveAction(slotId int) error {
-	url := c.encodeURL("/api/action/remove/%s/%d", c.xauth, slotId)
+	url := c.encodeURL("/api/topom/action/remove/%s/%d", c.xauth, slotId)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) Shutdown() error {
-	url := c.encodeURL("/api/shutdown/%s", c.xauth)
+	url := c.encodeURL("/api/topom/shutdown/%s", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) SetActionInterval(msecs int) error {
-	url := c.encodeURL("/api/set/action/interval/%s/%d", c.xauth, msecs)
+	url := c.encodeURL("/api/topom/set/action/interval/%s/%d", c.xauth, msecs)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -596,6 +596,6 @@ func (c *ApiClient) SetActionDisabled(disabled bool) error {
 	if disabled {
 		value = 1
 	}
-	url := c.encodeURL("/api/set/action/disabled/%s/%d", c.xauth, value)
+	url := c.encodeURL("/api/topom/set/action/disabled/%s/%d", c.xauth, value)
 	return rpc.ApiPutJson(url, nil, nil)
 }
