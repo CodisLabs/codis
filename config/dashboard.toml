@@ -9,4 +9,4 @@ product_name = "Demo2"
 product_auth = ""
 
 # Set bind address for admin(rpc), tcp only.
-admin_addr = "0.0.0.0:11000"
+admin_addr = "0.0.0.0:18080"

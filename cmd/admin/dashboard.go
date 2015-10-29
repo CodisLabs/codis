@@ -3,10 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
+	"net"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/topom"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -20,13 +19,35 @@ type cmdDashboard struct {
 }
 
 func (t *cmdDashboard) Main(d map[string]interface{}) {
-	t.address = d["--dashboard"].(string)
-
-	if s, ok := d["--product_name"].(string); ok {
-		t.product.name = s
-	}
-	if s, ok := d["--product_auth"].(string); ok {
-		t.product.auth = s
+	if d["--dashboard"] != nil {
+		t.address = d["--dashboard"].(string)
+		if s, ok := d["--product-name"].(string); ok {
+			t.product.name = s
+		}
+		if s, ok := d["--product-auth"].(string); ok {
+			t.product.auth = s
+		}
+	} else {
+		config := topom.NewDefaultConfig()
+		if err := config.LoadFromFile(d["--config"].(string)); err != nil {
+			log.PanicErrorf(err, "load config file failed")
+		}
+		addr, err := net.ResolveTCPAddr("tcp", config.AdminAddr)
+		if err != nil {
+			log.PanicErrorf(err, "resolve tcp addr = %s failed", config.AdminAddr)
+		}
+		if ipv4 := addr.IP.To4(); ipv4 != nil {
+			if net.IPv4zero.Equal(ipv4) {
+				log.Panicf("invalid tcp address = %s", config.AdminAddr)
+			}
+		} else if ipv6 := addr.IP.To16(); ipv6 != nil {
+			if net.IPv6zero.Equal(ipv6) {
+				log.Panicf("invalid tcp address = %s", config.AdminAddr)
+			}
+		}
+		t.address = addr.String()
+		t.product.name = config.ProductName
+		t.product.auth = config.ProductAuth
 	}
 
 	var cmd string
@@ -44,80 +65,66 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 	switch cmd {
 	default:
 		t.handleOverview(cmd, d)
-	case "proxy":
-		if d["--list"].(bool) || d["--stats-map"].(bool) {
-			t.handleOverview(cmd, d)
-		} else {
-			t.handleProxyCommand(d)
-		}
-	case "group":
-		if d["--list"].(bool) || d["--stats-map"].(bool) {
-			t.handleOverview(cmd, d)
-		} else {
-			t.handleGroupCommand(d)
-		}
+		/*
+			case "proxy":
+				t.handleProxyCommand(d)
+			case "group":
+				t.handleGroupCommand(d)
+			case "action":
+				t.handleActionCommand(d)
+		*/
 	case "shutdown":
 		t.handleShutdown(d)
 	}
 }
 
-func (t *cmdDashboard) newTopomClient(verify bool) (*topom.ApiClient, *models.Topom) {
+func (t *cmdDashboard) newTopomClient(xauth bool) (*topom.ApiClient, *models.Topom) {
 	client := topom.NewApiClient(t.address)
 
+	log.Debugf("call rpc model")
 	p, err := client.Model()
 	if err != nil {
-		log.PanicErrorf(err, "call rpc model failed, topom.addr = %s", t.address)
+		log.PanicErrorf(err, "call rpc model failed")
 	}
-	log.Debugf("get topom model =\n%s", p.Encode())
+	log.Debugf("call rpc model OK, model =\n%s", p.Encode())
 
-	if !verify {
+	if !xauth {
+		if t.product.name != p.ProductName && t.product.name != "" {
+			log.Panicf("wrong product name, should be = %s", p.ProductName)
+		}
 		return client, p
-	}
-
-	if t.product.name != "" && t.product.name != p.ProductName {
-		log.Panicf("wrong product name, should be = %s", p.ProductName)
+	} else {
+		if t.product.name != p.ProductName {
+			log.Panicf("wrong product name, should be = %s", p.ProductName)
+		}
 	}
 
 	client.SetXAuth(p.ProductName, t.product.auth)
+
+	log.Debugf("call rpc xping")
 	if err := client.XPing(); err != nil {
-		log.Panicf("call rpc xping failed, invalid password")
+		log.PanicErrorf(err, "call rpc xping failed")
 	}
+	log.Debugf("call rpc xping OK")
+
 	return client, p
-}
-
-func (t *cmdDashboard) getProxyToken(addr string) string {
-	client := proxy.NewApiClient(addr)
-
-	p, err := client.Model()
-	if err != nil {
-		log.PanicErrorf(err, "call rpc model failed, proxy = %s", addr)
-	}
-	log.Debugf("get proxy model =\n%s", p.Encode())
-
-	if t.product.name != "" && t.product.name != p.ProductName {
-		log.Panicf("wrong product name, should be = %s", p.ProductName)
-	}
-
-	client.SetXAuth(p.ProductName, t.product.auth, p.Token)
-	if err := client.XPing(); err != nil {
-		log.Panicf("call rpc xping failed, invalid password")
-	}
-	return p.Token
 }
 
 func (t *cmdDashboard) handleOverview(cmd string, d map[string]interface{}) {
 	client, _ := t.newTopomClient(false)
 
+	log.Debugf("call rpc overview")
 	o, err := client.Overview()
 	if err != nil {
 		log.PanicErrorf(err, "call rpc overview failed")
 	}
+	log.Debugf("call rpc overview OK")
 
 	var obj interface{}
 	switch cmd {
 	default:
 		o.Stats = nil
-		fallthrough
+		obj = o
 	case "overview":
 		obj = o
 	case "config":
@@ -125,6 +132,7 @@ func (t *cmdDashboard) handleOverview(cmd string, d map[string]interface{}) {
 	case "model":
 		obj = o.Model
 	case "stats":
+		o.Stats.Slots = nil
 		obj = o.Stats
 	case "slots":
 		obj = o.Stats.Slots
@@ -148,23 +156,39 @@ func (t *cmdDashboard) handleOverview(cmd string, d map[string]interface{}) {
 	if err != nil {
 		log.PanicErrorf(err, "json marshal failed")
 	}
-	log.Debugf("total bytes = %d", len(b))
-
 	fmt.Println(string(b))
 }
 
 func (t *cmdDashboard) handleShutdown(d map[string]interface{}) {
-	client, p := t.newTopomClient(true)
+	client, _ := t.newTopomClient(true)
 
-	if p.ProductName != t.product.name {
+	log.Debugf("call rpc shutdown")
+	if err := client.Shutdown(); err != nil {
+		log.PanicErrorf(err, "call rpc shutdown failed")
+	}
+	log.Debugf("call rpc shutdown OK")
+}
+
+/*
+
+func (t *cmdDashboard) getProxyToken(addr string) string {
+	client := proxy.NewApiClient(addr)
+
+	p, err := client.Model()
+	if err != nil {
+		log.PanicErrorf(err, "call rpc model failed, proxy = %s", addr)
+	}
+	log.Debugf("get proxy model =\n%s", p.Encode())
+
+	if t.product.name != "" && t.product.name != p.ProductName {
 		log.Panicf("wrong product name, should be = %s", p.ProductName)
 	}
 
-	if err := client.Shutdown(); err != nil {
-		log.Panicf("call rpc shutdown failed")
-	} else {
-		log.Infof("shutdown-topom successfully")
+	client.SetXAuth(p.ProductName, t.product.auth, p.Token)
+	if err := client.XPing(); err != nil {
+		log.Panicf("call rpc xping failed, invalid password")
 	}
+	return p.Token
 }
 
 func (t *cmdDashboard) fetchProxyModel(client *topom.ApiClient, d map[string]interface{}) *models.Proxy {
@@ -244,3 +268,4 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 
 func (c *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 }
+*/

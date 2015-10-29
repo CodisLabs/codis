@@ -12,31 +12,35 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-admin [-v] --proxy=ADDR                                           [overview|config|model|stats|slots]
-	codis-admin [-v] --proxy=ADDR --product_name=NAME [--product_auth=AUTH]  shutdown
+	codis-admin [-v]  --proxy=ADDR                                           [overview|config|model|stats|slots]
+	codis-admin [-v]  --proxy=ADDR --product-name=NAME [--product-auth=AUTH]  shutdown
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR)                                             [overview|config|model|stats|slots]
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR  --product-name=NAME  [--product-auth=AUTH])  shutdown
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH]) (proxy|group) [--list|--stats-map]
 
 
 
-	codis-admin [-v] --proxy=ADDR     [overview|config|model|stats|slots]
-	codis-admin [-v] --proxy=ADDR      shutdown --product_name=NAME [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR [overview|config|model|stats|slots]
-	codis-admin [-v] --dashboard=ADDR  shutdown --product_name=NAME [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR (proxy|group) [--list|--stats-map]
-	codis-admin [-v] --dashboard=ADDR  proxy --create  --addr=ADDR                                  [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  proxy --remove (--addr=ADDR|--token=TOKEN|--proxy-id=ID) [--force] [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  proxy --reinit (--addr=ADDR|--token=TOKEN|--proxy-id=ID)           [--product_name=NAME] [--product_auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  proxy --create  --addr=ADDR                                  [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  proxy --remove (--addr=ADDR|--token=TOKEN|--proxy-id=ID) [--force] [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  proxy --reinit (--addr=ADDR|--token=TOKEN|--proxy-id=ID)           [--product-name=NAME] [--product-auth=AUTH]
 
-	codis-admin [-v] --dashboard=ADDR  group --create=GID   [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  group --remove=GID   [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --status=GID  [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --repair=GID  [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --group=GID --add=ADDR [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --group=GID --del=ADDR [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --group=GID (--promote=ADDR|--commit) [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  action --create --slot=SID --group=GID [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  action --remove --slot=SID             [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  action --set-interval=VALUE            [--product_name=NAME] [--product_auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  action --set-disabled=FLAG             [--product_name=NAME] [--product_auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  group --create=GID   [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  group --remove=GID   [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  server --status=GID  [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  server --repair=GID  [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  server --group=GID --add=ADDR [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  server --group=GID --del=ADDR [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  server --group=GID (--promote=ADDR|--commit) [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  action --create --slot=SID --group=GID [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  action --remove --slot=SID             [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  action --set-interval=VALUE            [--product-name=NAME] [--product-auth=AUTH]
+	codis-admin [-v] --dashboard=ADDR  action --set-disabled=FLAG             [--product-name=NAME] [--product-auth=AUTH]
+
+Options:
+	-c CONF, --config=CONF
+	-n NAME, --product-name=NAME
+	-x ADDR, --addr=ADDR
+	-l, --list
 `
 
 	d, err := docopt.Parse(usage, nil, true, "", false)
@@ -54,7 +58,7 @@ Usage:
 	switch {
 	case d["--proxy"] != nil:
 		new(cmdProxy).Main(d)
-	case d["--dashboard"] != nil:
+	case d["--dashboard"] != nil || d["--config"] != nil:
 		new(cmdDashboard).Main(d)
 	}
 }

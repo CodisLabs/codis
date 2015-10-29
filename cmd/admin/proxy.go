@@ -60,7 +60,7 @@ func (t *cmdProxy) handleOverview(cmd string) {
 	default:
 		o.Slots = nil
 		o.Stats = nil
-		fallthrough
+		obj = o
 	case "overview":
 		obj = o
 	case "config":
