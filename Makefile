@@ -36,5 +36,5 @@ clean:
 distclean: clean
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
 
-gotest:
-	# GOPATH=`godep path`:$$GOPATH go test ./pkg/... ./cmd/...
+gotest: build
+	GOPATH=`godep path`:$$GOPATH go test ./pkg/...
