@@ -53,7 +53,7 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 	}
 
 	var cmd string
-	for _, s := range []string{"overview", "config", "model", "slots", "stats", "shutdown", "proxy", "group"} {
+	for _, s := range []string{"overview", "config", "model", "slots", "stats", "shutdown", "proxy", "group", "action"} {
 		if d[s].(bool) {
 			cmd = s
 		}
@@ -71,10 +71,8 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 		t.handleProxyCommand(d)
 	case "group":
 		t.handleGroupCommand(d)
-		/*
-			case "action":
-				t.handleActionCommand(d)
-		*/
+	case "action":
+		t.handleActionCommand(d)
 	case "shutdown":
 		t.handleShutdown(d)
 	}
@@ -463,15 +461,14 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 		log.Debugf("call rpc stats OK")
 
 		for _, g := range stats.Group.Models {
-			fmt.Printf("group-%-6d", g.Id)
+			fmt.Printf("group-%-6d -----+   ", g.Id)
 			for i, addr := range g.Servers {
 				var infom map[string]string
 				var master string
 				if x := stats.Group.Stats[addr]; x != nil {
-					infom, master = x.Infomap, x.Infomap["master_addr"]
+					infom, master = x.Infom, x.Infom["master_addr"]
 				}
 				if i == 0 {
-					fmt.Printf("-----+   ")
 					switch {
 					case infom != nil && master == "":
 						fmt.Printf("[M] %s", addr)
@@ -482,7 +479,7 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 					}
 				} else {
 					fmt.Println()
-					fmt.Printf("            ")
+					fmt.Printf("             ")
 					fmt.Printf("     +   ")
 					switch {
 					case infom != nil && master == g.Servers[0]:
@@ -517,5 +514,69 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 
 	case d["--list"].(bool) || d["--stats-map"].(bool):
 		t.handleOverview("group", d)
+	}
+}
+
+func (t *cmdDashboard) handleActionCommand(d map[string]interface{}) {
+	switch {
+	case d["--create"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		slotId, groupId := t.parseInteger(d, "--slot-id"), t.parseInteger(d, "--group-id")
+		log.Debugf("create action slot-[%d] to group-[%d]", slotId, groupId)
+
+		log.Debugf("call rpc create-action to dashboard %s", t.address)
+		if err := client.SlotCreateAction(slotId, groupId); err != nil {
+			log.PanicErrorf(err, "call rpc create-action to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc create-action OK")
+
+	case d["--remove"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		slotId := t.parseInteger(d, "--slot-id")
+		log.Debugf("remove action slot-[%d]", slotId)
+
+		log.Debugf("call rpc remove-action to dashboard %s", t.address)
+		if err := client.SlotRemoveAction(slotId); err != nil {
+			log.PanicErrorf(err, "call rpc remove-action to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc remove-action OK")
+
+	case d["--create-range"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		groupId := t.parseInteger(d, "--group-id")
+		slotBeg := t.parseInteger(d, "--slot-id-beg")
+		slotEnd := t.parseInteger(d, "--slot-id-end")
+		log.Debugf("create action range slot-[%d - %d] to group-[%d]", slotBeg, slotEnd, groupId)
+
+		log.Debugf("call rpc create-action-range to dashboard %s", t.address)
+		if err := client.SlotCreateActionRange(slotBeg, slotEnd, groupId); err != nil {
+			log.PanicErrorf(err, "call rpc create-action-range to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc create-action-range OK")
+
+	case d["--set"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		switch {
+		case d["--interval"] != nil:
+			interval := t.parseInteger(d, "--interval")
+			log.Debugf("call rpc set action-interval to dashboard %s", t.address)
+			if err := client.SetActionInterval(interval); err != nil {
+				log.PanicErrorf(err, "call rpc set action-interval to dashboard %s failed", t.address)
+			}
+			log.Debugf("call rpc set action-interval OK")
+
+		case d["--disabled"] != nil:
+			disabled := t.parseInteger(d, "--disabled") != 0
+			log.Debugf("call rpc set action-disabled to dashboard %s", t.address)
+			if err := client.SetActionDisabled(disabled); err != nil {
+				log.PanicErrorf(err, "call rpc set action-disabled to dashboard %s failed", t.address)
+			}
+			log.Debugf("call rpc set action-disabled OK")
+
+		}
 	}
 }
