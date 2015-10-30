@@ -48,10 +48,10 @@ func (t *cmdProxy) Main(d map[string]interface{}) {
 func (t *cmdProxy) handleOverview(cmd string) {
 	client := proxy.NewApiClient(t.address)
 
-	log.Debugf("call rpc overview")
+	log.Debugf("call rpc overview to proxy %s", t.address)
 	o, err := client.Overview()
 	if err != nil {
-		log.PanicErrorf(err, "call rpc overview failed")
+		log.PanicErrorf(err, "call rpc overview to proxy %s failed", t.address)
 	}
 	log.Debugf("call rpc overview OK")
 
@@ -83,10 +83,10 @@ func (t *cmdProxy) handleOverview(cmd string) {
 func (t *cmdProxy) handleShutdown() {
 	client := proxy.NewApiClient(t.address)
 
-	log.Debugf("call rpc model")
+	log.Debugf("call rpc model to proxy %s", t.address)
 	p, err := client.Model()
 	if err != nil {
-		log.PanicErrorf(err, "call rpc model failed")
+		log.PanicErrorf(err, "call rpc model to proxy %s failed", t.address)
 	}
 	log.Debugf("call rpc model OK")
 	log.Debugf("proxy model =\n%s", p.Encode())
@@ -97,13 +97,13 @@ func (t *cmdProxy) handleShutdown() {
 
 	client.SetXAuth(p.ProductName, t.product.auth, p.Token)
 
-	log.Debugf("call rpc xping")
+	log.Debugf("call rpc xping to proxy %s", t.address)
 	if err := client.XPing(); err != nil {
 		log.PanicErrorf(err, "call rpc xping failed")
 	}
 	log.Debugf("call rpc xping OK")
 
-	log.Debugf("call rpc shutdown")
+	log.Debugf("call rpc shutdown to proxy %s", t.address)
 	if err := client.Shutdown(); err != nil {
 		log.PanicErrorf(err, "call rpc shutdown failed")
 	}

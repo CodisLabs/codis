@@ -83,7 +83,7 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 func (t *cmdDashboard) newTopomClient(xauth bool) (*topom.ApiClient, *models.Topom) {
 	client := topom.NewApiClient(t.address)
 
-	log.Debugf("call rpc model")
+	log.Debugf("call rpc model to dashboard %s", t.address)
 	p, err := client.Model()
 	if err != nil {
 		log.PanicErrorf(err, "call rpc model to dashboard %s failed", t.address)
@@ -104,9 +104,42 @@ func (t *cmdDashboard) newTopomClient(xauth bool) (*topom.ApiClient, *models.Top
 
 	client.SetXAuth(p.ProductName, t.product.auth)
 
-	log.Debugf("call rpc xping")
+	log.Debugf("call rpc xping to dashboard %s", t.address)
 	if err := client.XPing(); err != nil {
 		log.PanicErrorf(err, "call rpc xping to dashboard %s failed", t.address)
+	}
+	log.Debugf("call rpc xping OK")
+
+	return client, p
+}
+
+func (t *cmdDashboard) newProxyClient(addr string, xauth bool) (*proxy.ApiClient, *models.Proxy) {
+	client := proxy.NewApiClient(addr)
+
+	log.Debugf("call rpc model to proxy %s", addr)
+	p, err := client.Model()
+	if err != nil {
+		log.PanicErrorf(err, "call rpc model to proxy %s failed", addr)
+	}
+	log.Debugf("call rpc model OK")
+	log.Debugf("proxy model =\n%s", p.Encode())
+
+	if !xauth {
+		if t.product.name != p.ProductName && t.product.name != "" {
+			log.Panicf("wrong product name, should be = %s", p.ProductName)
+		}
+		return client, p
+	} else {
+		if t.product.name != p.ProductName {
+			log.Panicf("wrong product name, should be = %s", p.ProductName)
+		}
+	}
+
+	client.SetXAuth(p.ProductName, t.product.auth, p.Token)
+
+	log.Debugf("call rpc xping to proxy %s", addr)
+	if err := client.XPing(); err != nil {
+		log.PanicErrorf(err, "call rpc xping to proxy %s failed", addr)
 	}
 	log.Debugf("call rpc xping OK")
 
@@ -116,7 +149,7 @@ func (t *cmdDashboard) newTopomClient(xauth bool) (*topom.ApiClient, *models.Top
 func (t *cmdDashboard) handleOverview(cmd string, d map[string]interface{}) {
 	client, _ := t.newTopomClient(false)
 
-	log.Debugf("call rpc overview")
+	log.Debugf("call rpc overview to dashboard %s", t.address)
 	o, err := client.Overview()
 	if err != nil {
 		log.PanicErrorf(err, "call rpc overview to dashboard %s failed", t.address)
@@ -165,7 +198,7 @@ func (t *cmdDashboard) handleOverview(cmd string, d map[string]interface{}) {
 func (t *cmdDashboard) handleShutdown(d map[string]interface{}) {
 	client, _ := t.newTopomClient(true)
 
-	log.Debugf("call rpc shutdown")
+	log.Debugf("call rpc shutdown to dashboard %s", t.address)
 	if err := client.Shutdown(); err != nil {
 		log.PanicErrorf(err, "call rpc shutdown to dashboard %s failed", t.address)
 	}
@@ -201,21 +234,11 @@ func (t *cmdDashboard) parseProxyToken(client *topom.ApiClient, d map[string]int
 
 	case d["--addr"] != nil:
 		addr := t.parseString(d, "--addr")
-
-		client := proxy.NewApiClient(addr)
-
-		log.Debugf("call rpc model")
-		p, err := client.Model()
-		if err != nil {
-			log.PanicErrorf(err, "call rpc model to proxy %s failed", addr)
-		}
-		log.Debugf("call rpc model OK")
-		log.Debugf("proxy model =\n%s", p.Encode())
-
+		_, p := t.newProxyClient(addr, true)
 		return p.Token
 
 	case d["--proxy-id"] != nil:
-		log.Debugf("call rpc stats")
+		log.Debugf("call rpc stats to dashboard %s", t.address)
 		stats, err := client.Stats()
 		if err != nil {
 			log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.address)
@@ -246,7 +269,7 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 			log.PanicErrorf(err, "call rpc model to proxy %s failed", addr)
 		}
 
-		log.Debugf("call rpc create-proxy")
+		log.Debugf("call rpc create-proxy to dashboard %s", t.address)
 		if err := client.CreateProxy(addr); err != nil {
 			log.PanicErrorf(err, "call rpc create-proxy to dashboard %s failed", t.address)
 		}
@@ -259,7 +282,7 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 		force := d["--force"].(bool)
 		log.Debugf("parse --force = %t", force)
 
-		log.Debugf("call rpc remove-proxy")
+		log.Debugf("call rpc remove-proxy to dashboard %s", t.address)
 		if err := client.RemoveProxy(token, force); err != nil {
 			log.PanicErrorf(err, "call rpc remove-proxy to dashboard %s failed", t.address)
 		}
@@ -270,7 +293,7 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 
 		token := t.parseProxyToken(client, d)
 
-		log.Debugf("call rpc reinit-proxy")
+		log.Debugf("call rpc reinit-proxy to dashboard %s", t.address)
 		if err := client.ReinitProxy(token); err != nil {
 			log.PanicErrorf(err, "call rpc remove-reinit to dashboard %s failed", t.address)
 		}

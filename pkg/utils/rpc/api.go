@@ -152,7 +152,7 @@ func apiRequestJson(method string, url string, args, reply interface{}) error {
 			return e
 		}
 	default:
-		return errors.Errorf("[%d] %s", rsp.StatusCode, http.StatusText(rsp.StatusCode))
+		return errors.Errorf("[%d] %s - %s", rsp.StatusCode, http.StatusText(rsp.StatusCode), url)
 	}
 }
 
