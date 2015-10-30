@@ -276,7 +276,7 @@ func (s *Topom) GetActionDisabled() bool {
 
 func (s *Topom) SetActionDisabled(value bool) {
 	s.action.disabled.Set(value)
-	log.Infof("[%p] set action disabled = %d", s, value)
+	log.Infof("[%p] set action disabled = %t", s, value)
 }
 
 func (s *Topom) serveAdmin() {
