@@ -2,7 +2,6 @@ package topom
 
 import (
 	"encoding/json"
-	"strconv"
 	"sync"
 	"time"
 
@@ -14,50 +13,30 @@ import (
 var ErrStatsTimeout = errors.New("update stats timeout")
 
 type ServerStats struct {
-	Infomap map[string]string
-	Slotmap map[int]int
-	Error   error
+	Infom map[string]string
+	Error error
 }
 
 func (s *ServerStats) MarshalJSON() ([]byte, error) {
 	var v = &struct {
-		Infomap map[string]string `json:"infomap,omitempty"`
-		Slotmap map[string]int    `json:"slotmap,omitempty"`
-		Error   *rpc.RemoteError  `json:"error,omitempty"`
+		Infom map[string]string `json:"infom,omitempty"`
+		Error *rpc.RemoteError  `json:"error,omitempty"`
 	}{
-		s.Infomap, nil,
-		rpc.ToRemoteError(s.Error),
-	}
-	if s.Slotmap != nil {
-		v.Slotmap = make(map[string]int)
-		for i, val := range s.Slotmap {
-			v.Slotmap[strconv.Itoa(i)] = val
-		}
+		s.Infom, rpc.ToRemoteError(s.Error),
 	}
 	return json.Marshal(v)
 }
 
 func (s *ServerStats) UnmarshalJSON(b []byte) error {
 	var v = &struct {
-		Infomap map[string]string `json:"infomap,omitempty"`
-		Slotmap map[string]int    `json:"slotmap,omitempty"`
-		Error   *rpc.RemoteError  `json:"error,omitempty"`
+		Infom map[string]string `json:"infom,omitempty"`
+		Error *rpc.RemoteError  `json:"error,omitempty"`
 	}{}
 	if err := json.Unmarshal(b, v); err != nil {
 		return err
 	} else {
-		s.Infomap = v.Infomap
+		s.Infom = v.Infom
 		s.Error = v.Error.ToError()
-		if v.Slotmap != nil {
-			s.Slotmap = make(map[int]int)
-			for a, val := range v.Slotmap {
-				i, err := strconv.Atoi(a)
-				if err != nil {
-					return errors.Trace(err)
-				}
-				s.Slotmap[i] = val
-			}
-		}
 		return nil
 	}
 }
@@ -90,16 +69,11 @@ func (s *Topom) runServerStats(addr string, timeout time.Duration) *ServerStats 
 			return err
 		}
 		defer s.redisp.PutClient(c)
-		infomap, err := c.GetInfo()
+		infom, err := c.GetInfo()
 		if err != nil {
 			return err
 		}
-		slotmap, err := c.SlotsInfo()
-		if err != nil {
-			return err
-		}
-		stats.Infomap = infomap
-		stats.Slotmap = slotmap
+		stats.Infom = infom
 		return nil
 	}()
 
