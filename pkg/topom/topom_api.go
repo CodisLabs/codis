@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/cors"
@@ -86,6 +87,7 @@ func newApiServer(t *Topom) http.Handler {
 
 	r.Put("/api/topom/group/add/:xauth/:gid/:xaddr", api.GroupAddServer)
 	r.Put("/api/topom/group/del/:xauth/:gid/:xaddr", api.GroupDelServer)
+	r.Put("/api/topom/group/check/:xauth/:xaddr", api.GroupCheckServer)
 
 	r.Put("/api/topom/group/promote/:xauth/:gid/:xaddr", api.GroupPromoteServer)
 	r.Put("/api/topom/group/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
@@ -302,6 +304,26 @@ func (s *apiServer) GroupDelServer(params martini.Params) (int, string) {
 	}
 	if err := s.topom.GroupDelServer(groupId, addr); err != nil {
 		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) GroupCheckServer(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	addr, err := s.decodeXAddr(params)
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	c, err := NewRedisClient(addr, s.topom.GetConfig().ProductAuth, time.Second)
+	if err != nil {
+		return rpc.ApiResponseError(fmt.Errorf("create redis-client to %s failed", addr))
+	}
+	defer c.Close()
+	if _, err := c.SlotsInfo(); err != nil {
+		return rpc.ApiResponseError(fmt.Errorf("check codis-support of %s failed", addr))
 	} else {
 		return rpc.ApiResponseJson("OK")
 	}
@@ -548,6 +570,11 @@ func (c *ApiClient) GroupAddServer(groupId int, addr string) error {
 
 func (c *ApiClient) GroupDelServer(groupId int, addr string) error {
 	url := c.encodeURL("/api/topom/group/del/%s/%d/%s", c.xauth, groupId, c.encodeXAddr(addr))
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) GroupCheckServer(addr string) error {
+	url := c.encodeURL("/api/topom/group/check/%s/%s", c.xauth, c.encodeXAddr(addr))
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

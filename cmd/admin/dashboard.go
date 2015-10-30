@@ -69,9 +69,9 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 		t.handleOverview(cmd, d)
 	case "proxy":
 		t.handleProxyCommand(d)
+	case "group":
+		t.handleGroupCommand(d)
 		/*
-			case "group":
-				t.handleGroupCommand(d)
 			case "action":
 				t.handleActionCommand(d)
 		*/
@@ -251,11 +251,48 @@ func (t *cmdDashboard) parseProxyToken(client *topom.ApiClient, d map[string]int
 				return p.Token
 			}
 		}
+		fallthrough
 
+	default:
+		log.Panicf("can't find specified proxy")
+		return ""
 	}
+}
 
-	log.Panicf("can't find specified proxy")
-	return ""
+func (t *cmdDashboard) parseGroupServer(client *topom.ApiClient, d map[string]interface{}) (int, string) {
+	groupId := t.parseInteger(d, "--group-id")
+
+	switch {
+	case d["--addr"] != nil:
+		return groupId, t.parseString(d, "--addr")
+
+	case d["--index"] != nil:
+		index := t.parseInteger(d, "--index")
+
+		log.Debugf("call rpc stats to dashboard %s", t.address)
+		stats, err := client.Stats()
+		if err != nil {
+			log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc stats OK")
+
+		for _, g := range stats.Group.Models {
+			if g.Id == groupId {
+				if index < 0 {
+					index += len(g.Servers)
+				}
+				if index < 0 || index >= len(g.Servers) {
+					log.Panicf("invalid index, out of range")
+				}
+				return groupId, g.Servers[index]
+			}
+		}
+		fallthrough
+
+	default:
+		log.Panicf("can't find specifed group")
+		return 0, ""
+	}
 }
 
 func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
@@ -264,10 +301,8 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 		client, _ := t.newTopomClient(true)
 
 		addr := t.parseString(d, "--addr")
-
-		if _, err := proxy.NewApiClient(addr).Model(); err != nil {
-			log.PanicErrorf(err, "call rpc model to proxy %s failed", addr)
-		}
+		_, p := t.newProxyClient(addr, true)
+		log.Debugf("create proxy with token = %s, addr = %s", p.Token, addr)
 
 		log.Debugf("call rpc create-proxy to dashboard %s", t.address)
 		if err := client.CreateProxy(addr); err != nil {
@@ -280,7 +315,7 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 
 		token := t.parseProxyToken(client, d)
 		force := d["--force"].(bool)
-		log.Debugf("parse --force = %t", force)
+		log.Debugf("remove proxy with token = %s, force = %t", token, force)
 
 		log.Debugf("call rpc remove-proxy to dashboard %s", t.address)
 		if err := client.RemoveProxy(token, force); err != nil {
@@ -292,12 +327,35 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 		client, _ := t.newTopomClient(true)
 
 		token := t.parseProxyToken(client, d)
+		log.Debugf("reinit proxy with token = %s", token)
 
 		log.Debugf("call rpc reinit-proxy to dashboard %s", t.address)
 		if err := client.ReinitProxy(token); err != nil {
-			log.PanicErrorf(err, "call rpc remove-reinit to dashboard %s failed", t.address)
+			log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.address)
 		}
 		log.Debugf("call rpc reinit-proxy OK")
+
+	case d["--xpingall"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		log.Debugf("call rpc stats to dashboard %s", t.address)
+		stats, err := client.Stats()
+		if err != nil {
+			log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc stats OK")
+
+		fmt.Printf("      Total=%d\n", len(stats.Proxy.Models))
+		for _, p := range stats.Proxy.Models {
+			c := proxy.NewApiClient(p.AdminAddr)
+			c.SetXAuth(p.ProductName, t.product.auth, p.Token)
+			if err := c.XPing(); err != nil {
+				fmt.Printf("[EE]")
+			} else {
+				fmt.Printf("[OK]")
+			}
+			fmt.Printf("  proxy-%-4d    %s      %s\n", p.Id, p.Token, p.AdminAddr)
+		}
 
 	default:
 		d["--list"] = true
@@ -308,7 +366,156 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 	}
 }
 
-/*
-func (c *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
+func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
+	switch {
+	case d["--create"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		groupId := t.parseInteger(d, "--group-id")
+		log.Debugf("create group-[%d]", groupId)
+
+		log.Debugf("call rpc create-group to dashboard %s", t.address)
+		if err := client.CreateGroup(groupId); err != nil {
+			log.PanicErrorf(err, "call rpc create-group to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc create-group OK")
+
+	case d["--remove"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		groupId := t.parseInteger(d, "--group-id")
+		log.Debugf("remove group-[%d]", groupId)
+
+		log.Debugf("call rpc remove-group to dashboard %s", t.address)
+		if err := client.RemoveGroup(groupId); err != nil {
+			log.PanicErrorf(err, "call rpc remove-group to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc remove-group OK")
+
+	case d["--add"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		groupId, addr := t.parseInteger(d, "--group-id"), t.parseString(d, "--addr")
+		log.Debugf("group-[%d] add server = %s", groupId, addr)
+
+		log.Debugf("call rpc check-server to dashboard %s", t.address)
+		if err := client.GroupCheckServer(addr); err != nil {
+			log.PanicErrorf(err, "call rpc check-server to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc check-server OK")
+
+		log.Debugf("call rpc group add-server to dashboard %s", t.address)
+		if err := client.GroupAddServer(groupId, addr); err != nil {
+			log.PanicErrorf(err, "call rpc group add-server to dashbard %s failed", t.address)
+		}
+		log.Debugf("call rpc group add-server OK")
+
+	case d["--del"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		groupId, addr := t.parseGroupServer(client, d)
+		log.Debugf("group-[%d] del server = %s", groupId, addr)
+
+		log.Debugf("call rpc group del-server to dashboard %s", t.address)
+		if err := client.GroupDelServer(groupId, addr); err != nil {
+			log.PanicErrorf(err, "call rpc group del-server to dashbard %s failed", t.address)
+		}
+		log.Debugf("call rpc group del-server OK")
+
+	case d["--promote"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		groupId, addr := t.parseGroupServer(client, d)
+		log.Debugf("group-[%d] promote server = %s", groupId, addr)
+
+		log.Debugf("call rpc group promote to dashboard %s", t.address)
+		if err := client.GroupPromoteServer(groupId, addr); err != nil {
+			log.PanicErrorf(err, "call rpc group promote to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc group promote to dashboard OK")
+
+		log.Debugf("call rpc group promote-commit to dashboard %s", t.address)
+		if err := client.GroupPromoteCommit(groupId); err != nil {
+			log.PanicErrorf(err, "call rpc group promote-commit to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc group promote-commit to dashboard OK")
+
+	case d["--promote-commit"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		groupId := t.parseInteger(d, "--group-id")
+		log.Debugf("group-[%d] promote-commit", groupId)
+
+		log.Debugf("call rpc group promote-commit to dashboard %s", t.address)
+		if err := client.GroupPromoteCommit(groupId); err != nil {
+			log.PanicErrorf(err, "call rpc group promote-commit to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc group promote-commit to dashboard OK")
+
+	case d["--master-status"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		log.Debugf("call rpc stats to dashboard %s", t.address)
+		stats, err := client.Stats()
+		if err != nil {
+			log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc stats OK")
+
+		for _, g := range stats.Group.Models {
+			fmt.Printf("group-%-6d", g.Id)
+			for i, addr := range g.Servers {
+				var infom map[string]string
+				var master string
+				if x := stats.Group.Stats[addr]; x != nil {
+					infom, master = x.Infomap, x.Infomap["master_addr"]
+				}
+				if i == 0 {
+					fmt.Printf("-----+   ")
+					switch {
+					case infom != nil && master == "":
+						fmt.Printf("[M] %s", addr)
+					case infom != nil && master != "":
+						fmt.Printf("[E] %s ==> %s", addr, master)
+					default:
+						fmt.Printf("[?] %s", addr)
+					}
+				} else {
+					fmt.Println()
+					fmt.Printf("            ")
+					fmt.Printf("     +   ")
+					switch {
+					case infom != nil && master == g.Servers[0]:
+						fmt.Printf("[S] %s", addr)
+					case infom != nil && master != "":
+						fmt.Printf("[E] %s ==> %s", addr, master)
+					case infom != nil && master == "":
+						fmt.Printf("[E] %s", addr)
+					default:
+						fmt.Printf("[?] %s", addr)
+					}
+				}
+			}
+			fmt.Println()
+		}
+
+	case d["--master-repair"].(bool):
+		client, _ := t.newTopomClient(true)
+
+		groupId, addr := t.parseGroupServer(client, d)
+		log.Debugf("group-[%d] repair-master server = %s", groupId, addr)
+
+		log.Debugf("call rpc group repair-master to dashboard %s", t.address)
+		if err := client.GroupRepairMaster(groupId, addr); err != nil {
+			log.PanicErrorf(err, "call rpc group repair-master to dashboard %s failed", t.address)
+		}
+		log.Debugf("call rpc group repair-master to dashboard OK")
+
+	default:
+		d["--list"] = true
+		fallthrough
+
+	case d["--list"].(bool) || d["--stats-map"].(bool):
+		t.handleOverview("group", d)
+	}
 }
-*/

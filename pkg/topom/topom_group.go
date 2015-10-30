@@ -143,7 +143,7 @@ func (s *Topom) GroupAddServer(groupId int, addr string) error {
 	}
 
 	if _, ok := s.stats.servers[addr]; ok {
-		return errors.Errorf("server %s is already exists", addr)
+		return errors.Errorf("server %s already exists", addr)
 	}
 
 	if s.isGroupPromoting(groupId) {

@@ -20,14 +20,16 @@ Usage:
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy --create  --addr=ADDR
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy --remove (--addr=ADDR|--token=TOKEN|--proxy-id=ID) [--force]
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy --reinit (--addr=ADDR|--token=TOKEN|--proxy-id=ID)
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy --xpingall
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group --create  --group-id=ID
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group --remove  --group-id=ID
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group           --group-id=ID --add            --addr=ADDR
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group           --group-id=ID --del           (--addr=ADDR|--index=INDEX)
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group           --group-id=ID --promote       (--addr=ADDR|--index=INDEX)
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group           --group-id=ID --promote-commit
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group                         --master-status
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group           --group-id=ID --master-repair (--addr=ADDR|--index=INDEX)
 
-	codis-admin [-v] --dashboard=ADDR  group --create=GID   [--product-name=NAME] [--product-auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  group --remove=GID   [--product-name=NAME] [--product-auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --status=GID  [--product-name=NAME] [--product-auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --repair=GID  [--product-name=NAME] [--product-auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --group=GID --add=ADDR [--product-name=NAME] [--product-auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --group=GID --del=ADDR [--product-name=NAME] [--product-auth=AUTH]
-	codis-admin [-v] --dashboard=ADDR  server --group=GID (--promote=ADDR|--commit) [--product-name=NAME] [--product-auth=AUTH]
 	codis-admin [-v] --dashboard=ADDR  action --create --slot=SID --group=GID [--product-name=NAME] [--product-auth=AUTH]
 	codis-admin [-v] --dashboard=ADDR  action --remove --slot=SID             [--product-name=NAME] [--product-auth=AUTH]
 	codis-admin [-v] --dashboard=ADDR  action --set-interval=VALUE            [--product-name=NAME] [--product-auth=AUTH]
