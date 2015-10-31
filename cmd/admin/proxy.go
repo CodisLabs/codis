@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/wandoulabs/codis/pkg/proxy"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -36,6 +37,12 @@ func (t *cmdProxy) Main(d map[string]interface{}) {
 	log.Debugf("args.address = %s", t.address)
 	log.Debugf("args.product.name = %s", t.product.name)
 	log.Debugf("args.product.auth = %s", t.product.auth)
+
+	if t.product.name != "" {
+		if !utils.IsValidName(t.product.name) {
+			log.Panicf("invalid product name = %s", t.product.name)
+		}
+	}
 
 	switch cmd {
 	default:

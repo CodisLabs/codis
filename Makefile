@@ -1,6 +1,6 @@
 all: build
 
-build: build-server build-proxy build-dashboard
+build: build-server build-dashboard build-proxy build-admin
 
 build-godep:
 	@bash genver.sh

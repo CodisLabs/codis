@@ -9,6 +9,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/topom"
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
@@ -63,6 +64,12 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 	log.Debugf("args.address = %s", t.address)
 	log.Debugf("args.product.name = %s", t.product.name)
 	log.Debugf("args.product.auth = %s", t.product.auth)
+
+	if t.product.name != "" {
+		if !utils.IsValidName(t.product.name) {
+			log.Panicf("invalid product name = %s", t.product.name)
+		}
+	}
 
 	switch cmd {
 	default:
@@ -547,8 +554,8 @@ func (t *cmdDashboard) handleActionCommand(d map[string]interface{}) {
 		client, _ := t.newTopomClient(true)
 
 		groupId := t.parseInteger(d, "--group-id")
-		slotBeg := t.parseInteger(d, "--slot-id-beg")
-		slotEnd := t.parseInteger(d, "--slot-id-end")
+		slotBeg := t.parseInteger(d, "--slot-beg")
+		slotEnd := t.parseInteger(d, "--slot-end")
 		log.Debugf("create action range slot-[%d - %d] to group-[%d]", slotBeg, slotEnd, groupId)
 
 		log.Debugf("call rpc create-action-range to dashboard %s", t.address)

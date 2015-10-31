@@ -12,28 +12,30 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-admin [-v]  --proxy-admin=ADDR                                           [overview|config|model|stats|slots]
-	codis-admin [-v]  --proxy-admin=ADDR --product-name=NAME [--product-auth=AUTH]  shutdown
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR)                                             [overview|config|model|stats|slots]
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR  --product-name=NAME  [--product-auth=AUTH])  shutdown
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH]) (proxy|group) [--list|--stats-map]
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy  --create  --addr=ADDR
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy  --remove (--addr=ADDR|--token=TOKEN|--proxy-id=ID) [--force]
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy  --reinit (--addr=ADDR|--token=TOKEN|--proxy-id=ID)
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  proxy  --xpingall
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group  --create  --group-id=ID
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group  --remove  --group-id=ID
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group            --group-id=ID --add            --addr=ADDR
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group            --group-id=ID --del           (--addr=ADDR|--index=INDEX)
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group            --group-id=ID --promote       (--addr=ADDR|--index=INDEX)
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group            --group-id=ID --promote-commit
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group                          --master-status
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  group            --group-id=ID --master-repair (--addr=ADDR|--index=INDEX)
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  action --create        --group-id=ID --slot-id=ID
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  action --remove                      --slot-id=ID
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  action --create-range  --group-id=ID --slot-id-beg=ID --slot-id-end=ID
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  action --set --interval=VALUE
-	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME] [--product-auth=AUTH])  action --set --disabled=VALUE
+	codis-admin [-v]  --proxy-admin=ADDR [--product-name=NAME [--product-auth=AUTH]]              [overview|config|model|stats|slots]
+	codis-admin [-v]  --proxy-admin=ADDR  --product-name=NAME [--product-auth=AUTH]                shutdown
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]]) [overview|config|model|stats|slots]
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR  --product-name=NAME [--product-auth=AUTH] )  shutdown
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]]) (proxy|group) [--list|--stats-map]
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  proxy  --create  --addr=ADDR
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  proxy  --remove (--addr=ADDR|--token=TOKEN|--proxy-id=ID) [--force]
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  proxy  --reinit (--addr=ADDR|--token=TOKEN|--proxy-id=ID)
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  proxy  --xpingall
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  group  --create  --group-id=ID
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  group  --remove  --group-id=ID
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  group            --group-id=ID --add            --addr=ADDR
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  group            --group-id=ID --del           (--addr=ADDR|--index=INDEX)
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  group            --group-id=ID --promote       (--addr=ADDR|--index=INDEX)
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  group            --group-id=ID --promote-commit
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  group                          --master-status
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  group            --group-id=ID --master-repair (--addr=ADDR|--index=INDEX)
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --create        --group-id=ID --slot-id=ID
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --remove                      --slot-id=ID
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --create-range  --group-id=ID --slot-beg=ID --slot-end=ID
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --set --interval=VALUE
+	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --set --disabled=VALUE
+	codis-admin [-v]  --remove-lock    --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR)
+	codis-admin [-v]  --reinit-product --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR)
 
 Options:
 	-c CONF, --config=CONF
@@ -64,5 +66,7 @@ Options:
 		new(cmdProxy).Main(d)
 	case d["--dashboard"] != nil || d["--config"] != nil:
 		new(cmdDashboard).Main(d)
+	case d["--zookeeper"] != nil || d["--etcd"] != nil:
+		new(cmdSuperAdmin).Main(d)
 	}
 }
