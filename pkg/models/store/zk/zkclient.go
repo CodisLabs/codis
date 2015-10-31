@@ -139,10 +139,13 @@ func (c *ZkClient) mkdir(conn *zk.Conn, dir string) error {
 	if err := c.mkdir(conn, filepath.Dir(dir)); err != nil {
 		return err
 	}
+	log.Debugf("zkclient mkdir = %s", dir)
 	_, err := conn.Create(dir, []byte{}, 0, zk.WorldACL(zk.PermAll))
 	if err != nil {
+		log.Debugf("zkclient mkdir = %s failed: %s", dir, err)
 		return errors.Trace(err)
 	}
+	log.Debugf("zkclient mkdir OK")
 	return nil
 }
 
@@ -168,13 +171,17 @@ func (c *ZkClient) CreateEphemeral(path string, data []byte) (<-chan struct{}, e
 		if err := c.create(conn, path, data, true); err != nil {
 			return err
 		}
+		log.Debugf("zkclient create-ephemeral %s", path)
 		if _, _, w, err := conn.GetW(path); err != nil {
+			log.Debugf("zkclient create-ephemeral %s failed: %s", path, err)
 			return errors.Trace(err)
 		} else {
+			log.Debugf("zkclient create-ephemeral OK")
 			watch = make(chan struct{})
 			go func() {
 				<-w
 				close(watch)
+				log.Debugf("zkclient watching node %s lost", path)
 			}()
 			return nil
 		}
@@ -190,10 +197,13 @@ func (c *ZkClient) create(conn *zk.Conn, path string, data []byte, ephemeral boo
 	if ephemeral {
 		flag |= zk.FlagEphemeral
 	}
+	log.Debugf("zkclient create node %s", path)
 	_, err := conn.Create(path, data, flag, zk.WorldACL(zk.PermAdmin|zk.PermRead|zk.PermWrite))
 	if err != nil {
+		log.Debugf("zkclient create node %s failed: %s", path, err)
 		return errors.Trace(err)
 	}
+	log.Debugf("zkclient create node OK")
 	return nil
 }
 
@@ -209,15 +219,22 @@ func (c *ZkClient) Update(path string, data []byte) error {
 }
 
 func (c *ZkClient) update(conn *zk.Conn, path string, data []byte) error {
-	if err := c.create(conn, path, data, false); err != nil {
-		if errors.NotEqual(err, zk.ErrNodeExists) {
-			return err
+	if exists, _, err := conn.Exists(path); err != nil {
+		return errors.Trace(err)
+	} else if !exists {
+		if err := c.create(conn, path, data, false); err != nil {
+			if errors.NotEqual(err, zk.ErrNodeExists) {
+				return err
+			}
 		}
 	}
+	log.Debugf("zkclient update node %s", path)
 	_, err := conn.Set(path, data, -1)
 	if err != nil {
+		log.Debugf("zkclient update node %s failed: %s", path, err)
 		return errors.Trace(err)
 	}
+	log.Debugf("zkclient update node OK")
 	return nil
 }
 
@@ -228,11 +245,14 @@ func (c *ZkClient) Delete(path string) error {
 		return errors.Trace(ErrClosedZkClient)
 	}
 	return c.do(func(conn *zk.Conn) error {
+		log.Debugf("zkclient delete node %s", path)
 		if err := conn.Delete(path, -1); err != nil {
 			if errors.NotEqual(err, zk.ErrNoNode) {
+				log.Debugf("zkclient delete node %s failed: %s", path, err)
 				return errors.Trace(err)
 			}
 		}
+		log.Debugf("zkclient delete node OK")
 		return nil
 	})
 }
