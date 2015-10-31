@@ -1,4 +1,6 @@
 *.log
+*.log.*
 *.out
 *.rdb
 *.cfg
+*.toml

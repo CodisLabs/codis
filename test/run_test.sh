@@ -11,82 +11,84 @@ trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
 ########################################
 # rebuild codis-*
 
-make -C ../ build || exit $?
+make -C ../ -j4 || exit $?
+
+cat ../config/dashboard.toml \
+    | sed -e "s/Demo2/codis-test/g" \
+    > dashboard.toml || exit $?
+
+../bin/codis-admin -n "codis-test" --reinit-product --zookeeper=127.0.0.1:2181
 
 # start dashboard
-../bin/codis-config -c config.ini -L dashboard.log dashboard --addr=:18087 2>&1 >/dev/null &
+../bin/codis-dashboard -c dashboard.toml -l dashboard.log \
+    --zookeeper=127.0.0.1:2181 &>/dev/null &
+
 echo "starting dashboard ..."
 sleep 1
-../bin/codis-config action remove-lock 2>&1
 
 ########################################
-# restart codis-server
+# start codis-server
 
 for p in {56379,56380,56479,56480}; do
     sed -e "s/6379/${p}/g" redis.temp > ${p}.cfg
     nohup ../bin/codis-server ${p}.cfg &>nohup_${p}.out &
 done
 
-########################################
-# restart codis-config & reset zookeeper slots-info
+# start codis-proxy
 
-> config.log
+for i in {0..1}; do
+    cat ../config/proxy.toml \
+        | sed -e "s/Demo2/codis-test/g" \
+        | sed -e "s/11000/1100${i}/g" \
+        | sed -e "s/19000/1900${i}/g" \
+        > proxy_${i}.toml || exit $?
+    ../bin/codis-proxy -c proxy_${i}.toml -l proxy_${i}.log &>/dev/null &
+    ../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" \
+        proxy --create -x 127.0.0.1:1100${i}
+done
+
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group --create -g1
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g1 --add -x 127.0.0.1:56379
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g1 --add -x 127.0.0.1:56479
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g1 --master-repair -i 0
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g1 --master-repair -i 1
+
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group --create -g2
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g2 --add -x 127.0.0.1:56380
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g2 --add -x 127.0.0.1:56480
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g2 --master-repair -i 0
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g2 --master-repair -i 1
 
 
-../bin/codis-config proxy offline proxy_1 2>&1 >/dev/null
-../bin/codis-config proxy offline proxy_2 2>&1 >/dev/null
-
-../bin/codis-config slot init -f 2>&1 | tee -a config.log
-
-sleep 2
-
-../bin/codis-config server remove-group 1 2>&1 | tee -a config.log
-../bin/codis-config server remove-group 2 2>&1 | tee -a config.log
-
-../bin/codis-config server add 1 127.0.0.1:56379 master 2>&1 | tee -a config.log
-../bin/codis-config server add 2 127.0.0.1:56380 master 2>&1 | tee -a config.log
-../bin/codis-config slot range-set 0 1023 1 online      2>&1 | tee -a config.log
-
-run_gc() {
-    for((i=1;i<=1000000;i++));do
-        sleep 10
-        ../bin/codis-config action gc -n 30000
-    done
-}
-
-run_gc 2>&1 | tee -a config.log &
-
-########################################
-# restart codis-proxy
-
-../bin/codis-proxy -c config1.ini -L proxy1.log --addr=0.0.0.0:9000 --http-addr=0.0.0.0:10000 &
-../bin/codis-proxy -c config2.ini -L proxy2.log --addr=0.0.0.0:9001 --http-addr=0.0.0.0:10001 &
-
-sleep 2
-
-../bin/codis-config proxy online proxy_1 2>&1 | tee -a config.log
-../bin/codis-config proxy online proxy_2 2>&1 | tee -a config.log
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" action --create-range --slot-beg=0 --slot-end=1023 -g1 &>/dev/null
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" action --set --interval=10
 
 ########################################
-# restart slots-migration
+# start slots-migration
 
 sleep 5
 
 run_migration() {
     echo "start migration"
-    let i=0
+    let g=1
     while true; do
-        i=$((i%2+1))
-        echo migrate $i
-        ../bin/codis-config slot migrate 0 0 $i --delay=10 2>&1
-        sleep 10
+        now=`date +%T`
+        ../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" slots | grep "state" | grep -v "\"\"" >/dev/null
+        if [ $? -eq 0 ]; then
+            echo $now waiting...
+        else
+            g=$((3-g))
+            echo $now "migrate to group-[$g]"
+            ../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" action --create-range --slot-beg=0 --slot-end=1023 -g $g
+        fi
+        sleep 1
     done
 }
 
 run_migration 2>&1 | tee migration.log &
 
 ########################################
-# restart redis-tests
+# start redis-tests
 
 sleep 2
 
