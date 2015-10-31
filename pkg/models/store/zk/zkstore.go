@@ -63,7 +63,7 @@ func (s *ZkStore) ProxyBase() string {
 }
 
 func (s *ZkStore) ProxyPath(proxyId int) string {
-	return filepath.Join(s.prefix, "proxy", fmt.Sprintf("proxy-%4d", proxyId))
+	return filepath.Join(s.prefix, "proxy", fmt.Sprintf("proxy-%04d", proxyId))
 }
 
 func (s *ZkStore) GroupBase() string {
