@@ -98,10 +98,6 @@ func New(store models.Store, config *Config) (*Topom, error) {
 }
 
 func (s *Topom) setup() error {
-	if !utils.IsValidName(s.config.ProductName) {
-		return errors.New("invalid product name")
-	}
-
 	if l, err := net.Listen("tcp", s.config.AdminAddr); err != nil {
 		return errors.Trace(err)
 	} else {
@@ -114,7 +110,7 @@ func (s *Topom) setup() error {
 		s.model.AdminAddr = addr
 	}
 
-	if err := s.store.Acquire(s.config.ProductName, s.model); err != nil {
+	if err := s.store.Acquire(s.model); err != nil {
 		log.ErrorErrorf(err, "[%p] acquire lock for %s failed", s, s.config.ProductName)
 		return errors.Errorf("store: acquire lock for %s failed", s.config.ProductName)
 	} else {

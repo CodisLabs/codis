@@ -100,10 +100,14 @@ Options:
 		}
 	}
 
+	if !utils.IsValidName(config.ProductName) {
+		log.Panicf("invalid product name")
+	}
+
 	var store models.Store
 	switch {
 	case d["--zookeeper"] != nil:
-		store, err = zkstore.NewStore(d["--zookeeper"].(string))
+		store, err = zkstore.NewStore(d["--zookeeper"].(string), config.ProductName)
 		if err != nil {
 			log.PanicErrorf(err, "create zkstore failed")
 		}

@@ -114,6 +114,10 @@ Options:
 		}
 	}
 
+	if !utils.IsValidName(config.ProductName) {
+		log.Panicf("invalid product name")
+	}
+
 	s, err := proxy.New(config)
 	if err != nil {
 		log.PanicErrorf(err, "create proxy with config file failed\n%s\n", config)

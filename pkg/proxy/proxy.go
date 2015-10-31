@@ -72,10 +72,6 @@ func New(config *Config) (*Proxy, error) {
 }
 
 func (s *Proxy) setup() error {
-	if !utils.IsValidName(s.config.ProductName) {
-		return errors.New("invalid product name")
-	}
-
 	if l, err := net.Listen(s.config.ProtoType, s.config.ProxyAddr); err != nil {
 		return errors.Trace(err)
 	} else {

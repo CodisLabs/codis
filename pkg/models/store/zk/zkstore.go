@@ -27,13 +27,14 @@ type ZkStore struct {
 	closed bool
 }
 
-func NewStore(addr string) (*ZkStore, error) {
+func NewStore(addr string, name string) (*ZkStore, error) {
 	client, err := NewClient(addr, time.Minute)
 	if err != nil {
 		return nil, err
 	}
 	return &ZkStore{
 		client: client,
+		prefix: filepath.Join("/zk/codis2", name),
 	}, nil
 }
 
@@ -73,7 +74,7 @@ func (s *ZkStore) GroupPath(groupId int) string {
 	return filepath.Join(s.prefix, "group", fmt.Sprintf("group-%04d", groupId))
 }
 
-func (s *ZkStore) Acquire(name string, topom *models.Topom) error {
+func (s *ZkStore) Acquire(topom *models.Topom) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
@@ -82,7 +83,6 @@ func (s *ZkStore) Acquire(name string, topom *models.Topom) error {
 	if s.locked {
 		return ErrAcquireAgain
 	}
-	s.prefix = filepath.Join("/zk/codis2", name)
 
 	if err := s.client.Create(s.LockPath(), topom.Encode()); err != nil {
 		return err

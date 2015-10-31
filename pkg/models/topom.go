@@ -8,7 +8,7 @@ import (
 )
 
 type Store interface {
-	Acquire(name string, topom *Topom) error
+	Acquire(topom *Topom) error
 	Release(force bool) error
 
 	LoadSlotMapping(slotId int) (*SlotMapping, error)

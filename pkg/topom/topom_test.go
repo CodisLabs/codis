@@ -818,7 +818,7 @@ func newMemStore() *memStore {
 	return &memStore{data: make(map[string][]byte)}
 }
 
-func (s *memStore) Acquire(name string, topom *models.Topom) error {
+func (s *memStore) Acquire(topom *models.Topom) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
