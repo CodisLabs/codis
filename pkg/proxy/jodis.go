@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -11,6 +10,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/models/store/zk"
 	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 

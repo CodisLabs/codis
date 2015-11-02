@@ -2,7 +2,6 @@ package topom
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
 )

@@ -1,13 +1,13 @@
 package zkstore
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
 var (
