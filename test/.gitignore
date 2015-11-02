@@ -4,3 +4,4 @@
 *.rdb
 *.cfg
 *.toml
+codis-test.etcd

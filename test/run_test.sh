@@ -1,8 +1,35 @@
 #!/bin/bash
 
+etchhome=
+
+if [ "x$etcdhome" == "x" ]; then
+    for i in $(echo $GOPATH | tr ":" "\n"); do
+        if [ "x$i" != "x" ]; then
+            etcdhome=`find $i -name "etcd" -type d -print -quit`
+        fi
+        if [ "x$etcdhome" != "x" ]; then
+            break
+        fi
+    done
+fi
+
+if [ "x$etcdhome" == "x" ]; then
+    echo "cann't find cores/etcd"
+    exit 1
+fi
+
+etcdbin=$etcdhome/bin/etcd
+
+if [ ! -x $etcdbin ]; then
+    pushd $etcdhome
+    ./build
+    popd
+fi
+
 echo "this is gonna take a while"
 
 trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
+
 
 ########################################
 # cleanup
@@ -17,11 +44,20 @@ cat ../config/dashboard.toml \
     | sed -e "s/Demo2/codis-test/g" \
     > dashboard.toml || exit $?
 
-../bin/codis-admin -n "codis-test" --reinit-product --zookeeper=127.0.0.1:2181
+echo "etcdbin = $etcdbin"
+
+nohup $etcdbin --name=codis-test &>etcd.log &
+
+etcdpid=$!
+
+echo "starting etcd pid=$etcdpid..."
+sleep 3
+
+ps -p $etcdpid >/dev/null || exit $?
 
 # start dashboard
 ../bin/codis-dashboard -c dashboard.toml -l dashboard.log \
-    --zookeeper=127.0.0.1:2181 &>/dev/null &
+    --etcd="http://127.0.0.1:2379" &>/dev/null &
 
 echo "starting dashboard ..."
 sleep 1

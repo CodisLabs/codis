@@ -8,6 +8,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/coreos/etcd/client"
+
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
