@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/models/store/etcd"
 	"github.com/wandoulabs/codis/pkg/models/store/zk"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -41,7 +42,11 @@ func (t *cmdSuperAdmin) newTopomStore(d map[string]interface{}) models.Store {
 		}
 		return s
 	case d["--etcd"] != nil:
-		log.Panicf("etcd is not support yet")
+		s, err := etcdstore.NewStore(d["--etcd"].(string), t.product.name)
+		if err != nil {
+			log.PanicErrorf(err, "create etcdstore failed")
+		}
+		return s
 	}
 
 	log.Panicf("nil store for topom")

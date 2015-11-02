@@ -16,6 +16,7 @@ import (
 	"github.com/docopt/docopt-go"
 
 	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/models/store/etcd"
 	"github.com/wandoulabs/codis/pkg/models/store/zk"
 	"github.com/wandoulabs/codis/pkg/topom"
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -112,7 +113,10 @@ Options:
 			log.PanicErrorf(err, "create zkstore failed")
 		}
 	case d["--etcd"] != nil:
-		log.Panicf("etcd is not supported yet!!")
+		store, err = etcdstore.NewStore(d["--etcd"].(string), config.ProductName)
+		if err != nil {
+			log.PanicErrorf(err, "create etcdstore failed")
+		}
 	}
 
 	if store == nil {
