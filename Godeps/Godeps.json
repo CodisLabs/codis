@@ -16,6 +16,21 @@
 			"Rev": "33e0aa1cb7c019ccc3fbe049a8262a6403d30504"
 		},
 		{
+			"ImportPath": "github.com/coreos/etcd/client",
+			"Comment": "v2.2.0-274-gd44b79c",
+			"Rev": "d44b79c3c9cd8641db8c821fb05ea03e73da94e0"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
+			"Comment": "v2.2.0-274-gd44b79c",
+			"Rev": "d44b79c3c9cd8641db8c821fb05ea03e73da94e0"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/pkg/types",
+			"Comment": "v2.2.0-274-gd44b79c",
+			"Rev": "d44b79c3c9cd8641db8c821fb05ea03e73da94e0"
+		},
+		{
 			"ImportPath": "github.com/docopt/docopt-go",
 			"Comment": "0.6.1-5-g854c423",
 			"Rev": "854c423c810880e30b9fecdabb12d54f4a92f9bb"
@@ -52,6 +67,14 @@
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
 			"Rev": "913027ed60abbe2436b35cf960193b06b00105cf"
+		},
+		{
+			"ImportPath": "github.com/ugorji/go/codec",
+			"Rev": "9d93fad9232ca1ef0b48c13aa3d04f9ec585ce81"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "2cba614e8ff920c60240d2677bc019af32ee04e5"
 		}
 	]
 }
