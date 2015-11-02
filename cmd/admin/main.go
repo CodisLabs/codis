@@ -35,7 +35,6 @@ Usage:
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --set --interval=VALUE
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --set --disabled=VALUE
 	codis-admin [-v]  --remove-lock    --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR)
-	codis-admin [-v]  --reinit-product --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR)
 
 Options:
 	-c CONF, --config=CONF
