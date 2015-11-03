@@ -79,7 +79,7 @@ func (s *Topom) PrepareAction(slotId int) error {
 		return err
 	}
 	if m.Action.State == models.ActionNothing {
-		return errors.Errorf("action of slot-[%d] is not empty", slotId)
+		return errors.Errorf("action of slot-[%d] is nothing", slotId)
 	}
 
 	log.Infof("[%p] prepare action of slot-[%d]\n%s", s, slotId, m.Encode())
