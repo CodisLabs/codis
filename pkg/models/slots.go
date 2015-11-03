@@ -14,9 +14,9 @@ type SlotMapping struct {
 	GroupId int `json:"group_id"`
 
 	Action struct {
-		Index    int    `json:"index"`
-		State    string `json:"state"`
-		TargetId int    `json:"target_id"`
+		Index    int    `json:"index,omitempty"`
+		State    string `json:"state,omitempty"`
+		TargetId int    `json:"target_id,omitempty"`
 	} `json:"action"`
 }
 
