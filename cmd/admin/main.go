@@ -34,7 +34,8 @@ Usage:
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --create-range  --group-id=ID --slot-beg=ID --slot-end=ID
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --set --interval=VALUE
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --set --disabled=VALUE
-	codis-admin [-v]  --remove-lock    --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR)
+	codis-admin [-v]  --remove-lock     --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR)
+	codis-admin [-v]  --config-dump     --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR) [-1|-2]
 
 Options:
 	-c CONF, --config=CONF
