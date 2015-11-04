@@ -29,20 +29,22 @@ func (t *cmdSuperAdmin) Main(d map[string]interface{}) {
 
 	switch {
 	case d["--config-convert"].(bool):
+		t.handleConfigConvert(d)
+
 	default:
 		if !utils.IsValidName(t.product.name) {
 			log.Panicf("invalid product name")
 		}
 		log.Debugf("args.product.name = %s", t.product.name)
-	}
 
-	switch {
-	case d["--remove-lock"].(bool):
-		t.handleRemoveLock(d)
-	case d["--config-dump"].(bool):
-		t.handleConfigDump(d)
-	case d["--config-convert"].(bool):
-		t.handleConfigConvert(d)
+		switch {
+		case d["--remove-lock"].(bool):
+			t.handleRemoveLock(d)
+		case d["--config-dump"].(bool):
+			t.handleConfigDump(d)
+		case d["--config-restore"].(bool):
+			t.handleConfigRestore(d)
+		}
 	}
 }
 
@@ -264,10 +266,10 @@ func (t *cmdSuperAdmin) loadJsonConfigV1(d map[string]interface{}) map[string]in
 	return v.(map[string]interface{})
 }
 
-func (t *cmdSuperAdmin) convertSlotsV1(slots map[int]*models.SlotMapping, v interface{}) {
-	submap := v.(map[string]interface{})
-	slotId := int(submap["id"].(float64))
-	status := submap["state"].(map[string]interface{})["status"].(string)
+func (t *cmdSuperAdmin) convertSlotsV1(smap map[int]*models.SlotMapping, v interface{}) {
+	m := v.(map[string]interface{})
+	slotId := int(m["id"].(float64))
+	status := m["state"].(map[string]interface{})["status"].(string)
 	log.Debugf("found slot-%04d status = %s", slotId, status)
 	if status != "online" {
 		if status == "offline" {
@@ -275,28 +277,28 @@ func (t *cmdSuperAdmin) convertSlotsV1(slots map[int]*models.SlotMapping, v inte
 		}
 		log.Panicf("invalid slot status")
 	}
-	groupId := int(submap["group_id"].(float64))
-	if slots[slotId] != nil {
+	groupId := int(m["group_id"].(float64))
+	if smap[slotId] != nil {
 		log.Panicf("slot-%04d already exists", slotId)
 	}
-	slots[slotId] = &models.SlotMapping{
+	smap[slotId] = &models.SlotMapping{
 		Id: slotId, GroupId: groupId,
 	}
 }
 
-func (t *cmdSuperAdmin) convertGroupV1(groups map[int]*models.Group, v interface{}) {
-	submap := v.(map[string]interface{})
-	addr := submap["addr"].(string)
-	groupId := int(submap["group_id"].(float64))
-	isSlave := submap["type"].(string) != "master"
+func (t *cmdSuperAdmin) convertGroupV1(gmap map[int]*models.Group, v interface{}) {
+	m := v.(map[string]interface{})
+	addr := m["addr"].(string)
+	groupId := int(m["group_id"].(float64))
+	isSlave := m["type"].(string) != "master"
 	log.Debugf("found group-%04d %s slave = %t", groupId, addr, isSlave)
 	if groupId <= 0 || groupId > math.MaxInt16 {
 		log.Panicf("invalid group = %d", groupId)
 	}
-	g := groups[groupId]
+	g := gmap[groupId]
 	if g == nil {
 		g = &models.Group{Id: groupId}
-		groups[groupId] = g
+		gmap[groupId] = g
 	}
 	if isSlave {
 		g.Servers = append(g.Servers, addr)
@@ -316,12 +318,12 @@ func (t *cmdSuperAdmin) handleConfigConvert(d map[string]interface{}) {
 	cfg2 := &ConfigV2{}
 
 	if slots := cfg1["slots"]; slots != nil {
-		mappings := make(map[int]*models.SlotMapping)
+		smap := make(map[int]*models.SlotMapping)
 		for _, v := range slots.(map[string]interface{}) {
-			t.convertSlotsV1(mappings, v)
+			t.convertSlotsV1(smap, v)
 		}
-		for _, slot := range mappings {
-			cfg2.Slots = append(cfg2.Slots, slot)
+		for _, s := range smap {
+			cfg2.Slots = append(cfg2.Slots, s)
 		}
 		models.SortSlots(cfg2.Slots, func(s1, s2 *models.SlotMapping) bool {
 			return s1.Id < s2.Id
@@ -329,33 +331,18 @@ func (t *cmdSuperAdmin) handleConfigConvert(d map[string]interface{}) {
 	}
 
 	if servers := cfg1["servers"]; servers != nil {
-		groups := make(map[int]*models.Group)
+		gmap := make(map[int]*models.Group)
 		for _, g := range servers.(map[string]interface{}) {
 			for _, v := range g.(map[string]interface{}) {
-				t.convertGroupV1(groups, v)
+				t.convertGroupV1(gmap, v)
 			}
 		}
-		for _, group := range groups {
-			cfg2.Group = append(cfg2.Group, group)
+		for _, g := range gmap {
+			cfg2.Group = append(cfg2.Group, g)
 		}
 		models.SortGroup(cfg2.Group, func(g1, g2 *models.Group) bool {
 			return g1.Id < g2.Id
 		})
-		for _, s := range cfg2.Slots {
-			if groups[s.GroupId] == nil {
-				log.Panicf("cann't find group-%04d for slot-%04d", s.GroupId, s.Id)
-			}
-		}
-		var addrs = make(map[string]int)
-		for _, g := range cfg2.Group {
-			for _, x := range g.Servers {
-				if _, ok := addrs[x]; ok {
-					log.Panicf("server %s already exists", x)
-				} else {
-					addrs[x] = g.Id
-				}
-			}
-		}
 	}
 
 	b, err := json.MarshalIndent(cfg2, "", "    ")
@@ -363,4 +350,114 @@ func (t *cmdSuperAdmin) handleConfigConvert(d map[string]interface{}) {
 		log.PanicErrorf(err, "json marshal failed")
 	}
 	fmt.Println(string(b))
+}
+
+func (t *cmdSuperAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
+	b, err := ioutil.ReadFile(t.parseString(d, "--input"))
+	if err != nil {
+		log.PanicErrorf(err, "read file failed")
+	}
+	config := &ConfigV2{}
+	if err := json.Unmarshal(b, config); err != nil {
+		log.PanicErrorf(err, "json unmarshal failed")
+	}
+
+	var pmap = make(map[int]*models.Proxy)
+	for _, p := range config.Proxy {
+		if pmap[p.Id] != nil {
+			log.Panicf("proxy-%04d already exists", p.Id)
+		}
+		pmap[p.Id] = p
+	}
+
+	var gmap = make(map[int]*models.Group)
+	for _, g := range config.Group {
+		if g.Id <= 0 || g.Id > math.MaxInt16 {
+			log.Panicf("invalid group id = %d", g.Id)
+		}
+		if gmap[g.Id] != nil {
+			log.Panicf("group-%04d already exists", g.Id)
+		}
+		if g.Promoting {
+			log.Panicf("gorup-%04d is promoting", g.Id)
+		}
+		gmap[g.Id] = g
+	}
+
+	var xmap = make(map[string]bool)
+	for _, g := range gmap {
+		for _, x := range g.Servers {
+			if xmap[x] {
+				log.Panicf("server %s already exists", x)
+			}
+			xmap[x] = true
+		}
+	}
+
+	var smap = make(map[int]*models.SlotMapping)
+	for _, s := range config.Slots {
+		if s.Id < 0 || s.Id >= models.MaxSlotNum {
+			log.Panicf("invalid slot id = %d", s.Id)
+		}
+		if smap[s.Id] != nil {
+			log.Panicf("slot-%04d already exists", s.Id)
+		}
+		if s.Action.State != "" || s.Action.Index != 0 || s.Action.TargetId != 0 {
+			log.Panicf("slot-%04d action is not empty", s.Id)
+		}
+		if g := gmap[s.GroupId]; g == nil || len(g.Servers) == 0 {
+			log.Panicf("slot-%04d with group-%04d doesn't exist or empty", s.Id, s.GroupId)
+		}
+		smap[s.Id] = s
+	}
+
+	return config
+}
+
+func (t *cmdSuperAdmin) handleConfigRestore(d map[string]interface{}) {
+	config := t.loadJsonConfigV2(d)
+
+	store := t.newTopomStore(d)
+	defer store.Close()
+
+	if err := store.Acquire(&models.Topom{}); err != nil {
+		log.PanicErrorf(err, "acquire store lock failed")
+	}
+
+	if plist, err := store.ListProxy(); err != nil {
+		log.PanicErrorf(err, "list proxy failed")
+	} else if len(plist) != 0 {
+		log.Panicf("list of proxy is not empty")
+	}
+
+	if glist, err := store.ListGroup(); err != nil {
+		log.PanicErrorf(err, "list group failed")
+	} else if len(glist) != 0 {
+		log.Panicf("list of group is not empty")
+	}
+
+	for _, s := range config.Slots {
+		if err := store.SaveSlotMapping(s.Id, s); err != nil {
+			log.PanicErrorf(err, "save slot-%04d failed", s.Id)
+		}
+		log.Debugf("update slot-%04d OK", s.Id)
+	}
+
+	for _, g := range config.Group {
+		if err := store.CreateGroup(g.Id, g); err != nil {
+			log.PanicErrorf(err, "create group-%04d failed", g.Id)
+		}
+		log.Debugf("create group-%04d OK", g.Id)
+	}
+
+	for _, p := range config.Proxy {
+		if err := store.CreateProxy(p.Id, p); err != nil {
+			log.PanicErrorf(err, "create proxy-%04d failed", p.Id)
+		}
+		log.Debugf("create proxy-%04d OK", p.Id)
+	}
+
+	if err := store.Release(false); err != nil {
+		log.PanicErrorf(err, "release store lock failed")
+	}
 }

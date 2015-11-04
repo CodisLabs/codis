@@ -359,7 +359,7 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 			} else {
 				fmt.Printf("[OK]")
 			}
-			fmt.Printf("  proxy-%-4d    %s      %s\n", p.Id, p.Token, p.AdminAddr)
+			fmt.Printf("  proxy-%04d    %s      %s\n", p.Id, p.Token, p.AdminAddr)
 		}
 
 	default:
@@ -468,7 +468,7 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 		log.Debugf("call rpc stats OK")
 
 		for _, g := range stats.Group.Models {
-			fmt.Printf("group-%-6d -----+   ", g.Id)
+			fmt.Printf("group-%04d -----+   ", g.Id)
 			for i, addr := range g.Servers {
 				var infom map[string]string
 				var master string
