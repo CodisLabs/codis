@@ -1,5 +1,7 @@
 package models
 
+import "sort"
+
 const MaxSlotNum = 1024
 
 type Slot struct {
@@ -33,4 +35,25 @@ func (s *SlotMapping) Encode() []byte {
 
 func (s *SlotMapping) Decode(b []byte) error {
 	return jsonDecode(s, b)
+}
+
+type slotsSorter struct {
+	list []*SlotMapping
+	less func(s1, s2 *SlotMapping) bool
+}
+
+func (s *slotsSorter) Len() int {
+	return len(s.list)
+}
+
+func (s *slotsSorter) Swap(i, j int) {
+	s.list[i], s.list[j] = s.list[j], s.list[i]
+}
+
+func (s *slotsSorter) Less(i, j int) bool {
+	return s.less(s.list[i], s.list[j])
+}
+
+func SortSlots(list []*SlotMapping, less func(s1, s2 *SlotMapping) bool) {
+	sort.Sort(&slotsSorter{list, less})
 }

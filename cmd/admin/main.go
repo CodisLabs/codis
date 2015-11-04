@@ -36,6 +36,8 @@ Usage:
 	codis-admin [-v] (--config=CONF|--dashboard=ADDR [--product-name=NAME [--product-auth=AUTH]])  action --set --disabled=VALUE
 	codis-admin [-v]  --remove-lock     --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR)
 	codis-admin [-v]  --config-dump     --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR) [-1|-2]
+	codis-admin [-v]  --config-convert  --input=FILE
+	codis-admin [-v]  --config-restore  --input=FILE --product-name=NAME (--zookeeper=ADDR|--etcd=ADDR)
 
 Options:
 	-c CONF, --config=CONF
@@ -62,11 +64,11 @@ Options:
 	}
 
 	switch {
-	case d["--proxy"] != nil:
+	case d["--proxy-admin"] != nil:
 		new(cmdProxy).Main(d)
 	case d["--dashboard"] != nil || d["--config"] != nil:
 		new(cmdDashboard).Main(d)
-	case d["--zookeeper"] != nil || d["--etcd"] != nil:
+	default:
 		new(cmdSuperAdmin).Main(d)
 	}
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"math"
 	"path/filepath"
 	"sort"
 	"time"
@@ -25,30 +27,46 @@ func (t *cmdSuperAdmin) Main(d map[string]interface{}) {
 		t.product.name = s
 	}
 
-	if !utils.IsValidName(t.product.name) {
-		log.Panicf("invalid product name")
+	switch {
+	case d["--config-convert"].(bool):
+	default:
+		if !utils.IsValidName(t.product.name) {
+			log.Panicf("invalid product name")
+		}
+		log.Debugf("args.product.name = %s", t.product.name)
 	}
-
-	log.Debugf("args.product.name = %s", t.product.name)
 
 	switch {
 	case d["--remove-lock"].(bool):
 		t.handleRemoveLock(d)
 	case d["--config-dump"].(bool):
 		t.handleConfigDump(d)
+	case d["--config-convert"].(bool):
+		t.handleConfigConvert(d)
 	}
+}
+
+func (t *cmdSuperAdmin) parseString(d map[string]interface{}, name string) string {
+	if s, ok := d[name].(string); ok && s != "" {
+		log.Debugf("parse %s = %s", name, s)
+		return s
+	}
+	log.Panicf("parse argument %s failed, not found or blank string", name)
+	return ""
 }
 
 func (t *cmdSuperAdmin) newTopomStore(d map[string]interface{}) models.Store {
 	switch {
 	case d["--zookeeper"] != nil:
-		s, err := zkstore.NewStore(d["--zookeeper"].(string), t.product.name)
+		addr := t.parseString(d, "--zookeeper")
+		s, err := zkstore.NewStore(addr, t.product.name)
 		if err != nil {
 			log.PanicErrorf(err, "create zkstore failed")
 		}
 		return s
 	case d["--etcd"] != nil:
-		s, err := etcdstore.NewStore(d["--etcd"].(string), t.product.name)
+		addr := t.parseString(d, "--etcd")
+		s, err := etcdstore.NewStore(addr, t.product.name)
 		if err != nil {
 			log.PanicErrorf(err, "create etcdstore failed")
 		}
@@ -143,6 +161,7 @@ func (t *cmdSuperAdmin) dumpConfigZooKeeperV1(d map[string]interface{}) {
 }
 
 func (t *cmdSuperAdmin) dumpConfigZooKeeperV1Recursively(client *zkstore.ZkClient, path string) interface{} {
+	log.Debugf("dump path = %s", path)
 	if plist, err := client.ListFile(path); err != nil {
 		log.PanicErrorf(err, "list path = %s failed", path)
 	} else if plist != nil {
@@ -227,6 +246,119 @@ func (t *cmdSuperAdmin) dumpConfigZooKeeperV2(d map[string]interface{}) {
 	}
 
 	b, err := json.MarshalIndent(config, "", "    ")
+	if err != nil {
+		log.PanicErrorf(err, "json marshal failed")
+	}
+	fmt.Println(string(b))
+}
+
+func (t *cmdSuperAdmin) loadJsonConfigV1(d map[string]interface{}) map[string]interface{} {
+	b, err := ioutil.ReadFile(t.parseString(d, "--input"))
+	if err != nil {
+		log.PanicErrorf(err, "read file failed")
+	}
+	var v interface{}
+	if err := json.Unmarshal(b, &v); err != nil {
+		log.PanicErrorf(err, "json unmarshal failed")
+	}
+	return v.(map[string]interface{})
+}
+
+func (t *cmdSuperAdmin) convertSlotsV1(slots map[int]*models.SlotMapping, v interface{}) {
+	submap := v.(map[string]interface{})
+	slotId := int(submap["id"].(float64))
+	status := submap["state"].(map[string]interface{})["status"].(string)
+	log.Debugf("found slot-%04d status = %s", slotId, status)
+	if status != "online" {
+		if status == "offline" {
+			return
+		}
+		log.Panicf("invalid slot status")
+	}
+	groupId := int(submap["group_id"].(float64))
+	if slots[slotId] != nil {
+		log.Panicf("slot-%04d already exists", slotId)
+	}
+	slots[slotId] = &models.SlotMapping{
+		Id: slotId, GroupId: groupId,
+	}
+}
+
+func (t *cmdSuperAdmin) convertGroupV1(groups map[int]*models.Group, v interface{}) {
+	submap := v.(map[string]interface{})
+	addr := submap["addr"].(string)
+	groupId := int(submap["group_id"].(float64))
+	isSlave := submap["type"].(string) != "master"
+	log.Debugf("found group-%04d %s slave = %t", groupId, addr, isSlave)
+	if groupId <= 0 || groupId > math.MaxInt16 {
+		log.Panicf("invalid group = %d", groupId)
+	}
+	g := groups[groupId]
+	if g == nil {
+		g = &models.Group{Id: groupId}
+		groups[groupId] = g
+	}
+	if isSlave {
+		g.Servers = append(g.Servers, addr)
+	} else {
+		g.Servers = append([]string{addr}, g.Servers...)
+	}
+}
+
+func (t *cmdSuperAdmin) handleConfigConvert(d map[string]interface{}) {
+	defer func() {
+		if x := recover(); x != nil {
+			log.Panicf("convert config failed: %+v", x)
+		}
+	}()
+
+	cfg1 := t.loadJsonConfigV1(d)
+	cfg2 := &ConfigV2{}
+
+	if slots := cfg1["slots"]; slots != nil {
+		mappings := make(map[int]*models.SlotMapping)
+		for _, v := range slots.(map[string]interface{}) {
+			t.convertSlotsV1(mappings, v)
+		}
+		for _, slot := range mappings {
+			cfg2.Slots = append(cfg2.Slots, slot)
+		}
+		models.SortSlots(cfg2.Slots, func(s1, s2 *models.SlotMapping) bool {
+			return s1.Id < s2.Id
+		})
+	}
+
+	if servers := cfg1["servers"]; servers != nil {
+		groups := make(map[int]*models.Group)
+		for _, g := range servers.(map[string]interface{}) {
+			for _, v := range g.(map[string]interface{}) {
+				t.convertGroupV1(groups, v)
+			}
+		}
+		for _, group := range groups {
+			cfg2.Group = append(cfg2.Group, group)
+		}
+		models.SortGroup(cfg2.Group, func(g1, g2 *models.Group) bool {
+			return g1.Id < g2.Id
+		})
+		for _, s := range cfg2.Slots {
+			if groups[s.GroupId] == nil {
+				log.Panicf("cann't find group-%04d for slot-%04d", s.GroupId, s.Id)
+			}
+		}
+		var addrs = make(map[string]int)
+		for _, g := range cfg2.Group {
+			for _, x := range g.Servers {
+				if _, ok := addrs[x]; ok {
+					log.Panicf("server %s already exists", x)
+				} else {
+					addrs[x] = g.Id
+				}
+			}
+		}
+	}
+
+	b, err := json.MarshalIndent(cfg2, "", "    ")
 	if err != nil {
 		log.PanicErrorf(err, "json marshal failed")
 	}
