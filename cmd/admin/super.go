@@ -128,7 +128,6 @@ func (t *cmdSuperAdmin) loadAndDecodeZooKeeper(client *zkstore.ZkClient, path st
 	if err != nil {
 		log.PanicErrorf(err, "load path = %s failed", path)
 	}
-	fmt.Println(string(b))
 	if err := json.Unmarshal(b, v); err != nil {
 		log.PanicErrorf(err, "decode path = %s failed", path)
 	}
