@@ -23,6 +23,8 @@ func (s *Topom) ProcessAction(slotId int) error {
 		}
 		switch {
 		case n > 0:
+			s.action.progress.remain.Set(int64(n))
+			s.action.progress.failed.Set(false)
 			s.NoopInterval()
 		case n < 0:
 			time.Sleep(time.Millisecond * 10)

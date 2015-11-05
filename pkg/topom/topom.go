@@ -53,6 +53,11 @@ type Topom struct {
 		interval atomic2.Int64
 		disabled atomic2.Bool
 
+		progress struct {
+			remain atomic2.Int64
+			failed atomic2.Bool
+		}
+
 		notify chan bool
 	}
 }
@@ -216,6 +221,8 @@ func (s *Topom) GetStats() *Stats {
 
 	stats.Action.Interval = s.action.interval.Get()
 	stats.Action.Disabled = s.action.disabled.Get()
+	stats.Action.Progress.Remain = s.action.progress.remain.Get()
+	stats.Action.Progress.Failed = s.action.progress.failed.Get()
 	return stats
 }
 
@@ -236,6 +243,11 @@ type Stats struct {
 	Action struct {
 		Interval int64 `json:"interval"`
 		Disabled bool  `json:"disabled"`
+
+		Progress struct {
+			Remain int64 `json:"remain"`
+			Failed bool  `json:"failed"`
+		} `json:"migration"`
 	} `json:"action"`
 }
 
@@ -327,18 +339,21 @@ func (s *Topom) StartDaemonRoutines() {
 				if !s.GetActionDisabled() {
 					slotId = s.NextActionSlotId()
 				}
-				if slotId >= 0 {
-					if err := s.ProcessAction(slotId); err != nil {
-						log.WarnErrorf(err, "[%p] action on slot-[%d] failed", s, slotId)
-						time.Sleep(time.Second * 3)
-					}
-				} else {
+				if slotId < 0 {
 					select {
 					case <-s.exit.C:
 						return
 					case <-ticker.C:
 					case <-s.action.notify:
 					}
+				} else if err := s.ProcessAction(slotId); err != nil {
+					s.action.progress.failed.Set(true)
+					log.WarnErrorf(err, "[%p] action on slot-[%d] failed", s, slotId)
+					time.Sleep(time.Second * 3)
+				} else {
+					s.action.progress.remain.Set(0)
+					s.action.progress.failed.Set(false)
+					log.Infof("[%p] action on slot-[%d] completed", s, slotId)
 				}
 			}
 		}()
