@@ -1,7 +1,7 @@
 // Copyright 2014 Wandoujia Inc. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package zkstore
+package zkclient
 
 import (
 	"fmt"
@@ -45,11 +45,11 @@ func (l *zkLogger) Printf(format string, v ...interface{}) {
 	}
 }
 
-func NewClient(addr string, timeout time.Duration) (*ZkClient, error) {
-	return NewClientWithLogfunc(addr, timeout, DefaultLogfunc)
+func New(addr string, timeout time.Duration) (*ZkClient, error) {
+	return NewWithLogfunc(addr, timeout, DefaultLogfunc)
 }
 
-func NewClientWithLogfunc(addr string, timeout time.Duration, logfunc func(foramt string, v ...interface{})) (*ZkClient, error) {
+func NewWithLogfunc(addr string, timeout time.Duration, logfunc func(foramt string, v ...interface{})) (*ZkClient, error) {
 	c := &ZkClient{
 		addr: addr, timeout: timeout, logger: &zkLogger{logfunc},
 	}
@@ -260,7 +260,7 @@ func (c *ZkClient) Delete(path string) error {
 	})
 }
 
-func (c *ZkClient) LoadData(path string) ([]byte, error) {
+func (c *ZkClient) Read(path string) ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
 	if c.closed {
@@ -280,7 +280,7 @@ func (c *ZkClient) LoadData(path string) ([]byte, error) {
 	return data, err
 }
 
-func (c *ZkClient) ListFile(path string) ([]string, error) {
+func (c *ZkClient) List(path string) ([]string, error) {
 	c.Lock()
 	defer c.Unlock()
 	if c.closed {

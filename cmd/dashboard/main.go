@@ -16,8 +16,8 @@ import (
 	"github.com/docopt/docopt-go"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/models/store/etcd"
-	"github.com/wandoulabs/codis/pkg/models/store/zk"
+	"github.com/wandoulabs/codis/pkg/models/etcd"
+	"github.com/wandoulabs/codis/pkg/models/zk"
 	"github.com/wandoulabs/codis/pkg/topom"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -105,26 +105,27 @@ Options:
 		log.Panicf("invalid product name")
 	}
 
-	var store models.Store
+	var client models.Client
+
 	switch {
 	case d["--zookeeper"] != nil:
-		store, err = zkstore.NewStore(d["--zookeeper"].(string), config.ProductName)
+		client, err = zkclient.New(d["--zookeeper"].(string), time.Minute)
 		if err != nil {
-			log.PanicErrorf(err, "create zkstore failed")
+			log.PanicErrorf(err, "create zk client failed")
 		}
 	case d["--etcd"] != nil:
-		store, err = etcdstore.NewStore(d["--etcd"].(string), config.ProductName)
+		client, err = etcdclient.New(d["--etcd"].(string), time.Minute)
 		if err != nil {
-			log.PanicErrorf(err, "create etcdstore failed")
+			log.PanicErrorf(err, "create etcd client failed")
 		}
 	}
 
-	if store == nil {
-		log.Panicf("nil store for topom")
+	if client == nil {
+		log.Panicf("nil client for topom")
 	}
-	defer store.Close()
+	defer client.Close()
 
-	s, err := topom.New(store, config)
+	s, err := topom.New(client, config)
 	if err != nil {
 		log.PanicErrorf(err, "create topom with config file failed\n%s\n", config)
 	}

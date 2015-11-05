@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/models/store/zk"
+	"github.com/wandoulabs/codis/pkg/models/zk"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -26,7 +26,7 @@ type Jodis struct {
 	path string
 	data []byte
 
-	client  *zkstore.ZkClient
+	client  *zkclient.ZkClient
 	closed  bool
 	timeout time.Duration
 
@@ -99,7 +99,7 @@ func (j *Jodis) Rewatch() (<-chan struct{}, error) {
 	}
 
 	if j.client == nil {
-		client, err := zkstore.NewClient(j.addr, j.timeout)
+		client, err := zkclient.New(j.addr, j.timeout)
 		if err != nil {
 			return nil, err
 		}

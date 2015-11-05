@@ -1,7 +1,7 @@
 // Copyright 2014 Wandoujia Inc. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package etcdstore
+package etcdclient
 
 import (
 	"strings"
@@ -26,9 +26,15 @@ type EtcdClient struct {
 	timeout time.Duration
 }
 
-func NewClient(addr string, timeout time.Duration) (*EtcdClient, error) {
+func New(addr string, timeout time.Duration) (*EtcdClient, error) {
+	endpoints := strings.Split(addr, ",")
+	for i, s := range endpoints {
+		if s != "" && !strings.HasPrefix(s, "http://") {
+			endpoints[i] = "http://" + s
+		}
+	}
 	config := client.Config{
-		Endpoints: strings.Split(addr, ","),
+		Endpoints: endpoints,
 		Transport: client.DefaultTransport,
 
 		HeaderTimeoutPerRequest: time.Second * 3,
@@ -166,7 +172,7 @@ func (c *EtcdClient) Delete(path string) error {
 	return nil
 }
 
-func (c *EtcdClient) LoadData(path string) ([]byte, error) {
+func (c *EtcdClient) Read(path string) ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
 	if c.closed {
@@ -184,7 +190,7 @@ func (c *EtcdClient) LoadData(path string) ([]byte, error) {
 	}
 }
 
-func (c *EtcdClient) ListFile(path string) ([]string, error) {
+func (c *EtcdClient) List(path string) ([]string, error) {
 	c.Lock()
 	defer c.Unlock()
 	if c.closed {

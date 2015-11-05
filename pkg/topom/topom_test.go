@@ -4,10 +4,8 @@
 package topom
 
 import (
-	"encoding/json"
-	"fmt"
 	"math"
-	"strings"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -18,20 +16,18 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
-func openTopom() *Topom {
-	config := newTopomConfig()
+var config = NewDefaultConfig()
 
-	t, err := New(newMemStore(), config)
-	assert.MustNoError(err)
-	return t
-}
-
-func newTopomConfig() *Config {
-	config := NewDefaultConfig()
+func init() {
 	config.AdminAddr = "0.0.0.0:0"
 	config.ProductName = "topom_test"
 	config.ProductAuth = "topom_auth"
-	return config
+}
+
+func openTopom() *Topom {
+	t, err := New(newMemClient(nil), config)
+	assert.MustNoError(err)
+	return t
 }
 
 func openProxy() (*proxy.Proxy, *proxy.ApiClient, string) {
@@ -65,22 +61,17 @@ func TestTopomClose(x *testing.T) {
 
 func TestTopomExclusive(x *testing.T) {
 	store := newMemStore()
-	defer store.Close()
 
-	config := newTopomConfig()
-
-	t1, err := New(store, config)
+	t, err := New(newMemClient(store), config)
 	assert.Must(err == nil)
 
-	_, err = New(store, config)
+	_, err = New(newMemClient(store), config)
 	assert.Must(err != nil)
 
-	t1.Close()
+	t.Close()
 
-	t2, err := New(store, config)
+	_, err = New(newMemClient(store), config)
 	assert.Must(err == nil)
-
-	t2.Close()
 }
 
 func assertProxyStats(t *Topom, c *ApiClient, fails []string) {
@@ -807,179 +798,70 @@ func TestApiAction(x *testing.T) {
 }
 
 type memStore struct {
-	mu sync.Mutex
-
+	sync.Mutex
 	data map[string][]byte
 }
-
-var (
-	ErrNodeExists    = errors.New("node already exists")
-	ErrNodeNotExists = errors.New("node does not exist")
-)
 
 func newMemStore() *memStore {
 	return &memStore{data: make(map[string][]byte)}
 }
 
-func (s *memStore) Acquire(topom *models.Topom) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+type memClient struct {
+	*memStore
+}
 
-	if _, ok := s.data["topom"]; ok {
-		return errors.Trace(ErrNodeExists)
+func newMemClient(store *memStore) models.Client {
+	if store == nil {
+		store = newMemStore()
 	}
+	return &memClient{store}
+}
 
-	s.data["topom"] = topom.Encode()
+func (c *memClient) Create(path string, data []byte) error {
+	c.Lock()
+	defer c.Unlock()
+	if _, ok := c.data[path]; ok {
+		return errors.Errorf("node already exists")
+	}
+	c.data[path] = data
 	return nil
 }
 
-func (s *memStore) Release(force bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if _, ok := s.data["topom"]; !ok {
-		return errors.Trace(ErrNodeNotExists)
-	}
-
-	delete(s.data, "topom")
+func (c *memClient) Update(path string, data []byte) error {
+	c.Lock()
+	defer c.Unlock()
+	c.data[path] = data
 	return nil
 }
 
-func (s *memStore) LoadSlotMapping(slotId int) (*models.SlotMapping, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var k = fmt.Sprintf("slot-%04d", slotId)
-
-	if b, ok := s.data[k]; ok {
-		slot := &models.SlotMapping{}
-		if err := json.Unmarshal(b, slot); err != nil {
-			return nil, errors.Trace(err)
-		}
-		return slot, nil
-	}
-	return nil, nil
-}
-
-func (s *memStore) SaveSlotMapping(slotId int, slot *models.SlotMapping) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var k = fmt.Sprintf("slot-%04d", slotId)
-
-	s.data[k] = slot.Encode()
+func (c *memClient) Delete(path string) error {
+	c.Lock()
+	defer c.Unlock()
+	delete(c.data, path)
 	return nil
 }
 
-func (s *memStore) ListProxy() ([]*models.Proxy, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (c *memClient) Read(path string) ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	return c.data[path], nil
+}
 
-	var plist []*models.Proxy
-
-	for k, b := range s.data {
-		if strings.HasPrefix(k, "proxy-") {
-			var p = &models.Proxy{}
-			if err := json.Unmarshal(b, p); err != nil {
-				return nil, errors.Trace(err)
-			}
-			plist = append(plist, p)
+func (c *memClient) List(path string) ([]string, error) {
+	c.Lock()
+	defer c.Unlock()
+	path = filepath.Clean(path)
+	var list []string
+	for k, _ := range c.data {
+		if path == filepath.Dir(k) {
+			list = append(list, k)
 		}
 	}
-	return plist, nil
+	return list, nil
 }
 
-func (s *memStore) CreateProxy(proxyId int, proxy *models.Proxy) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var k = fmt.Sprintf("proxy-%d", proxyId)
-
-	if _, ok := s.data[k]; ok {
-		return errors.Trace(ErrNodeExists)
-	}
-
-	s.data[k] = proxy.Encode()
-	return nil
-}
-
-func (s *memStore) RemoveProxy(proxyId int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var k = fmt.Sprintf("proxy-%d", proxyId)
-
-	if _, ok := s.data[k]; !ok {
-		return errors.Trace(ErrNodeNotExists)
-	}
-
-	delete(s.data, k)
-	return nil
-}
-
-func (s *memStore) ListGroup() ([]*models.Group, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var glist []*models.Group
-
-	for k, b := range s.data {
-		if strings.HasPrefix(k, "group-") {
-			var g = &models.Group{}
-			if err := json.Unmarshal(b, g); err != nil {
-				return nil, errors.Trace(err)
-			}
-			glist = append(glist, g)
-		}
-	}
-	return glist, nil
-}
-
-func (s *memStore) CreateGroup(groupId int, group *models.Group) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var k = fmt.Sprintf("group-%d", groupId)
-
-	if _, ok := s.data[k]; ok {
-		return errors.Trace(ErrNodeExists)
-	}
-
-	s.data[k] = group.Encode()
-	return nil
-}
-
-func (s *memStore) RemoveGroup(groupId int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var k = fmt.Sprintf("group-%d", groupId)
-
-	if _, ok := s.data[k]; !ok {
-		return errors.Trace(ErrNodeNotExists)
-	}
-
-	delete(s.data, k)
-	return nil
-}
-
-func (s *memStore) UpdateGroup(groupId int, group *models.Group) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var k = fmt.Sprintf("group-%d", groupId)
-
-	if _, ok := s.data[k]; !ok {
-		return errors.Trace(ErrNodeNotExists)
-	}
-
-	s.data[k] = group.Encode()
-	return nil
-}
-
-func (s *memStore) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+func (c *memClient) Close() error {
+	c.Lock()
+	defer c.Unlock()
 	return nil
 }

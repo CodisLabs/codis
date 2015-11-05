@@ -1,47 +1,49 @@
-// Copyright 2014 Wandoujia Inc. All Rights Reserved.
-// Licensed under the MIT (MIT-LICENSE.txt) license.
-
-package zkstore
+package models
 
 import (
 	"fmt"
 	"path/filepath"
 	"sync"
-	"time"
 
-	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
+type Client interface {
+	Create(path string, data []byte) error
+	Update(path string, data []byte) error
+	Delete(path string) error
+
+	Read(path string) ([]byte, error)
+	List(path string) ([]string, error)
+
+	Close() error
+}
+
 var (
-	ErrClosedZkStore = errors.New("use of closed zkstore")
-	ErrAcquireAgain  = errors.New("acquire again")
-	ErrReleaseAgain  = errors.New("release again")
-	ErrNoProtection  = errors.New("operation without lock protection")
+	ErrClosedStore  = errors.New("use of closed store")
+	ErrNoLockHolder = errors.New("without lock protection")
+	ErrAcquireAgain = errors.New("acquire again")
+	ErrReleaseAgain = errors.New("release again")
 )
 
-type ZkStore struct {
+type Store struct {
 	sync.Mutex
 
-	client *ZkClient
+	client Client
 	prefix string
 
 	locked bool
 	closed bool
 }
 
-func NewStore(addr string, name string) (*ZkStore, error) {
-	client, err := NewClient(addr, time.Minute)
-	if err != nil {
-		return nil, err
-	}
-	return &ZkStore{
+func NewStore(client Client, name string) *Store {
+	return &Store{
 		client: client,
-		prefix: filepath.Join("/zk/codis2", name),
-	}, nil
+		prefix: filepath.Join("/codis2", name),
+	}
 }
 
-func (s *ZkStore) Close() error {
+func (s *Store) Close() error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
@@ -53,35 +55,35 @@ func (s *ZkStore) Close() error {
 	return nil
 }
 
-func (s *ZkStore) LockPath() string {
+func (s *Store) LockPath() string {
 	return filepath.Join(s.prefix, "topom")
 }
 
-func (s *ZkStore) SlotPath(slotId int) string {
+func (s *Store) SlotPath(slotId int) string {
 	return filepath.Join(s.prefix, "slots", fmt.Sprintf("slot-%04d", slotId))
 }
 
-func (s *ZkStore) ProxyBase() string {
+func (s *Store) ProxyBase() string {
 	return filepath.Join(s.prefix, "proxy")
 }
 
-func (s *ZkStore) ProxyPath(proxyId int) string {
+func (s *Store) ProxyPath(proxyId int) string {
 	return filepath.Join(s.prefix, "proxy", fmt.Sprintf("proxy-%04d", proxyId))
 }
 
-func (s *ZkStore) GroupBase() string {
+func (s *Store) GroupBase() string {
 	return filepath.Join(s.prefix, "group")
 }
 
-func (s *ZkStore) GroupPath(groupId int) string {
+func (s *Store) GroupPath(groupId int) string {
 	return filepath.Join(s.prefix, "group", fmt.Sprintf("group-%04d", groupId))
 }
 
-func (s *ZkStore) Acquire(topom *models.Topom) error {
+func (s *Store) Acquire(topom *Topom) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return ErrClosedZkStore
+		return ErrClosedStore
 	}
 	if s.locked {
 		return ErrAcquireAgain
@@ -94,11 +96,11 @@ func (s *ZkStore) Acquire(topom *models.Topom) error {
 	return nil
 }
 
-func (s *ZkStore) Release(force bool) error {
+func (s *Store) Release(force bool) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return ErrClosedZkStore
+		return ErrClosedStore
 	}
 	if !s.locked && !force {
 		return ErrReleaseAgain
@@ -111,22 +113,22 @@ func (s *ZkStore) Release(force bool) error {
 	return nil
 }
 
-func (s *ZkStore) LoadSlotMapping(slotId int) (*models.SlotMapping, error) {
+func (s *Store) LoadSlotMapping(slotId int) (*SlotMapping, error) {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return nil, ErrClosedZkStore
+		return nil, ErrClosedStore
 	}
 	if !s.locked {
-		return nil, ErrNoProtection
+		return nil, ErrNoLockHolder
 	}
 
-	b, err := s.client.LoadData(s.SlotPath(slotId))
+	b, err := s.client.Read(s.SlotPath(slotId))
 	if err != nil {
 		return nil, err
 	}
 	if b != nil {
-		slot := &models.SlotMapping{}
+		slot := &SlotMapping{}
 		if err := slot.Decode(b); err != nil {
 			return nil, err
 		}
@@ -135,41 +137,41 @@ func (s *ZkStore) LoadSlotMapping(slotId int) (*models.SlotMapping, error) {
 	return nil, nil
 }
 
-func (s *ZkStore) SaveSlotMapping(slotId int, slot *models.SlotMapping) error {
+func (s *Store) SaveSlotMapping(slotId int, slot *SlotMapping) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return ErrClosedZkStore
+		return ErrClosedStore
 	}
 	if !s.locked {
-		return ErrNoProtection
+		return ErrNoLockHolder
 	}
 
 	return s.client.Update(s.SlotPath(slotId), slot.Encode())
 }
 
-func (s *ZkStore) ListProxy() ([]*models.Proxy, error) {
+func (s *Store) ListProxy() ([]*Proxy, error) {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return nil, ErrClosedZkStore
+		return nil, ErrClosedStore
 	}
 	if !s.locked {
-		return nil, ErrNoProtection
+		return nil, ErrNoLockHolder
 	}
 
-	files, err := s.client.ListFile(s.ProxyBase())
+	files, err := s.client.List(s.ProxyBase())
 	if err != nil {
 		return nil, err
 	}
 
-	var plist []*models.Proxy
+	var plist []*Proxy
 	for _, file := range files {
-		b, err := s.client.LoadData(file)
+		b, err := s.client.Read(file)
 		if err != nil {
 			return nil, err
 		}
-		p := &models.Proxy{}
+		p := &Proxy{}
 		if err := p.Decode(b); err != nil {
 			return nil, err
 		}
@@ -178,54 +180,54 @@ func (s *ZkStore) ListProxy() ([]*models.Proxy, error) {
 	return plist, nil
 }
 
-func (s *ZkStore) CreateProxy(proxyId int, proxy *models.Proxy) error {
+func (s *Store) CreateProxy(proxyId int, proxy *Proxy) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return ErrClosedZkStore
+		return ErrClosedStore
 	}
 	if !s.locked {
-		return ErrNoProtection
+		return ErrNoLockHolder
 	}
 
 	return s.client.Create(s.ProxyPath(proxyId), proxy.Encode())
 }
 
-func (s *ZkStore) RemoveProxy(proxyId int) error {
+func (s *Store) RemoveProxy(proxyId int) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return ErrClosedZkStore
+		return ErrClosedStore
 	}
 	if !s.locked {
-		return ErrNoProtection
+		return ErrNoLockHolder
 	}
 
 	return s.client.Delete(s.ProxyPath(proxyId))
 }
 
-func (s *ZkStore) ListGroup() ([]*models.Group, error) {
+func (s *Store) ListGroup() ([]*Group, error) {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return nil, ErrClosedZkStore
+		return nil, ErrClosedStore
 	}
 	if !s.locked {
-		return nil, ErrNoProtection
+		return nil, ErrNoLockHolder
 	}
 
-	files, err := s.client.ListFile(s.GroupBase())
+	files, err := s.client.List(s.GroupBase())
 	if err != nil {
 		return nil, err
 	}
 
-	var glist []*models.Group
+	var glist []*Group
 	for _, file := range files {
-		b, err := s.client.LoadData(file)
+		b, err := s.client.Read(file)
 		if err != nil {
 			return nil, err
 		}
-		g := &models.Group{}
+		g := &Group{}
 		if err := g.Decode(b); err != nil {
 			return nil, err
 		}
@@ -234,40 +236,40 @@ func (s *ZkStore) ListGroup() ([]*models.Group, error) {
 	return glist, nil
 }
 
-func (s *ZkStore) CreateGroup(groupId int, group *models.Group) error {
+func (s *Store) CreateGroup(groupId int, group *Group) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return ErrClosedZkStore
+		return ErrClosedStore
 	}
 	if !s.locked {
-		return ErrNoProtection
+		return ErrNoLockHolder
 	}
 
 	return s.client.Create(s.GroupPath(groupId), group.Encode())
 }
 
-func (s *ZkStore) UpdateGroup(groupId int, group *models.Group) error {
+func (s *Store) UpdateGroup(groupId int, group *Group) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return ErrClosedZkStore
+		return ErrClosedStore
 	}
 	if !s.locked {
-		return ErrNoProtection
+		return ErrNoLockHolder
 	}
 
 	return s.client.Update(s.GroupPath(groupId), group.Encode())
 }
 
-func (s *ZkStore) RemoveGroup(groupId int) error {
+func (s *Store) RemoveGroup(groupId int) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
-		return ErrClosedZkStore
+		return ErrClosedStore
 	}
 	if !s.locked {
-		return ErrNoProtection
+		return ErrNoLockHolder
 	}
 
 	return s.client.Delete(s.GroupPath(groupId))

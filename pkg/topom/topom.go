@@ -24,7 +24,7 @@ type Topom struct {
 
 	xauth string
 	model *models.Topom
-	store models.Store
+	store *models.Store
 
 	exit struct {
 		C chan struct{}
@@ -67,8 +67,11 @@ type Topom struct {
 
 var ErrClosedTopom = errors.New("use of closed topom")
 
-func New(store models.Store, config *Config) (*Topom, error) {
-	s := &Topom{config: config, store: store}
+func New(client models.Client, config *Config) (*Topom, error) {
+	if !utils.IsValidName(config.ProductName) {
+		return nil, errors.Errorf("invalid product name = %s", config.ProductName)
+	}
+	s := &Topom{config: config, store: models.NewStore(client, config.ProductName)}
 	s.xauth = rpc.NewXAuth(config.ProductName, config.ProductAuth)
 	s.model = &models.Topom{
 		StartTime: time.Now().String(),
