@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/models/store/etcd"
-	"github.com/wandoulabs/codis/pkg/models/store/zk"
+	"github.com/wandoulabs/codis/pkg/models/etcd"
+	"github.com/wandoulabs/codis/pkg/models/zk"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
@@ -60,26 +60,30 @@ func (t *cmdSuperAdmin) parseString(d map[string]interface{}, name string) strin
 	return ""
 }
 
-func (t *cmdSuperAdmin) newTopomStore(d map[string]interface{}) models.Store {
+func (t *cmdSuperAdmin) newTopomClient(d map[string]interface{}) models.Client {
 	switch {
 	case d["--zookeeper"] != nil:
 		addr := t.parseString(d, "--zookeeper")
-		s, err := zkstore.NewStore(addr, t.product.name)
+		c, err := zkclient.New(addr, time.Minute)
 		if err != nil {
 			log.PanicErrorf(err, "create zkstore failed")
 		}
-		return s
+		return c
 	case d["--etcd"] != nil:
 		addr := t.parseString(d, "--etcd")
-		s, err := etcdstore.NewStore(addr, t.product.name)
+		c, err := etcdclient.New(addr, time.Minute)
 		if err != nil {
 			log.PanicErrorf(err, "create etcdstore failed")
 		}
-		return s
+		return c
 	}
-
-	log.Panicf("nil store for topom")
+	log.Panicf("nil client for topom")
 	return nil
+}
+
+func (t *cmdSuperAdmin) newTopomStore(d map[string]interface{}) *models.Store {
+	client := t.newTopomClient(d)
+	return models.NewStore(client, t.product.name)
 }
 
 func (t *cmdSuperAdmin) handleRemoveLock(d map[string]interface{}) {
@@ -95,22 +99,17 @@ func (t *cmdSuperAdmin) handleRemoveLock(d map[string]interface{}) {
 
 func (t *cmdSuperAdmin) handleConfigDump(d map[string]interface{}) {
 	switch {
-	case d["--zookeeper"] != nil:
-		switch {
-		case d["-1"].(bool):
-			t.dumpConfigZooKeeperV1(d)
-		default:
-			fallthrough
-		case d["-2"].(bool):
-			t.dumpConfigZooKeeperV2(d)
-		}
-	case d["--etcd"] != nil:
-		log.Panicf("not implement yet")
+	case d["-1"].(bool):
+		t.dumpConfigV1(d)
+	default:
+		fallthrough
+	case d["-2"].(bool):
+		t.dumpConfigV2(d)
 	}
 }
 
-func (t *cmdSuperAdmin) newZooKeeperClient(d map[string]interface{}) *zkstore.ZkClient {
-	client, err := zkstore.NewClientWithLogfunc(d["--zookeeper"].(string), time.Second*5, func(format string, v ...interface{}) {
+func (t *cmdSuperAdmin) newZooKeeperClient(d map[string]interface{}) models.Client {
+	client, err := zkclient.NewWithLogfunc(d["--zookeeper"].(string), time.Second*5, func(format string, v ...interface{}) {
 		log.Debugf("zookeeper - %s", fmt.Sprintf(format, v...))
 	})
 	if err != nil {
@@ -126,8 +125,8 @@ type ConfigV2 struct {
 	Topom *models.Topom         `json:"topom,omitempty"`
 }
 
-func (t *cmdSuperAdmin) loadAndDecodeZooKeeper(client *zkstore.ZkClient, path string, v interface{}) {
-	b, err := client.LoadData(path)
+func (t *cmdSuperAdmin) loadAndDecode(client models.Client, path string, v interface{}) {
+	b, err := client.Read(path)
 	if err != nil {
 		log.PanicErrorf(err, "load path = %s failed", path)
 	}
@@ -137,8 +136,8 @@ func (t *cmdSuperAdmin) loadAndDecodeZooKeeper(client *zkstore.ZkClient, path st
 	log.Debugf("load & decode path = %s", path)
 }
 
-func (t *cmdSuperAdmin) dumpConfigZooKeeperV1(d map[string]interface{}) {
-	client := t.newZooKeeperClient(d)
+func (t *cmdSuperAdmin) dumpConfigV1(d map[string]interface{}) {
+	client := t.newTopomClient(d)
 	defer client.Close()
 
 	prefix := filepath.Join("/zk/codis", fmt.Sprintf("db_%s", t.product.name))
@@ -146,7 +145,7 @@ func (t *cmdSuperAdmin) dumpConfigZooKeeperV1(d map[string]interface{}) {
 
 	config := make(map[string]interface{})
 
-	dirs, err := client.ListFile(prefix)
+	dirs, err := client.List(prefix)
 	if err != nil {
 		log.PanicErrorf(err, "list path = %s failed", prefix)
 	}
@@ -154,7 +153,7 @@ func (t *cmdSuperAdmin) dumpConfigZooKeeperV1(d map[string]interface{}) {
 		log.Panicf("no such product = %s [v1]", t.product.name)
 	}
 	for _, dir := range dirs {
-		config[filepath.Base(dir)] = t.dumpConfigZooKeeperV1Recursively(client, dir)
+		config[filepath.Base(dir)] = t.dumpConfigV1Recursively(client, dir)
 	}
 
 	b, err := json.MarshalIndent(config, "", "    ")
@@ -164,18 +163,18 @@ func (t *cmdSuperAdmin) dumpConfigZooKeeperV1(d map[string]interface{}) {
 	fmt.Println(string(b))
 }
 
-func (t *cmdSuperAdmin) dumpConfigZooKeeperV1Recursively(client *zkstore.ZkClient, path string) interface{} {
+func (t *cmdSuperAdmin) dumpConfigV1Recursively(client models.Client, path string) interface{} {
 	log.Debugf("dump path = %s", path)
-	if plist, err := client.ListFile(path); err != nil {
+	if plist, err := client.List(path); err != nil {
 		log.PanicErrorf(err, "list path = %s failed", path)
 	} else if plist != nil {
 		var m = make(map[string]interface{})
 		for _, path := range plist {
-			m[filepath.Base(path)] = t.dumpConfigZooKeeperV1Recursively(client, path)
+			m[filepath.Base(path)] = t.dumpConfigV1Recursively(client, path)
 		}
 		return m
 	}
-	b, err := client.LoadData(path)
+	b, err := client.Read(path)
 	if err != nil {
 		log.PanicErrorf(err, "dump path = %s failed", path)
 	}
@@ -189,16 +188,16 @@ func (t *cmdSuperAdmin) dumpConfigZooKeeperV1Recursively(client *zkstore.ZkClien
 	return v
 }
 
-func (t *cmdSuperAdmin) dumpConfigZooKeeperV2(d map[string]interface{}) {
-	client := t.newZooKeeperClient(d)
+func (t *cmdSuperAdmin) dumpConfigV2(d map[string]interface{}) {
+	client := t.newTopomClient(d)
 	defer client.Close()
 
-	prefix := filepath.Join("/zk/codis2", t.product.name)
+	prefix := filepath.Join("/codis2", t.product.name)
 	log.Debugf("prefix = %s", prefix)
 
 	config := &ConfigV2{}
 
-	dirs, err := client.ListFile(prefix)
+	dirs, err := client.List(prefix)
 	if err != nil {
 		log.PanicErrorf(err, "list path = %s failed", prefix)
 	}
@@ -206,40 +205,40 @@ func (t *cmdSuperAdmin) dumpConfigZooKeeperV2(d map[string]interface{}) {
 		log.Panicf("no such product = %s [v2]", t.product.name)
 	}
 
-	if plist, err := client.ListFile(filepath.Join(prefix, "slots")); err != nil {
+	if plist, err := client.List(filepath.Join(prefix, "slots")); err != nil {
 		log.PanicErrorf(err, "list slots failed")
 	} else {
 		sort.Sort(sort.StringSlice(plist))
 		for _, path := range plist {
 			s := &models.SlotMapping{}
-			t.loadAndDecodeZooKeeper(client, path, s)
+			t.loadAndDecode(client, path, s)
 			config.Slots = append(config.Slots, s)
 		}
 	}
 
-	if plist, err := client.ListFile(filepath.Join(prefix, "group")); err != nil {
+	if plist, err := client.List(filepath.Join(prefix, "group")); err != nil {
 		log.PanicErrorf(err, "list group failed")
 	} else {
 		sort.Sort(sort.StringSlice(plist))
 		for _, path := range plist {
 			g := &models.Group{}
-			t.loadAndDecodeZooKeeper(client, path, g)
+			t.loadAndDecode(client, path, g)
 			config.Group = append(config.Group, g)
 		}
 	}
 
-	if plist, err := client.ListFile(filepath.Join(prefix, "proxy")); err != nil {
+	if plist, err := client.List(filepath.Join(prefix, "proxy")); err != nil {
 		log.PanicErrorf(err, "list proxy failed")
 	} else {
 		sort.Sort(sort.StringSlice(plist))
 		for _, path := range plist {
 			p := &models.Proxy{}
-			t.loadAndDecodeZooKeeper(client, path, p)
+			t.loadAndDecode(client, path, p)
 			config.Proxy = append(config.Proxy, p)
 		}
 	}
 
-	if b, err := client.LoadData(filepath.Join(prefix, "topom")); err != nil {
+	if b, err := client.Read(filepath.Join(prefix, "topom")); err != nil {
 		log.PanicErrorf(err, "load topom failed")
 	} else if b != nil {
 		t := &models.Topom{}
