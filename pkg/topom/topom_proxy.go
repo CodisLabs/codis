@@ -151,15 +151,30 @@ func (s *Topom) broadcast(fn func(p *models.Proxy, c *proxy.ApiClient) error) ma
 	var errs = make(map[string]error)
 	for token, _ := range s.proxies {
 		wait.Add(1)
-		go func(token string, p *models.Proxy, c *proxy.ApiClient) {
+		go func(p *models.Proxy, c *proxy.ApiClient) {
 			defer wait.Done()
-			if err := fn(p, c); err != nil {
-				lock.Lock()
-				errs[token] = err
-				lock.Unlock()
-			}
-		}(token, s.proxies[token], s.clients[token])
+			err := fn(p, c)
+			lock.Lock()
+			errs[p.Token] = err
+			lock.Unlock()
+		}(s.proxies[token], s.clients[token])
 	}
 	wait.Wait()
 	return errs
+}
+
+func (s *Topom) resyncPrepare() error {
+	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
+		if err := c.XPing(); err != nil {
+			log.WarnErrorf(err, "[%p] proxy-[%s] resync prepare failed", s, p.Token)
+			return err
+		}
+		return nil
+	})
+	for t, err := range errs {
+		if err != nil {
+			return errors.Errorf("proxy-[%s] resync prepare failed", t)
+		}
+	}
+	return nil
 }

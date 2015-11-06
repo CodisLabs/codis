@@ -537,10 +537,11 @@ func TestSlotTest3(x *testing.T) {
 
 	assert.Must(t.SlotCreateAction(2, 2) == nil)
 	assert.Must(t.PrepareAction(2) != nil)
+	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
+	assert.Must(t.PrepareAction(2) == nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1},
 		&models.Slot{
 			Id:          2,
-			Locked:      true,
 			BackendAddr: server1,
 			MigrateFrom: server2,
 		})
@@ -552,17 +553,14 @@ func TestSlotTest3(x *testing.T) {
 	assertSlotsList(t, []*proxy.ApiClient{c1, c3},
 		&models.Slot{
 			Id:          2,
-			Locked:      true,
 			BackendAddr: server1,
 			MigrateFrom: server2,
 		})
-	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
 
 	assert.Must(t.PrepareAction(2) == nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1, c3},
 		&models.Slot{
 			Id:          2,
-			Locked:      false,
 			BackendAddr: server1,
 			MigrateFrom: server2,
 		})
@@ -572,7 +570,6 @@ func TestSlotTest3(x *testing.T) {
 	assertSlotsList(t, nil,
 		&models.Slot{
 			Id:          2,
-			Locked:      false,
 			BackendAddr: server1,
 			MigrateFrom: server2,
 		})

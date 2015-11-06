@@ -402,6 +402,9 @@ func (s *Topom) resyncGroup(groupId int) error {
 	if len(slots) == 0 {
 		return nil
 	}
+	if err := s.resyncPrepare(); err != nil {
+		return err
+	}
 	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		if err := c.FillSlots(slots...); err != nil {
 			log.WarnErrorf(err, "[%p] proxy-[%s] resync group-[%d] failed", s, p.Token, groupId)

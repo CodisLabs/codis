@@ -203,6 +203,9 @@ func (s *Topom) resyncSlotMapping(slotId int) error {
 	if err != nil {
 		return err
 	}
+	if err := s.resyncPrepare(); err != nil {
+		return err
+	}
 	slot := s.toSlotState(m)
 	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
 		if err := c.FillSlots(slot); err != nil {
