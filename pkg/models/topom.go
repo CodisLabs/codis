@@ -16,8 +16,9 @@ type Topom struct {
 
 	ProductName string `json:"product_name"`
 
-	Pid int    `json:"pid"`
-	Pwd string `json:"pwd"`
+	Pid   int    `json:"pid"`
+	Pwd   string `json:"pwd"`
+	Uname string `json:"uname"`
 }
 
 func (t *Topom) Encode() []byte {

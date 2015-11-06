@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,6 +57,11 @@ func New(config *Config) (*Proxy, error) {
 	s.model.ProductName = config.ProductName
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
+	if b, err := exec.Command("uname", "-a").Output(); err != nil {
+		log.WarnErrorf(err, "run command uname failed")
+	} else {
+		s.model.Uname = strings.TrimSpace(string(b))
+	}
 
 	s.router = router.NewWithAuth(config.ProductAuth)
 	s.init.C = make(chan struct{})
