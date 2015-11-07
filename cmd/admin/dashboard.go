@@ -489,7 +489,7 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 					}
 				} else {
 					fmt.Println()
-					fmt.Printf("             ")
+					fmt.Printf("           ")
 					fmt.Printf("     +   ")
 					switch {
 					case infom != nil && master == g.Servers[0]:

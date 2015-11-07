@@ -420,7 +420,7 @@ func (s *apiServer) SlotCreateActionRange(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	if beg >= 0 && beg < end && end < models.MaxSlotNum {
+	if beg >= 0 && beg <= end && end < models.MaxSlotNum {
 		for slotId := beg; slotId <= end; slotId++ {
 			if err := s.topom.SlotCreateAction(slotId, groupId); err != nil {
 				return rpc.ApiResponseError(err)

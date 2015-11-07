@@ -4,7 +4,6 @@
 package topom
 
 import (
-	"math"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -82,7 +81,7 @@ func (s *Topom) CreateGroup(groupId int) error {
 		return ErrClosedTopom
 	}
 
-	if groupId <= 0 || groupId > math.MaxInt16 {
+	if groupId <= 0 || groupId > models.MaxGroupId {
 		return errors.Errorf("invalid group id, out of range")
 	}
 	if s.groups[groupId] != nil {

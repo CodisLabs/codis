@@ -5,6 +5,8 @@ package models
 
 import "sort"
 
+const MaxGroupId = 1e4 - 1
+
 type Group struct {
 	Id        int      `json:"id"`
 	Servers   []string `json:"servers"`

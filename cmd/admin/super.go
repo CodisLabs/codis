@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math"
 	"path/filepath"
 	"sort"
 	"time"
@@ -293,7 +292,7 @@ func (t *cmdSuperAdmin) convertGroupV1(gmap map[int]*models.Group, v interface{}
 	groupId := int(m["group_id"].(float64))
 	isSlave := m["type"].(string) != "master"
 	log.Debugf("found group-%04d %s slave = %t", groupId, addr, isSlave)
-	if groupId <= 0 || groupId > math.MaxInt16 {
+	if groupId <= 0 || groupId > models.MaxGroupId {
 		log.Panicf("invalid group = %d", groupId)
 	}
 	g := gmap[groupId]
@@ -373,7 +372,7 @@ func (t *cmdSuperAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
 
 	var gmap = make(map[int]*models.Group)
 	for _, g := range config.Group {
-		if g.Id <= 0 || g.Id > math.MaxInt16 {
+		if g.Id <= 0 || g.Id > models.MaxGroupId {
 			log.Panicf("invalid group id = %d", g.Id)
 		}
 		if gmap[g.Id] != nil {
