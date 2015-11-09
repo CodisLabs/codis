@@ -1,6 +1,6 @@
-all: build
+all: build-all
 
-build: build-server build-dashboard build-proxy build-admin
+build-all: build-server build-dashboard build-proxy build-admin
 
 build-godep:
 	@bash genver.sh
@@ -28,13 +28,12 @@ build-server:
 
 clean:
 	@rm -rf bin
-	@rm -f *.rdb *.out *.log *.dump deploy.tar
-	@rm -f extern/Dockerfile
-	@rm -f sample/log/*.log sample/nohup.out
-	@if [ -d test ]; then cd test && rm -f *.out *.log *.rdb; fi
 
 distclean: clean
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
 
-gotest: build
+gotest: build-all
 	GOPATH=`godep path`:$$GOPATH go test ./pkg/...
+
+docker:
+	docker build --force-rm -t codis-image .

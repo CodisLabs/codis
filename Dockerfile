@@ -1,19 +1,16 @@
 FROM golang:1.4
-MAINTAINER goroutine@126.com
 
-RUN apt-get update -y
+RUN apt-get update
+RUN apt-get install -y vim bash golang
+RUN apt-get clean
+RUN rm -rf /var/lib/apt/lists/*
 
-# Add codis
-Add . /go/src/github.com/wandoulabs/codis/
-WORKDIR /go/src/github.com/wandoulabs/codis/
+ENV GOPATH /gopath
+ENV CODIS  ${GOPATH}/src/github.com/wandoulabs/codis
+ENV PATH   ${GOPATH}/bin:${PATH}:${CODIS}/bin
+COPY . ${CODIS}
 
-# Install dependency
-RUN ./bootstrap.sh
-WORKDIR /go/src/github.com/wandoulabs/codis/sample
+RUN make -C ${CODIS} distclean
+RUN make -C ${CODIS} build-all
 
-# Expose ports
-EXPOSE 19000
-EXPOSE 11000
-EXPOSE 18087
-
-CMD ./startall.sh && tail -f log/*
+WORKDIR /codis
