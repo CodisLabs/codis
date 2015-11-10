@@ -33,7 +33,6 @@ Options:
 	-c CONF, --config=CONF      specify the config file.
 	-l FILE, --log=FILE         specify the daliy rotated log file.
 	--log-level=LEVEL           specify the log-level, can be INFO,WARN,DEBUG,ERROR, default is INFO.
-	--host-admin=ADDR           host binding address of admin listener
 `
 
 	d, err := docopt.Parse(usage, nil, true, "", false)

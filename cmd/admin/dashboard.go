@@ -25,7 +25,7 @@ type cmdDashboard struct {
 
 func (t *cmdDashboard) Main(d map[string]interface{}) {
 	if d["--dashboard"] != nil {
-		t.address = utils.ArgumentMust(d, "--proxy-admin")
+		t.address = utils.ArgumentMust(d, "--dashboard")
 		t.product.name, _ = utils.Argument(d, "--product-name")
 		t.product.auth, _ = utils.Argument(d, "--product-auth")
 	} else {

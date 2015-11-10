@@ -120,12 +120,12 @@ func (s *Topom) setup() error {
 		return errors.Trace(err)
 	} else {
 		s.ladmin = l
-	}
 
-	if addr, err := utils.ResolveAddr("tcp", s.ladmin.Addr().String()); err != nil {
-		return err
-	} else {
-		s.model.AdminAddr = addr
+		x, err := utils.ResolveAddr("tcp", l.Addr().String(), s.config.HostAdmin)
+		if err != nil {
+			return err
+		}
+		s.model.AdminAddr = x
 	}
 
 	if err := s.store.Acquire(s.model); err != nil {

@@ -37,3 +37,5 @@ gotest: build-all
 
 docker:
 	docker build --force-rm -t codis-image .
+
+.PHONY: docker

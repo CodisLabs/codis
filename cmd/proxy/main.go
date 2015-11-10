@@ -33,8 +33,6 @@ Options:
 	-l FILE, --log=FILE         specify the daliy rotated log file.
 	--log-level=LEVEL           specify the log-level, can be INFO,WARN,DEBUG,ERROR, default is INFO.
 	--ulimit=NLIMIT             run 'ulimit -n' to check the maximum number of open file descriptors.
-	--host-admin=ADDR           host binding address of admin listener
-	--host-proxy=ADDR           host binding address of proxy listener
 `
 
 	d, err := docopt.Parse(usage, nil, true, "", false)

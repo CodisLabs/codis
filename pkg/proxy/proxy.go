@@ -85,29 +85,30 @@ func New(config *Config) (*Proxy, error) {
 }
 
 func (s *Proxy) setup() error {
-	if l, err := net.Listen(s.config.ProtoType, s.config.ProxyAddr); err != nil {
+	proto := s.config.ProtoType
+	if l, err := net.Listen(proto, s.config.ProxyAddr); err != nil {
 		return errors.Trace(err)
 	} else {
 		s.lproxy = l
-	}
 
-	if addr, err := utils.ResolveAddr(s.config.ProtoType, s.lproxy.Addr().String()); err != nil {
-		return err
-	} else {
-		s.model.ProtoType = s.config.ProtoType
-		s.model.ProxyAddr = addr
+		x, err := utils.ResolveAddr(proto, l.Addr().String(), s.config.HostProxy)
+		if err != nil {
+			return err
+		}
+		s.model.ProtoType = proto
+		s.model.ProxyAddr = x
 	}
 
 	if l, err := net.Listen("tcp", s.config.AdminAddr); err != nil {
 		return errors.Trace(err)
 	} else {
 		s.ladmin = l
-	}
 
-	if addr, err := utils.ResolveAddr("tcp", s.ladmin.Addr().String()); err != nil {
-		return err
-	} else {
-		s.model.AdminAddr = addr
+		x, err := utils.ResolveAddr("tcp", l.Addr().String(), s.config.HostAdmin)
+		if err != nil {
+			return err
+		}
+		s.model.AdminAddr = x
 	}
 
 	return nil
