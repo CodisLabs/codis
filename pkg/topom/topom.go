@@ -70,7 +70,7 @@ type Topom struct {
 var ErrClosedTopom = errors.New("use of closed topom")
 
 func New(client models.Client, config *Config) (*Topom, error) {
-	if !utils.IsValidName(config.ProductName) {
+	if !utils.IsValidProduct(config.ProductName) {
 		return nil, errors.Errorf("invalid product name = %s", config.ProductName)
 	}
 	s := &Topom{config: config, store: models.NewStore(client, config.ProductName)}

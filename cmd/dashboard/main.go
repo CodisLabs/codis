@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -23,25 +22,18 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-const banner = `
-  _____  ____    ____/ /  (_)  _____
- / ___/ / __ \  / __  /  / /  / ___/
-/ /__  / /_/ / / /_/ /  / /  (__  )
-\___/  \____/  \__,_/  /_/  /____/
-
-`
-
 func main() {
 	const usage = `
 Usage:
-	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] (--zookeeper=ADDR|--etcd=ADDR)
-	codis-dashboard version
+	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] (--zookeeper=ADDR|--etcd=ADDR) [--host-admin=ADDR]
+	codis-dashboard  --version
 
 Options:
 	--ncpu=N                    set runtime.GOMAXPROCS to N, default is runtime.NumCPU().
 	-c CONF, --config=CONF      specify the config file.
 	-l FILE, --log=FILE         specify the daliy rotated log file.
 	--log-level=LEVEL           specify the log-level, can be INFO,WARN,DEBUG,ERROR, default is INFO.
+	--host-admin=ADDR           host binding address of admin listener
 `
 
 	d, err := docopt.Parse(usage, nil, true, "", false)
@@ -49,13 +41,13 @@ Options:
 		log.PanicError(err, "parse arguments failed")
 	}
 
-	if v, ok := d["version"].(bool); ok && v {
+	if d["--version"].(bool) {
 		fmt.Println("version:", utils.Version)
 		fmt.Println("compile:", utils.Compile)
 		return
 	}
 
-	if s, ok := d["--log"].(string); ok && s != "" {
+	if s, ok := utils.Argument(d, "--log"); ok {
 		w, err := log.NewRollingFile(s, log.DailyRolling)
 		if err != nil {
 			log.PanicErrorf(err, "open log file %s failed", s)
@@ -65,20 +57,7 @@ Options:
 	}
 	log.SetLevel(log.LEVEL_INFO)
 
-	fmt.Println(banner)
-
-	ncpu := runtime.NumCPU()
-	if s, ok := d["--ncpu"].(string); ok && s != "" {
-		n, err := strconv.Atoi(s)
-		if err != nil {
-			log.PanicErrorf(err, "parse --ncpu failed, invalid ncpu = '%s'", s)
-		}
-		ncpu = n
-	}
-	runtime.GOMAXPROCS(ncpu)
-	log.Infof("set ncpu = %d", ncpu)
-
-	if s, ok := d["--log-level"].(string); ok && s != "" {
+	if s, ok := utils.Argument(d, "--log-level"); ok {
 		var level = strings.ToUpper(s)
 		switch s {
 		case "ERROR":
@@ -90,40 +69,50 @@ Options:
 		case "INFO":
 			log.SetLevel(log.LEVEL_INFO)
 		default:
-			log.Panicf("parse --log-level failed, invalid level = '%s'", level)
+			log.Panicf("invalid option --log-level = '%s'", level)
 		}
 	}
+
+	if n, ok := utils.ArgumentInteger(d, "--ncpu"); ok {
+		runtime.GOMAXPROCS(n)
+	} else {
+		runtime.GOMAXPROCS(runtime.NumCPU())
+	}
+	log.Infof("set ncpu = %d", runtime.GOMAXPROCS(0))
 
 	config := topom.NewDefaultConfig()
-	if s, ok := d["--config"].(string); ok && s != "" {
+	if s, ok := utils.Argument(d, "--config"); ok {
 		if err := config.LoadFromFile(s); err != nil {
-			log.PanicErrorf(err, "load config failed, file = '%s'", s)
+			log.PanicErrorf(err, "load config %s failed", s)
 		}
 	}
-
-	if !utils.IsValidName(config.ProductName) {
-		log.Panicf("invalid product name")
+	if s, ok := utils.Argument(d, "--host-admin"); ok {
+		config.HostAdmin = s
+		log.Infof("option --host-admin = %s", s)
 	}
 
 	var client models.Client
 
 	switch {
 	case d["--zookeeper"] != nil:
-		client, err = zkclient.New(d["--zookeeper"].(string), time.Minute)
+		addr := utils.ArgumentMust(d, "--zookeeper")
+		client, err = zkclient.New(addr, time.Minute)
 		if err != nil {
-			log.PanicErrorf(err, "create zk client failed")
+			log.PanicErrorf(err, "create zk client to %s failed", addr)
 		}
-	case d["--etcd"] != nil:
-		client, err = etcdclient.New(d["--etcd"].(string), time.Minute)
-		if err != nil {
-			log.PanicErrorf(err, "create etcd client failed")
-		}
-	}
+		defer client.Close()
 
-	if client == nil {
+	case d["--etcd"] != nil:
+		addr := utils.ArgumentMust(d, "--etcd")
+		client, err = etcdclient.New(addr, time.Minute)
+		if err != nil {
+			log.PanicErrorf(err, "create etcd client to %s failed", addr)
+		}
+		defer client.Close()
+
+	default:
 		log.Panicf("nil client for topom")
 	}
-	defer client.Close()
 
 	s, err := topom.New(client, config)
 	if err != nil {

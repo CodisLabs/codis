@@ -16,6 +16,9 @@ type Config struct {
 	ProxyAddr string `toml:"proxy_addr" json:"proxy_addr"`
 	AdminAddr string `toml:"admin_addr" json:"admin_addr"`
 
+	HostProxy string `toml:"-" json:"-"`
+	HostAdmin string `toml:"-" json:"-"`
+
 	JodisAddr    string `toml:"jodis_addr" json:"jodis_addr"`
 	JodisTimeout int    `toml:"jodis_timeout" json:"jodis_timeout"`
 

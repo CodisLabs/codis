@@ -21,12 +21,14 @@ type cmdProxy struct {
 }
 
 func (t *cmdProxy) Main(d map[string]interface{}) {
-	t.address = d["--proxy-admin"].(string)
-	if s, ok := d["--product-name"].(string); ok {
-		t.product.name = s
-	}
-	if s, ok := d["--product-auth"].(string); ok {
-		t.product.auth = s
+	t.address = utils.ArgumentMust(d, "--proxy-admin")
+	t.product.name, _ = utils.Argument(d, "--product-name")
+	t.product.auth, _ = utils.Argument(d, "--product-auth")
+
+	if t.product.name != "" {
+		if !utils.IsValidProduct(t.product.name) {
+			log.Panicf("invalid product name = %s", t.product.name)
+		}
 	}
 
 	var cmd string
@@ -40,12 +42,6 @@ func (t *cmdProxy) Main(d map[string]interface{}) {
 	log.Debugf("args.address = %s", t.address)
 	log.Debugf("args.product.name = %s", t.product.name)
 	log.Debugf("args.product.auth = %s", t.product.auth)
-
-	if t.product.name != "" {
-		if !utils.IsValidName(t.product.name) {
-			log.Panicf("invalid product name = %s", t.product.name)
-		}
-	}
 
 	switch cmd {
 	default:
@@ -91,6 +87,10 @@ func (t *cmdProxy) handleOverview(cmd string) {
 }
 
 func (t *cmdProxy) handleShutdown() {
+	if t.product.name == "" {
+		log.Panicf("invalid product name")
+	}
+
 	client := proxy.NewApiClient(t.address)
 
 	log.Debugf("call rpc model to proxy %s", t.address)

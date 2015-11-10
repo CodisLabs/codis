@@ -45,7 +45,7 @@ type Proxy struct {
 var ErrClosedProxy = errors.New("use of closed proxy")
 
 func New(config *Config) (*Proxy, error) {
-	if !utils.IsValidName(config.ProductName) {
+	if !utils.IsValidProduct(config.ProductName) {
 		return nil, errors.Errorf("invalid product name = %s", config.ProductName)
 	}
 	s := &Proxy{config: config}

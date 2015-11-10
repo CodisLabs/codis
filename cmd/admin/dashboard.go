@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"strconv"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
@@ -26,13 +25,9 @@ type cmdDashboard struct {
 
 func (t *cmdDashboard) Main(d map[string]interface{}) {
 	if d["--dashboard"] != nil {
-		t.address = d["--dashboard"].(string)
-		if s, ok := d["--product-name"].(string); ok {
-			t.product.name = s
-		}
-		if s, ok := d["--product-auth"].(string); ok {
-			t.product.auth = s
-		}
+		t.address = utils.ArgumentMust(d, "--proxy-admin")
+		t.product.name, _ = utils.Argument(d, "--product-name")
+		t.product.auth, _ = utils.Argument(d, "--product-auth")
 	} else {
 		config := topom.NewDefaultConfig()
 		if err := config.LoadFromFile(d["--config"].(string)); err != nil {
@@ -56,6 +51,12 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 		t.product.auth = config.ProductAuth
 	}
 
+	if t.product.name != "" {
+		if !utils.IsValidProduct(t.product.name) {
+			log.Panicf("invalid product name = %s", t.product.name)
+		}
+	}
+
 	var cmd string
 	for _, s := range []string{"overview", "config", "model", "slots", "stats", "shutdown", "proxy", "group", "action"} {
 		if d[s].(bool) {
@@ -67,12 +68,6 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 	log.Debugf("args.address = %s", t.address)
 	log.Debugf("args.product.name = %s", t.product.name)
 	log.Debugf("args.product.auth = %s", t.product.auth)
-
-	if t.product.name != "" {
-		if !utils.IsValidName(t.product.name) {
-			log.Panicf("invalid product name = %s", t.product.name)
-		}
-	}
 
 	switch cmd {
 	default:
@@ -204,6 +199,10 @@ func (t *cmdDashboard) handleOverview(cmd string, d map[string]interface{}) {
 }
 
 func (t *cmdDashboard) handleShutdown(d map[string]interface{}) {
+	if t.product.name == "" {
+		log.Panicf("invalid product name")
+	}
+
 	client, _ := t.newTopomClient(true)
 
 	log.Debugf("call rpc shutdown to dashboard %s", t.address)
@@ -213,35 +212,13 @@ func (t *cmdDashboard) handleShutdown(d map[string]interface{}) {
 	log.Debugf("call rpc shutdown OK")
 }
 
-func (t *cmdDashboard) parseInteger(d map[string]interface{}, name string) int {
-	if s, ok := d[name].(string); ok && s != "" {
-		v, err := strconv.Atoi(s)
-		if err != nil {
-			log.PanicErrorf(err, "parse argument %s failed", name)
-		}
-		log.Debugf("parse %s = %d", name, v)
-		return v
-	}
-	log.Panicf("parse argument %s failed, not found or blank string", name)
-	return 0
-}
-
-func (t *cmdDashboard) parseString(d map[string]interface{}, name string) string {
-	if s, ok := d[name].(string); ok && s != "" {
-		log.Debugf("parse %s = %s", name, s)
-		return s
-	}
-	log.Panicf("parse argument %s failed, not found or blank string", name)
-	return ""
-}
-
 func (t *cmdDashboard) parseProxyToken(client *topom.ApiClient, d map[string]interface{}) string {
 	switch {
 	case d["--token"] != nil:
-		return t.parseString(d, "--token")
+		return utils.ArgumentMust(d, "--token")
 
 	case d["--addr"] != nil:
-		addr := t.parseString(d, "--addr")
+		addr := utils.ArgumentMust(d, "--addr")
 		_, p := t.newProxyClient(addr, true)
 		return p.Token
 
@@ -253,7 +230,7 @@ func (t *cmdDashboard) parseProxyToken(client *topom.ApiClient, d map[string]int
 		}
 		log.Debugf("call rpc stats OK")
 
-		id := t.parseInteger(d, "--proxy-id")
+		id := utils.ArgumentIntegerMust(d, "--proxy-id")
 		for _, p := range stats.Proxy.Models {
 			if p.Id == id {
 				return p.Token
@@ -268,14 +245,14 @@ func (t *cmdDashboard) parseProxyToken(client *topom.ApiClient, d map[string]int
 }
 
 func (t *cmdDashboard) parseGroupServer(client *topom.ApiClient, d map[string]interface{}) (int, string) {
-	groupId := t.parseInteger(d, "--group-id")
+	groupId := utils.ArgumentIntegerMust(d, "--group-id")
 
 	switch {
 	case d["--addr"] != nil:
-		return groupId, t.parseString(d, "--addr")
+		return groupId, utils.ArgumentMust(d, "--addr")
 
 	case d["--index"] != nil:
-		index := t.parseInteger(d, "--index")
+		index := utils.ArgumentIntegerMust(d, "--index")
 
 		log.Debugf("call rpc stats to dashboard %s", t.address)
 		stats, err := client.Stats()
@@ -308,7 +285,7 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 	case d["--create"].(bool):
 		client, _ := t.newTopomClient(true)
 
-		addr := t.parseString(d, "--addr")
+		addr := utils.ArgumentMust(d, "--addr")
 		_, p := t.newProxyClient(addr, true)
 		log.Debugf("create proxy with token = %s, addr = %s", p.Token, addr)
 
@@ -379,7 +356,7 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 	case d["--create"].(bool):
 		client, _ := t.newTopomClient(true)
 
-		groupId := t.parseInteger(d, "--group-id")
+		groupId := utils.ArgumentIntegerMust(d, "--group-id")
 		log.Debugf("create group-[%d]", groupId)
 
 		log.Debugf("call rpc create-group to dashboard %s", t.address)
@@ -391,7 +368,7 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 	case d["--remove"].(bool):
 		client, _ := t.newTopomClient(true)
 
-		groupId := t.parseInteger(d, "--group-id")
+		groupId := utils.ArgumentIntegerMust(d, "--group-id")
 		log.Debugf("remove group-[%d]", groupId)
 
 		log.Debugf("call rpc remove-group to dashboard %s", t.address)
@@ -403,7 +380,7 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 	case d["--add"].(bool):
 		client, _ := t.newTopomClient(true)
 
-		groupId, addr := t.parseInteger(d, "--group-id"), t.parseString(d, "--addr")
+		groupId, addr := utils.ArgumentIntegerMust(d, "--group-id"), utils.ArgumentMust(d, "--addr")
 		log.Debugf("group-[%d] add server = %s", groupId, addr)
 
 		log.Debugf("call rpc check-server to dashboard %s", t.address)
@@ -451,7 +428,7 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 	case d["--promote-commit"].(bool):
 		client, _ := t.newTopomClient(true)
 
-		groupId := t.parseInteger(d, "--group-id")
+		groupId := utils.ArgumentIntegerMust(d, "--group-id")
 		log.Debugf("group-[%d] promote-commit", groupId)
 
 		log.Debugf("call rpc group promote-commit to dashboard %s", t.address)
@@ -532,7 +509,7 @@ func (t *cmdDashboard) handleActionCommand(d map[string]interface{}) {
 	case d["--create"].(bool):
 		client, _ := t.newTopomClient(true)
 
-		slotId, groupId := t.parseInteger(d, "--slot-id"), t.parseInteger(d, "--group-id")
+		slotId, groupId := utils.ArgumentIntegerMust(d, "--slot-id"), utils.ArgumentIntegerMust(d, "--group-id")
 		log.Debugf("create action slot-[%d] to group-[%d]", slotId, groupId)
 
 		log.Debugf("call rpc create-action to dashboard %s", t.address)
@@ -544,7 +521,7 @@ func (t *cmdDashboard) handleActionCommand(d map[string]interface{}) {
 	case d["--remove"].(bool):
 		client, _ := t.newTopomClient(true)
 
-		slotId := t.parseInteger(d, "--slot-id")
+		slotId := utils.ArgumentIntegerMust(d, "--slot-id")
 		log.Debugf("remove action slot-[%d]", slotId)
 
 		log.Debugf("call rpc remove-action to dashboard %s", t.address)
@@ -556,9 +533,9 @@ func (t *cmdDashboard) handleActionCommand(d map[string]interface{}) {
 	case d["--create-range"].(bool):
 		client, _ := t.newTopomClient(true)
 
-		groupId := t.parseInteger(d, "--group-id")
-		slotBeg := t.parseInteger(d, "--slot-beg")
-		slotEnd := t.parseInteger(d, "--slot-end")
+		groupId := utils.ArgumentIntegerMust(d, "--group-id")
+		slotBeg := utils.ArgumentIntegerMust(d, "--slot-beg")
+		slotEnd := utils.ArgumentIntegerMust(d, "--slot-end")
 		log.Debugf("create action range slot-[%d - %d] to group-[%d]", slotBeg, slotEnd, groupId)
 
 		log.Debugf("call rpc create-action-range to dashboard %s", t.address)
@@ -572,7 +549,7 @@ func (t *cmdDashboard) handleActionCommand(d map[string]interface{}) {
 
 		switch {
 		case d["--interval"] != nil:
-			interval := t.parseInteger(d, "--interval")
+			interval := utils.ArgumentIntegerMust(d, "--interval")
 			log.Debugf("call rpc set action-interval to dashboard %s", t.address)
 			if err := client.SetActionInterval(interval); err != nil {
 				log.PanicErrorf(err, "call rpc set action-interval to dashboard %s failed", t.address)
@@ -580,7 +557,7 @@ func (t *cmdDashboard) handleActionCommand(d map[string]interface{}) {
 			log.Debugf("call rpc set action-interval OK")
 
 		case d["--disabled"] != nil:
-			disabled := t.parseInteger(d, "--disabled") != 0
+			disabled := utils.ArgumentIntegerMust(d, "--disabled") != 0
 			log.Debugf("call rpc set action-disabled to dashboard %s", t.address)
 			if err := client.SetActionDisabled(disabled); err != nil {
 				log.PanicErrorf(err, "call rpc set action-disabled to dashboard %s failed", t.address)

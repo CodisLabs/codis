@@ -21,19 +21,11 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-const banner = `
-  _____  ____    ____/ /  (_)  _____
- / ___/ / __ \  / __  /  / /  / ___/
-/ /__  / /_/ / / /_/ /  / /  (__  )
-\___/  \____/  \__,_/  /_/  /____/
-
-`
-
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--ulimit=NLIMIT]
-	codis-proxy version
+	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--ulimit=NLIMIT] [--host-admin=ADDR] [--host-proxy=ADDR]
+	codis-proxy  --version
 
 Options:
 	--ncpu=N                    set runtime.GOMAXPROCS to N, default is runtime.NumCPU().
@@ -41,6 +33,8 @@ Options:
 	-l FILE, --log=FILE         specify the daliy rotated log file.
 	--log-level=LEVEL           specify the log-level, can be INFO,WARN,DEBUG,ERROR, default is INFO.
 	--ulimit=NLIMIT             run 'ulimit -n' to check the maximum number of open file descriptors.
+	--host-admin=ADDR           host binding address of admin listener
+	--host-proxy=ADDR           host binding address of proxy listener
 `
 
 	d, err := docopt.Parse(usage, nil, true, "", false)
@@ -48,27 +42,13 @@ Options:
 		log.PanicError(err, "parse arguments failed")
 	}
 
-	if v, ok := d["version"].(bool); ok && v {
+	if d["--version"].(bool) {
 		fmt.Println("version:", utils.Version)
 		fmt.Println("compile:", utils.Compile)
 		return
 	}
 
-	if s, ok := d["--ulimit"].(string); ok && s != "" {
-		n, err := strconv.Atoi(s)
-		if err != nil {
-			log.PanicErrorf(err, "parse argument of ulimit failed")
-		}
-		b, err := exec.Command("/bin/sh", "-c", "ulimit -n").Output()
-		if err != nil {
-			log.PanicErrorf(err, "run ulimit -n failed")
-		}
-		if v, err := strconv.Atoi(strings.TrimSpace(string(b))); err != nil || v < n {
-			log.PanicErrorf(err, "ulimit too small: %d, should be at least %d", v, n)
-		}
-	}
-
-	if s, ok := d["--log"].(string); ok && s != "" {
+	if s, ok := utils.Argument(d, "--log"); ok {
 		w, err := log.NewRollingFile(s, log.DailyRolling)
 		if err != nil {
 			log.PanicErrorf(err, "open log file %s failed", s)
@@ -78,20 +58,7 @@ Options:
 	}
 	log.SetLevel(log.LEVEL_INFO)
 
-	fmt.Println(banner)
-
-	ncpu := runtime.NumCPU()
-	if s, ok := d["--ncpu"].(string); ok && s != "" {
-		n, err := strconv.Atoi(s)
-		if err != nil {
-			log.PanicErrorf(err, "parse --ncpu failed, invalid ncpu = '%s'", s)
-		}
-		ncpu = n
-	}
-	runtime.GOMAXPROCS(ncpu)
-	log.Infof("set ncpu = %d", ncpu)
-
-	if s, ok := d["--log-level"].(string); ok && s != "" {
+	if s, ok := utils.Argument(d, "--log-level"); ok {
 		var level = strings.ToUpper(s)
 		switch s {
 		case "ERROR":
@@ -103,15 +70,40 @@ Options:
 		case "INFO":
 			log.SetLevel(log.LEVEL_INFO)
 		default:
-			log.Panicf("parse --log-level failed, invalid level = '%s'", level)
+			log.Panicf("invalid option --log-level = '%s'", level)
 		}
 	}
 
-	config := proxy.NewDefaultConfig()
-	if s, ok := d["--config"].(string); ok && s != "" {
-		if err := config.LoadFromFile(s); err != nil {
-			log.PanicErrorf(err, "load config failed, file = '%s'", s)
+	if n, ok := utils.ArgumentInteger(d, "--ulimit"); ok {
+		b, err := exec.Command("/bin/sh", "-c", "ulimit -n").Output()
+		if err != nil {
+			log.PanicErrorf(err, "run ulimit -n failed")
 		}
+		if v, err := strconv.Atoi(strings.TrimSpace(string(b))); err != nil || v < n {
+			log.PanicErrorf(err, "ulimit too small: %d, should be at least %d", v, n)
+		}
+	}
+
+	if n, ok := utils.ArgumentInteger(d, "--ncpu"); ok {
+		runtime.GOMAXPROCS(n)
+	} else {
+		runtime.GOMAXPROCS(runtime.NumCPU())
+	}
+	log.Infof("set ncpu = %d", runtime.GOMAXPROCS(0))
+
+	config := proxy.NewDefaultConfig()
+	if s, ok := utils.Argument(d, "--config"); ok {
+		if err := config.LoadFromFile(s); err != nil {
+			log.PanicErrorf(err, "load config %s failed", s)
+		}
+	}
+	if s, ok := utils.Argument(d, "--host-admin"); ok {
+		config.HostAdmin = s
+		log.Infof("option --host-admin = %s", s)
+	}
+	if s, ok := utils.Argument(d, "--host-proxy"); ok {
+		config.HostProxy = s
+		log.Infof("option --host-proxy = %s", s)
 	}
 
 	s, err := proxy.New(config)

@@ -14,6 +14,8 @@ import (
 type Config struct {
 	AdminAddr string `toml:"admin_addr" json:"admin_addr"`
 
+	HostAdmin string `toml:"-" json:"-"`
+
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
 }

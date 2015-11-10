@@ -25,17 +25,15 @@ type cmdSuperAdmin struct {
 }
 
 func (t *cmdSuperAdmin) Main(d map[string]interface{}) {
-	if s, ok := d["--product-name"].(string); ok {
-		t.product.name = s
-	}
+	t.product.name, _ = utils.Argument(d, "--product-name")
 
 	switch {
 	case d["--config-convert"].(bool):
 		t.handleConfigConvert(d)
 
 	default:
-		if !utils.IsValidName(t.product.name) {
-			log.Panicf("invalid product name")
+		if !utils.IsValidProduct(t.product.name) {
+			log.Panicf("invalid product name = %s", t.product.name)
 		}
 		log.Debugf("args.product.name = %s", t.product.name)
 
@@ -50,34 +48,28 @@ func (t *cmdSuperAdmin) Main(d map[string]interface{}) {
 	}
 }
 
-func (t *cmdSuperAdmin) parseString(d map[string]interface{}, name string) string {
-	if s, ok := d[name].(string); ok && s != "" {
-		log.Debugf("parse %s = %s", name, s)
-		return s
-	}
-	log.Panicf("parse argument %s failed, not found or blank string", name)
-	return ""
-}
-
 func (t *cmdSuperAdmin) newTopomClient(d map[string]interface{}) models.Client {
 	switch {
 	case d["--zookeeper"] != nil:
-		addr := t.parseString(d, "--zookeeper")
+		addr := utils.ArgumentMust(d, "--zookeeper")
 		c, err := zkclient.New(addr, time.Minute)
 		if err != nil {
-			log.PanicErrorf(err, "create zkstore failed")
+			log.PanicErrorf(err, "create zk client to %s failed", addr)
 		}
 		return c
+
 	case d["--etcd"] != nil:
-		addr := t.parseString(d, "--etcd")
+		addr := utils.ArgumentMust(d, "--etcd")
 		c, err := etcdclient.New(addr, time.Minute)
 		if err != nil {
-			log.PanicErrorf(err, "create etcdstore failed")
+			log.PanicErrorf(err, "create etcd client to %s failed", addr)
 		}
 		return c
+
+	default:
+		log.Panicf("nil client for topom")
+		return nil
 	}
-	log.Panicf("nil client for topom")
-	return nil
 }
 
 func (t *cmdSuperAdmin) newTopomStore(d map[string]interface{}) *models.Store {
@@ -255,7 +247,7 @@ func (t *cmdSuperAdmin) dumpConfigV2(d map[string]interface{}) {
 }
 
 func (t *cmdSuperAdmin) loadJsonConfigV1(d map[string]interface{}) map[string]interface{} {
-	b, err := ioutil.ReadFile(t.parseString(d, "--input"))
+	b, err := ioutil.ReadFile(utils.ArgumentMust(d, "--input"))
 	if err != nil {
 		log.PanicErrorf(err, "read file failed")
 	}
@@ -353,7 +345,7 @@ func (t *cmdSuperAdmin) handleConfigConvert(d map[string]interface{}) {
 }
 
 func (t *cmdSuperAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
-	b, err := ioutil.ReadFile(t.parseString(d, "--input"))
+	b, err := ioutil.ReadFile(utils.ArgumentMust(d, "--input"))
 	if err != nil {
 		log.PanicErrorf(err, "read file failed")
 	}
