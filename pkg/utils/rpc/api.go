@@ -55,7 +55,11 @@ type RemoteError struct {
 	Stack trace.Stack
 }
 
-func (e *RemoteError) ToError() error {
+func (e *RemoteError) Error() string {
+	return e.Cause
+}
+
+func (e *RemoteError) TracedError() error {
 	if e == nil {
 		return nil
 	}
@@ -65,9 +69,12 @@ func (e *RemoteError) ToError() error {
 	}
 }
 
-func ToRemoteError(err error) *RemoteError {
+func NewRemoteError(err error) *RemoteError {
 	if err == nil {
 		return nil
+	}
+	if v, ok := err.(*RemoteError); ok {
+		return v
 	}
 	return &RemoteError{
 		Cause: err.Error(),
@@ -95,7 +102,7 @@ func responseBodyAsError(rsp *http.Response) (error, error) {
 	if err := json.Unmarshal(b, e); err != nil {
 		return nil, errors.Trace(err)
 	}
-	return e.ToError(), nil
+	return e.TracedError(), nil
 }
 
 func apiMarshalJson(v interface{}) ([]byte, error) {
@@ -171,7 +178,7 @@ func ApiResponseError(err error) (int, string) {
 	if err == nil {
 		return 1500, ""
 	}
-	b, err := apiMarshalJson(ToRemoteError(err))
+	b, err := apiMarshalJson(NewRemoteError(err))
 	if err != nil {
 		return 1500, ""
 	} else {

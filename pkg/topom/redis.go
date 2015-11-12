@@ -81,7 +81,7 @@ func (c *RedisClient) SlotsInfo() (map[int]int, error) {
 	}
 }
 
-func (c *RedisClient) GetInfo() (map[string]string, error) {
+func (c *RedisClient) InfoMap() (map[string]string, error) {
 	var info map[string]string
 	if reply, err := c.command("INFO"); err != nil {
 		return nil, err

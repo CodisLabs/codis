@@ -62,7 +62,6 @@ type Topom struct {
 			remain atomic2.Int64
 			failed atomic2.Bool
 		}
-
 		notify chan bool
 	}
 }
@@ -328,7 +327,7 @@ func (s *Topom) StartDaemonRoutines() {
 	s.start.Do(func() {
 		go func() {
 			for !s.IsClosed() {
-				if wg := s.RefreshRedisStats(time.Second); wg != nil {
+				if wg := s.RefreshRedisStats(time.Second * 5); wg != nil {
 					wg.Wait()
 				}
 				time.Sleep(time.Second)
@@ -337,7 +336,7 @@ func (s *Topom) StartDaemonRoutines() {
 
 		go func() {
 			for !s.IsClosed() {
-				if wg := s.RefreshProxyStats(time.Second); wg != nil {
+				if wg := s.RefreshProxyStats(time.Second * 5); wg != nil {
 					wg.Wait()
 				}
 				time.Sleep(time.Second)
@@ -360,12 +359,9 @@ func (s *Topom) StartDaemonRoutines() {
 					case <-s.action.notify:
 					}
 				} else if err := s.ProcessAction(slotId); err != nil {
-					s.action.progress.failed.Set(true)
 					log.WarnErrorf(err, "[%p] action on slot-[%d] failed", s, slotId)
 					time.Sleep(time.Second * 3)
 				} else {
-					s.action.progress.remain.Set(0)
-					s.action.progress.failed.Set(false)
 					log.Infof("[%p] action on slot-[%d] completed", s, slotId)
 				}
 			}

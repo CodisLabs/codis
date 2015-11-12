@@ -4,44 +4,17 @@
 package topom
 
 import (
-	"encoding/json"
 	"sync"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/proxy"
-	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
 )
 
-var ErrStatsTimeout = errors.New("update stats timeout")
-
 type RedisStats struct {
-	Infom map[string]string
-	Error error
-}
-
-func (s *RedisStats) MarshalJSON() ([]byte, error) {
-	var v = &struct {
-		Infom map[string]string `json:"infom,omitempty"`
-		Error *rpc.RemoteError  `json:"error,omitempty"`
-	}{
-		s.Infom, rpc.ToRemoteError(s.Error),
-	}
-	return json.Marshal(v)
-}
-
-func (s *RedisStats) UnmarshalJSON(b []byte) error {
-	var v = &struct {
-		Infom map[string]string `json:"infom,omitempty"`
-		Error *rpc.RemoteError  `json:"error,omitempty"`
-	}{}
-	if err := json.Unmarshal(b, v); err != nil {
-		return err
-	} else {
-		s.Infom = v.Infom
-		s.Error = v.Error.ToError()
-		return nil
-	}
+	Infom    map[string]string `json:"infom,omitempty"`
+	UnixNano int64             `json:"unixnano"`
+	Error    *rpc.RemoteError  `json:"error,omitempty"`
 }
 
 func (s *Topom) UpdateRedisStats(addr string, stats *RedisStats) bool {
@@ -58,33 +31,37 @@ func (s *Topom) UpdateRedisStats(addr string, stats *RedisStats) bool {
 	return false
 }
 
-func (s *Topom) runRedisStats(addr string, timeout time.Duration) *RedisStats {
-	var sigch = make(chan struct{})
-	var stats = &RedisStats{}
+func (s *Topom) newRedisStats(addr string, timeout time.Duration) *RedisStats {
+	var ch = make(chan struct{})
+	stats := &RedisStats{}
 
 	go func() (err error) {
 		defer func() {
-			stats.Error = err
-			close(sigch)
+			if err != nil {
+				stats.Error = rpc.NewRemoteError(err)
+			}
+			close(ch)
 		}()
+
 		c, err := s.redisp.GetClient(addr)
 		if err != nil {
 			return err
 		}
 		defer s.redisp.PutClient(c)
-		infom, err := c.GetInfo()
+
+		m, err := c.InfoMap()
 		if err != nil {
 			return err
 		}
-		stats.Infom = infom
+		stats.Infom = m
 		return nil
 	}()
 
 	select {
-	case <-sigch:
+	case <-ch:
 		return stats
 	case <-time.After(timeout):
-		return &RedisStats{Error: ErrStatsTimeout}
+		return &RedisStats{}
 	}
 }
 
@@ -99,7 +76,8 @@ func (s *Topom) RefreshRedisStats(timeout time.Duration) *sync.WaitGroup {
 		wg.Add(1)
 		go func(addr string) {
 			defer wg.Done()
-			stats := s.runRedisStats(addr, timeout)
+			stats := s.newRedisStats(addr, timeout)
+			stats.UnixNano = time.Now().UnixNano()
 			s.UpdateRedisStats(addr, stats)
 		}(addr)
 	}
@@ -107,32 +85,9 @@ func (s *Topom) RefreshRedisStats(timeout time.Duration) *sync.WaitGroup {
 }
 
 type ProxyStats struct {
-	Stats *proxy.Stats
-	Error error
-}
-
-func (s *ProxyStats) MarshalJSON() ([]byte, error) {
-	var v = &struct {
-		Stats *proxy.Stats     `json:"stats,omitempty"`
-		Error *rpc.RemoteError `json:"error,omitempty"`
-	}{
-		s.Stats, rpc.ToRemoteError(s.Error),
-	}
-	return json.Marshal(v)
-}
-
-func (s *ProxyStats) UnmarshalJSON(b []byte) error {
-	var v = &struct {
-		Stats *proxy.Stats     `json:"stats,omitempty"`
-		Error *rpc.RemoteError `json:"error,omitempty"`
-	}{}
-	if err := json.Unmarshal(b, v); err != nil {
-		return err
-	} else {
-		s.Stats = v.Stats
-		s.Error = v.Error.ToError()
-		return nil
-	}
+	Stats    *proxy.Stats     `json:"stats,omitempty"`
+	UnixNano int64            `json:"unixnano"`
+	Error    *rpc.RemoteError `json:"error,omitempty"`
 }
 
 func (s *Topom) UpdateProxyStats(token string, stats *ProxyStats) bool {
@@ -149,15 +104,18 @@ func (s *Topom) UpdateProxyStats(token string, stats *ProxyStats) bool {
 	return false
 }
 
-func (s *Topom) runProxyStats(c *proxy.ApiClient, timeout time.Duration) *ProxyStats {
-	var sigch = make(chan struct{})
-	var stats = &ProxyStats{}
+func (s *Topom) newProxyStats(c *proxy.ApiClient, timeout time.Duration) *ProxyStats {
+	var ch = make(chan struct{})
+	stats := &ProxyStats{}
 
 	go func() (err error) {
 		defer func() {
-			stats.Error = err
-			close(sigch)
+			if err != nil {
+				stats.Error = rpc.NewRemoteError(err)
+			}
+			close(ch)
 		}()
+
 		x, err := c.Stats()
 		if err != nil {
 			return err
@@ -167,10 +125,10 @@ func (s *Topom) runProxyStats(c *proxy.ApiClient, timeout time.Duration) *ProxyS
 	}()
 
 	select {
-	case <-sigch:
+	case <-ch:
 		return stats
 	case <-time.After(timeout):
-		return &ProxyStats{Error: ErrStatsTimeout}
+		return &ProxyStats{}
 	}
 }
 
@@ -185,7 +143,8 @@ func (s *Topom) RefreshProxyStats(timeout time.Duration) *sync.WaitGroup {
 		wg.Add(1)
 		go func(token string, c *proxy.ApiClient) {
 			defer wg.Done()
-			stats := s.runProxyStats(c, timeout)
+			stats := s.newProxyStats(c, timeout)
+			stats.UnixNano = time.Now().UnixNano()
 			s.UpdateProxyStats(token, stats)
 		}(token, c)
 	}

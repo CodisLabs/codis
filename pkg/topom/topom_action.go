@@ -12,7 +12,15 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-func (s *Topom) ProcessAction(slotId int) error {
+func (s *Topom) ProcessAction(slotId int) (err error) {
+	defer func() {
+		if err != nil {
+			s.action.progress.failed.Set(true)
+		} else {
+			s.action.progress.remain.Set(0)
+			s.action.progress.failed.Set(false)
+		}
+	}()
 	if err := s.PrepareAction(slotId); err != nil {
 		return err
 	}
