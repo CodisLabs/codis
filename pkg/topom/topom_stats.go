@@ -13,7 +13,7 @@ import (
 
 type RedisStats struct {
 	Infom    map[string]string `json:"infom,omitempty"`
-	UnixNano int64             `json:"unixnano"`
+	UnixTime int64             `json:"unixtime"`
 	Error    *rpc.RemoteError  `json:"error,omitempty"`
 }
 
@@ -77,7 +77,7 @@ func (s *Topom) RefreshRedisStats(timeout time.Duration) *sync.WaitGroup {
 		go func(addr string) {
 			defer wg.Done()
 			stats := s.newRedisStats(addr, timeout)
-			stats.UnixNano = time.Now().UnixNano()
+			stats.UnixTime = time.Now().Unix()
 			s.UpdateRedisStats(addr, stats)
 		}(addr)
 	}
@@ -86,7 +86,7 @@ func (s *Topom) RefreshRedisStats(timeout time.Duration) *sync.WaitGroup {
 
 type ProxyStats struct {
 	Stats    *proxy.Stats     `json:"stats,omitempty"`
-	UnixNano int64            `json:"unixnano"`
+	UnixTime int64            `json:"unixtime"`
 	Error    *rpc.RemoteError `json:"error,omitempty"`
 }
 
@@ -144,7 +144,7 @@ func (s *Topom) RefreshProxyStats(timeout time.Duration) *sync.WaitGroup {
 		go func(token string, c *proxy.ApiClient) {
 			defer wg.Done()
 			stats := s.newProxyStats(c, timeout)
-			stats.UnixNano = time.Now().UnixNano()
+			stats.UnixTime = time.Now().Unix()
 			s.UpdateProxyStats(token, stats)
 		}(token, c)
 	}

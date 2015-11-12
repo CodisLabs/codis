@@ -60,9 +60,6 @@ func (e *RemoteError) Error() string {
 }
 
 func (e *RemoteError) TracedError() error {
-	if e == nil {
-		return nil
-	}
 	return &errors.TracedError{
 		Cause: errors.New("[Remote Error] " + e.Cause),
 		Stack: e.Stack,
