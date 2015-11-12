@@ -5,6 +5,8 @@ go:
     - 1.5.1
     - tip
 
-script: 
+install:
     - make
+
+script:
     - make gotest
