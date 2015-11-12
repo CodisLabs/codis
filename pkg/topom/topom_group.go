@@ -148,13 +148,12 @@ func (s *Topom) GroupAddServer(groupId int, addr string) error {
 		return errors.Errorf("server %s already exists", addr)
 	}
 
-	if s.isGroupPromoting(groupId) {
-		return errors.Errorf("group-[%d] is promoting", groupId)
-	}
-
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
+	}
+	if s.isGroupPromoting(groupId) {
+		return errors.Errorf("group-[%d] is promoting", groupId)
 	}
 
 	n := &models.Group{
@@ -189,13 +188,12 @@ func (s *Topom) GroupDelServer(groupId int, addr string) error {
 		return errors.Errorf("server %s doesn't exist", addr)
 	}
 
-	if s.isGroupPromoting(groupId) {
-		return errors.Errorf("group-[%d] is promoting", groupId)
-	}
-
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
+	}
+	if s.isGroupPromoting(groupId) {
+		return errors.Errorf("group-[%d] is promoting", groupId)
 	}
 
 	servers := []string{}
@@ -244,16 +242,15 @@ func (s *Topom) GroupPromoteServer(groupId int, addr string) error {
 		return errors.Errorf("invalid server address")
 	}
 
-	if s.isGroupMasterLocked(groupId) {
-		return errors.Errorf("master of group-[%d] is locked", groupId)
+	g, err := s.getGroup(groupId)
+	if err != nil {
+		return err
 	}
 	if s.isGroupPromoting(groupId) {
 		return errors.Errorf("group-[%d] is promoting", groupId)
 	}
-
-	g, err := s.getGroup(groupId)
-	if err != nil {
-		return err
+	if s.isGroupMasterLocked(groupId) {
+		return errors.Errorf("master of group-[%d] is locked", groupId)
 	}
 
 	servers := []string{}
@@ -344,6 +341,9 @@ func (s *Topom) GroupRepairMaster(groupId int, addr string) error {
 	g, err := s.getGroup(groupId)
 	if err != nil {
 		return err
+	}
+	if s.isGroupPromoting(groupId) {
+		return errors.Errorf("group-[%d] is promoting", groupId)
 	}
 
 	var index = -1
