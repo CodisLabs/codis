@@ -1,29 +1,10 @@
 #!/bin/bash
 
-etchhome=
+which etcd >/dev/null
 
-if [ "x$etcdhome" == "x" ]; then
-    for i in $(echo $GOPATH | tr ":" "\n"); do
-        if [ "x$i" != "x" ]; then
-            etcdhome=`find $i -name "etcd" -type d -print -quit`
-        fi
-        if [ "x$etcdhome" != "x" ]; then
-            break
-        fi
-    done
-fi
-
-if [ "x$etcdhome" == "x" ]; then
-    echo "cann't find cores/etcd"
+if [ $? -ne 0 ]; then
+    echo "missing etcd"
     exit 1
-fi
-
-etcdbin=$etcdhome/bin/etcd
-
-if [ ! -x $etcdbin ]; then
-    pushd $etcdhome
-    ./build
-    popd
 fi
 
 echo "this is gonna take a while"
@@ -44,9 +25,7 @@ cat ../config/dashboard.toml \
     | sed -e "s/Demo2/codis-test/g" \
     > dashboard.toml || exit $?
 
-echo "etcdbin = $etcdbin"
-
-nohup $etcdbin --name=codis-test &>etcd.log &
+nohup etcd --name=codis-test &>etcd.log &
 
 lastpid=$!
 echo "starting etcd pid=$lastpid ..."
