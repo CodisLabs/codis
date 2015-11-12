@@ -69,6 +69,6 @@ Options:
 	case d["--dashboard"] != nil || d["--config"] != nil:
 		new(cmdDashboard).Main(d)
 	default:
-		new(cmdSuperAdmin).Main(d)
+		new(cmdAdmin).Main(d)
 	}
 }

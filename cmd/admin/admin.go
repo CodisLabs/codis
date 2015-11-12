@@ -18,13 +18,13 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-type cmdSuperAdmin struct {
+type cmdAdmin struct {
 	product struct {
 		name string
 	}
 }
 
-func (t *cmdSuperAdmin) Main(d map[string]interface{}) {
+func (t *cmdAdmin) Main(d map[string]interface{}) {
 	t.product.name, _ = utils.Argument(d, "--product-name")
 
 	switch {
@@ -48,7 +48,7 @@ func (t *cmdSuperAdmin) Main(d map[string]interface{}) {
 	}
 }
 
-func (t *cmdSuperAdmin) newTopomClient(d map[string]interface{}) models.Client {
+func (t *cmdAdmin) newTopomClient(d map[string]interface{}) models.Client {
 	switch {
 	case d["--zookeeper"] != nil:
 		addr := utils.ArgumentMust(d, "--zookeeper")
@@ -72,12 +72,12 @@ func (t *cmdSuperAdmin) newTopomClient(d map[string]interface{}) models.Client {
 	}
 }
 
-func (t *cmdSuperAdmin) newTopomStore(d map[string]interface{}) *models.Store {
+func (t *cmdAdmin) newTopomStore(d map[string]interface{}) *models.Store {
 	client := t.newTopomClient(d)
 	return models.NewStore(client, t.product.name)
 }
 
-func (t *cmdSuperAdmin) handleRemoveLock(d map[string]interface{}) {
+func (t *cmdAdmin) handleRemoveLock(d map[string]interface{}) {
 	store := t.newTopomStore(d)
 	defer store.Close()
 
@@ -88,7 +88,7 @@ func (t *cmdSuperAdmin) handleRemoveLock(d map[string]interface{}) {
 	log.Debugf("force remove-lock OK")
 }
 
-func (t *cmdSuperAdmin) handleConfigDump(d map[string]interface{}) {
+func (t *cmdAdmin) handleConfigDump(d map[string]interface{}) {
 	switch {
 	case d["-1"].(bool):
 		t.dumpConfigV1(d)
@@ -99,7 +99,7 @@ func (t *cmdSuperAdmin) handleConfigDump(d map[string]interface{}) {
 	}
 }
 
-func (t *cmdSuperAdmin) newZooKeeperClient(d map[string]interface{}) models.Client {
+func (t *cmdAdmin) newZooKeeperClient(d map[string]interface{}) models.Client {
 	client, err := zkclient.NewWithLogfunc(d["--zookeeper"].(string), time.Second*5, func(format string, v ...interface{}) {
 		log.Debugf("zookeeper - %s", fmt.Sprintf(format, v...))
 	})
@@ -116,7 +116,7 @@ type ConfigV2 struct {
 	Topom *models.Topom         `json:"topom,omitempty"`
 }
 
-func (t *cmdSuperAdmin) loadAndDecode(client models.Client, path string, v interface{}) {
+func (t *cmdAdmin) loadAndDecode(client models.Client, path string, v interface{}) {
 	b, err := client.Read(path)
 	if err != nil {
 		log.PanicErrorf(err, "load path = %s failed", path)
@@ -127,7 +127,7 @@ func (t *cmdSuperAdmin) loadAndDecode(client models.Client, path string, v inter
 	log.Debugf("load & decode path = %s", path)
 }
 
-func (t *cmdSuperAdmin) dumpConfigV1(d map[string]interface{}) {
+func (t *cmdAdmin) dumpConfigV1(d map[string]interface{}) {
 	client := t.newTopomClient(d)
 	defer client.Close()
 
@@ -154,7 +154,7 @@ func (t *cmdSuperAdmin) dumpConfigV1(d map[string]interface{}) {
 	fmt.Println(string(b))
 }
 
-func (t *cmdSuperAdmin) dumpConfigV1Recursively(client models.Client, path string) interface{} {
+func (t *cmdAdmin) dumpConfigV1Recursively(client models.Client, path string) interface{} {
 	log.Debugf("dump path = %s", path)
 	if plist, err := client.List(path); err != nil {
 		log.PanicErrorf(err, "list path = %s failed", path)
@@ -179,7 +179,7 @@ func (t *cmdSuperAdmin) dumpConfigV1Recursively(client models.Client, path strin
 	return v
 }
 
-func (t *cmdSuperAdmin) dumpConfigV2(d map[string]interface{}) {
+func (t *cmdAdmin) dumpConfigV2(d map[string]interface{}) {
 	client := t.newTopomClient(d)
 	defer client.Close()
 
@@ -246,7 +246,7 @@ func (t *cmdSuperAdmin) dumpConfigV2(d map[string]interface{}) {
 	fmt.Println(string(b))
 }
 
-func (t *cmdSuperAdmin) loadJsonConfigV1(d map[string]interface{}) map[string]interface{} {
+func (t *cmdAdmin) loadJsonConfigV1(d map[string]interface{}) map[string]interface{} {
 	b, err := ioutil.ReadFile(utils.ArgumentMust(d, "--input"))
 	if err != nil {
 		log.PanicErrorf(err, "read file failed")
@@ -258,7 +258,7 @@ func (t *cmdSuperAdmin) loadJsonConfigV1(d map[string]interface{}) map[string]in
 	return v.(map[string]interface{})
 }
 
-func (t *cmdSuperAdmin) convertSlotsV1(smap map[int]*models.SlotMapping, v interface{}) {
+func (t *cmdAdmin) convertSlotsV1(smap map[int]*models.SlotMapping, v interface{}) {
 	m := v.(map[string]interface{})
 	slotId := int(m["id"].(float64))
 	status := m["state"].(map[string]interface{})["status"].(string)
@@ -278,7 +278,7 @@ func (t *cmdSuperAdmin) convertSlotsV1(smap map[int]*models.SlotMapping, v inter
 	}
 }
 
-func (t *cmdSuperAdmin) convertGroupV1(gmap map[int]*models.Group, v interface{}) {
+func (t *cmdAdmin) convertGroupV1(gmap map[int]*models.Group, v interface{}) {
 	m := v.(map[string]interface{})
 	addr := m["addr"].(string)
 	groupId := int(m["group_id"].(float64))
@@ -299,7 +299,7 @@ func (t *cmdSuperAdmin) convertGroupV1(gmap map[int]*models.Group, v interface{}
 	}
 }
 
-func (t *cmdSuperAdmin) handleConfigConvert(d map[string]interface{}) {
+func (t *cmdAdmin) handleConfigConvert(d map[string]interface{}) {
 	defer func() {
 		if x := recover(); x != nil {
 			log.Panicf("convert config failed: %+v", x)
@@ -344,7 +344,7 @@ func (t *cmdSuperAdmin) handleConfigConvert(d map[string]interface{}) {
 	fmt.Println(string(b))
 }
 
-func (t *cmdSuperAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
+func (t *cmdAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
 	b, err := ioutil.ReadFile(utils.ArgumentMust(d, "--input"))
 	if err != nil {
 		log.PanicErrorf(err, "read file failed")
@@ -406,7 +406,7 @@ func (t *cmdSuperAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
 	return config
 }
 
-func (t *cmdSuperAdmin) handleConfigRestore(d map[string]interface{}) {
+func (t *cmdAdmin) handleConfigRestore(d map[string]interface{}) {
 	config := t.loadJsonConfigV2(d)
 
 	store := t.newTopomStore(d)
