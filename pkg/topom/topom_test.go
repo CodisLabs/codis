@@ -36,9 +36,9 @@ func openProxy() (*proxy.Proxy, *proxy.ApiClient, string) {
 	s, err := proxy.New(config)
 	assert.MustNoError(err)
 
-	c := proxy.NewApiClient(s.GetModel().AdminAddr)
-	c.SetXAuth(config.ProductName, config.ProductAuth, s.GetToken())
-	return s, c, s.GetModel().AdminAddr
+	c := proxy.NewApiClient(s.Model().AdminAddr)
+	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
+	return s, c, s.Model().AdminAddr
 }
 
 func newProxyConfig() *proxy.Config {
@@ -92,7 +92,7 @@ func assertProxyStats(t *Topom, c *ApiClient, fails []string) {
 		}
 		assert.Must(cnt == len(fails))
 	}
-	fn(t.GetStats().Proxy.Stats)
+	fn(t.Stats().Proxy.Stats)
 	if c != nil {
 		stats, err := c.Stats()
 		assert.Must(err == nil)
@@ -123,7 +123,7 @@ func TestProxyCreate(x *testing.T) {
 
 	assert.Must(c1.Shutdown() == nil)
 
-	assertProxyStats(t, nil, []string{p1.GetToken()})
+	assertProxyStats(t, nil, []string{p1.Token()})
 }
 
 func TestProxyRemove(x *testing.T) {
@@ -136,7 +136,7 @@ func TestProxyRemove(x *testing.T) {
 	assert.Must(t.CreateProxy(addr1) == nil)
 	assert.Must(len(t.GetProxyModels()) == 1)
 
-	assert.Must(t.RemoveProxy(p1.GetToken(), false) == nil)
+	assert.Must(t.RemoveProxy(p1.Token(), false) == nil)
 	assert.Must(len(t.GetProxyModels()) == 0)
 
 	p2, c2, addr2 := openProxy()
@@ -147,8 +147,8 @@ func TestProxyRemove(x *testing.T) {
 
 	assert.Must(c2.Shutdown() == nil)
 
-	assert.Must(t.RemoveProxy(p2.GetToken(), false) != nil)
-	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
+	assert.Must(t.RemoveProxy(p2.Token(), false) != nil)
+	assert.Must(t.RemoveProxy(p2.Token(), true) == nil)
 	assert.Must(len(t.GetProxyModels()) == 0)
 }
 
@@ -299,7 +299,7 @@ func TestGroupTest2(x *testing.T) {
 		})
 
 	assert.Must(t.GroupPromoteCommit(1) != nil)
-	assert.Must(t.RemoveProxy(p1.GetToken(), true) == nil)
+	assert.Must(t.RemoveProxy(p1.Token(), true) == nil)
 	assert.Must(t.GroupPromoteCommit(1) == nil)
 	assertGroupList(t, nil,
 		&models.Group{
@@ -488,7 +488,7 @@ func TestSlotTest2(x *testing.T) {
 		})
 
 	assert.Must(t.PrepareAction(2) != nil)
-	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
+	assert.Must(t.RemoveProxy(p2.Token(), true) == nil)
 	assert.Must(t.PrepareAction(2) == nil)
 	assert.Must(t.CompleteAction(2) == nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1},
@@ -537,7 +537,7 @@ func TestSlotTest3(x *testing.T) {
 
 	assert.Must(t.SlotCreateAction(2, 2) == nil)
 	assert.Must(t.PrepareAction(2) != nil)
-	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
+	assert.Must(t.RemoveProxy(p2.Token(), true) == nil)
 	assert.Must(t.PrepareAction(2) == nil)
 	assertSlotsList(t, []*proxy.ApiClient{c1},
 		&models.Slot{
@@ -574,7 +574,7 @@ func TestSlotTest3(x *testing.T) {
 			MigrateFrom: server2,
 		})
 
-	assert.Must(t.RemoveProxy(p3.GetToken(), true) == nil)
+	assert.Must(t.RemoveProxy(p3.Token(), true) == nil)
 	assert.Must(t.PrepareAction(2) == nil)
 	assert.Must(t.CompleteAction(2) == nil)
 	assertSlotsList(t, nil,
@@ -585,8 +585,8 @@ func TestSlotTest3(x *testing.T) {
 }
 
 func newApiClient(t *Topom) *ApiClient {
-	config := t.GetConfig()
-	c := NewApiClient(t.GetModel().AdminAddr)
+	config := t.Config()
+	c := NewApiClient(t.Model().AdminAddr)
 	c.SetXAuth(config.ProductName, config.ProductAuth)
 	return c
 }
@@ -599,7 +599,7 @@ func TestApiModel(x *testing.T) {
 
 	p, err := c.Model()
 	assert.Must(err == nil)
-	assert.Must(p.ProductName == t.GetConfig().ProductName)
+	assert.Must(p.ProductName == t.Config().ProductName)
 }
 
 func TestApiXPing(x *testing.T) {
@@ -666,13 +666,13 @@ func TestApiStats2(x *testing.T) {
 	assertProxyStats(t, c, []string{})
 
 	assert.Must(c1.Shutdown() == nil)
-	assertProxyStats(t, c, []string{p1.GetToken()})
+	assertProxyStats(t, c, []string{p1.Token()})
 
 	assert.Must(c2.Shutdown() == nil)
-	assertProxyStats(t, c, []string{p1.GetToken(), p2.GetToken()})
+	assertProxyStats(t, c, []string{p1.Token(), p2.Token()})
 
-	assert.Must(t.RemoveProxy(p1.GetToken(), true) == nil)
-	assert.Must(t.RemoveProxy(p2.GetToken(), true) == nil)
+	assert.Must(t.RemoveProxy(p1.Token(), true) == nil)
+	assert.Must(t.RemoveProxy(p2.Token(), true) == nil)
 	assertProxyStats(t, c, []string{})
 }
 
@@ -687,16 +687,16 @@ func TestApiProxy(x *testing.T) {
 
 	assert.Must(c.CreateProxy(addr1) == nil)
 	assert.Must(c.CreateProxy(addr1) != nil)
-	assert.Must(c.RemoveProxy(p1.GetToken(), false) == nil)
+	assert.Must(c.RemoveProxy(p1.Token(), false) == nil)
 
 	p2, c2, addr2 := openProxy()
 	defer c2.Shutdown()
-	assert.Must(c.ReinitProxy(p2.GetToken()) != nil)
+	assert.Must(c.ReinitProxy(p2.Token()) != nil)
 	assert.Must(c.CreateProxy(addr2) == nil)
-	assert.Must(c.ReinitProxy(p2.GetToken()) == nil)
+	assert.Must(c.ReinitProxy(p2.Token()) == nil)
 
 	assert.Must(c2.Shutdown() == nil)
-	assert.Must(c.ReinitProxy(p2.GetToken()) != nil)
+	assert.Must(c.ReinitProxy(p2.Token()) != nil)
 }
 
 func TestApiGroup(x *testing.T) {

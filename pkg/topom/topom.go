@@ -49,7 +49,7 @@ type Topom struct {
 	clients map[string]*proxy.ApiClient
 
 	stats struct {
-		servers map[string]*ServerStats
+		servers map[string]*RedisStats
 		proxies map[string]*ProxyStats
 	}
 	start sync.Once
@@ -100,7 +100,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	s.proxies = make(map[string]*models.Proxy)
 	s.clients = make(map[string]*proxy.ApiClient)
 
-	s.stats.servers = make(map[string]*ServerStats)
+	s.stats.servers = make(map[string]*RedisStats)
 	s.stats.proxies = make(map[string]*ProxyStats)
 
 	if err := s.setup(); err != nil {
@@ -203,15 +203,15 @@ func (s *Topom) Close() error {
 	}
 }
 
-func (s *Topom) GetXAuth() string {
+func (s *Topom) XAuth() string {
 	return s.xauth
 }
 
-func (s *Topom) GetModel() *models.Topom {
+func (s *Topom) Model() *models.Topom {
 	return s.model
 }
 
-func (s *Topom) GetStats() *Stats {
+func (s *Topom) Stats() *Stats {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	stats := &Stats{}
@@ -221,7 +221,7 @@ func (s *Topom) GetStats() *Stats {
 	stats.Slots = s.getSlotMappings()
 
 	stats.Group.Models = s.getGroupModels()
-	stats.Group.Stats = make(map[string]*ServerStats)
+	stats.Group.Stats = make(map[string]*RedisStats)
 	for k, v := range s.stats.servers {
 		stats.Group.Stats[k] = v
 	}
@@ -245,8 +245,8 @@ type Stats struct {
 
 	Slots []*models.SlotMapping `json:"slots"`
 	Group struct {
-		Models []*models.Group         `json:"models"`
-		Stats  map[string]*ServerStats `json:"stats"`
+		Models []*models.Group        `json:"models"`
+		Stats  map[string]*RedisStats `json:"stats"`
 	} `json:"group"`
 	Proxy struct {
 		Models []*models.Proxy        `json:"models"`
@@ -264,7 +264,7 @@ type Stats struct {
 	} `json:"action"`
 }
 
-func (s *Topom) GetConfig() *Config {
+func (s *Topom) Config() *Config {
 	return s.config
 }
 
@@ -328,7 +328,7 @@ func (s *Topom) StartDaemonRoutines() {
 	s.start.Do(func() {
 		go func() {
 			for !s.IsClosed() {
-				if wg := s.RefreshServerStats(time.Second); wg != nil {
+				if wg := s.RefreshRedisStats(time.Second); wg != nil {
 					wg.Wait()
 				}
 				time.Sleep(time.Second)

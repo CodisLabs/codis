@@ -15,12 +15,12 @@ import (
 
 var ErrStatsTimeout = errors.New("update stats timeout")
 
-type ServerStats struct {
+type RedisStats struct {
 	Infom map[string]string
 	Error error
 }
 
-func (s *ServerStats) MarshalJSON() ([]byte, error) {
+func (s *RedisStats) MarshalJSON() ([]byte, error) {
 	var v = &struct {
 		Infom map[string]string `json:"infom,omitempty"`
 		Error *rpc.RemoteError  `json:"error,omitempty"`
@@ -30,7 +30,7 @@ func (s *ServerStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v)
 }
 
-func (s *ServerStats) UnmarshalJSON(b []byte) error {
+func (s *RedisStats) UnmarshalJSON(b []byte) error {
 	var v = &struct {
 		Infom map[string]string `json:"infom,omitempty"`
 		Error *rpc.RemoteError  `json:"error,omitempty"`
@@ -44,7 +44,7 @@ func (s *ServerStats) UnmarshalJSON(b []byte) error {
 	}
 }
 
-func (s *Topom) UpdateServerStats(addr string, stats *ServerStats) bool {
+func (s *Topom) UpdateRedisStats(addr string, stats *RedisStats) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -58,9 +58,9 @@ func (s *Topom) UpdateServerStats(addr string, stats *ServerStats) bool {
 	return false
 }
 
-func (s *Topom) runServerStats(addr string, timeout time.Duration) *ServerStats {
+func (s *Topom) runRedisStats(addr string, timeout time.Duration) *RedisStats {
 	var sigch = make(chan struct{})
-	var stats = &ServerStats{}
+	var stats = &RedisStats{}
 
 	go func() (err error) {
 		defer func() {
@@ -84,11 +84,11 @@ func (s *Topom) runServerStats(addr string, timeout time.Duration) *ServerStats 
 	case <-sigch:
 		return stats
 	case <-time.After(timeout):
-		return &ServerStats{Error: ErrStatsTimeout}
+		return &RedisStats{Error: ErrStatsTimeout}
 	}
 }
 
-func (s *Topom) RefreshServerStats(timeout time.Duration) *sync.WaitGroup {
+func (s *Topom) RefreshRedisStats(timeout time.Duration) *sync.WaitGroup {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.closed {
@@ -99,8 +99,8 @@ func (s *Topom) RefreshServerStats(timeout time.Duration) *sync.WaitGroup {
 		wg.Add(1)
 		go func(addr string) {
 			defer wg.Done()
-			stats := s.runServerStats(addr, timeout)
-			s.UpdateServerStats(addr, stats)
+			stats := s.runRedisStats(addr, timeout)
+			s.UpdateRedisStats(addr, stats)
 		}(addr)
 	}
 	return &wg

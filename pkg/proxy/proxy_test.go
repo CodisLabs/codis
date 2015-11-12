@@ -23,7 +23,7 @@ func newProxyConfig() *proxy.Config {
 func openProxy() (*proxy.Proxy, string) {
 	s, err := proxy.New(config)
 	assert.MustNoError(err)
-	return s, s.GetModel().AdminAddr
+	return s, s.Model().AdminAddr
 }
 
 func TestModel(x *testing.T) {
@@ -34,7 +34,7 @@ func TestModel(x *testing.T) {
 
 	p, err := c.Model()
 	assert.MustNoError(err)
-	assert.Must(p.Token == s.GetToken())
+	assert.Must(p.Token == s.Token())
 	assert.Must(p.ProductName == config.ProductName)
 }
 
@@ -48,7 +48,7 @@ func TestStats(x *testing.T) {
 	_, err1 := c.Stats()
 	assert.Must(err1 != nil)
 
-	c.SetXAuth(config.ProductName, config.ProductAuth, s.GetToken())
+	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
 	_, err2 := c.Stats()
 	assert.MustNoError(err2)
 }
@@ -74,7 +74,7 @@ func TestFillSlot(x *testing.T) {
 	defer s.Close()
 
 	var c = proxy.NewApiClient(addr)
-	c.SetXAuth(config.ProductName, config.ProductAuth, s.GetToken())
+	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
 
 	expect := make(map[int]*models.Slot)
 
@@ -109,7 +109,7 @@ func TestStartAndShutdown(x *testing.T) {
 	defer s.Close()
 
 	var c = proxy.NewApiClient(addr)
-	c.SetXAuth(config.ProductName, config.ProductAuth, s.GetToken())
+	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
 
 	expect := make(map[int]*models.Slot)
 

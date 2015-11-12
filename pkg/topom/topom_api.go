@@ -119,7 +119,7 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	if xauth == "" {
 		return errors.New("missing xauth")
 	}
-	if xauth != s.topom.GetXAuth() {
+	if xauth != s.topom.XAuth() {
 		return errors.New("invalid xauth")
 	}
 	return nil
@@ -137,14 +137,14 @@ func (s *apiServer) Overview() (int, string) {
 	return rpc.ApiResponseJson(&Overview{
 		Version: utils.Version,
 		Compile: utils.Compile,
-		Config:  s.topom.GetConfig(),
-		Model:   s.topom.GetModel(),
-		Stats:   s.topom.GetStats(),
+		Config:  s.topom.Config(),
+		Model:   s.topom.Model(),
+		Stats:   s.topom.Stats(),
 	})
 }
 
 func (s *apiServer) Model() (int, string) {
-	return rpc.ApiResponseJson(s.topom.GetModel())
+	return rpc.ApiResponseJson(s.topom.Model())
 }
 
 func (s *apiServer) XPing(params martini.Params) (int, string) {
@@ -159,7 +159,7 @@ func (s *apiServer) Stats(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		return rpc.ApiResponseJson(s.topom.GetStats())
+		return rpc.ApiResponseJson(s.topom.Stats())
 	}
 }
 
@@ -320,7 +320,7 @@ func (s *apiServer) GroupCheckServer(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	c, err := NewRedisClient(addr, s.topom.GetConfig().ProductAuth, time.Second)
+	c, err := NewRedisClient(addr, s.topom.Config().ProductAuth, time.Second)
 	if err != nil {
 		return rpc.ApiResponseError(fmt.Errorf("create redis-client to %s failed", addr))
 	}

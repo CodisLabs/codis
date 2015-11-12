@@ -69,7 +69,7 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	if xauth == "" {
 		return errors.New("missing xauth")
 	}
-	if xauth != s.proxy.GetXAuth() {
+	if xauth != s.proxy.XAuth() {
 		return errors.New("invalid xauth")
 	}
 	return nil
@@ -103,9 +103,9 @@ func (s *apiServer) Overview() (int, string) {
 	return rpc.ApiResponseJson(&Overview{
 		Version: utils.Version,
 		Compile: utils.Compile,
-		Config:  s.proxy.GetConfig(),
-		Model:   s.proxy.GetModel(),
-		Slots:   s.proxy.GetSlots(),
+		Config:  s.proxy.Config(),
+		Model:   s.proxy.Model(),
+		Slots:   s.proxy.Slots(),
 		Stats:   s.NewStats(),
 	})
 }
@@ -124,7 +124,7 @@ func (s *apiServer) NewStats() *Stats {
 }
 
 func (s *apiServer) Model() (int, string) {
-	return rpc.ApiResponseJson(s.proxy.GetModel())
+	return rpc.ApiResponseJson(s.proxy.Model())
 }
 
 func (s *apiServer) Stats(params martini.Params) (int, string) {
@@ -147,7 +147,7 @@ func (s *apiServer) Slots(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		return rpc.ApiResponseJson(s.proxy.GetSlots())
+		return rpc.ApiResponseJson(s.proxy.Slots())
 	}
 }
 

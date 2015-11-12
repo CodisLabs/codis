@@ -153,19 +153,19 @@ func (s *Proxy) Close() error {
 	return nil
 }
 
-func (s *Proxy) GetToken() string {
+func (s *Proxy) Token() string {
 	return s.token
 }
 
-func (s *Proxy) GetXAuth() string {
+func (s *Proxy) XAuth() string {
 	return s.xauth
 }
 
-func (s *Proxy) GetModel() *models.Proxy {
+func (s *Proxy) Model() *models.Proxy {
 	return s.model
 }
 
-func (s *Proxy) GetConfig() *Config {
+func (s *Proxy) Config() *Config {
 	return s.config
 }
 
@@ -181,7 +181,7 @@ func (s *Proxy) IsClosed() bool {
 	return s.closed
 }
 
-func (s *Proxy) GetSlots() []*models.Slot {
+func (s *Proxy) Slots() []*models.Slot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.router.GetSlots()
