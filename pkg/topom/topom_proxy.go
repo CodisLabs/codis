@@ -62,7 +62,13 @@ func (s *Topom) CreateProxy(addr string) error {
 
 	if err := c.XPing(); err != nil {
 		log.WarnErrorf(err, "[%p] proxy@%s check xauth failed", s, addr)
-		return errors.Errorf("call rpc xauth to proxy@%s failed", addr)
+		return errors.Errorf("call rpc xping to proxy@%s failed", addr)
+	}
+	c.SetRemoteAddr(p.AdminAddr)
+
+	if err := c.XPing(); err != nil {
+		log.WarnErrorf(err, "[%p] proxy@%s check xauth with %s failed", s, addr, p.AdminAddr)
+		return errors.Errorf("call rpc xping to proxy@%s with address %s failed", addr, p.AdminAddr)
 	}
 
 	if s.proxies[p.Token] != nil {

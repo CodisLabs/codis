@@ -192,6 +192,10 @@ func NewApiClient(addr string) *ApiClient {
 	return &ApiClient{addr: addr}
 }
 
+func (c *ApiClient) SetRemoteAddr(addr string) {
+	c.addr = addr
+}
+
 func (c *ApiClient) SetXAuth(name, auth string, token string) {
 	c.xauth = rpc.NewXAuth(name, auth, token)
 }
