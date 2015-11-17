@@ -33,8 +33,11 @@ func NewRedisClient(addr string, auth string, timeout time.Duration) (*RedisClie
 		return nil, errors.Trace(err)
 	}
 	if auth != "" {
-		_, err := c.Do("AUTH", auth)
-		if err != nil {
+		if _, err := c.Do("AUTH", auth); err != nil {
+			c.Close()
+			return nil, errors.Trace(err)
+		}
+		if _, err := c.Do("CONFIG", "SET", "MASTERAUTH", auth); err != nil {
 			c.Close()
 			return nil, errors.Trace(err)
 		}
