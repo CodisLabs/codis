@@ -5,6 +5,7 @@ package proxy
 
 import (
 	"net/http"
+	_ "net/http/pprof"
 	"strings"
 
 	"github.com/go-martini/martini"
@@ -55,6 +56,10 @@ func newApiServer(p *Proxy) http.Handler {
 	r.Put("/api/proxy/start/:xauth", api.Start)
 	r.Put("/api/proxy/shutdown/:xauth", api.Shutdown)
 	r.Put("/api/proxy/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
+
+	r.Any("/debug/pprof/**", func(w http.ResponseWriter, req *http.Request) {
+		http.DefaultServeMux.ServeHTTP(w, req)
+	})
 
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)

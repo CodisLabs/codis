@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -105,6 +106,10 @@ func newApiServer(t *Topom) http.Handler {
 
 	r.Put("/api/topom/set/action/interval/:xauth/:value", api.SetActionInterval)
 	r.Put("/api/topom/set/action/disabled/:xauth/:value", api.SetActionDisabled)
+
+	r.Any("/debug/pprof/**", func(w http.ResponseWriter, req *http.Request) {
+		http.DefaultServeMux.ServeHTTP(w, req)
+	})
 
 	m.MapTo(r, (*martini.Routes)(nil))
 	m.Action(r.Handle)
