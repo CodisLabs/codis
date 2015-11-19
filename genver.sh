@@ -1,6 +1,6 @@
 #!/bin/bash
 
-version=`git log --date=iso --pretty=format:"%cd @%h" -1`
+version=`git log --date=iso --pretty=format:"%cd @%H" -1`
 if [ $? -ne 0 ]; then
     version="unknown version"
 fi
