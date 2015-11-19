@@ -54,7 +54,7 @@ func isZeroIPAddr(addr *net.TCPAddr) bool {
 	return false
 }
 
-func resolveAddr(network string, address string, replaceLocalAddr bool) (string, error) {
+func resolveAddr(network string, address string, replaceZeroAddr bool) (string, error) {
 	switch network {
 	default:
 		return "", errors.Errorf("invalid network '%s'", network)
@@ -71,7 +71,7 @@ func resolveAddr(network string, address string, replaceLocalAddr bool) (string,
 			if !isZeroIPAddr(addr) {
 				return addr.String(), nil
 			}
-			if replaceLocalAddr {
+			if replaceZeroAddr {
 				ifaddrs, err := net.InterfaceAddrs()
 				if err != nil {
 					return "", errors.Trace(err)
