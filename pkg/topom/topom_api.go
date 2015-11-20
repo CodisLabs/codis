@@ -7,12 +7,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	_ "net/http/pprof"
 
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/cors"
@@ -33,18 +34,18 @@ func newApiServer(t *Topom) http.Handler {
 	m := martini.New()
 	m.Use(martini.Recovery())
 	m.Use(render.Renderer())
-
 	m.Use(func(w http.ResponseWriter, req *http.Request, c martini.Context) {
-		addr := req.Header.Get("X-Real-IP")
-		if addr == "" {
-			addr = req.Header.Get("X-Forwarded-For")
-			if addr == "" {
-				addr = req.RemoteAddr
-			}
-		}
 		path := req.URL.Path
 		if req.Method != "GET" && strings.HasPrefix(path, "/api/") {
-			log.Infof("[%p] API from %s call %s", t, addr, path)
+			var remoteAddr = req.RemoteAddr
+			var headerAddr string
+			for _, key := range []string{"X-Real-IP", "X-Forwarded-For"} {
+				if val := req.Header.Get(key); val != "" {
+					headerAddr = val
+					break
+				}
+			}
+			log.Infof("[%p] API call %s from %s [%s]", t, path, remoteAddr, headerAddr)
 		}
 		c.Next()
 	})
@@ -77,38 +78,38 @@ func newApiServer(t *Topom) http.Handler {
 		})
 	}
 
-	r.Get("/api/topom", api.Overview)
-	r.Get("/api/topom/model", api.Model)
-	r.Get("/api/topom/xping/:xauth", api.XPing)
-	r.Get("/api/topom/stats/:xauth", api.Stats)
-
-	r.Put("/api/topom/proxy/create/:xauth/:xaddr", api.CreateProxy)
-	r.Put("/api/topom/proxy/reinit/:xauth/:token", api.ReinitProxy)
-	r.Put("/api/topom/proxy/remove/:xauth/:token/:force", api.RemoveProxy)
-
-	r.Put("/api/topom/group/create/:xauth/:gid", api.CreateGroup)
-	r.Put("/api/topom/group/remove/:xauth/:gid", api.RemoveGroup)
-
-	r.Put("/api/topom/group/add/:xauth/:gid/:xaddr", api.GroupAddServer)
-	r.Put("/api/topom/group/del/:xauth/:gid/:xaddr", api.GroupDelServer)
-	r.Put("/api/topom/group/check/:xauth/:xaddr", api.GroupCheckServer)
-
-	r.Put("/api/topom/group/promote/:xauth/:gid/:xaddr", api.GroupPromoteServer)
-	r.Put("/api/topom/group/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
-
-	r.Put("/api/topom/group/repair-master/:xauth/:gid/:xaddr", api.GroupRepairMaster)
-
-	r.Put("/api/topom/action/create/:xauth/:sid/:gid", api.SlotCreateAction)
-	r.Put("/api/topom/action/create-range/:xauth/:beg/:end/:gid", api.SlotCreateActionRange)
-	r.Put("/api/topom/action/remove/:xauth/:sid", api.SlotRemoveAction)
-
-	r.Put("/api/topom/shutdown/:xauth", api.Shutdown)
-
-	r.Put("/api/topom/set/action/interval/:xauth/:value", api.SetActionInterval)
-	r.Put("/api/topom/set/action/disabled/:xauth/:value", api.SetActionDisabled)
-
-	r.Any("/debug/pprof/**", func(w http.ResponseWriter, req *http.Request) {
+	r.Get("/topom", api.Overview)
+	r.Any("/debug/**", func(w http.ResponseWriter, req *http.Request) {
 		http.DefaultServeMux.ServeHTTP(w, req)
+	})
+
+	r.Group("/api/topom", func(r martini.Router) {
+		r.Get("/model", api.Model)
+		r.Get("/xping/:xauth", api.XPing)
+		r.Get("/stats/:xauth", api.Stats)
+		r.Put("/shutdown/:xauth", api.Shutdown)
+		r.Group("/proxy", func(r martini.Router) {
+			r.Put("/create/:xauth/:xaddr", api.CreateProxy)
+			r.Put("/reinit/:xauth/:token", api.ReinitProxy)
+			r.Put("/remove/:xauth/:token/:force", api.RemoveProxy)
+		})
+		r.Group("/group", func(r martini.Router) {
+			r.Put("/create/:xauth/:gid", api.CreateGroup)
+			r.Put("/remove/:xauth/:gid", api.RemoveGroup)
+			r.Put("/add/:xauth/:gid/:xaddr", api.GroupAddServer)
+			r.Put("/del/:xauth/:gid/:xaddr", api.GroupDelServer)
+			r.Put("/check/:xauth/:xaddr", api.GroupCheckServer)
+			r.Put("/promote/:xauth/:gid/:xaddr", api.GroupPromoteServer)
+			r.Put("/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
+			r.Put("/repair-master/:xauth/:gid/:xaddr", api.GroupRepairMaster)
+		})
+		r.Group("/action", func(r martini.Router) {
+			r.Put("/create/:xauth/:sid/:gid", api.SlotCreateAction)
+			r.Put("/create-range/:xauth/:beg/:end/:gid", api.SlotCreateActionRange)
+			r.Put("/remove/:xauth/:sid", api.SlotRemoveAction)
+			r.Put("/interval/:xauth/:value", api.SetActionInterval)
+			r.Put("/disabled/:xauth/:value", api.SetActionDisabled)
+		})
 	})
 
 	m.MapTo(r, (*martini.Routes)(nil))
@@ -515,7 +516,7 @@ func (c *ApiClient) encodeXAddr(addr string) string {
 }
 
 func (c *ApiClient) Overview() (*Overview, error) {
-	url := c.encodeURL("/api/topom")
+	url := c.encodeURL("/topom")
 	var o = &Overview{}
 	if err := rpc.ApiGetJson(url, o); err != nil {
 		return nil, err
@@ -626,7 +627,7 @@ func (c *ApiClient) Shutdown() error {
 }
 
 func (c *ApiClient) SetActionInterval(msecs int) error {
-	url := c.encodeURL("/api/topom/set/action/interval/%s/%d", c.xauth, msecs)
+	url := c.encodeURL("/api/topom/action/interval/%s/%d", c.xauth, msecs)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -635,6 +636,6 @@ func (c *ApiClient) SetActionDisabled(disabled bool) error {
 	if disabled {
 		value = 1
 	}
-	url := c.encodeURL("/api/topom/set/action/disabled/%s/%d", c.xauth, value)
+	url := c.encodeURL("/api/topom/action/disabled/%s/%d", c.xauth, value)
 	return rpc.ApiPutJson(url, nil, nil)
 }

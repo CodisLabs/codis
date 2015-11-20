@@ -5,8 +5,9 @@ package proxy
 
 import (
 	"net/http"
-	_ "net/http/pprof"
 	"strings"
+
+	_ "net/http/pprof"
 
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/binding"
@@ -29,16 +30,17 @@ func newApiServer(p *Proxy) http.Handler {
 	m.Use(martini.Recovery())
 	m.Use(render.Renderer())
 	m.Use(func(w http.ResponseWriter, req *http.Request, c martini.Context) {
-		addr := req.Header.Get("X-Real-IP")
-		if addr == "" {
-			addr = req.Header.Get("X-Forwarded-For")
-			if addr == "" {
-				addr = req.RemoteAddr
-			}
-		}
 		path := req.URL.Path
 		if req.Method != "GET" && strings.HasPrefix(path, "/api/") {
-			log.Infof("[%p] API from %s call %s", p, addr, path)
+			var remoteAddr = req.RemoteAddr
+			var headerAddr string
+			for _, key := range []string{"X-Real-IP", "X-Forwarded-For"} {
+				if val := req.Header.Get(key); val != "" {
+					headerAddr = val
+					break
+				}
+			}
+			log.Infof("[%p] API call %s from %s [%s]", p, path, remoteAddr, headerAddr)
 		}
 		c.Next()
 	})
@@ -46,19 +48,22 @@ func newApiServer(p *Proxy) http.Handler {
 	api := &apiServer{proxy: p}
 
 	r := martini.NewRouter()
-
-	r.Get("/api/proxy", api.Overview)
-	r.Get("/api/proxy/model", api.Model)
-	r.Get("/api/proxy/xping/:xauth", api.XPing)
-	r.Get("/api/proxy/stats/:xauth", api.Stats)
-	r.Get("/api/proxy/slots/:xauth", api.Slots)
-
-	r.Put("/api/proxy/start/:xauth", api.Start)
-	r.Put("/api/proxy/shutdown/:xauth", api.Shutdown)
-	r.Put("/api/proxy/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
-
-	r.Any("/debug/pprof/**", func(w http.ResponseWriter, req *http.Request) {
+	r.Get("/", func(r render.Render) {
+		r.Redirect("/proxy")
+	})
+	r.Get("/proxy", api.Overview)
+	r.Any("/debug/**", func(w http.ResponseWriter, req *http.Request) {
 		http.DefaultServeMux.ServeHTTP(w, req)
+	})
+
+	r.Group("/api/proxy", func(r martini.Router) {
+		r.Get("/model", api.Model)
+		r.Get("/xping/:xauth", api.XPing)
+		r.Get("/stats/:xauth", api.Stats)
+		r.Get("/slots/:xauth", api.Slots)
+		r.Put("/start/:xauth", api.Start)
+		r.Put("/shutdown/:xauth", api.Shutdown)
+		r.Put("/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
 	})
 
 	m.MapTo(r, (*martini.Routes)(nil))
@@ -210,7 +215,7 @@ func (c *ApiClient) encodeURL(format string, args ...interface{}) string {
 }
 
 func (c *ApiClient) Overview() (*Overview, error) {
-	url := c.encodeURL("/api/proxy")
+	url := c.encodeURL("/proxy")
 	var o = &Overview{}
 	if err := rpc.ApiGetJson(url, o); err != nil {
 		return nil, err

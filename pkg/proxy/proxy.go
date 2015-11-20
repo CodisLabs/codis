@@ -137,6 +137,10 @@ func (s *Proxy) Close() error {
 	s.closed = true
 	close(s.exit.C)
 
+	if s.jodis != nil {
+		s.jodis.Close()
+	}
+
 	if s.ladmin != nil {
 		s.ladmin.Close()
 	}
@@ -145,10 +149,6 @@ func (s *Proxy) Close() error {
 	}
 	if s.router != nil {
 		s.router.Close()
-	}
-
-	if s.jodis != nil {
-		s.jodis.Close()
 	}
 	return nil
 }
@@ -203,7 +203,10 @@ func (s *Proxy) FillSlots(slots []*models.Slot) error {
 		return ErrClosedProxy
 	}
 	for _, slot := range slots {
-		if err := s.router.FillSlot(slot.Id, slot.BackendAddr, slot.MigrateFrom, slot.Locked); err != nil {
+		i, locked := slot.Id, slot.Locked
+		addr := slot.BackendAddr
+		from := slot.MigrateFrom
+		if err := s.router.FillSlot(i, addr, from, locked); err != nil {
 			return err
 		}
 	}
