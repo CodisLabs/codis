@@ -6,6 +6,7 @@ go:
 #   - tip
 
 install:
+    - go get -u github.com/tools/godep
     - make
 
 script:

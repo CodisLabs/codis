@@ -4,7 +4,7 @@ build-all: codis-server codis-dashboard codis-proxy codis-admin
 
 godep-env:
 	@bash version
-	@which godep &>/dev/null || go get -u github.com/tools/godep
+	@command -v godep 2>&1 >/dev/null || go get -u github.com/tools/godep
 	@GOPATH=`godep path` godep restore
 
 codis-proxy: godep-env
