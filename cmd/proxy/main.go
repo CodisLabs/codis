@@ -29,9 +29,9 @@ Usage:
 
 Options:
 	--ncpu=N                    set runtime.GOMAXPROCS to N, default is runtime.NumCPU().
-	-c CONF, --config=CONF      specify the config file.
-	-l FILE, --log=FILE         specify the daliy rotated log file.
-	--log-level=LEVEL           specify the log-level, can be INFO,WARN,DEBUG,ERROR, default is INFO.
+	-c CONF, --config=CONF      run with the specific configuration.
+	-l FILE, --log=FILE         set path/name of daliy rotated log file.
+	--log-level=LEVEL           set the log-level, should be INFO,WARN,DEBUG or ERROR, default is INFO.
 	--ulimit=NLIMIT             run 'ulimit -n' to check the maximum number of open file descriptors.
 `
 

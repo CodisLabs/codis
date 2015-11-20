@@ -239,7 +239,7 @@ func (t *cmdDashboard) parseProxyToken(client *topom.ApiClient, d map[string]int
 		fallthrough
 
 	default:
-		log.Panicf("can't find specified proxy")
+		log.Panicf("can't find specific proxy")
 		return ""
 	}
 }
@@ -275,7 +275,7 @@ func (t *cmdDashboard) parseGroupServer(client *topom.ApiClient, d map[string]in
 		fallthrough
 
 	default:
-		log.Panicf("can't find specifed group")
+		log.Panicf("can't find specific group")
 		return 0, ""
 	}
 }
