@@ -6,6 +6,9 @@ if [ $? -ne 0 ]; then
 fi
 
 compile=`date +"%F %T %z"`" by "`go version`
+if [ $? -ne 0 ]; then
+    compile="unknown datetime"
+fi
 
 cat << EOF | gofmt > pkg/utils/version.go
 package utils

@@ -1,21 +1,20 @@
-.PHONY: docker
-.PHONY: codis-server codis-dashboad codis-proxy codis-admin
+.PHONY:    codis-server codis-dashboard codis-proxy codis-admin docker
 
-all: codis-server codis-dashboard codis-proxy codis-admin
+build-all: codis-server codis-dashboard codis-proxy codis-admin
 
-build-env:
-	@bash genver.sh
-	@go get -u github.com/tools/godep
+godep-env:
+	@bash version
+	@which godep &>/dev/null || go get -u github.com/tools/godep
 	@GOPATH=`godep path` godep restore
 
-codis-proxy: build-env
-	godep go build -o bin/codis-proxy ./cmd/proxy
+codis-proxy: godep-env
+	godep go build -i -o bin/codis-proxy ./cmd/proxy
 
-codis-admin: build-env
-	godep go build -o bin/codis-admin ./cmd/admin
+codis-admin: godep-env
+	godep go build -i -o bin/codis-admin ./cmd/admin
 
-codis-dashboard: build-env
-	godep go build -o bin/codis-dashboard ./cmd/dashboard
+codis-dashboard: godep-env
+	godep go build -i -o bin/codis-dashboard ./cmd/dashboard
 
 codis-server:
 	@mkdir -p bin
@@ -27,10 +26,11 @@ clean:
 	@rm -rf bin
 
 distclean: clean
+	@rm -rf Godeps/_workspace/pkg
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
 
-gotest: all
-	GOPATH=`godep path`:$$GOPATH go test ./pkg/...
+gotest: build-all
+	godep go test ./pkg/...
 
 docker:
 	docker build --force-rm -t codis-image .
