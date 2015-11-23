@@ -407,7 +407,8 @@ func (s *Server) processAction(e interface{}) {
 	for i, seq := range seqs {
 		if s.lastActionSeq < seq {
 			index = i
-			break
+			//break
+			//only handle latest action
 		}
 	}
 
