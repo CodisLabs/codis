@@ -120,4 +120,4 @@ done
 
 + Benchmark Results:
 
-![main](doc/bench2/bench.png)
+![main](bench2/bench.png)
