@@ -5,12 +5,12 @@
 *.dump
 *.log.*
 
-martini_log
-_workspace
+.DS_Store
+
+/Godeps/_workspace
 .htaccess
 
 /bin
 /pkg/utils/version.go
-/deploy.tar
 
 makefile
