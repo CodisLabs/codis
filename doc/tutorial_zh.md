@@ -1,13 +1,13 @@
 # Codis 使用文档
 
-Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接到 Codis Proxy 和连接原生的 Redis Server 没有明显的区别 (不支持的命令列表), 上层应用可以像使用单机的 Redis 一样使用, Codis 底层会处理请求的转发, 不停机的数据迁移等工作, 所有后边的一切事情, 对于前面的客户端来说是透明的, 可以简单的认为后边连接的是一个内存无限大的 Redis 服务.
+Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接到 Codis Proxy 和连接原生的 Redis Server 没有明显的区别 ([不支持的命令列表](unsupported_cmds.md)), 上层应用可以像使用单机的 Redis 一样使用, Codis 底层会处理请求的转发, 不停机的数据迁移等工作, 所有后边的一切事情, 对于前面的客户端来说是透明的, 可以简单的认为后边连接的是一个内存无限大的 Redis 服务.
 
 Codis 由四部分组成:
 
 * Codis Proxy   (codis-proxy)
-* Codis Manager (codis-config)
+* Codis Dashboard (codis-config)
 * Codis Redis   (codis-server)
-* ZooKeeper
+* ZooKeeper/Etcd
 
 codis-proxy 是客户端连接的 Redis 代理服务, codis-proxy 本身实现了 Redis 协议, 表现得和一个原生的 Redis 没什么区别 (就像 Twemproxy), 对于一个业务来说, 可以部署多个 codis-proxy, codis-proxy 本身是无状态的.
 
@@ -29,10 +29,9 @@ Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name
 
 建议只通过go get命令来下载codis，除非你非常熟悉go语言的目录引用形式从而不会导致代码放错地方。该命令会下载master分支的最新版，我们会确保master分支的稳定。
 
-执行全部指令后，会在 bin 文件夹生成 codis-config, codis-proxy 两个可执行文件, (另外, bin/assets 文件夹是 codis-config 的 dashboard http 服务需要的前端资源, 需要和 codis-config 放置在同一文件夹下)
+执行全部指令后，会在 bin 文件夹内生成 codis-config、codis-proxy、codis-server三个可执行文件。另外, bin/assets 文件夹是 codis-config 的 dashboard http 服务需要的前端资源, 需要和 codis-config 放置在同一文件夹下)
 
 ```
-cd sample
 
 $ bin/codis-config -h                                                                                                                                                                                                                           (master)
 usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
@@ -70,7 +69,7 @@ options:
 ###配置文件
 `codis-config` 和 `codis-proxy` 在不加 -c 参数的时候, 默认会读取当前目录下的 config.ini 文件
 
-见[config.ini](https://github.com/wandoulabs/codis/blob/master/config.ini)中的注释来根据需求修改
+见[config.ini](../config.ini)中的注释来根据需求修改
 
 ###流程
 
@@ -145,13 +144,13 @@ $ bin/codis-config slot range-set 512 1023 2 online
 ```
 
 ####打开浏览器
- 访问http://localhost:18087/admin ， 现在可以在浏览器里面完成各种操作了， 玩得开心
+ 访问http://localhost:18087/admin ， 现在可以在浏览器里面完成各种操作了。
   
 
 ##数据迁移
 -----------------------------
 
-安全和透明的数据迁移是 Codis 提供的一个重要的服务, 也是 Codis 区别于 Twemproxy 等静态的分布式 Redis 解决方案的地方.
+安全和透明的数据迁移是 Codis 提供的一个重要的功能, 也是 Codis 区别于 Twemproxy 等静态的分布式 Redis 解决方案的地方。
 
 数据迁移的最小单位是 key, 我们在 codis redis 中添加了一些指令, 实现基于key的迁移, 如 SLOTSMGRT等 (命令列表),  每次会将特定 slot 一个随机的 key 发送给另外一个 codis redis 实例, 这个命令会确认对方已经接收, 同时删除本地的这个  k-v 键值, 返回这个  slot 的剩余 key 的数量, 整个操作是原子的.
 
@@ -185,10 +184,9 @@ $ bin/codis-config slot rebalance
 
 因为codis的proxy是无状态的，可以比较容易的搭多个proxy来实现高可用性并横向扩容。
 
-对Java用户来说，可以使用经过我们修改过的Jedis，[Jodis](https://github.com/wandoulabs/jodis) ，来实现proxy层的HA。它会通过监控zk上的注册信息来实时获得当前可用的proxy列表，既可以保证高可用性，也可以通过轮流请求所有的proxy实现负载均衡。
-如果需要异步请求，可以使用我们基于Netty开发的[Nedis](https://github.com/wandoulabs/nedis)。
+对Java用户来说，可以使用经过我们修改过的Jedis，[Jodis](https://github.com/wandoulabs/jodis) ，来实现proxy层的HA。它会通过监控zk上的注册信息来实时获得当前可用的proxy列表，既可以保证高可用性，也可以通过轮流请求所有的proxy实现负载均衡。如果需要异步请求，可以使用我们基于Netty开发的[Nedis](https://github.com/wandoulabs/nedis)。
 
-对下层的redis实例来说，codis的设计者认为，当一个group的master挂掉的时候，应该让管理员清楚，并手动的操作，因为这涉及到了数据一致性等问题。因此codis不会自动的将某个slave升级成master。
+对下层的redis实例来说，当一个group的master挂掉的时候，应该让管理员清楚，并手动的操作，因为这涉及到了数据一致性等问题（redis的主从同步是最终一致性的）。因此codis不会自动的将某个slave升级成master。
 不过我们也提供一种解决方案：[codis-ha](https://github.com/ngaut/codis-ha)。这是一个通过codis开放的api实现自动切换主从的工具。该工具会在检测到master挂掉的时候将其下线并选择其中一个slave提升为master继续提供服务。
 
 需要注意，codis将其中一个slave升级为master时，该组内其他slave实例是不会自动改变状态的，这些slave仍将试图从旧的master上同步数据，因而会导致组内新的master和其他slave之间的数据不一致。因为redis的slave of命令切换master时会丢弃slave上的全部数据，从新master完整同步，会消耗master资源。因此建议在知情的情况下手动操作。使用 `codis-config server add <group_id> <redis_addr> slave` 命令刷新这些节点的状态即可。codis-ha不会自动刷新其他slave的状态。
