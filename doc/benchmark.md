@@ -48,7 +48,7 @@ done
 
 + Benchmark Results:
 
-![main](doc/bench1/bench.png)
+![main](bench1/bench.png)
 
 #### Intel(R) Xeon(R) CPU E5-2620 v2 @ 2.10GHz x 2 + 64G RAM
 + CentOS: 2.6.32-279.el6.x86_64 #1 SMP Fri Jun 22 12:19:21 UTC 2012 x86_64 x86_64 x86_64 GNU/Linux
