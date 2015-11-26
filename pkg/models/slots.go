@@ -3,8 +3,6 @@
 
 package models
 
-import "sort"
-
 const MaxSlotNum = 1024
 
 type Slot struct {
@@ -25,38 +23,10 @@ type SlotMapping struct {
 	} `json:"action"`
 }
 
-const (
-	ActionNothing   = ""
-	ActionPending   = "pending"
-	ActionPreparing = "preparing"
-	ActionMigrating = "migrating"
-)
-
-func (s *SlotMapping) Encode() []byte {
-	return jsonEncode(s)
+func (m *SlotMapping) Encode() []byte {
+	return jsonEncode(m)
 }
 
-func (s *SlotMapping) Decode(b []byte) error {
-	return jsonDecode(s, b)
-}
-
-type slotsSorter struct {
-	list []*SlotMapping
-	less func(s1, s2 *SlotMapping) bool
-}
-
-func (s *slotsSorter) Len() int {
-	return len(s.list)
-}
-
-func (s *slotsSorter) Swap(i, j int) {
-	s.list[i], s.list[j] = s.list[j], s.list[i]
-}
-
-func (s *slotsSorter) Less(i, j int) bool {
-	return s.less(s.list[i], s.list[j])
-}
-
-func SortSlots(list []*SlotMapping, less func(s1, s2 *SlotMapping) bool) {
-	sort.Sort(&slotsSorter{list, less})
+func (m *SlotMapping) Decode(b []byte) error {
+	return jsonDecode(m, b)
 }
