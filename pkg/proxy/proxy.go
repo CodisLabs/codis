@@ -60,7 +60,7 @@ func New(config *Config) (*Proxy, error) {
 	if b, err := exec.Command("uname", "-a").Output(); err != nil {
 		log.WarnErrorf(err, "run command uname failed")
 	} else {
-		s.model.Uname = strings.TrimSpace(string(b))
+		s.model.Sys = strings.TrimSpace(string(b))
 	}
 
 	s.router = router.NewWithAuth(config.ProductAuth)

@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	"github.com/wandoulabs/codis/pkg/utils/atomic2"
+	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
 )
 
 type OpStats struct {
@@ -96,23 +96,23 @@ func incrOpStats(opstr string, usecs int64) {
 }
 
 var sessions struct {
-	total   atomic2.Int64
-	actived atomic2.Int64
+	total atomic2.Int64
+	alive atomic2.Int64
 }
 
 func incrSessions() {
 	sessions.total.Incr()
-	sessions.actived.Incr()
+	sessions.alive.Incr()
 }
 
 func decrSessions() {
-	sessions.actived.Decr()
+	sessions.alive.Decr()
 }
 
 func SessionsTotal() int64 {
 	return sessions.total.Get()
 }
 
-func SessionsActived() int64 {
-	return sessions.actived.Get()
+func SessionsAlive() int64 {
+	return sessions.alive.Get()
 }

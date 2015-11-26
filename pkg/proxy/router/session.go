@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
-	"github.com/wandoulabs/codis/pkg/utils/atomic2"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
 )
 
 type Session struct {

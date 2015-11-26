@@ -104,8 +104,8 @@ type Stats struct {
 	} `json:"ops"`
 
 	Sessions struct {
-		Total   int64 `json:"total"`
-		Actived int64 `json:"actived"`
+		Total int64 `json:"total"`
+		Alive int64 `json:"alive"`
 	} `json:"sessions"`
 }
 
@@ -129,7 +129,7 @@ func (s *apiServer) NewStats() *Stats {
 	stats.Ops.Cmds = router.GetAllOpStats()
 
 	stats.Sessions.Total = router.SessionsTotal()
-	stats.Sessions.Actived = router.SessionsActived()
+	stats.Sessions.Alive = router.SessionsAlive()
 	return stats
 }
 
@@ -200,10 +200,6 @@ type ApiClient struct {
 
 func NewApiClient(addr string) *ApiClient {
 	return &ApiClient{addr: addr}
-}
-
-func (c *ApiClient) SetRemoteAddr(addr string) {
-	c.addr = addr
 }
 
 func (c *ApiClient) SetXAuth(name, auth string, token string) {
