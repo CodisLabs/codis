@@ -21,7 +21,7 @@ type Client interface {
 
 var (
 	ErrClosedStore  = errors.New("use of closed store")
-	ErrNoLockHolder = errors.New("without lock protection")
+	ErrNoLockHolder = errors.New("without lock holder")
 	ErrAcquireAgain = errors.New("acquire again")
 	ErrReleaseAgain = errors.New("release again")
 )
@@ -59,24 +59,24 @@ func (s *Store) LockPath() string {
 	return filepath.Join(s.prefix, "topom")
 }
 
-func (s *Store) SlotPath(slotId int) string {
-	return filepath.Join(s.prefix, "slots", fmt.Sprintf("slot-%04d", slotId))
-}
-
-func (s *Store) ProxyBase() string {
-	return filepath.Join(s.prefix, "proxy")
-}
-
-func (s *Store) ProxyPath(proxyId int) string {
-	return filepath.Join(s.prefix, "proxy", fmt.Sprintf("proxy-%04d", proxyId))
+func (s *Store) SlotPath(sid int) string {
+	return filepath.Join(s.prefix, "slots", fmt.Sprintf("slot-%04d", sid))
 }
 
 func (s *Store) GroupBase() string {
 	return filepath.Join(s.prefix, "group")
 }
 
-func (s *Store) GroupPath(groupId int) string {
-	return filepath.Join(s.prefix, "group", fmt.Sprintf("group-%04d", groupId))
+func (s *Store) GroupPath(gid int) string {
+	return filepath.Join(s.prefix, "group", fmt.Sprintf("group-%04d", gid))
+}
+
+func (s *Store) ProxyBase() string {
+	return filepath.Join(s.prefix, "proxy")
+}
+
+func (s *Store) ProxyPath(token string) string {
+	return filepath.Join(s.prefix, "proxy", fmt.Sprintf("proxy-%s", token))
 }
 
 func (s *Store) Acquire(topom *Topom) error {
@@ -113,7 +113,7 @@ func (s *Store) Release(force bool) error {
 	return nil
 }
 
-func (s *Store) LoadSlotMapping(slotId int) (*SlotMapping, error) {
+func (s *Store) SlotMappings() ([]*SlotMapping, error) {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
@@ -123,64 +123,26 @@ func (s *Store) LoadSlotMapping(slotId int) (*SlotMapping, error) {
 		return nil, ErrNoLockHolder
 	}
 
-	b, err := s.client.Read(s.SlotPath(slotId))
-	if err != nil {
-		return nil, err
-	}
-	if b != nil {
-		slot := &SlotMapping{}
-		if err := slot.Decode(b); err != nil {
-			return nil, err
-		}
-		return slot, nil
-	}
-	return nil, nil
-}
-
-func (s *Store) SaveSlotMapping(slotId int, slot *SlotMapping) error {
-	s.Lock()
-	defer s.Unlock()
-	if s.closed {
-		return ErrClosedStore
-	}
-	if !s.locked {
-		return ErrNoLockHolder
-	}
-
-	return s.client.Update(s.SlotPath(slotId), slot.Encode())
-}
-
-func (s *Store) ListProxy() ([]*Proxy, error) {
-	s.Lock()
-	defer s.Unlock()
-	if s.closed {
-		return nil, ErrClosedStore
-	}
-	if !s.locked {
-		return nil, ErrNoLockHolder
-	}
-
-	files, err := s.client.List(s.ProxyBase())
-	if err != nil {
-		return nil, err
-	}
-
-	var plist []*Proxy
-	for _, file := range files {
-		b, err := s.client.Read(file)
+	slots := make([]*SlotMapping, MaxSlotNum)
+	for i := 0; i < len(slots); i++ {
+		b, err := s.client.Read(s.SlotPath(i))
 		if err != nil {
 			return nil, err
 		}
-		p := &Proxy{}
-		if err := p.Decode(b); err != nil {
-			return nil, err
+		if b != nil {
+			m := &SlotMapping{}
+			if err := m.Decode(b); err != nil {
+				return nil, err
+			}
+			slots[i] = m
+		} else {
+			slots[i] = &SlotMapping{Id: i}
 		}
-		plist = append(plist, p)
 	}
-	return plist, nil
+	return slots, nil
 }
 
-func (s *Store) CreateProxy(proxyId int, proxy *Proxy) error {
+func (s *Store) UpdateSlotMapping(m *SlotMapping) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
@@ -190,23 +152,10 @@ func (s *Store) CreateProxy(proxyId int, proxy *Proxy) error {
 		return ErrNoLockHolder
 	}
 
-	return s.client.Create(s.ProxyPath(proxyId), proxy.Encode())
+	return s.client.Update(s.SlotPath(m.Id), m.Encode())
 }
 
-func (s *Store) RemoveProxy(proxyId int) error {
-	s.Lock()
-	defer s.Unlock()
-	if s.closed {
-		return ErrClosedStore
-	}
-	if !s.locked {
-		return ErrNoLockHolder
-	}
-
-	return s.client.Delete(s.ProxyPath(proxyId))
-}
-
-func (s *Store) ListGroup() ([]*Group, error) {
+func (s *Store) ListGroup() (map[int]*Group, error) {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
@@ -220,8 +169,7 @@ func (s *Store) ListGroup() ([]*Group, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	var glist []*Group
+	group := make(map[int]*Group)
 	for _, file := range files {
 		b, err := s.client.Read(file)
 		if err != nil {
@@ -231,12 +179,12 @@ func (s *Store) ListGroup() ([]*Group, error) {
 		if err := g.Decode(b); err != nil {
 			return nil, err
 		}
-		glist = append(glist, g)
+		group[g.Id] = g
 	}
-	return glist, nil
+	return group, nil
 }
 
-func (s *Store) CreateGroup(groupId int, group *Group) error {
+func (s *Store) UpdateGroup(g *Group) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
@@ -246,10 +194,10 @@ func (s *Store) CreateGroup(groupId int, group *Group) error {
 		return ErrNoLockHolder
 	}
 
-	return s.client.Create(s.GroupPath(groupId), group.Encode())
+	return s.client.Update(s.GroupPath(g.Id), g.Encode())
 }
 
-func (s *Store) UpdateGroup(groupId int, group *Group) error {
+func (s *Store) DeleteGroup(gid int) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
@@ -259,10 +207,39 @@ func (s *Store) UpdateGroup(groupId int, group *Group) error {
 		return ErrNoLockHolder
 	}
 
-	return s.client.Update(s.GroupPath(groupId), group.Encode())
+	return s.client.Delete(s.GroupPath(gid))
 }
 
-func (s *Store) RemoveGroup(groupId int) error {
+func (s *Store) ListProxy() (map[string]*Proxy, error) {
+	s.Lock()
+	defer s.Unlock()
+	if s.closed {
+		return nil, ErrClosedStore
+	}
+	if !s.locked {
+		return nil, ErrNoLockHolder
+	}
+
+	files, err := s.client.List(s.ProxyBase())
+	if err != nil {
+		return nil, err
+	}
+	proxy := make(map[string]*Proxy)
+	for _, file := range files {
+		b, err := s.client.Read(file)
+		if err != nil {
+			return nil, err
+		}
+		p := &Proxy{}
+		if err := p.Decode(b); err != nil {
+			return nil, err
+		}
+		proxy[p.Token] = p
+	}
+	return proxy, nil
+}
+
+func (s *Store) UpdateProxy(p *Proxy) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.closed {
@@ -272,5 +249,18 @@ func (s *Store) RemoveGroup(groupId int) error {
 		return ErrNoLockHolder
 	}
 
-	return s.client.Delete(s.GroupPath(groupId))
+	return s.client.Update(s.ProxyPath(p.Token), p.Encode())
+}
+
+func (s *Store) DeleteProxy(token string) error {
+	s.Lock()
+	defer s.Unlock()
+	if s.closed {
+		return ErrClosedStore
+	}
+	if !s.locked {
+		return ErrNoLockHolder
+	}
+
+	return s.client.Delete(s.ProxyPath(token))
 }
