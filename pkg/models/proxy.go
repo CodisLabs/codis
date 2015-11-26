@@ -21,6 +21,11 @@ type Proxy struct {
 	Sys string `json:"sys"`
 }
 
+func (p *Proxy) Clone() *Proxy {
+	var dup = *p
+	return &dup
+}
+
 func (p *Proxy) Encode() []byte {
 	return jsonEncode(p)
 }

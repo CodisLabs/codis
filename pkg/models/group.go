@@ -26,6 +26,20 @@ type GroupServer struct {
 	} `json:"action"`
 }
 
+func (x *GroupServer) Clone() *GroupServer {
+	var dup = *x
+	return &dup
+}
+
+func (g *Group) Clone() *Group {
+	var dup = *g
+	dup.Servers = make([]*GroupServer, len(g.Servers))
+	for i, x := range g.Servers {
+		dup.Servers[i] = x.Clone()
+	}
+	return &dup
+}
+
 func (g *Group) Encode() []byte {
 	return jsonEncode(g)
 }
@@ -55,8 +69,13 @@ func SortGroup(list []*Group, less func(g1, g2 *Group) bool) {
 	sort.Sort(&groupSorter{list, less})
 }
 
-func SortGroupById(list []*Group) {
+func SortGroupById(gmap map[int]*Group) []*Group {
+	list := make([]*Group, 0, len(gmap))
+	for _, g := range gmap {
+		list = append(list, g)
+	}
 	SortGroup(list, func(g1, g2 *Group) bool {
 		return g1.Id < g2.Id
 	})
+	return list
 }
