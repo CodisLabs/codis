@@ -21,6 +21,7 @@ var ErrFailedRedisClient = errors.New("use of failed redis client")
 type RedisClient struct {
 	conn redis.Conn
 	addr string
+	auth string
 
 	LastErr error
 	LastUse time.Time
@@ -33,17 +34,15 @@ func NewRedisClient(addr string, auth string, timeout time.Duration) (*RedisClie
 		return nil, errors.Trace(err)
 	}
 	if auth != "" {
-		if _, err := c.Do("AUTH", auth); err != nil {
-			c.Close()
-			return nil, errors.Trace(err)
-		}
-		if _, err := c.Do("CONFIG", "SET", "MASTERAUTH", auth); err != nil {
+		_, err := c.Do("AUTH", auth)
+		if err != nil {
 			c.Close()
 			return nil, errors.Trace(err)
 		}
 	}
 	return &RedisClient{
-		conn: c, addr: addr, LastUse: time.Now(), Timeout: timeout,
+		conn: c, addr: addr, auth: auth,
+		LastUse: time.Now(), Timeout: timeout,
 	}, nil
 }
 
@@ -64,27 +63,7 @@ func (c *RedisClient) command(cmd string, args ...interface{}) (interface{}, err
 	}
 }
 
-func (c *RedisClient) SlotsInfo() (map[int]int, error) {
-	if reply, err := c.command("SLOTSINFO"); err != nil {
-		return nil, err
-	} else {
-		infos, err := redis.Values(reply, nil)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		slots := make(map[int]int)
-		for i, info := range infos {
-			p, err := redis.Ints(info, nil)
-			if err != nil || len(p) != 2 {
-				return nil, errors.Errorf("invalid response[%d] = %v", i, info)
-			}
-			slots[p[0]] = p[1]
-		}
-		return slots, nil
-	}
-}
-
-func (c *RedisClient) InfoMap() (map[string]string, error) {
+func (c *RedisClient) Info() (map[string]string, error) {
 	var info map[string]string
 	if reply, err := c.command("INFO"); err != nil {
 		return nil, err
@@ -135,6 +114,9 @@ func (c *RedisClient) SetMaster(master string) error {
 		if err != nil {
 			return errors.Trace(err)
 		}
+		if _, err := c.command("CONFIG", "SET", "MASTERAUTH", c.auth); err != nil {
+			return err
+		}
 		if _, err := c.command("SLAVEOF", host, port); err != nil {
 			return err
 		}
@@ -147,7 +129,7 @@ func (c *RedisClient) MigrateSlot(slot int, target string) (int, error) {
 	if err != nil {
 		return 0, errors.Trace(err)
 	}
-	var timeout = int(c.Timeout / time.Millisecond)
+	timeout := int(c.Timeout / time.Millisecond)
 	if reply, err := c.command("SLOTSMGRTTAGSLOT", host, port, timeout, slot); err != nil {
 		return 0, err
 	} else {
@@ -204,11 +186,7 @@ func (p *RedisPool) isRecyclable(c *RedisClient) bool {
 	if c.LastErr != nil {
 		return false
 	}
-	if p.timeout == 0 {
-		return true
-	} else {
-		return c.LastUse.Add(p.timeout / 2).After(time.Now())
-	}
+	return p.timeout == 0 || c.LastUse.Add(p.timeout).After(time.Now())
 }
 
 func (p *RedisPool) Close() error {
@@ -273,17 +251,35 @@ func (p *RedisPool) GetClient(addr string) (*RedisClient, error) {
 	return NewRedisClient(addr, p.auth, p.timeout)
 }
 
-func (p *RedisPool) PutClient(client *RedisClient) {
+func (p *RedisPool) PutClient(c *RedisClient) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.closed || !p.isRecyclable(client) {
-		client.Close()
+	if p.closed || !p.isRecyclable(c) {
+		c.Close()
 	} else {
-		cache := p.pool[client.addr]
+		cache := p.pool[c.addr]
 		if cache == nil {
 			cache = list.New()
-			p.pool[client.addr] = cache
+			p.pool[c.addr] = cache
 		}
-		cache.PushFront(client)
+		cache.PushFront(c)
 	}
+}
+
+func (p *RedisPool) CmdInfo(addr string) (map[string]string, error) {
+	c, err := p.GetClient(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer p.PutClient(c)
+	return c.Info()
+}
+
+func (p *RedisPool) CmdMigrateSlot(addr string, slot int, target string) (int, error) {
+	c, err := p.GetClient(addr)
+	if err != nil {
+		return 0, err
+	}
+	defer p.PutClient(c)
+	return c.MigrateSlot(slot, target)
 }
