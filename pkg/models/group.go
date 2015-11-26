@@ -5,12 +5,25 @@ package models
 
 import "sort"
 
-const MaxGroupId = 1e4 - 1
+const MaxGroupId = 9999
 
 type Group struct {
-	Id        int      `json:"id"`
-	Servers   []string `json:"servers"`
-	Promoting bool     `json:"promoting,omitempty"`
+	Id      int            `json:"id"`
+	Servers []*GroupServer `json:"servers"`
+
+	Promoting struct {
+		Index int    `json:"index,omitempty"`
+		State string `json:"state,omitempty"`
+	} `json:"promoting"`
+}
+
+type GroupServer struct {
+	Addr string `json:"addr"`
+
+	Action struct {
+		Index int    `json:"index,omitempty"`
+		State string `json:"state,omitempty"`
+	} `json:"action"`
 }
 
 func (g *Group) Encode() []byte {
@@ -40,4 +53,10 @@ func (s *groupSorter) Less(i, j int) bool {
 
 func SortGroup(list []*Group, less func(g1, g2 *Group) bool) {
 	sort.Sort(&groupSorter{list, less})
+}
+
+func SortGroupById(list []*Group) {
+	SortGroup(list, func(g1, g2 *Group) bool {
+		return g1.Id < g2.Id
+	})
 }
