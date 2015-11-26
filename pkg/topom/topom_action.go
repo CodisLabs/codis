@@ -9,67 +9,47 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
-	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-func (s *Topom) ProcessAction(slotId int) (err error) {
+func (s *Topom) ProcessSlotAction(sid int) (err error) {
 	defer func() {
 		if err != nil {
-			s.action.progress.failed.Set(true)
+			s.slotaction.progress.failed.Set(true)
 		} else {
-			s.action.progress.remain.Set(0)
-			s.action.progress.failed.Set(false)
+			s.slotaction.progress.remain.Set(0)
+			s.slotaction.progress.failed.Set(false)
 		}
 	}()
-	if err := s.PrepareAction(slotId); err != nil {
+	if err := s.SlotActionPrepare(sid); err != nil {
 		return err
 	}
 	for {
-		for s.GetActionDisabled() {
+		for s.GetSlotActionDisabled() {
 			time.Sleep(time.Millisecond * 10)
 		}
-		n, err := s.MigrateSlot(slotId)
-		if err != nil {
+		if exec, err := s.newSlotActionExecutor(sid); err != nil {
 			return err
-		}
-		switch {
-		case n > 0:
-			s.action.progress.remain.Set(int64(n))
-			s.action.progress.failed.Set(false)
-			s.NoopInterval()
-		case n < 0:
+		} else if exec == nil {
 			time.Sleep(time.Millisecond * 10)
-		default:
-			return s.CompleteAction(slotId)
-		}
-	}
-}
-
-func (s *Topom) NextActionSlotId() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.closed {
-		return -1
-	}
-
-	var x *models.SlotMapping
-	for _, m := range s.mappings {
-		if m.Action.State != models.ActionNothing {
-			if x == nil || x.Action.Index > m.Action.Index {
-				x = m
+		} else {
+			n, err := exec()
+			if err != nil {
+				return err
 			}
+			if n == 0 {
+				return s.SlotActionComplete(sid)
+			}
+			s.slotaction.progress.remain.Set(int64(n))
+			s.slotaction.progress.failed.Set(false)
+			s.NoopInterval()
 		}
 	}
-	if x == nil {
-		return -1
-	}
-	return x.Id
 }
 
 func (s *Topom) NoopInterval() int {
 	var ms int
 	for !s.IsClosed() {
-		if d := s.GetActionInterval() - ms; d <= 0 {
+		if d := s.GetSlotActionInterval() - ms; d <= 0 {
 			return ms
 		} else {
 			d = utils.MinInt(d, 50)
@@ -80,186 +60,139 @@ func (s *Topom) NoopInterval() int {
 	return ms
 }
 
-func (s *Topom) PrepareAction(slotId int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedTopom
-	}
-
-	m, err := s.getSlotMapping(slotId)
-	if err != nil {
-		return err
-	}
-	if m.Action.State == models.ActionNothing {
-		return errors.Errorf("action of slot-[%d] is nothing", slotId)
-	}
-
-	log.Infof("[%p] prepare action of slot-[%d]\n%s", s, slotId, m.Encode())
-
-	switch m.Action.State {
-	case models.ActionPending:
-
-		n := &models.SlotMapping{
-			Id:      slotId,
-			GroupId: m.GroupId,
-			Action:  m.Action,
-		}
-		n.Action.State = models.ActionPreparing
-
-		if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-			log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
-			return errors.Errorf("store: update slot-[%d] failed", slotId)
-		}
-
-		s.mappings[slotId] = n
-
-		log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
-
-		fallthrough
-
-	case models.ActionPreparing:
-
-		if err := s.resyncSlotMapping(slotId); err != nil {
-			return err
-		}
-
-		n := &models.SlotMapping{
-			Id:      slotId,
-			GroupId: m.GroupId,
-			Action:  m.Action,
-		}
-		n.Action.State = models.ActionMigrating
-
-		if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-			log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
-			return errors.Errorf("store: update slot-[%d] failed", slotId)
-		}
-
-		s.mappings[slotId] = n
-
-		log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
-
-		fallthrough
-
-	case models.ActionMigrating:
-
-		if err := s.resyncSlotMapping(slotId); err != nil {
-			return err
-		}
-
-	}
-	return nil
-}
-
-func (s *Topom) CompleteAction(slotId int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedTopom
-	}
-
-	m, err := s.getSlotMapping(slotId)
-	if err != nil {
-		return err
-	}
-	if m.Action.State != models.ActionMigrating {
-		return errors.Errorf("action of slot-[%d] is not migrating", slotId)
-	}
-
-	log.Infof("[%p] complete action of slot-[%d]\n%s", s, slotId, m.Encode())
-
-	n := &models.SlotMapping{
-		Id:      slotId,
-		GroupId: m.Action.TargetId,
-	}
-	s.mappings[slotId] = n
-
-	var rollback = true
-	defer func() {
-		if rollback {
-			s.mappings[slotId] = m
-		}
-	}()
-
-	if err := s.resyncSlotMapping(slotId); err != nil {
-		return err
-	}
-
-	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
-		return errors.Errorf("store: update slot-[%d] failed", slotId)
-	}
-
-	rollback = false
-
-	log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
-
-	return nil
-}
-
-type actionTask struct {
-	From, Dest struct {
-		Master  string
-		GroupId int
-	}
-	Locked bool
-}
-
-func (s *Topom) newActionTask(slotId int) (*actionTask, error) {
+func (s *Topom) FirstSlotAction() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.closed {
-		return nil, ErrClosedTopom
+	ctx, err := s.newContext()
+	if err != nil {
+		return -1
 	}
 
-	m, err := s.getSlotMapping(slotId)
+	if s.GetSlotActionDisabled() {
+		return -1
+	}
+
+	var sid = -1
+	var index int
+	for _, m := range ctx.slots {
+		if m.Action.State != models.ActionNothing {
+			if index == 0 || m.Action.Index < index {
+				sid, index = m.Id, m.Action.Index
+			}
+		}
+	}
+	return sid
+}
+
+func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ctx, err := s.newContext()
 	if err != nil {
 		return nil, err
 	}
-	if m.Action.State != models.ActionMigrating {
-		return nil, errors.Errorf("action of slot-[%d] is not migrating", slotId)
+
+	m, err := ctx.getSlotMapping(sid)
+	if err != nil {
+		return nil, err
 	}
 
-	t := &actionTask{
-		Locked: s.isSlotLocked(m),
-	}
-	t.From.Master = s.getGroupMaster(m.GroupId)
-	t.From.GroupId = m.GroupId
-	t.Dest.Master = s.getGroupMaster(m.Action.TargetId)
-	t.Dest.GroupId = m.Action.TargetId
+	switch m.Action.State {
 
-	s.lockGroupMaster(t.From.GroupId)
-	s.lockGroupMaster(t.Dest.GroupId)
-	return t, nil
+	case models.ActionMigrating, models.ActionFinished:
+
+		if ctx.isSlotLocked(m) {
+			return nil, nil
+		}
+
+		from := ctx.getGroupMaster(m.GroupId)
+		dest := ctx.getGroupMaster(m.Action.TargetId)
+
+		s.slotaction.executor.Incr()
+
+		return func() (int, error) {
+			defer s.slotaction.executor.Decr()
+			if from == "" {
+				return 0, nil
+			}
+			return s.redisp.CmdMigrateSlot(sid, from, dest)
+		}, nil
+
+	default:
+
+		return nil, errors.Errorf("action of slot-[%d] is not migrating", sid)
+
+	}
 }
 
-func (s *Topom) releaseActionTask(t *actionTask) {
+func (s *Topom) ProcessSyncAction(gid int, addr string) error {
+	if err := s.GroupSyncActionPrepare(gid, addr); err != nil {
+		return err
+	}
+	if exec, err := s.newSyncActionExecutor(gid, addr); err != nil {
+		return err
+	} else if err := exec(); err != nil {
+		return err
+	} else {
+		return s.GroupSyncActionComplete(gid, addr)
+	}
+}
+
+func (s *Topom) FirstSyncAction() (int, string) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return -1, ""
+	}
 
-	s.unlockGroupMaster(t.From.GroupId)
-	s.unlockGroupMaster(t.Dest.GroupId)
+	var gid, addr = -1, ""
+	var index int
+	for _, g := range ctx.group {
+		for _, x := range g.Servers {
+			if x.Action.State != models.ActionNothing {
+				if index == 0 || x.Action.Index < index {
+					gid, addr, index = g.Id, x.Addr, x.Action.Index
+				}
+			}
+		}
+	}
+	return gid, addr
 }
 
-func (s *Topom) MigrateSlot(slotId int) (int, error) {
-	t, err := s.newActionTask(slotId)
+func (s *Topom) newSyncActionExecutor(gid int, addr string) (func() error, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ctx, err := s.newContext()
 	if err != nil {
-		return 0, err
-	}
-	defer s.releaseActionTask(t)
-
-	if t.Locked {
-		return -1, nil
-	}
-	if t.From.Master == "" {
-		return 0, nil
+		return nil, err
 	}
 
-	c, err := s.redisp.GetClient(t.From.Master)
+	g, err := ctx.getGroup(gid)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	defer s.redisp.PutClient(c)
-	return c.MigrateSlot(slotId, t.Dest.Master)
+
+	var index = g.IndexOfServer(addr)
+
+	if index < 0 {
+		return nil, errors.Errorf("group-[%d] doesn't have server %s", gid, addr)
+	}
+
+	if g.Servers[index].Action.State != models.ActionSyncing {
+		return nil, errors.Errorf("action of server-[%s] is not syncing", addr)
+	}
+
+	var master = "NO:ONE"
+	if index != 0 {
+		master = ctx.getGroupMaster(gid)
+	}
+	return func() error {
+		c, err := NewRedisClient(addr, s.config.ProductAuth, time.Minute*15)
+		if err != nil {
+			return err
+		}
+		defer c.Close()
+		return c.SetMaster(master)
+	}, nil
 }

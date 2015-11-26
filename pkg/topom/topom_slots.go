@@ -5,219 +5,268 @@ package topom
 
 import (
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/proxy"
-	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-func (s *Topom) GetSlotMappings() []*models.SlotMapping {
+func (s *Topom) GetSlots() ([]*models.Slot, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.getSlotMappings()
-}
-
-func (s *Topom) GetSlots() []*models.Slot {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.getSlots()
-}
-
-func (s *Topom) getSlotMappings() []*models.SlotMapping {
-	mappings := make([]*models.SlotMapping, len(s.mappings))
-	for i, m := range s.mappings {
-		mappings[i] = m
+	ctx, err := s.newContext()
+	if err != nil {
+		return nil, err
 	}
-	return mappings
+	return ctx.toSlotList(ctx.slots, false), nil
 }
 
-func (s *Topom) getSlotMapping(slotId int) (*models.SlotMapping, error) {
-	if slotId >= 0 && slotId < len(s.mappings) {
-		return s.mappings[slotId], nil
-	}
-	return nil, errors.Errorf("invalid slot id, out of range")
-}
-
-func (s *Topom) isSlotLocked(m *models.SlotMapping) bool {
-	switch m.Action.State {
-	case models.ActionNothing:
-		fallthrough
-	case models.ActionPending:
-		return s.isGroupPromoting(m.GroupId)
-	case models.ActionPreparing:
-		return true
-	case models.ActionMigrating:
-		return s.isGroupPromoting(m.GroupId) || s.isGroupPromoting(m.Action.TargetId)
-	}
-	return false
-}
-
-func (s *Topom) isSlotUseGroup(m *models.SlotMapping, groupId int) bool {
-	switch m.Action.State {
-	case models.ActionNothing:
-		return m.GroupId == groupId
-	case models.ActionPending:
-		fallthrough
-	case models.ActionPreparing:
-		fallthrough
-	case models.ActionMigrating:
-		return m.GroupId == groupId || m.Action.TargetId == groupId
-	}
-	return false
-}
-
-func (s *Topom) toSlotState(m *models.SlotMapping) *models.Slot {
-	slot := &models.Slot{
-		Id:     m.Id,
-		Locked: s.isSlotLocked(m),
-	}
-	switch m.Action.State {
-	case models.ActionNothing:
-		fallthrough
-	case models.ActionPending:
-		slot.BackendAddr = s.getGroupMaster(m.GroupId)
-	case models.ActionPreparing:
-		fallthrough
-	case models.ActionMigrating:
-		slot.BackendAddr = s.getGroupMaster(m.Action.TargetId)
-		slot.MigrateFrom = s.getGroupMaster(m.GroupId)
-	}
-	return slot
-}
-
-func (s *Topom) getSlots() []*models.Slot {
-	slots := make([]*models.Slot, 0, len(s.mappings))
-	for _, m := range s.mappings {
-		slots = append(slots, s.toSlotState(m))
-	}
-	return slots
-}
-
-func (s *Topom) getSlotsByGroup(groupId int) []*models.Slot {
-	slots := make([]*models.Slot, 0, len(s.mappings))
-	for _, m := range s.mappings {
-		if s.isSlotUseGroup(m, groupId) {
-			slots = append(slots, s.toSlotState(m))
-		}
-	}
-	return slots
-}
-
-func (s *Topom) maxActionIndex() int {
-	var maxIndex int
-	for _, m := range s.mappings {
-		if m.Action.State != models.ActionNothing {
-			maxIndex = utils.MaxInt(maxIndex, m.Action.Index)
-		}
-	}
-	return maxIndex
-}
-
-func (s *Topom) SlotCreateAction(slotId int, targetId int) error {
+func (s *Topom) SlotCreateAction(sid int, gid int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedTopom
-	}
-
-	m, err := s.getSlotMapping(slotId)
+	ctx, err := s.newContext()
 	if err != nil {
 		return err
 	}
-	if m.Action.State != models.ActionNothing {
-		return errors.Errorf("action of slot-[%d] already exists", slotId)
-	}
 
-	g, err := s.getGroup(targetId)
+	g, err := ctx.getGroup(gid)
 	if err != nil {
 		return err
 	}
 	if len(g.Servers) == 0 {
-		return errors.Errorf("group-[%d] is empty", targetId)
-	}
-	if m.GroupId == targetId {
-		return errors.Errorf("slot-[%d] already in group-[%d]", slotId, targetId)
+		return errors.Errorf("group-[%d] is empty", gid)
 	}
 
-	n := &models.SlotMapping{
-		Id:      slotId,
-		GroupId: m.GroupId,
+	m, err := ctx.getSlotMapping(sid)
+	if err != nil {
+		return err
 	}
-	n.Action.State = models.ActionPending
-	n.Action.Index = s.maxActionIndex() + 1
-	n.Action.TargetId = targetId
-
-	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
-		return errors.Errorf("store: update slot-[%d] failed", slotId)
+	if m.Action.State != models.ActionNothing {
+		return errors.Errorf("action of slot-[%d] already exists", sid)
+	}
+	if m.GroupId == gid {
+		return errors.Errorf("slot-[%d] already in group-[%d]", sid, gid)
 	}
 
-	s.mappings[slotId] = n
+	m.Action.State = models.ActionPending
+	m.Action.Index = ctx.maxSlotActionIndex() + 1
+	m.Action.TargetId = gid
 
-	log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
+	if err := s.store.UpdateSlotMapping(m); err != nil {
+		log.ErrorErrorf(err, "store: update slot-[%d] failed", sid)
+		return errors.Errorf("store: update slot-[%d] failed", sid)
+	}
+
+	log.Infof("update slot-[%d]:\n%s", sid, m.Encode())
 
 	select {
-	case s.action.notify <- true:
 	default:
+	case s.slotaction.notify <- true:
 	}
 
 	return nil
 }
 
-func (s *Topom) SlotRemoveAction(slotId int) error {
+func (s *Topom) SlotRemoveAction(sid int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedTopom
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
 	}
 
-	m, err := s.getSlotMapping(slotId)
+	m, err := ctx.getSlotMapping(sid)
 	if err != nil {
 		return err
 	}
 	if m.Action.State == models.ActionNothing {
-		return errors.Errorf("action of slot-[%d] is empty", slotId)
+		return errors.Errorf("action of slot-[%d] doesn't exist", sid)
 	}
 	if m.Action.State != models.ActionPending {
-		return errors.Errorf("action of slot-[%d] is not pending", slotId)
+		return errors.Errorf("action of slot-[%d] cannot be removed", sid)
 	}
 
-	n := &models.SlotMapping{
-		Id:      slotId,
+	m = &models.SlotMapping{
+		Id:      m.Id,
 		GroupId: m.GroupId,
 	}
-	if err := s.store.SaveSlotMapping(slotId, n); err != nil {
-		log.ErrorErrorf(err, "[%p] update slot-[%d] failed", s, slotId)
-		return errors.Errorf("store: update slot-[%d] failed", slotId)
+
+	if err := s.store.UpdateSlotMapping(m); err != nil {
+		log.ErrorErrorf(err, "store: update slot-[%d] failed", sid)
+		return errors.Errorf("store: update slot-[%d] failed", sid)
 	}
 
-	s.mappings[slotId] = n
-
-	log.Infof("[%p] update slot-[%d]:\n%s", s, slotId, n.Encode())
+	log.Infof("update slot-[%d]:\n%s", sid, m.Encode())
 
 	return nil
 }
 
-func (s *Topom) resyncSlotMapping(slotId int) error {
-	m, err := s.getSlotMapping(slotId)
+func (s *Topom) SlotActionPrepare(sid int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
 	if err != nil {
 		return err
 	}
-	if err := s.resyncPrepare(); err != nil {
+
+	m, err := ctx.getSlotMapping(sid)
+	if err != nil {
 		return err
 	}
-	slot := s.toSlotState(m)
-	errs := s.broadcast(func(p *models.Proxy, c *proxy.ApiClient) error {
-		if err := c.FillSlots(slot); err != nil {
-			log.WarnErrorf(err, "[%p] proxy-[%s] resync slot-[%d] failed", s, p.Token, slotId)
+	if m.Action.State == models.ActionNothing {
+		return nil
+	}
+
+	log.Infof("prepare action of slot-[%d]\n%s", sid, m.Encode())
+
+	switch m.Action.State {
+
+	case models.ActionPending:
+
+		m.Action.State = models.ActionPreparing
+
+		if err := s.store.UpdateSlotMapping(m); err != nil {
+			log.ErrorErrorf(err, "store: update slot-[%d] failed", sid)
+			return errors.Errorf("store: update slot-[%d] failed", sid)
+		}
+
+		log.Infof("update slot-[%d]:\n%s", sid, m.Encode())
+
+		fallthrough
+
+	case models.ActionPreparing:
+
+		onForwardError := func(p *models.Proxy, err error) {
+			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] to prepared failed", p.Token, sid)
+		}
+		onRollbackError := func(p *models.Proxy, err error) {
+			log.WarnErrorf(err, "proxy-[%s] resync-rollback slot-[%d] to preparing failed", p.Token, sid)
+		}
+
+		if err := ctx.resyncSlots(onForwardError, ctx.toSlot(m, true)); err != nil {
+			log.Warnf("resync slot-[%d] to prepared failed, try to rollback", sid)
+			ctx.resyncSlots(onRollbackError, ctx.toSlot(m, false))
+			log.Warnf("resync slot-[%d] to preparing, rollback finished", sid)
 			return err
 		}
-		return nil
-	})
-	for t, err := range errs {
-		if err != nil {
-			return errors.Errorf("proxy-[%s] resync slot-[%d] failed", t, slotId)
+
+		m.Action.State = models.ActionPrepared
+
+		if err := s.store.UpdateSlotMapping(m); err != nil {
+			log.ErrorErrorf(err, "store: update slot-[%d] failed", sid)
+			return errors.Errorf("store: update slot-[%d] failed", sid)
 		}
+
+		log.Infof("update slot-[%d]:\n%s", sid, m.Encode())
+
+		fallthrough
+
+	case models.ActionPrepared:
+
+		m.Action.State = models.ActionMigrating
+
+		if err := s.store.UpdateSlotMapping(m); err != nil {
+			log.ErrorErrorf(err, "store: update slot-[%d] failed", sid)
+			return errors.Errorf("store: update slot-[%d] failed", sid)
+		}
+
+		log.Infof("update slot-[%d]:\n%s", sid, m.Encode())
+
+		fallthrough
+
+	case models.ActionMigrating:
+
+		onForwardError := func(p *models.Proxy, err error) {
+			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] to migrating failed", p.Token, sid)
+		}
+
+		if err := ctx.resyncSlots(onForwardError, ctx.toSlot(m, false)); err != nil {
+			log.Warnf("resync slot-[%d] to migrating failed", sid)
+			return err
+		}
+
+		log.Infof("update slot-[%d]:\n%s", sid, m.Encode())
+
+		return nil
+
+	case models.ActionFinished:
+
+		return nil
+
+	default:
+
+		log.Panicf("invalid state of slot-[%d] = %s", sid, m.Encode())
+
+		return nil
+
 	}
-	return nil
+}
+
+func (s *Topom) SlotActionComplete(sid int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+
+	m, err := ctx.getSlotMapping(sid)
+	if err != nil {
+		return err
+	}
+	if m.Action.State == models.ActionNothing {
+		return nil
+	}
+
+	log.Infof("complete action of slot-[%d]\n%s", sid, m.Encode())
+
+	switch m.Action.State {
+
+	case models.ActionPending, models.ActionPreparing, models.ActionPrepared:
+
+		return errors.Errorf("action of slot-[%d] is not migrating", sid)
+
+	case models.ActionMigrating:
+
+		m.Action.State = models.ActionFinished
+
+		if err := s.store.UpdateSlotMapping(m); err != nil {
+			log.ErrorErrorf(err, "store: update slot-[%d] failed", sid)
+			return errors.Errorf("store: update slot-[%d] failed", sid)
+		}
+
+		log.Infof("update slot-[%d]:\n%s", sid, m.Encode())
+
+		fallthrough
+
+	case models.ActionFinished:
+
+		onForwardError := func(p *models.Proxy, err error) {
+			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] to finished failed", p.Token, sid)
+		}
+
+		if err := ctx.resyncSlots(onForwardError, ctx.toSlot(m, false)); err != nil {
+			log.Warnf("resync slot-[%d] to finished failed", sid)
+			return err
+		}
+
+		m = &models.SlotMapping{
+			Id:      m.Id,
+			GroupId: m.Action.TargetId,
+		}
+
+		if err := s.store.UpdateSlotMapping(m); err != nil {
+			log.ErrorErrorf(err, "store: update slot-[%d] failed", sid)
+			return errors.Errorf("store: update slot-[%d] failed", sid)
+		}
+
+		log.Infof("update slot-[%d]:\n%s", sid, m.Encode())
+
+		return nil
+
+	default:
+
+		log.Panicf("invalid state of slot-[%d] = %s", sid, m.Encode())
+
+		return nil
+
+	}
 }

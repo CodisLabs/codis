@@ -8,5 +8,4 @@ const (
 	ActionMigrating = "migrating"
 	ActionFinished  = "finished"
 	ActionSyncing   = "syncing"
-	ActionSyncError = "syncerror"
 )

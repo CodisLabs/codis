@@ -48,6 +48,15 @@ func (g *Group) Decode(b []byte) error {
 	return jsonDecode(g, b)
 }
 
+func (g *Group) IndexOfServer(addr string) int {
+	for i, x := range g.Servers {
+		if x.Addr == addr {
+			return i
+		}
+	}
+	return -1
+}
+
 type groupSorter struct {
 	list []*Group
 	less func(g1, g2 *Group) bool
