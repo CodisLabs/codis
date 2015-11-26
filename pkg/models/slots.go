@@ -26,7 +26,3 @@ type SlotMapping struct {
 func (m *SlotMapping) Encode() []byte {
 	return jsonEncode(m)
 }
-
-func (m *SlotMapping) Decode(b []byte) error {
-	return jsonDecode(m, b)
-}
