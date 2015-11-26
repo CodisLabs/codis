@@ -23,11 +23,6 @@ type SlotMapping struct {
 	} `json:"action"`
 }
 
-func (m *SlotMapping) Clone() *SlotMapping {
-	var dup = *m
-	return &dup
-}
-
 func (m *SlotMapping) Encode() []byte {
 	return jsonEncode(m)
 }

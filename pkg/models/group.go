@@ -18,26 +18,12 @@ type Group struct {
 }
 
 type GroupServer struct {
-	Addr string `json:"addr"`
+	Addr string `json:"server"`
 
 	Action struct {
 		Index int    `json:"index,omitempty"`
 		State string `json:"state,omitempty"`
 	} `json:"action"`
-}
-
-func (x *GroupServer) Clone() *GroupServer {
-	var dup = *x
-	return &dup
-}
-
-func (g *Group) Clone() *Group {
-	var dup = *g
-	dup.Servers = make([]*GroupServer, len(g.Servers))
-	for i, x := range g.Servers {
-		dup.Servers[i] = x.Clone()
-	}
-	return &dup
 }
 
 func (g *Group) Encode() []byte {
@@ -46,15 +32,6 @@ func (g *Group) Encode() []byte {
 
 func (g *Group) Decode(b []byte) error {
 	return jsonDecode(g, b)
-}
-
-func (g *Group) IndexOfServer(addr string) int {
-	for i, x := range g.Servers {
-		if x.Addr == addr {
-			return i
-		}
-	}
-	return -1
 }
 
 type groupSorter struct {
