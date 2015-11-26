@@ -16,9 +16,9 @@ type Proxy struct {
 
 	ProductName string `json:"product_name"`
 
-	Pid   int    `json:"pid"`
-	Pwd   string `json:"pwd"`
-	Uname string `json:"uname"`
+	Pid int    `json:"pid"`
+	Pwd string `json:"pwd"`
+	Sys string `json:"sys"`
 }
 
 func (p *Proxy) Encode() []byte {
@@ -48,4 +48,15 @@ func (s *proxySorter) Less(i, j int) bool {
 
 func SortProxy(list []*Proxy, less func(p1, p2 *Proxy) bool) {
 	sort.Sort(&proxySorter{list, less})
+}
+
+func SortProxyById(pmap map[string]*Proxy) []*Proxy {
+	list := make([]*Proxy, 0, len(pmap))
+	for _, p := range pmap {
+		list = append(list, p)
+	}
+	SortProxy(list, func(p1, p2 *Proxy) bool {
+		return p1.Id < p2.Id
+	})
+	return list
 }
