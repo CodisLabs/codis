@@ -14,10 +14,10 @@ import (
 func (s *Topom) ProcessSlotAction(sid int) (err error) {
 	defer func() {
 		if err != nil {
-			s.slotaction.progress.failed.Set(true)
+			s.action.progress.failed.Set(true)
 		} else {
-			s.slotaction.progress.remain.Set(0)
-			s.slotaction.progress.failed.Set(false)
+			s.action.progress.remain.Set(0)
+			s.action.progress.failed.Set(false)
 		}
 	}()
 	if err := s.SlotActionPrepare(sid); err != nil {
@@ -39,8 +39,8 @@ func (s *Topom) ProcessSlotAction(sid int) (err error) {
 			if n == 0 {
 				return s.SlotActionComplete(sid)
 			}
-			s.slotaction.progress.remain.Set(int64(n))
-			s.slotaction.progress.failed.Set(false)
+			s.action.progress.remain.Set(int64(n))
+			s.action.progress.failed.Set(false)
 			s.NoopInterval()
 		}
 	}
@@ -108,14 +108,14 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 		from := ctx.getGroupMaster(m.GroupId)
 		dest := ctx.getGroupMaster(m.Action.TargetId)
 
-		s.slotaction.executor.Incr()
+		s.action.executor.Incr()
 
 		return func() (int, error) {
-			defer s.slotaction.executor.Decr()
+			defer s.action.executor.Decr()
 			if from == "" {
 				return 0, nil
 			}
-			return s.redisp.CmdMigrateSlot(sid, from, dest)
+			return s.redisp.MigrateSlot(sid, from, dest)
 		}, nil
 
 	default:

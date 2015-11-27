@@ -59,7 +59,7 @@ func (s *Topom) SlotCreateAction(sid int, gid int) error {
 
 	select {
 	default:
-	case s.slotaction.notify <- true:
+	case s.action.notify <- true:
 	}
 
 	return nil

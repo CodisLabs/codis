@@ -266,7 +266,7 @@ func (p *RedisPool) PutClient(c *RedisClient) {
 	}
 }
 
-func (p *RedisPool) CmdInfo(addr string) (map[string]string, error) {
+func (p *RedisPool) Info(addr string) (map[string]string, error) {
 	c, err := p.GetClient(addr)
 	if err != nil {
 		return nil, err
@@ -275,7 +275,7 @@ func (p *RedisPool) CmdInfo(addr string) (map[string]string, error) {
 	return c.Info()
 }
 
-func (p *RedisPool) CmdMigrateSlot(slot int, from, dest string) (int, error) {
+func (p *RedisPool) MigrateSlot(slot int, from, dest string) (int, error) {
 	c, err := p.GetClient(from)
 	if err != nil {
 		return 0, err

@@ -33,19 +33,14 @@ type Topom struct {
 	}
 
 	config *Config
-	online bool
 	closed bool
 
 	ladmin net.Listener
 	redisp *RedisPool
 
-	stats struct {
-		servers map[string]*RedisStats
-		proxies map[string]*ProxyStats
-	}
-	start sync.Once
+	registered bool
 
-	slotaction struct {
+	action struct {
 		interval atomic2.Int64
 		disabled atomic2.Bool
 
@@ -57,6 +52,12 @@ type Topom struct {
 
 		notify chan bool
 	}
+
+	stats struct {
+		servers map[string]*RedisStats
+		proxies map[string]*ProxyStats
+	}
+	start sync.Once
 }
 
 var ErrClosedTopom = errors.New("use of closed topom")
@@ -78,14 +79,15 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	} else {
 		s.model.Sys = strings.TrimSpace(string(b))
 	}
+
 	s.exit.C = make(chan struct{})
 	s.redisp = NewRedisPool(config.ProductAuth, time.Second*10)
 
+	s.action.interval.Set(1000)
+	s.action.notify = make(chan bool, 1)
+
 	s.stats.servers = make(map[string]*RedisStats)
 	s.stats.proxies = make(map[string]*ProxyStats)
-
-	s.slotaction.interval.Set(1000)
-	s.slotaction.notify = make(chan bool, 1)
 
 	if err := s.setup(); err != nil {
 		s.Close()
@@ -115,10 +117,10 @@ func (s *Topom) setup() error {
 	if err := s.store.Acquire(s.model); err != nil {
 		log.ErrorErrorf(err, "store: acquire lock for %s failed", s.config.ProductName)
 		return errors.Errorf("store: acquire lock for %s failed", s.config.ProductName)
-	} else {
-		s.online = true
-		return nil
 	}
+	s.registered = true
+
+	return nil
 }
 
 func (s *Topom) Close() error {
@@ -139,15 +141,15 @@ func (s *Topom) Close() error {
 
 	defer s.store.Close()
 
-	if !s.online {
+	if !s.registered {
 		return nil
 	}
-	if err := s.store.Release(false); err != nil {
+
+	if err := s.store.Release(); err != nil {
 		log.ErrorErrorf(err, "store: release lock for %s failed", s.config.ProductName)
 		return errors.Errorf("store: release lock for %s failed", s.config.ProductName)
-	} else {
-		return nil
 	}
+	return nil
 }
 
 func (s *Topom) XAuth() string {
@@ -179,7 +181,6 @@ func (s *Topom) Stats() (*Stats, error) {
 	}
 
 	stats := &Stats{}
-	stats.Online = s.online
 	stats.Closed = s.closed
 
 	stats.Slots = ctx.slots
@@ -190,17 +191,16 @@ func (s *Topom) Stats() (*Stats, error) {
 	stats.Proxy.Models = ctx.proxy
 	stats.Proxy.Stats = s.stats.proxies
 
-	stats.SlotAction.Interval = s.slotaction.interval.Get()
-	stats.SlotAction.Disabled = s.slotaction.disabled.Get()
-	stats.SlotAction.Progress.Remain = s.slotaction.progress.remain.Get()
-	stats.SlotAction.Progress.Failed = s.slotaction.progress.failed.Get()
-	stats.SlotAction.Executor = s.slotaction.executor.Get()
+	stats.SlotAction.Interval = s.action.interval.Get()
+	stats.SlotAction.Disabled = s.action.disabled.Get()
+	stats.SlotAction.Progress.Remain = s.action.progress.remain.Get()
+	stats.SlotAction.Progress.Failed = s.action.progress.failed.Get()
+	stats.SlotAction.Executor = s.action.executor.Get()
 
 	return stats, nil
 }
 
 type Stats struct {
-	Online bool `json:"online"`
 	Closed bool `json:"closed"`
 
 	Slots []*models.SlotMapping `json:"slots"`
@@ -232,12 +232,6 @@ func (s *Topom) Config() *Config {
 	return s.config
 }
 
-func (s *Topom) IsOnline() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.online && !s.closed
-}
-
 func (s *Topom) IsClosed() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -245,23 +239,23 @@ func (s *Topom) IsClosed() bool {
 }
 
 func (s *Topom) GetSlotActionInterval() int {
-	return int(s.slotaction.interval.Get())
+	return int(s.action.interval.Get())
 }
 
 func (s *Topom) SetSlotActionInterval(ms int) {
 	ms = utils.MaxInt(ms, 0)
 	ms = utils.MinInt(ms, 1000)
-	s.slotaction.interval.Set(int64(ms))
-	log.Infof("set slotaction interval = %d", ms)
+	s.action.interval.Set(int64(ms))
+	log.Infof("set action interval = %d", ms)
 }
 
 func (s *Topom) GetSlotActionDisabled() bool {
-	return s.slotaction.disabled.Get()
+	return s.action.disabled.Get()
 }
 
 func (s *Topom) SetSlotActionDisabled(value bool) {
-	s.slotaction.disabled.Set(value)
-	log.Infof("set slotaction disabled = %t", value)
+	s.action.disabled.Set(value)
+	log.Infof("set action disabled = %t", value)
 }
 
 func (s *Topom) newProxyClient(p *models.Proxy) *proxy.ApiClient {
@@ -323,7 +317,7 @@ func (s *Topom) StartDaemonRoutines() {
 					case <-s.exit.C:
 						return
 					case <-ticker.C:
-					case <-s.slotaction.notify:
+					case <-s.action.notify:
 					}
 				} else {
 					if err := s.ProcessSlotAction(sid); err != nil {

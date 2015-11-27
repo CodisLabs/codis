@@ -190,7 +190,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 		}
 	}
 
-	if s.slotaction.executor.Get() != 0 {
+	if s.action.executor.Get() != 0 {
 		return errors.Errorf("slots-migration is running, master may be busy")
 	}
 
