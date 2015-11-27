@@ -67,10 +67,6 @@ func New(config *Config) (*Proxy, error) {
 	s.init.C = make(chan struct{})
 	s.exit.C = make(chan struct{})
 
-	if config.JodisAddr != "" {
-		s.jodis = NewJodis(config.JodisAddr, config.JodisTimeout, s.model)
-	}
-
 	if err := s.setup(); err != nil {
 		s.Close()
 		return nil, err
@@ -125,6 +121,10 @@ func (s *Proxy) Start() error {
 	}
 	s.online = true
 	close(s.init.C)
+
+	if s.jodis == nil && s.config.JodisAddr != "" {
+		s.jodis = NewJodis(s.config.JodisAddr, s.config.JodisTimeout, s.model)
+	}
 	return nil
 }
 
@@ -140,7 +140,6 @@ func (s *Proxy) Close() error {
 	if s.jodis != nil {
 		s.jodis.Close()
 	}
-
 	if s.ladmin != nil {
 		s.ladmin.Close()
 	}
