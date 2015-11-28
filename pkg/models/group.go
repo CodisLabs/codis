@@ -27,12 +27,3 @@ type GroupServer struct {
 func (g *Group) Encode() []byte {
 	return jsonEncode(g)
 }
-
-func (g *Group) IndexOfServer(addr string) int {
-	for i, x := range g.Servers {
-		if x.Addr == addr {
-			return i
-		}
-	}
-	return -1
-}

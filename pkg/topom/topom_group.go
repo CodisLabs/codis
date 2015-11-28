@@ -4,6 +4,7 @@
 package topom
 
 import (
+	"net"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -20,25 +21,20 @@ func (s *Topom) CreateGroup(gid int) error {
 	}
 
 	if gid <= 0 || gid > models.MaxGroupId {
-		return errors.Errorf("invalid group id, out of range")
+		return errors.Errorf("invalid group id = %d, out of range", gid)
 	}
 	if ctx.group[gid] != nil {
 		return errors.Errorf("group-[%d] already exists", gid)
 	}
+
+	s.dirtyGroupCache(gid)
 
 	g := &models.Group{
 		Id:      gid,
 		Servers: []*models.GroupServer{},
 	}
 
-	if err := s.store.UpdateGroup(g); err != nil {
-		log.ErrorErrorf(err, "store: create group-[%d] failed", gid)
-		return errors.Errorf("store: create group-[%d] failed", gid)
-	}
-
-	log.Infof("create group-[%d]:\n%s", gid, g.Encode())
-
-	return nil
+	return s.storeCreateGroup(g)
 }
 
 func (s *Topom) RemoveGroup(gid int) error {
@@ -57,14 +53,9 @@ func (s *Topom) RemoveGroup(gid int) error {
 		return errors.Errorf("group-[%d] isn't empty", gid)
 	}
 
-	if err := s.store.DeleteGroup(gid); err != nil {
-		log.ErrorErrorf(err, "store: remove group-[%d] failed", gid)
-		return errors.Errorf("store: remove group-[%d] failed", gid)
-	}
+	s.dirtyGroupCache(gid)
 
-	log.Infof("remove group-[%d]:\n%s", gid, g.Encode())
-
-	return nil
+	return s.storeRemoveGroup(g)
 }
 
 func (s *Topom) GroupAddServer(gid int, addr string) error {
@@ -75,10 +66,10 @@ func (s *Topom) GroupAddServer(gid int, addr string) error {
 		return err
 	}
 
-	if addr == "" {
-		return errors.Errorf("invalid server address")
+	if _, _, err := net.SplitHostPort(addr); err != nil {
+		return errors.Errorf("invalid server address: %s", err)
 	}
-	if ctx.getGroupByServer(addr) != nil {
+	if g, _, _ := ctx.getGroupByServer(addr); g != nil {
 		return errors.Errorf("server-[%s] already exists", addr)
 	}
 
@@ -90,19 +81,14 @@ func (s *Topom) GroupAddServer(gid int, addr string) error {
 		return errors.Errorf("group-[%d] is promoting", gid)
 	}
 
+	s.dirtyGroupCache(gid)
+
 	g.Servers = append(g.Servers, &models.GroupServer{Addr: addr})
 
-	if err := s.store.UpdateGroup(g); err != nil {
-		log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-		return errors.Errorf("store: update group-[%d] failed", gid)
-	}
-
-	log.Infof("update group-[%d]:\n%s", gid, g.Encode())
-
-	return nil
+	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) GroupDelServer(gid int, addr string) error {
+func (s *Topom) GroupDelServer(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -110,31 +96,21 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 		return err
 	}
 
-	if addr == "" {
-		return errors.Errorf("invalid server address")
-	}
-
-	g, err := ctx.getGroup(gid)
+	g, index, err := ctx.getGroupByServer(addr)
 	if err != nil {
 		return err
 	}
 	if g.Promoting.State != models.ActionNothing {
-		return errors.Errorf("group-[%d] is promoting", gid)
+		return errors.Errorf("group-[%d] is promoting", g.Id)
 	}
 
-	var index = g.IndexOfServer(addr)
-
-	switch {
-	case index < 0:
-		return errors.Errorf("group-[%d] doesn't have server %s", gid, addr)
-	case index == 0:
-		if len(g.Servers) != 1 || ctx.isGroupIsBusy(gid) {
-			return errors.Errorf("group-[%d] can't remove master, still in use", gid)
+	if index == 0 {
+		if len(g.Servers) != 1 || ctx.isGroupInUse(g.Id) {
+			return errors.Errorf("group-[%d] can't remove master, still in use", g.Id)
 		}
-	default:
-		if g.Servers[index].Action.State != models.ActionNothing {
-			return errors.Errorf("action of server-[%s] is not empty", addr)
-		}
+	}
+	if g.Servers[index].Action.State != models.ActionNothing {
+		return errors.Errorf("server-[%s] action is not empty", addr)
 	}
 
 	var slice = make([]*models.GroupServer, 0, len(g.Servers))
@@ -143,19 +119,15 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 			slice = append(slice, x)
 		}
 	}
+
+	s.dirtyGroupCache(g.Id)
+
 	g.Servers = slice
 
-	if err := s.store.UpdateGroup(g); err != nil {
-		log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-		return errors.Errorf("store: update group-[%d] failed", gid)
-	}
-
-	log.Infof("update group-[%d]:\n%s", gid, g.Encode())
-
-	return nil
+	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) GroupPromoteServer(gid int, addr string) error {
+func (s *Topom) GroupPromoteServer(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -163,48 +135,33 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 		return err
 	}
 
-	if addr == "" {
-		return errors.Errorf("invalid server address")
-	}
-
-	g, err := ctx.getGroup(gid)
+	g, index, err := ctx.getGroupByServer(addr)
 	if err != nil {
 		return err
 	}
 	if g.Promoting.State != models.ActionNothing {
-		return errors.Errorf("group-[%d] is promoting", gid)
+		return errors.Errorf("group-[%d] is promoting", g.Id)
 	}
 
-	var index = g.IndexOfServer(addr)
-
-	switch {
-	case index < 0:
-		return errors.Errorf("group-[%d] doesn't have server %s", gid, addr)
-	case index == 0:
-		return errors.Errorf("group-[%d] can't promote master again", gid)
-	default:
-		for _, x := range g.Servers {
-			if x.Action.State != models.ActionNothing {
-				return errors.Errorf("action of server-[%s] is not empty", addr)
-			}
+	if index == 0 {
+		return errors.Errorf("group-[%d] can't promote master", g.Id)
+	}
+	for _, x := range g.Servers {
+		if x.Action.State != models.ActionNothing {
+			return errors.Errorf("server-[%s] action is not empty", x.Addr)
 		}
 	}
 
-	if s.action.executor.Get() != 0 {
-		return errors.Errorf("slots-migration is running, master may be busy")
+	if n := s.action.executor.Get(); n != 0 {
+		return errors.Errorf("slots-migration is running = %d", n)
 	}
+
+	s.dirtyGroupCache(g.Id)
 
 	g.Promoting.Index = index
 	g.Promoting.State = models.ActionPreparing
 
-	if err := s.store.UpdateGroup(g); err != nil {
-		log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-		return errors.Errorf("store: update group-[%d] failed", gid)
-	}
-
-	log.Infof("update group-[%d]:\n%s", gid, g.Encode())
-
-	return nil
+	return s.storeUpdateGroup(g)
 }
 
 func (s *Topom) GroupPromoteCommit(gid int) error {
@@ -223,8 +180,6 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		return nil
 	}
 
-	log.Infof("promote-commit master of group-[%d]\n%s", gid, g.Encode())
-
 	switch g.Promoting.State {
 
 	case models.ActionPreparing:
@@ -236,23 +191,22 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 			log.WarnErrorf(err, "proxy-[%s] resync-rollback group-[%d] to preparing failed", p.Token, gid)
 		}
 
-		var mappings = ctx.getSlotMappingByGroupId(gid)
+		slots := ctx.getSlotMappingByGroupId(gid)
 
-		if err := ctx.resyncSlots(onForwardError, ctx.toSlotSlice(mappings, true)...); err != nil {
-			log.Warnf("resync group-[%d] to prepared failed, try to rollback", gid)
-			ctx.resyncSlots(onRollbackError, ctx.toSlotSlice(mappings, false)...)
-			log.Warnf("resync group-[%d] to preparing, rollback finished", gid)
+		if err := ctx.resyncSlots(onForwardError, ctx.toSlotSlice(slots, true)...); err != nil {
+			log.Warnf("resync group-[%d] to prepared failed, rollback", gid)
+			ctx.resyncSlots(onRollbackError, ctx.toSlotSlice(slots, false)...)
+			log.Warnf("resync-rollback group-[%d] to preparing finished", gid)
 			return err
 		}
 
+		s.dirtyGroupCache(gid)
+
 		g.Promoting.State = models.ActionPrepared
 
-		if err := s.store.UpdateGroup(g); err != nil {
-			log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-			return errors.Errorf("store: update group-[%d] failed", gid)
+		if err := s.storeUpdateGroup(g); err != nil {
+			return err
 		}
-
-		log.Infof("update group-[%d]:\n%s", gid, g.Encode())
 
 		fallthrough
 
@@ -267,16 +221,15 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		}
 		slice[0] = &models.GroupServer{Addr: g.Servers[index].Addr}
 
+		s.dirtyGroupCache(gid)
+
 		g.Servers = slice
 		g.Promoting.Index = 0
 		g.Promoting.State = models.ActionFinished
 
-		if err := s.store.UpdateGroup(g); err != nil {
-			log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-			return errors.Errorf("store: update group-[%d] failed", gid)
+		if err := s.storeUpdateGroup(g); err != nil {
+			return err
 		}
-
-		log.Infof("update group-[%d]:\n%s", gid, g.Encode())
 
 		fallthrough
 
@@ -296,24 +249,23 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 			log.WarnErrorf(err, "proxy-[%s] resync group-[%d] to finished failed", p.Token, gid)
 		}
 
-		var mappings = ctx.getSlotMappingByGroupId(gid)
+		slots := ctx.getSlotMappingByGroupId(gid)
 
-		if err := ctx.resyncSlots(onForwardError, ctx.toSlotSlice(mappings, false)...); err != nil {
+		if err := ctx.resyncSlots(onForwardError, ctx.toSlotSlice(slots, false)...); err != nil {
 			log.Warnf("resync group-[%d] to finished failed", gid)
 			return err
 		}
+
+		s.dirtyGroupCache(gid)
 
 		g = &models.Group{
 			Id:      g.Id,
 			Servers: g.Servers,
 		}
 
-		if err := s.store.UpdateGroup(g); err != nil {
-			log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-			return errors.Errorf("store: update group-[%d] failed", gid)
+		if err := s.storeUpdateGroup(g); err != nil {
+			return err
 		}
-
-		log.Infof("update group-[%d]:\n%s", gid, g.Encode())
 
 		return nil
 
@@ -326,7 +278,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 	}
 }
 
-func (s *Topom) GroupCreateSyncAction(gid int, addr string) error {
+func (s *Topom) GroupCreateSyncAction(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -334,36 +286,23 @@ func (s *Topom) GroupCreateSyncAction(gid int, addr string) error {
 		return err
 	}
 
-	g, err := ctx.getGroup(gid)
+	g, index, err := ctx.getGroupByServer(addr)
 	if err != nil {
 		return err
 	}
-
-	var index = g.IndexOfServer(addr)
-
-	switch {
-	case index < 0:
-		return errors.Errorf("group-[%d] doesn't have server %s", gid, addr)
-	default:
-		if g.Servers[index].Action.State != models.ActionNothing {
-			return errors.Errorf("action of server-[%s] already exists", addr)
-		}
+	if g.Servers[index].Action.State != models.ActionNothing {
+		return errors.Errorf("server-[%s] action is not empty", addr)
 	}
+
+	s.dirtyGroupCache(g.Id)
 
 	g.Servers[index].Action.Index = ctx.maxGroupSyncActionIndex() + 1
 	g.Servers[index].Action.State = models.ActionPending
 
-	if err := s.store.UpdateGroup(g); err != nil {
-		log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-		return errors.Errorf("store: update group-[%d] failed", gid)
-	}
-
-	log.Infof("update group-[%d]:\n%s", gid, g.Encode())
-
-	return nil
+	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) GroupRemoveSyncAction(gid int, addr string) error {
+func (s *Topom) GroupRemoveSyncAction(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -371,35 +310,22 @@ func (s *Topom) GroupRemoveSyncAction(gid int, addr string) error {
 		return err
 	}
 
-	g, err := ctx.getGroup(gid)
+	g, index, err := ctx.getGroupByServer(addr)
 	if err != nil {
 		return err
 	}
-
-	var index = g.IndexOfServer(addr)
-
-	switch {
-	case index < 0:
-		return errors.Errorf("group-[%d] doesn't have server %s", gid, addr)
-	default:
-		if g.Servers[index].Action.State != models.ActionPending {
-			return errors.Errorf("action of server-[%s] can't be removed", addr)
-		}
+	if g.Servers[index].Action.State != models.ActionPending {
+		return errors.Errorf("server-[%d] action can't be removed", addr)
 	}
+
+	s.dirtyGroupCache(g.Id)
 
 	g.Servers[index] = &models.GroupServer{Addr: addr}
 
-	if err := s.store.UpdateGroup(g); err != nil {
-		log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-		return errors.Errorf("store: update group-[%d] failed", gid)
-	}
-
-	log.Infof("update group-[%d]:\n%s", gid, g.Encode())
-
-	return nil
+	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) GroupSyncActionPrepare(gid int, addr string) error {
+func (s *Topom) GroupSyncActionPrepare(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -407,38 +333,29 @@ func (s *Topom) GroupSyncActionPrepare(gid int, addr string) error {
 		return err
 	}
 
-	g, err := ctx.getGroup(gid)
+	g, index, err := ctx.getGroupByServer(addr)
 	if err != nil {
 		return err
 	}
-
-	var index = g.IndexOfServer(addr)
-
-	switch {
-	case index < 0:
+	if g.Servers[index].Action.State == models.ActionNothing {
 		return nil
-	default:
-		if g.Servers[index].Action.State == models.ActionNothing {
-			return nil
-		}
 	}
 
-	log.Infof("prepare sync action of server-[%s]", addr)
+	log.Infof("server-[%s] action prepare:\n%s", addr, g.Encode())
 
 	switch g.Servers[index].Action.State {
 
 	case models.ActionPending:
 
+		s.dirtyGroupCache(g.Id)
+
 		g.Servers[index].Action.State = models.ActionSyncing
 
-		if err := s.store.UpdateGroup(g); err != nil {
-			log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-			return errors.Errorf("store: update group-[%d] failed", gid)
+		if err := s.storeUpdateGroup(g); err != nil {
+			return err
 		}
 
-		log.Infof("update group-[%d]:\n%s", gid, g.Encode())
-
-		fallthrough
+		return nil
 
 	case models.ActionSyncing:
 
@@ -446,14 +363,14 @@ func (s *Topom) GroupSyncActionPrepare(gid int, addr string) error {
 
 	default:
 
-		log.Panicf("invalid state of group-[%d] = %s", gid, g.Encode())
+		log.Panicf("invalid server-[%s] action state:\n%s", addr, g.Encode())
 
 		return nil
 
 	}
 }
 
-func (s *Topom) GroupSyncActionComplete(gid int, addr string) error {
+func (s *Topom) GroupSyncActionComplete(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -461,23 +378,15 @@ func (s *Topom) GroupSyncActionComplete(gid int, addr string) error {
 		return err
 	}
 
-	g, err := ctx.getGroup(gid)
+	g, index, err := ctx.getGroupByServer(addr)
 	if err != nil {
 		return err
 	}
-
-	var index = g.IndexOfServer(addr)
-
-	switch {
-	case index < 0:
+	if g.Servers[index].Action.State == models.ActionNothing {
 		return nil
-	default:
-		if g.Servers[index].Action.State == models.ActionNothing {
-			return nil
-		}
 	}
 
-	log.Infof("complete sync action of server-[%s]", addr)
+	log.Infof("server-[%s] action complete:\n%s", addr, g.Encode())
 
 	switch g.Servers[index].Action.State {
 
@@ -487,20 +396,19 @@ func (s *Topom) GroupSyncActionComplete(gid int, addr string) error {
 
 	case models.ActionSyncing:
 
+		s.dirtyGroupCache(g.Id)
+
 		g.Servers[index] = &models.GroupServer{Addr: addr}
 
-		if err := s.store.UpdateGroup(g); err != nil {
-			log.ErrorErrorf(err, "store: update group-[%d] failed", gid)
-			return errors.Errorf("store: update group-[%d] failed", gid)
+		if err := s.storeUpdateGroup(g); err != nil {
+			return err
 		}
-
-		log.Infof("update group-[%d]:\n%s", gid, g.Encode())
 
 		return nil
 
 	default:
 
-		log.Panicf("invalid state of group-[%d] = %s", gid, g.Encode())
+		log.Panicf("invalid server-[%s] action state:\n%s", addr, g.Encode())
 
 		return nil
 

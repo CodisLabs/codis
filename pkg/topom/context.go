@@ -99,15 +99,15 @@ func (ctx *context) getGroup(gid int) (*models.Group, error) {
 	return nil, errors.Errorf("group-[%d] doesn't exist", gid)
 }
 
-func (ctx *context) getGroupByServer(addr string) *models.Group {
+func (ctx *context) getGroupByServer(addr string) (*models.Group, int, error) {
 	for _, g := range ctx.group {
-		for _, x := range g.Servers {
+		for i, x := range g.Servers {
 			if x.Addr == addr {
-				return g
+				return g, i, nil
 			}
 		}
 	}
-	return nil
+	return nil, -1, errors.Errorf("server-[%s] doesn't exist", addr)
 }
 
 func (ctx *context) maxGroupSyncActionIndex() (maxIndex int) {
@@ -128,7 +128,7 @@ func (ctx *context) getGroupMaster(gid int) string {
 	return ""
 }
 
-func (ctx *context) isGroupIsBusy(gid int) bool {
+func (ctx *context) isGroupInUse(gid int) bool {
 	for _, m := range ctx.slots {
 		if m.GroupId == gid || m.Action.TargetId == gid {
 			return true
