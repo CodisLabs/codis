@@ -180,6 +180,8 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		return nil
 	}
 
+	log.Infof("group-[%d] action promote:\n%s", gid, g.Encode())
+
 	switch g.Promoting.State {
 
 	case models.ActionPreparing:
@@ -271,9 +273,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 	default:
 
-		log.Panicf("invalid state of group-[%d] = %s", gid, g.Encode())
-
-		return nil
+		return errors.Errorf("group-[%d] action state is invalid", gid)
 
 	}
 }
@@ -325,20 +325,22 @@ func (s *Topom) GroupRemoveSyncAction(addr string) error {
 	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) GroupSyncActionPrepare(addr string) error {
+func (s *Topom) GroupSyncActionPrepare() (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
-		return err
+		return "", err
+	}
+
+	addr := ctx.minGroupSyncActionIndex()
+	if addr == "" {
+		return "", nil
 	}
 
 	g, index, err := ctx.getGroupByServer(addr)
 	if err != nil {
-		return err
-	}
-	if g.Servers[index].Action.State == models.ActionNothing {
-		return nil
+		return "", err
 	}
 
 	log.Infof("server-[%s] action prepare:\n%s", addr, g.Encode())
@@ -352,20 +354,18 @@ func (s *Topom) GroupSyncActionPrepare(addr string) error {
 		g.Servers[index].Action.State = models.ActionSyncing
 
 		if err := s.storeUpdateGroup(g); err != nil {
-			return err
+			return "", err
 		}
 
-		return nil
+		return addr, nil
 
 	case models.ActionSyncing:
 
-		return nil
+		return addr, nil
 
 	default:
 
-		log.Panicf("invalid server-[%s] action state:\n%s", addr, g.Encode())
-
-		return nil
+		return "", errors.Errorf("server-[%s] action state is invalid", addr)
 
 	}
 }
@@ -382,17 +382,10 @@ func (s *Topom) GroupSyncActionComplete(addr string) error {
 	if err != nil {
 		return err
 	}
-	if g.Servers[index].Action.State == models.ActionNothing {
-		return nil
-	}
 
 	log.Infof("server-[%s] action complete:\n%s", addr, g.Encode())
 
 	switch g.Servers[index].Action.State {
-
-	case models.ActionPending:
-
-		return errors.Errorf("action of server-[%s] is not syncing", addr)
 
 	case models.ActionSyncing:
 
@@ -408,9 +401,7 @@ func (s *Topom) GroupSyncActionComplete(addr string) error {
 
 	default:
 
-		log.Panicf("invalid server-[%s] action state:\n%s", addr, g.Encode())
-
-		return nil
+		return errors.Errorf("server-[%s] action state is invalid", addr)
 
 	}
 }

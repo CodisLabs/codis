@@ -306,37 +306,25 @@ func (s *Topom) StartDaemonRoutines() {
 
 		go func() {
 			for !s.IsClosed() {
-				if sid := s.FirstSlotAction(); sid < 0 {
+				if s.GetSlotActionDisabled() {
 					time.Sleep(time.Second)
-				} else {
-					if err := s.ProcessSlotAction(sid); err != nil {
-						log.WarnErrorf(err, "action on slot-[%d] failed", sid)
-						time.Sleep(time.Second * 3)
-					} else {
-						log.Infof("action on slot-[%d] completed", sid)
-					}
+					continue
+				}
+				if sid, err := s.ProcessSlotAction(); err != nil {
+					log.WarnErrorf(err, "process slot action failed")
+					time.Sleep(time.Second * 5)
+				} else if sid < 0 {
+					time.Sleep(time.Second)
 				}
 			}
 		}()
 
 		go func() {
-			var ticker = time.NewTicker(time.Second)
-			defer ticker.Stop()
 			for !s.IsClosed() {
-				if gid, addr := s.FirstSyncAction(); gid < 0 {
-					select {
-					case <-s.exit.C:
-						return
-					case <-ticker.C:
-					}
-				} else {
-					if err := s.ProcessSyncAction(gid, addr); err != nil {
-						log.WarnErrorf(err, "sync action on server-[%d] failed", addr)
-						time.Sleep(time.Second * 3)
-					} else {
-						log.Infof("sync action on server-[%s] completed", addr)
-					}
+				if err := s.ProcessSyncAction(); err != nil {
+					log.WarnErrorf(err, "process sync action failed")
 				}
+				time.Sleep(time.Second)
 			}
 		}()
 	})

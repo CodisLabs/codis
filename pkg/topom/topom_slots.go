@@ -81,34 +81,31 @@ func (s *Topom) SlotRemoveAction(sid int) error {
 	return s.storeUpdateSlotMapping(m)
 }
 
-func (s *Topom) SlotActionPrepare(sid int) error {
+func (s *Topom) SlotActionPrepare() (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
-		return err
+		return -1, err
 	}
 
-	m, err := ctx.getSlotMapping(sid)
-	if err != nil {
-		return err
-	}
-	if m.Action.State == models.ActionNothing {
-		return nil
+	m := ctx.minSlotActionIndex()
+	if m == nil {
+		return -1, nil
 	}
 
-	log.Infof("slot-[%d] action prepare:\n%s", sid, m.Encode())
+	log.Infof("slot-[%d] action prepare:\n%s", m.Id, m.Encode())
 
 	switch m.Action.State {
 
 	case models.ActionPending:
 
-		s.dirtySlotsCache(sid)
+		s.dirtySlotsCache(m.Id)
 
 		m.Action.State = models.ActionPreparing
 
 		if err := s.storeUpdateSlotMapping(m); err != nil {
-			return err
+			return -1, err
 		}
 
 		fallthrough
@@ -116,37 +113,37 @@ func (s *Topom) SlotActionPrepare(sid int) error {
 	case models.ActionPreparing:
 
 		onForwardError := func(p *models.Proxy, err error) {
-			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] to prepared failed", p.Token, sid)
+			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] to prepared failed", p.Token, m.Id)
 		}
 		onRollbackError := func(p *models.Proxy, err error) {
-			log.WarnErrorf(err, "proxy-[%s] resync-rollback slot-[%d] to preparing failed", p.Token, sid)
+			log.WarnErrorf(err, "proxy-[%s] resync-rollback slot-[%d] to preparing failed", p.Token, m.Id)
 		}
 
 		if err := ctx.resyncSlots(onForwardError, ctx.toSlot(m, true)); err != nil {
-			log.Warnf("resync slot-[%d] to prepared failed, rollback", sid)
+			log.Warnf("resync slot-[%d] to prepared failed, rollback", m.Id)
 			ctx.resyncSlots(onRollbackError, ctx.toSlot(m, false))
-			log.Warnf("resync-rollback slot-[%d] to preparing finished", sid)
-			return err
+			log.Warnf("resync-rollback slot-[%d] to preparing finished", m.Id)
+			return -1, err
 		}
 
-		s.dirtySlotsCache(sid)
+		s.dirtySlotsCache(m.Id)
 
 		m.Action.State = models.ActionPrepared
 
 		if err := s.storeUpdateSlotMapping(m); err != nil {
-			return err
+			return -1, err
 		}
 
 		fallthrough
 
 	case models.ActionPrepared:
 
-		s.dirtySlotsCache(sid)
+		s.dirtySlotsCache(m.Id)
 
 		m.Action.State = models.ActionMigrating
 
 		if err := s.storeUpdateSlotMapping(m); err != nil {
-			return err
+			return -1, err
 		}
 
 		fallthrough
@@ -154,25 +151,23 @@ func (s *Topom) SlotActionPrepare(sid int) error {
 	case models.ActionMigrating:
 
 		onForwardError := func(p *models.Proxy, err error) {
-			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] to migrating failed", p.Token, sid)
+			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] to migrating failed", p.Token, m.Id)
 		}
 
 		if err := ctx.resyncSlots(onForwardError, ctx.toSlot(m, false)); err != nil {
-			log.Warnf("resync slot-[%d] to migrating failed", sid)
-			return err
+			log.Warnf("resync slot-[%d] to migrating failed", m.Id)
+			return -1, err
 		}
 
-		return nil
+		return m.Id, nil
 
 	case models.ActionFinished:
 
-		return nil
+		return m.Id, nil
 
 	default:
 
-		log.Panicf("invalid slot-[%d] action state:\n%s", sid, m.Encode())
-
-		return nil
+		return -1, errors.Errorf("slot-[%d] action state is invalid", m.Id)
 
 	}
 }
@@ -189,17 +184,10 @@ func (s *Topom) SlotActionComplete(sid int) error {
 	if err != nil {
 		return err
 	}
-	if m.Action.State == models.ActionNothing {
-		return nil
-	}
 
 	log.Infof("slot-[%d] action complete:\n%s", sid, m.Encode())
 
 	switch m.Action.State {
-
-	case models.ActionPending, models.ActionPreparing, models.ActionPrepared:
-
-		return errors.Errorf("slot-[%d] action is not migrating or finished", sid)
 
 	case models.ActionMigrating:
 
@@ -239,9 +227,7 @@ func (s *Topom) SlotActionComplete(sid int) error {
 
 	default:
 
-		log.Panicf("invalid slot-[%d] action state:\n%s", sid, m.Encode())
-
-		return nil
+		return errors.Errorf("slot-[%d] action state is invalid", sid)
 
 	}
 }

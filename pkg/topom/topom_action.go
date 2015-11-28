@@ -11,7 +11,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
-func (s *Topom) ProcessSlotAction(sid int) (err error) {
+func (s *Topom) ProcessSlotAction() (_ int, err error) {
 	defer func() {
 		if err != nil {
 			s.action.progress.failed.Set(true)
@@ -20,33 +20,36 @@ func (s *Topom) ProcessSlotAction(sid int) (err error) {
 			s.action.progress.failed.Set(false)
 		}
 	}()
-	if err := s.SlotActionPrepare(sid); err != nil {
-		return err
+	sid, err := s.SlotActionPrepare()
+	if err != nil || sid < 0 {
+		return -1, err
 	}
-	for {
-		for s.GetSlotActionDisabled() {
-			time.Sleep(time.Millisecond * 10)
+	for !s.IsClosed() {
+		if s.GetSlotActionDisabled() {
+			time.Sleep(time.Millisecond * 50)
+			continue
 		}
 		if exec, err := s.newSlotActionExecutor(sid); err != nil {
-			return err
+			return sid, err
 		} else if exec == nil {
-			time.Sleep(time.Millisecond * 10)
+			time.Sleep(time.Millisecond * 50)
 		} else {
 			n, err := exec()
 			if err != nil {
-				return err
+				return sid, err
 			}
 			if n == 0 {
-				return s.SlotActionComplete(sid)
+				return sid, s.SlotActionComplete(sid)
 			}
 			s.action.progress.remain.Set(int64(n))
 			s.action.progress.failed.Set(false)
-			s.NoopInterval()
+			s.noopInterval()
 		}
 	}
+	return -1, nil
 }
 
-func (s *Topom) NoopInterval() int {
+func (s *Topom) noopInterval() int {
 	var ms int
 	for !s.IsClosed() {
 		if d := s.GetSlotActionInterval() - ms; d <= 0 {
@@ -58,30 +61,6 @@ func (s *Topom) NoopInterval() int {
 		}
 	}
 	return ms
-}
-
-func (s *Topom) FirstSlotAction() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	ctx, err := s.newContext()
-	if err != nil {
-		return -1
-	}
-
-	if s.GetSlotActionDisabled() {
-		return -1
-	}
-
-	var sid = -1
-	var index int
-	for _, m := range ctx.slots {
-		if m.Action.State != models.ActionNothing {
-			if index == 0 || m.Action.Index < index {
-				sid, index = m.Id, m.Action.Index
-			}
-		}
-	}
-	return sid
 }
 
 func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
@@ -99,7 +78,7 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 
 	switch m.Action.State {
 
-	case models.ActionMigrating, models.ActionFinished:
+	case models.ActionMigrating:
 
 		if ctx.isSlotLocked(m) {
 			return nil, nil
@@ -118,81 +97,67 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 			return s.redisp.MigrateSlot(sid, from, dest)
 		}, nil
 
+	case models.ActionFinished:
+
+		return func() (int, error) {
+			return 0, nil
+		}, nil
+
 	default:
 
-		return nil, errors.Errorf("action of slot-[%d] is not migrating", sid)
+		return nil, errors.Errorf("slot-[%d] action state is invalid", sid)
 
 	}
 }
 
-func (s *Topom) ProcessSyncAction(gid int, addr string) error {
-	if err := s.GroupSyncActionPrepare(gid, addr); err != nil {
+func (s *Topom) ProcessSyncAction() error {
+	addr, err := s.GroupSyncActionPrepare()
+	if err != nil || addr == "" {
 		return err
 	}
-	if exec, err := s.newSyncActionExecutor(gid, addr); err != nil {
+	if exec, err := s.newSyncActionExecutor(addr); err != nil {
 		return err
 	} else if err := exec(); err != nil {
 		return err
 	} else {
-		return s.GroupSyncActionComplete(gid, addr)
+		return s.GroupSyncActionComplete(addr)
 	}
 }
 
-func (s *Topom) FirstSyncAction() (int, string) {
+func (s *Topom) newSyncActionExecutor(addr string) (func() error, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
-		return -1, ""
+		return nil, err
 	}
 
-	var gid, addr = -1, ""
-	var index int
-	for _, g := range ctx.group {
-		for _, x := range g.Servers {
-			if x.Action.State != models.ActionNothing {
-				if index == 0 || x.Action.Index < index {
-					gid, addr, index = g.Id, x.Addr, x.Action.Index
-				}
+	g, index, err := ctx.getGroupByServer(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	switch g.Servers[index].Action.State {
+
+	case models.ActionSyncing:
+
+		var master = "NO:ONE"
+		if index != 0 {
+			master = g.Servers[0].Addr
+		}
+		return func() error {
+			c, err := NewRedisClient(addr, s.config.ProductAuth, time.Minute*15)
+			if err != nil {
+				return err
 			}
-		}
-	}
-	return gid, addr
-}
+			defer c.Close()
+			return c.SetMaster(master)
+		}, nil
 
-func (s *Topom) newSyncActionExecutor(gid int, addr string) (func() error, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	ctx, err := s.newContext()
-	if err != nil {
-		return nil, err
+	default:
+
+		return nil, errors.Errorf("server-[%s] action state is invalid", addr)
+
 	}
 
-	g, err := ctx.getGroup(gid)
-	if err != nil {
-		return nil, err
-	}
-
-	var index = g.IndexOfServer(addr)
-
-	if index < 0 {
-		return nil, errors.Errorf("group-[%d] doesn't have server %s", gid, addr)
-	}
-
-	if g.Servers[index].Action.State != models.ActionSyncing {
-		return nil, errors.Errorf("action of server-[%s] is not syncing", addr)
-	}
-
-	var master = "NO:ONE"
-	if index != 0 {
-		master = ctx.getGroupMaster(gid)
-	}
-	return func() error {
-		c, err := NewRedisClient(addr, s.config.ProductAuth, time.Minute*15)
-		if err != nil {
-			return err
-		}
-		defer c.Close()
-		return c.SetMaster(master)
-	}, nil
 }
