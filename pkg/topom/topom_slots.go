@@ -16,7 +16,7 @@ func (s *Topom) GetSlots() ([]*models.Slot, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ctx.toSlotList(ctx.slots, false), nil
+	return ctx.toSlotSlice(ctx.slots, false), nil
 }
 
 func (s *Topom) SlotCreateAction(sid int, gid int) error {

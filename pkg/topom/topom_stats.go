@@ -80,13 +80,13 @@ type ProxyStats struct {
 	Timeout  bool  `json:"timeout,omitempty"`
 }
 
-func (s *Topom) newProxyStats(p *models.Proxy, timeout time.Duration) *ProxyStats {
+func (s *Topom) newProxyStats(p *models.Proxy, c *proxy.ApiClient, timeout time.Duration) *ProxyStats {
 	var ch = make(chan struct{})
 	stats := &ProxyStats{}
 
 	go func() {
 		defer close(ch)
-		x, err := s.newProxyClient(p).Stats()
+		x, err := c.Stats()
 		if err != nil {
 			stats.Error = rpc.NewRemoteError(err)
 		} else {
@@ -112,11 +112,11 @@ func (s *Topom) RefreshProxyStats(timeout time.Duration) (*sync2.Future, error) 
 	var fut sync2.Future
 	for _, p := range ctx.proxy {
 		fut.Add()
-		go func(p *models.Proxy) {
-			stats := s.newProxyStats(p, timeout)
+		go func(p *models.Proxy, c *proxy.ApiClient) {
+			stats := s.newProxyStats(p, c, timeout)
 			stats.UnixTime = time.Now().Unix()
 			fut.Done(p.Token, stats)
-		}(p)
+		}(p, ctx.newProxyClient(p))
 	}
 	go func() {
 		stats := make(map[string]*ProxyStats)

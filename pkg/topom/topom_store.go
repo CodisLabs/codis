@@ -131,55 +131,55 @@ func (s *Topom) reloadProxyCache(proxy map[string]*models.Proxy) (map[string]*mo
 }
 
 func (s *Topom) updateSlotMapping(m *models.SlotMapping) error {
+	log.Infof("update slot-[%d]:\n%s", m.Id, m.Encode())
 	if err := s.store.UpdateSlotMapping(m); err != nil {
 		log.ErrorErrorf(err, "store: update slot-[%d] failed", m.Id)
 		return errors.Errorf("store: update slot-[%d] failed", m.Id)
 	}
-	log.Infof("update slot-[%d]:\n%s", m.Id, m.Encode())
 	return nil
 }
 
 func (s *Topom) storeCreateGroup(g *models.Group) error {
+	log.Infof("create group-[%d]:\n%s", g.Id, g.Encode())
 	if err := s.store.UpdateGroup(g); err != nil {
 		log.ErrorErrorf(err, "store: create group-[%d] failed", g.Id)
 		return errors.Errorf("store: create group-[%d] failed", g.Id)
 	}
-	log.Infof("create group-[%d]:\n%s", g.Id, g.Encode())
 	return nil
 }
 
 func (s *Topom) storeUpdateGroup(g *models.Group) error {
+	log.Infof("update group-[%d]:\n%s", g.Id, g.Encode())
 	if err := s.store.UpdateGroup(g); err != nil {
 		log.ErrorErrorf(err, "store: update group-[%d] failed", g.Id)
 		return errors.Errorf("store: update group-[%d] failed", g.Id)
 	}
-	log.Infof("update group-[%d]:\n%s", g.Id, g.Encode())
 	return nil
 }
 
 func (s *Topom) storeRemoveGroup(g *models.Group) error {
+	log.Infof("remove group-[%d]:\n%s", g.Id, g.Encode())
 	if err := s.store.DeleteGroup(g.Id); err != nil {
 		log.ErrorErrorf(err, "store: remove group-[%d] failed", g.Id)
 		return errors.Errorf("store: remove group-[%d] failed", g.Id)
 	}
-	log.Infof("remove group-[%d]:\n%s", g.Id, g.Encode())
 	return nil
 }
 
 func (s *Topom) storeCreateProxy(p *models.Proxy) error {
+	log.Infof("create proxy-[%s]:\n%s", p.Token, p.Encode())
 	if err := s.store.UpdateProxy(p); err != nil {
 		log.ErrorErrorf(err, "store: create proxy-[%s] failed", p.Token)
 		return errors.Errorf("store: create proxy-[%s] failed", p.Token)
 	}
-	log.Infof("create proxy-[%s]:\n%s", p.Token, p.Encode())
 	return nil
 }
 
 func (s *Topom) storeRemoveProxy(p *models.Proxy) error {
+	log.Infof("remove proxy-[%s]:\n%s", p.Token, p.Encode())
 	if err := s.store.DeleteProxy(p.Token); err != nil {
 		log.ErrorErrorf(err, "store: remove proxy-[%s] failed", p.Token)
 		return errors.Errorf("store: remove proxy-[%s] failed", p.Token)
 	}
-	log.Infof("remove proxy-[%s]:\n%s", p.Token, p.Encode())
 	return nil
 }

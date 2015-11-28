@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -170,7 +169,7 @@ func (s *Topom) newContext() (*context, error) {
 	if s.closed {
 		return nil, ErrClosedTopom
 	}
-	ctx := &context{topom: s}
+	ctx := &context{config: s.config}
 	if err := s.initContext(ctx); err != nil {
 		return nil, err
 	} else {
@@ -262,12 +261,6 @@ func (s *Topom) GetSlotActionDisabled() bool {
 func (s *Topom) SetSlotActionDisabled(value bool) {
 	s.action.disabled.Set(value)
 	log.Infof("set action disabled = %t", value)
-}
-
-func (s *Topom) newProxyClient(p *models.Proxy) *proxy.ApiClient {
-	c := proxy.NewApiClient(p.AdminAddr)
-	c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
-	return c
 }
 
 func (s *Topom) serveAdmin() {

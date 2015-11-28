@@ -19,31 +19,26 @@ func (s *Topom) CreateProxy(addr string) error {
 
 	p, err := proxy.NewApiClient(addr).Model()
 	if err != nil {
-		log.WarnErrorf(err, "proxy@%s fetch model failed", addr)
 		return errors.Errorf("proxy@%s fetch model failed", addr)
 	}
-	c := s.newProxyClient(p)
+	c := ctx.newProxyClient(p)
 
 	if err := c.XPing(); err != nil {
-		log.WarnErrorf(err, "proxy@%s check xauth failed", addr)
 		return errors.Errorf("proxy@%s check xauth failed", addr)
 	}
-
 	if ctx.proxy[p.Token] != nil {
-		log.Warnf("proxy@%s with token = %s already exists", addr, p.Token)
 		return errors.Errorf("proxy-[%s] already exists", p.Token)
 	} else {
 		p.Id = ctx.maxProxyId() + 1
 	}
 
-	if err := s.store.UpdateProxy(p); err != nil {
-		log.ErrorErrorf(err, "store: create proxy-[%s] failed", p.Token)
-		return errors.Errorf("store: create proxy-[%s] failed", p.Token)
+	s.dirtyProxyCache(p.Token)
+
+	if err := s.storeCreateProxy(p); err != nil {
+		return err
+	} else {
+		return ctx.reinitProxy(p, c)
 	}
-
-	log.Infof("create proxy-[%s]:\n%s", p.Token, p.Encode())
-
-	return s.reinitProxy(p.Token)
 }
 
 func (s *Topom) RemoveProxy(token string, force bool) error {
@@ -58,7 +53,7 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 	if err != nil {
 		return err
 	}
-	c := s.newProxyClient(p)
+	c := ctx.newProxyClient(p)
 
 	if err := c.Shutdown(); err != nil {
 		log.WarnErrorf(err, "proxy-[%s] shutdown failed, force remove = %t", token, force)
@@ -67,23 +62,14 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 		}
 	}
 
-	if err := s.store.DeleteProxy(token); err != nil {
-		log.ErrorErrorf(err, "store: remove proxy-[%s] failed", token)
-		return errors.Errorf("store: remove proxy-[%s] failed", token)
-	}
+	s.dirtyProxyCache(p.Token)
 
-	log.Infof("remove proxy-[%s]:\n%s", token, p.Encode())
-
-	return nil
+	return s.storeRemoveProxy(p)
 }
 
 func (s *Topom) ReinitProxy(token string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.reinitProxy(token)
-}
-
-func (s *Topom) reinitProxy(token string) error {
 	ctx, err := s.newContext()
 	if err != nil {
 		return err
@@ -93,16 +79,7 @@ func (s *Topom) reinitProxy(token string) error {
 	if err != nil {
 		return err
 	}
-	c := s.newProxyClient(p)
+	c := ctx.newProxyClient(p)
 
-	if err := c.FillSlots(ctx.toSlotList(ctx.slots, false)...); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] fillslots failed", token)
-		return errors.Errorf("proxy-[%s] fillslots failed", token)
-	}
-
-	if err := c.Start(); err != nil {
-		log.WarnErrorf(err, "proxy-[%s] start failed", token)
-		return errors.Errorf("proxy-[%s] start failed", token)
-	}
-	return nil
+	return ctx.reinitProxy(p, c)
 }
