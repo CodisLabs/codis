@@ -130,7 +130,7 @@ func (s *Topom) reloadProxyCache(proxy map[string]*models.Proxy) (map[string]*mo
 	return proxy, nil
 }
 
-func (s *Topom) updateSlotMapping(m *models.SlotMapping) error {
+func (s *Topom) storeUpdateSlotMapping(m *models.SlotMapping) error {
 	log.Infof("update slot-[%d]:\n%s", m.Id, m.Encode())
 	if err := s.store.UpdateSlotMapping(m); err != nil {
 		log.ErrorErrorf(err, "store: update slot-[%d] failed", m.Id)

@@ -55,8 +55,6 @@ type Topom struct {
 			failed atomic2.Bool
 		}
 		executor atomic2.Int64
-
-		notify chan bool
 	}
 
 	stats struct {
@@ -90,7 +88,6 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	s.redisp = NewRedisPool(config.ProductAuth, time.Second*10)
 
 	s.action.interval.Set(1000)
-	s.action.notify = make(chan bool, 1)
 
 	s.stats.servers = make(map[string]*RedisStats)
 	s.stats.proxies = make(map[string]*ProxyStats)
@@ -308,16 +305,9 @@ func (s *Topom) StartDaemonRoutines() {
 		}()
 
 		go func() {
-			var ticker = time.NewTicker(time.Second)
-			defer ticker.Stop()
 			for !s.IsClosed() {
 				if sid := s.FirstSlotAction(); sid < 0 {
-					select {
-					case <-s.exit.C:
-						return
-					case <-ticker.C:
-					case <-s.action.notify:
-					}
+					time.Sleep(time.Second)
 				} else {
 					if err := s.ProcessSlotAction(sid); err != nil {
 						log.WarnErrorf(err, "action on slot-[%d] failed", sid)

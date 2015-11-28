@@ -129,7 +129,7 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 		return errors.Errorf("group-[%d] doesn't have server %s", gid, addr)
 	case index == 0:
 		if len(g.Servers) != 1 || ctx.isGroupIsBusy(gid) {
-			return errors.Errorf("group-[%d] cann't remove master, still in use", gid)
+			return errors.Errorf("group-[%d] can't remove master, still in use", gid)
 		}
 	default:
 		if g.Servers[index].Action.State != models.ActionNothing {
@@ -181,7 +181,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 	case index < 0:
 		return errors.Errorf("group-[%d] doesn't have server %s", gid, addr)
 	case index == 0:
-		return errors.Errorf("group-[%d] cann't promote master again", gid)
+		return errors.Errorf("group-[%d] can't promote master again", gid)
 	default:
 		for _, x := range g.Servers {
 			if x.Action.State != models.ActionNothing {
@@ -383,7 +383,7 @@ func (s *Topom) GroupRemoveSyncAction(gid int, addr string) error {
 		return errors.Errorf("group-[%d] doesn't have server %s", gid, addr)
 	default:
 		if g.Servers[index].Action.State != models.ActionPending {
-			return errors.Errorf("action of server-[%s] cannot be removed", addr)
+			return errors.Errorf("action of server-[%s] can't be removed", addr)
 		}
 	}
 

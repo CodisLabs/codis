@@ -56,7 +56,7 @@ func (ctx *context) isSlotLocked(m *models.SlotMapping) bool {
 	case models.ActionFinished:
 		return ctx.isGroupLocked(m.Action.TargetId)
 	default:
-		log.Panicf("invalid state of slot-[%d] = %s", m.Id, m.Encode())
+		log.Panicf("invalid slot-[%d] action state:\n%s", m.Id, m.Encode())
 	}
 	return false
 }
@@ -79,13 +79,13 @@ func (ctx *context) toSlot(m *models.SlotMapping, forceLocked bool) *models.Slot
 	case models.ActionFinished:
 		slot.BackendAddr = ctx.getGroupMaster(m.Action.TargetId)
 	default:
-		log.Panicf("invalid state of slot-[%d] = %s", m.Id, m.Encode())
+		log.Panicf("invalid slot-[%d] action state:\n%s", m.Id, m.Encode())
 	}
 	return slot
 }
 
 func (ctx *context) toSlotSlice(slots []*models.SlotMapping, forceLocked bool) []*models.Slot {
-	slice := make([]*models.Slot, len(slots))
+	var slice = make([]*models.Slot, len(slots))
 	for i, m := range slots {
 		slice[i] = ctx.toSlot(m, forceLocked)
 	}
