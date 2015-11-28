@@ -4,6 +4,7 @@
 package topom
 
 import (
+	"container/list"
 	"net"
 	"net/http"
 	"os"
@@ -27,6 +28,12 @@ type Topom struct {
 	xauth string
 	model *models.Topom
 	store *models.Store
+	cache struct {
+		slots []*models.SlotMapping
+		group map[int]*models.Group
+		proxy map[string]*models.Proxy
+		hooks list.List
+	}
 
 	exit struct {
 		C chan struct{}
@@ -119,7 +126,6 @@ func (s *Topom) setup() error {
 		return errors.Errorf("store: acquire lock for %s failed", s.config.ProductName)
 	}
 	s.registered = true
-
 	return nil
 }
 
@@ -165,7 +171,7 @@ func (s *Topom) newContext() (*context, error) {
 		return nil, ErrClosedTopom
 	}
 	ctx := &context{topom: s}
-	if err := ctx.init(s); err != nil {
+	if err := s.initContext(ctx); err != nil {
 		return nil, err
 	} else {
 		return ctx, nil
@@ -350,6 +356,5 @@ func (s *Topom) StartDaemonRoutines() {
 				}
 			}
 		}()
-
 	})
 }

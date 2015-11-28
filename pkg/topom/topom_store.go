@@ -1,0 +1,185 @@
+package topom
+
+import (
+	"github.com/wandoulabs/codis/pkg/models"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
+)
+
+func (s *Topom) dirtySlotsCache(sid int) {
+	s.cache.hooks.PushBack(func() {
+		if s.cache.slots != nil {
+			s.cache.slots[sid] = nil
+		}
+	})
+}
+
+func (s *Topom) dirtyGroupCache(gid int) {
+	s.cache.hooks.PushBack(func() {
+		if s.cache.group != nil {
+			s.cache.group[gid] = nil
+		}
+	})
+}
+
+func (s *Topom) dirtyProxyCache(token string) {
+	s.cache.hooks.PushBack(func() {
+		if s.cache.proxy != nil {
+			s.cache.proxy[token] = nil
+		}
+	})
+}
+
+func (s *Topom) dirtyCacheAll() {
+	s.cache.hooks.PushBack(func() {
+		s.cache.slots = nil
+		s.cache.group = nil
+		s.cache.proxy = nil
+	})
+}
+
+func (s *Topom) initContext(ctx *context) error {
+	for i := s.cache.hooks.Len(); i != 0; i-- {
+		e := s.cache.hooks.Front()
+		s.cache.hooks.Remove(e).(func())()
+	}
+	if slots, err := s.reloadSlotsCache(s.cache.slots); err != nil {
+		log.ErrorErrorf(err, "store: load slots failed")
+		return errors.Errorf("store: load slots failed")
+	} else {
+		s.cache.slots = slots
+	}
+	if group, err := s.reloadGroupCache(s.cache.group); err != nil {
+		log.ErrorErrorf(err, "store: load group failed")
+		return errors.Errorf("store: load group failed")
+	} else {
+		s.cache.group = group
+	}
+	if proxy, err := s.reloadProxyCache(s.cache.proxy); err != nil {
+		log.ErrorErrorf(err, "store: load proxy failed")
+		return errors.Errorf("store: load proxy failed")
+	} else {
+		s.cache.proxy = proxy
+	}
+	ctx.slots = s.cache.slots
+	ctx.group = s.cache.group
+	ctx.proxy = s.cache.proxy
+	return nil
+}
+
+func (s *Topom) reloadSlotsCache(slots []*models.SlotMapping) ([]*models.SlotMapping, error) {
+	if slots == nil {
+		return s.store.SlotMappings()
+	}
+	for i, _ := range slots {
+		if slots[i] != nil {
+			continue
+		}
+		m, err := s.store.LoadSlotMapping(i)
+		if err != nil {
+			return nil, err
+		}
+		if m != nil {
+			slots[i] = m
+		} else {
+			slots[i] = &models.SlotMapping{Id: i}
+		}
+	}
+	return slots, nil
+}
+
+func (s *Topom) reloadGroupCache(group map[int]*models.Group) (map[int]*models.Group, error) {
+	if group == nil {
+		return s.store.ListGroup()
+	}
+	for i, _ := range group {
+		if group[i] != nil {
+			continue
+		}
+		g, err := s.store.LoadGroup(i)
+		if err != nil {
+			return nil, err
+		}
+		if g != nil {
+			group[i] = g
+		} else {
+			delete(group, i)
+		}
+	}
+	return group, nil
+}
+
+func (s *Topom) reloadProxyCache(proxy map[string]*models.Proxy) (map[string]*models.Proxy, error) {
+	if proxy == nil {
+		return s.store.ListProxy()
+	}
+	for t, _ := range proxy {
+		if proxy[t] != nil {
+			continue
+		}
+		p, err := s.store.LoadProxy(t)
+		if err != nil {
+			return nil, err
+		}
+		if p != nil {
+			proxy[t] = p
+		} else {
+			delete(proxy, t)
+		}
+	}
+	return proxy, nil
+}
+
+func (s *Topom) updateSlotMapping(m *models.SlotMapping) error {
+	if err := s.store.UpdateSlotMapping(m); err != nil {
+		log.ErrorErrorf(err, "store: update slot-[%d] failed", m.Id)
+		return errors.Errorf("store: update slot-[%d] failed", m.Id)
+	}
+	log.Infof("update slot-[%d]:\n%s", m.Id, m.Encode())
+	return nil
+}
+
+func (s *Topom) storeCreateGroup(g *models.Group) error {
+	if err := s.store.UpdateGroup(g); err != nil {
+		log.ErrorErrorf(err, "store: create group-[%d] failed", g.Id)
+		return errors.Errorf("store: create group-[%d] failed", g.Id)
+	}
+	log.Infof("create group-[%d]:\n%s", g.Id, g.Encode())
+	return nil
+}
+
+func (s *Topom) storeUpdateGroup(g *models.Group) error {
+	if err := s.store.UpdateGroup(g); err != nil {
+		log.ErrorErrorf(err, "store: update group-[%d] failed", g.Id)
+		return errors.Errorf("store: update group-[%d] failed", g.Id)
+	}
+	log.Infof("update group-[%d]:\n%s", g.Id, g.Encode())
+	return nil
+}
+
+func (s *Topom) storeRemoveGroup(g *models.Group) error {
+	if err := s.store.DeleteGroup(g.Id); err != nil {
+		log.ErrorErrorf(err, "store: remove group-[%d] failed", g.Id)
+		return errors.Errorf("store: remove group-[%d] failed", g.Id)
+	}
+	log.Infof("remove group-[%d]:\n%s", g.Id, g.Encode())
+	return nil
+}
+
+func (s *Topom) storeCreateProxy(p *models.Proxy) error {
+	if err := s.store.UpdateProxy(p); err != nil {
+		log.ErrorErrorf(err, "store: create proxy-[%s] failed", p.Token)
+		return errors.Errorf("store: create proxy-[%s] failed", p.Token)
+	}
+	log.Infof("create proxy-[%s]:\n%s", p.Token, p.Encode())
+	return nil
+}
+
+func (s *Topom) storeRemoveProxy(p *models.Proxy) error {
+	if err := s.store.DeleteProxy(p.Token); err != nil {
+		log.ErrorErrorf(err, "store: remove proxy-[%s] failed", p.Token)
+		return errors.Errorf("store: remove proxy-[%s] failed", p.Token)
+	}
+	log.Infof("remove proxy-[%s]:\n%s", p.Token, p.Encode())
+	return nil
+}

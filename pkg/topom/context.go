@@ -15,25 +15,6 @@ type context struct {
 	proxy map[string]*models.Proxy
 }
 
-func (ctx *context) init(s *Topom) (err error) {
-	ctx.slots, err = s.store.SlotMappings()
-	if err != nil {
-		log.ErrorErrorf(err, "store: load slots failed")
-		return errors.Errorf("store: load slots failed")
-	}
-	ctx.group, err = s.store.ListGroup()
-	if err != nil {
-		log.ErrorErrorf(err, "store: load group failed")
-		return errors.Errorf("store: load group failed")
-	}
-	ctx.proxy, err = s.store.ListProxy()
-	if err != nil {
-		log.ErrorErrorf(err, "store: load proxy failed")
-		return errors.Errorf("store: load proxy failed")
-	}
-	return nil
-}
-
 func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {
 	if sid >= 0 && sid < len(ctx.slots) {
 		return ctx.slots[sid], nil
