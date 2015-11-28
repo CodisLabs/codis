@@ -43,8 +43,8 @@ func (s *Topom) newRedisStats(addr string, timeout time.Duration) *RedisStats {
 }
 
 func (s *Topom) RefreshRedisStats(timeout time.Duration) (*sync2.Future, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return nil, err
@@ -103,8 +103,8 @@ func (s *Topom) newProxyStats(p *models.Proxy, timeout time.Duration) *ProxyStat
 }
 
 func (s *Topom) RefreshProxyStats(timeout time.Duration) (*sync2.Future, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return nil, err

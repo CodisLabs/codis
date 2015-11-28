@@ -10,8 +10,8 @@ import (
 )
 
 func (s *Topom) GetSlots() ([]*models.Slot, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return nil, err

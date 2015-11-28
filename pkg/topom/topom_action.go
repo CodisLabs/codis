@@ -61,8 +61,8 @@ func (s *Topom) NoopInterval() int {
 }
 
 func (s *Topom) FirstSlotAction() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return -1
@@ -85,8 +85,8 @@ func (s *Topom) FirstSlotAction() int {
 }
 
 func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return nil, err
@@ -139,8 +139,8 @@ func (s *Topom) ProcessSyncAction(gid int, addr string) error {
 }
 
 func (s *Topom) FirstSyncAction() (int, string) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return -1, ""
@@ -161,8 +161,8 @@ func (s *Topom) FirstSyncAction() (int, string) {
 }
 
 func (s *Topom) newSyncActionExecutor(gid int, addr string) (func() error, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return nil, err

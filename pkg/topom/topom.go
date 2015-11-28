@@ -22,7 +22,7 @@ import (
 )
 
 type Topom struct {
-	mu sync.RWMutex
+	mu sync.Mutex
 
 	xauth string
 	model *models.Topom
@@ -173,8 +173,8 @@ func (s *Topom) newContext() (*context, error) {
 }
 
 func (s *Topom) Stats() (*Stats, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return nil, err
@@ -233,8 +233,8 @@ func (s *Topom) Config() *Config {
 }
 
 func (s *Topom) IsClosed() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.closed
 }
 

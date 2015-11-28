@@ -78,8 +78,8 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 }
 
 func (s *Topom) ReinitProxy(token string) error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.reinitProxy(token)
 }
 
