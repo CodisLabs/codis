@@ -119,9 +119,9 @@ func (s *Topom) SlotActionPrepare() (int, error) {
 			log.WarnErrorf(err, "proxy-[%s] resync-rollback slot-[%d] to preparing failed", p.Token, m.Id)
 		}
 
-		if err := ctx.resyncSlots(onForwardError, ctx.toSlot(m, true)); err != nil {
+		if err := s.resyncSlots(ctx, onForwardError, ctx.toSlot(m, true)); err != nil {
 			log.Warnf("resync slot-[%d] to prepared failed, rollback", m.Id)
-			ctx.resyncSlots(onRollbackError, ctx.toSlot(m, false))
+			s.resyncSlots(ctx, onRollbackError, ctx.toSlot(m, false))
 			log.Warnf("resync-rollback slot-[%d] to preparing finished", m.Id)
 			return -1, err
 		}
@@ -154,7 +154,7 @@ func (s *Topom) SlotActionPrepare() (int, error) {
 			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] to migrating failed", p.Token, m.Id)
 		}
 
-		if err := ctx.resyncSlots(onForwardError, ctx.toSlot(m, false)); err != nil {
+		if err := s.resyncSlots(ctx, onForwardError, ctx.toSlot(m, false)); err != nil {
 			log.Warnf("resync slot-[%d] to migrating failed", m.Id)
 			return -1, err
 		}
@@ -207,7 +207,7 @@ func (s *Topom) SlotActionComplete(sid int) error {
 			log.WarnErrorf(err, "proxy-[%s] resync slot-[%d] to finished failed", p.Token, sid)
 		}
 
-		if err := ctx.resyncSlots(onForwardError, ctx.toSlot(m, false)); err != nil {
+		if err := s.resyncSlots(ctx, onForwardError, ctx.toSlot(m, false)); err != nil {
 			log.Warnf("resync slot-[%d] to finished failed", sid)
 			return err
 		}

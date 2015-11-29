@@ -195,9 +195,9 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 		slots := ctx.getSlotMappingByGroupId(gid)
 
-		if err := ctx.resyncSlots(onForwardError, ctx.toSlotSlice(slots, true)...); err != nil {
+		if err := s.resyncSlots(ctx, onForwardError, ctx.toSlotSlice(slots, true)...); err != nil {
 			log.Warnf("resync group-[%d] to prepared failed, rollback", gid)
-			ctx.resyncSlots(onRollbackError, ctx.toSlotSlice(slots, false)...)
+			s.resyncSlots(ctx, onRollbackError, ctx.toSlotSlice(slots, false)...)
 			log.Warnf("resync-rollback group-[%d] to preparing finished", gid)
 			return err
 		}
@@ -253,7 +253,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 		slots := ctx.getSlotMappingByGroupId(gid)
 
-		if err := ctx.resyncSlots(onForwardError, ctx.toSlotSlice(slots, false)...); err != nil {
+		if err := s.resyncSlots(ctx, onForwardError, ctx.toSlotSlice(slots, false)...); err != nil {
 			log.Warnf("resync group-[%d] to finished failed", gid)
 			return err
 		}

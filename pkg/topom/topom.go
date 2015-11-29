@@ -169,7 +169,7 @@ func (s *Topom) newContext() (*context, error) {
 	if err := s.reloadCache(); err != nil {
 		return nil, err
 	} else {
-		ctx := &context{config: s.config}
+		ctx := &context{}
 		ctx.slots = s.cache.slots
 		ctx.group = s.cache.group
 		ctx.proxy = s.cache.proxy

@@ -2,16 +2,12 @@ package topom
 
 import (
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
-	"github.com/wandoulabs/codis/pkg/utils/sync2"
 )
 
 type context struct {
-	config *Config
-
 	slots []*models.SlotMapping
 	group map[int]*models.Group
 	proxy map[string]*models.Proxy
@@ -195,48 +191,4 @@ func (ctx *context) maxProxyId() (maxId int) {
 		maxId = utils.MaxInt(maxId, p.Id)
 	}
 	return maxId
-}
-
-func (ctx *context) newProxyClient(p *models.Proxy) *proxy.ApiClient {
-	cfg := ctx.config
-	c := proxy.NewApiClient(p.AdminAddr)
-	c.SetXAuth(cfg.ProductName, cfg.ProductAuth, p.Token)
-	return c
-}
-
-func (ctx *context) reinitProxy(p *models.Proxy, c *proxy.ApiClient) error {
-	log.Infof("reinit proxy-[%s]:\n%s", p.Token, p.Encode())
-	if err := c.FillSlots(ctx.toSlotSlice(ctx.slots, false)...); err != nil {
-		log.ErrorErrorf(err, "proxy-[%s] fillslots failed", p.Token)
-		return errors.Errorf("proxy-[%s] fillslots failed", p.Token)
-	}
-	if err := c.Start(); err != nil {
-		log.ErrorErrorf(err, "proxy-[%s] start failed", p.Token)
-		return errors.Errorf("proxy-[%s] start failed", p.Token)
-	}
-	return nil
-}
-
-func (ctx *context) resyncSlots(onError func(p *models.Proxy, err error), slots ...*models.Slot) error {
-	if len(slots) == 0 {
-		return nil
-	}
-	var fut sync2.Future
-	for _, p := range ctx.proxy {
-		fut.Add()
-		go func(p *models.Proxy, c *proxy.ApiClient) {
-			err := c.FillSlots(slots...)
-			if err != nil && onError != nil {
-				onError(p, err)
-			}
-			fut.Done(p.Token, err)
-		}(p, ctx.newProxyClient(p))
-	}
-	for t, v := range fut.Wait() {
-		switch err := v.(type) {
-		case error:
-			return errors.Errorf("proxy-[%s] fillslots failed", t)
-		}
-	}
-	return nil
 }
