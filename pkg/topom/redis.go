@@ -105,7 +105,7 @@ func (c *RedisClient) Info() (map[string]string, error) {
 }
 
 func (c *RedisClient) SetMaster(master string) error {
-	if master == "" || strings.ToUpper(master) == "NO:ONE" {
+	if strings.ToUpper(master) == "NO:ONE" {
 		if _, err := c.command("SLAVEOF", "NO", "ONE"); err != nil {
 			return err
 		}

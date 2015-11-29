@@ -223,10 +223,10 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		if c, err := NewRedisClient(master, s.config.ProductAuth, time.Second); err != nil {
 			log.WarnErrorf(err, "create redis client to %s failed", master)
 		} else {
-			if err := c.SetMaster(""); err != nil {
+			defer c.Close()
+			if err := c.SetMaster("NO:ONE"); err != nil {
 				log.WarnErrorf(err, "redis %s set master to NO:ONE failed", master)
 			}
-			c.Close()
 		}
 
 		fallthrough
@@ -257,7 +257,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 	}
 }
 
-func (s *Topom) GroupCreateSyncAction(addr string) error {
+func (s *Topom) SyncCreateAction(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -270,18 +270,17 @@ func (s *Topom) GroupCreateSyncAction(addr string) error {
 		return err
 	}
 	if g.Servers[index].Action.State != models.ActionNothing {
-		return errors.Errorf("server-[%s] action is not empty", addr)
+		return errors.Errorf("server-[%s] action already exists", addr)
 	}
 
 	s.dirtyGroupCache(g.Id)
 
-	g.Servers[index].Action.Index = ctx.maxGroupSyncActionIndex() + 1
+	g.Servers[index].Action.Index = ctx.maxSyncActionIndex() + 1
 	g.Servers[index].Action.State = models.ActionPending
-
 	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) GroupRemoveSyncAction(addr string) error {
+func (s *Topom) RemoveSyncAction(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -293,18 +292,20 @@ func (s *Topom) GroupRemoveSyncAction(addr string) error {
 	if err != nil {
 		return err
 	}
+	if g.Servers[index].Action.State == models.ActionNothing {
+		return errors.Errorf("server-[%s] action doesn't exist", addr)
+	}
 	if g.Servers[index].Action.State != models.ActionPending {
-		return errors.Errorf("server-[%d] action can't be removed", addr)
+		return errors.Errorf("server-[%d] action isn't pending", addr)
 	}
 
 	s.dirtyGroupCache(g.Id)
 
 	g.Servers[index] = &models.GroupServer{Addr: addr}
-
 	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) GroupSyncActionPrepare() (string, error) {
+func (s *Topom) SyncActionPrepare() (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -312,7 +313,7 @@ func (s *Topom) GroupSyncActionPrepare() (string, error) {
 		return "", err
 	}
 
-	addr := ctx.minGroupSyncActionIndex()
+	addr := ctx.minSyncActionIndex()
 	if addr == "" {
 		return "", nil
 	}
@@ -331,12 +332,11 @@ func (s *Topom) GroupSyncActionPrepare() (string, error) {
 		s.dirtyGroupCache(g.Id)
 
 		g.Servers[index].Action.State = models.ActionSyncing
-
 		if err := s.storeUpdateGroup(g); err != nil {
 			return "", err
 		}
 
-		return addr, nil
+		fallthrough
 
 	case models.ActionSyncing:
 
@@ -349,7 +349,7 @@ func (s *Topom) GroupSyncActionPrepare() (string, error) {
 	}
 }
 
-func (s *Topom) GroupSyncActionComplete(addr string) error {
+func (s *Topom) SyncActionComplete(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -371,12 +371,7 @@ func (s *Topom) GroupSyncActionComplete(addr string) error {
 		s.dirtyGroupCache(g.Id)
 
 		g.Servers[index] = &models.GroupServer{Addr: addr}
-
-		if err := s.storeUpdateGroup(g); err != nil {
-			return err
-		}
-
-		return nil
+		return s.storeUpdateGroup(g)
 
 	default:
 

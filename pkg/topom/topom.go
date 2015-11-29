@@ -309,16 +309,10 @@ func (s *Topom) StartDaemonRoutines() {
 
 		go func() {
 			for !s.IsClosed() {
-				if s.GetSlotActionDisabled() {
-					time.Sleep(time.Second)
-					continue
-				}
-				if sid, err := s.ProcessSlotAction(); err != nil {
+				if err := s.ProcessSlotAction(); err != nil {
 					log.WarnErrorf(err, "process slot action failed")
-					time.Sleep(time.Second * 5)
-				} else if sid < 0 {
-					time.Sleep(time.Second)
 				}
+				time.Sleep(time.Second)
 			}
 		}()
 

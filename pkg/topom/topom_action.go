@@ -11,7 +11,24 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
-func (s *Topom) ProcessSlotAction() (_ int, err error) {
+func (s *Topom) ProcessSlotAction() error {
+	for !s.IsClosed() {
+		if s.GetSlotActionDisabled() {
+			time.Sleep(time.Second)
+			continue
+		}
+		sid, err := s.SlotActionPrepare()
+		if err != nil || sid < 0 {
+			return err
+		}
+		if err := s.processSlotAction(sid); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Topom) processSlotAction(sid int) (err error) {
 	defer func() {
 		if err != nil {
 			s.action.progress.failed.Set(true)
@@ -20,33 +37,29 @@ func (s *Topom) ProcessSlotAction() (_ int, err error) {
 			s.action.progress.failed.Set(false)
 		}
 	}()
-	sid, err := s.SlotActionPrepare()
-	if err != nil || sid < 0 {
-		return -1, err
-	}
 	for !s.IsClosed() {
 		if s.GetSlotActionDisabled() {
 			time.Sleep(time.Millisecond * 50)
 			continue
 		}
 		if exec, err := s.newSlotActionExecutor(sid); err != nil {
-			return sid, err
+			return err
 		} else if exec == nil {
 			time.Sleep(time.Millisecond * 50)
 		} else {
 			n, err := exec()
 			if err != nil {
-				return sid, err
+				return err
 			}
 			if n == 0 {
-				return sid, s.SlotActionComplete(sid)
+				return s.SlotActionComplete(sid)
 			}
 			s.action.progress.remain.Set(int64(n))
 			s.action.progress.failed.Set(false)
 			s.noopInterval()
 		}
 	}
-	return -1, nil
+	return nil
 }
 
 func (s *Topom) noopInterval() int {
@@ -88,7 +101,6 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 		dest := ctx.getGroupMaster(m.Action.TargetId)
 
 		s.action.executor.Incr()
-
 		return func() (int, error) {
 			defer s.action.executor.Decr()
 			if from == "" {
@@ -105,13 +117,13 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 
 	default:
 
-		return nil, errors.Errorf("slot-[%d] action state is invalid", sid)
+		return nil, errors.Errorf("slot-[%d] action state is invalid", m.Id)
 
 	}
 }
 
 func (s *Topom) ProcessSyncAction() error {
-	addr, err := s.GroupSyncActionPrepare()
+	addr, err := s.SyncActionPrepare()
 	if err != nil || addr == "" {
 		return err
 	}
@@ -120,7 +132,7 @@ func (s *Topom) ProcessSyncAction() error {
 	} else if err := exec(); err != nil {
 		return err
 	} else {
-		return s.GroupSyncActionComplete(addr)
+		return s.SyncActionComplete(addr)
 	}
 }
 

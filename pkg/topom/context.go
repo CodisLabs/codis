@@ -117,7 +117,7 @@ func (ctx *context) getGroupByServer(addr string) (*models.Group, int, error) {
 	return nil, -1, errors.Errorf("server-[%s] doesn't exist", addr)
 }
 
-func (ctx *context) maxGroupSyncActionIndex() (maxIndex int) {
+func (ctx *context) maxSyncActionIndex() (maxIndex int) {
 	for _, g := range ctx.group {
 		for _, x := range g.Servers {
 			if x.Action.State != models.ActionNothing {
@@ -128,7 +128,7 @@ func (ctx *context) maxGroupSyncActionIndex() (maxIndex int) {
 	return maxIndex
 }
 
-func (ctx *context) minGroupSyncActionIndex() string {
+func (ctx *context) minSyncActionIndex() string {
 	var d *models.GroupServer
 	for _, g := range ctx.group {
 		for _, x := range g.Servers {
