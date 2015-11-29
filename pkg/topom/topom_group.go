@@ -33,7 +33,6 @@ func (s *Topom) CreateGroup(gid int) error {
 		Id:      gid,
 		Servers: []*models.GroupServer{},
 	}
-
 	return s.storeCreateGroup(g)
 }
 
@@ -53,7 +52,7 @@ func (s *Topom) RemoveGroup(gid int) error {
 		return errors.Errorf("group-[%d] isn't empty", gid)
 	}
 
-	s.dirtyGroupCache(gid)
+	s.dirtyGroupCache(g.Id)
 
 	return s.storeRemoveGroup(g)
 }
@@ -78,13 +77,12 @@ func (s *Topom) GroupAddServer(gid int, addr string) error {
 		return err
 	}
 	if g.Promoting.State != models.ActionNothing {
-		return errors.Errorf("group-[%d] is promoting", gid)
+		return errors.Errorf("group-[%d] is promoting", g.Id)
 	}
 
-	s.dirtyGroupCache(gid)
+	s.dirtyGroupCache(g.Id)
 
 	g.Servers = append(g.Servers, &models.GroupServer{Addr: addr})
-
 	return s.storeUpdateGroup(g)
 }
 
@@ -110,7 +108,7 @@ func (s *Topom) GroupDelServer(addr string) error {
 		}
 	}
 	if g.Servers[index].Action.State != models.ActionNothing {
-		return errors.Errorf("server-[%s] action is not empty", addr)
+		return errors.Errorf("server-[%s] action isn't empty", addr)
 	}
 
 	var slice = make([]*models.GroupServer, 0, len(g.Servers))
@@ -123,7 +121,6 @@ func (s *Topom) GroupDelServer(addr string) error {
 	s.dirtyGroupCache(g.Id)
 
 	g.Servers = slice
-
 	return s.storeUpdateGroup(g)
 }
 
@@ -148,7 +145,7 @@ func (s *Topom) GroupPromoteServer(addr string) error {
 	}
 	for _, x := range g.Servers {
 		if x.Action.State != models.ActionNothing {
-			return errors.Errorf("server-[%s] action is not empty", x.Addr)
+			return errors.Errorf("server-[%s] action isn't empty", x.Addr)
 		}
 	}
 
@@ -160,7 +157,6 @@ func (s *Topom) GroupPromoteServer(addr string) error {
 
 	g.Promoting.Index = index
 	g.Promoting.State = models.ActionPreparing
-
 	return s.storeUpdateGroup(g)
 }
 
@@ -176,36 +172,27 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 	if err != nil {
 		return err
 	}
-	if g.Promoting.State == models.ActionNothing {
-		return nil
-	}
 
-	log.Infof("group-[%d] action promote:\n%s", gid, g.Encode())
+	log.Infof("group-[%d] action promote-commit:\n%s", g.Id, g.Encode())
 
 	switch g.Promoting.State {
 
 	case models.ActionPreparing:
 
-		onForwardError := func(p *models.Proxy, err error) {
-			log.WarnErrorf(err, "proxy-[%s] resync group-[%d] to prepared failed", p.Token, gid)
-		}
-		onRollbackError := func(p *models.Proxy, err error) {
-			log.WarnErrorf(err, "proxy-[%s] resync-rollback group-[%d] to preparing failed", p.Token, gid)
-		}
+		log.Infof("group-[%d] resync to prepared", g.Id)
 
-		slots := ctx.getSlotMappingByGroupId(gid)
+		slots := ctx.getSlotMappingByGroupId(g.Id)
 
-		if err := s.resyncSlots(ctx, onForwardError, ctx.toSlotSlice(slots, true)...); err != nil {
-			log.Warnf("resync group-[%d] to prepared failed, rollback", gid)
-			s.resyncSlots(ctx, onRollbackError, ctx.toSlotSlice(slots, false)...)
-			log.Warnf("resync-rollback group-[%d] to preparing finished", gid)
-			return err
-		}
-
-		s.dirtyGroupCache(gid)
+		s.dirtyGroupCache(g.Id)
 
 		g.Promoting.State = models.ActionPrepared
-
+		if err := s.resyncSlots(ctx, slots...); err != nil {
+			log.Warnf("group-[%d] resync-rollback to preparing", g.Id)
+			g.Promoting.State = models.ActionPreparing
+			s.resyncSlots(ctx, slots...)
+			log.Warnf("group-[%d] resync-rollback to preparing, done", g.Id)
+			return err
+		}
 		if err := s.storeUpdateGroup(g); err != nil {
 			return err
 		}
@@ -223,21 +210,16 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		}
 		slice[0] = &models.GroupServer{Addr: g.Servers[index].Addr}
 
-		s.dirtyGroupCache(gid)
+		s.dirtyGroupCache(g.Id)
 
 		g.Servers = slice
 		g.Promoting.Index = 0
 		g.Promoting.State = models.ActionFinished
-
 		if err := s.storeUpdateGroup(g); err != nil {
 			return err
 		}
 
-		fallthrough
-
-	case models.ActionFinished:
-
-		var master = g.Servers[0].Addr
+		var master = slice[0].Addr
 		if c, err := NewRedisClient(master, s.config.ProductAuth, time.Second); err != nil {
 			log.WarnErrorf(err, "create redis client to %s failed", master)
 		} else {
@@ -247,29 +229,26 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 			c.Close()
 		}
 
-		onForwardError := func(p *models.Proxy, err error) {
-			log.WarnErrorf(err, "proxy-[%s] resync group-[%d] to finished failed", p.Token, gid)
-		}
+		fallthrough
 
-		slots := ctx.getSlotMappingByGroupId(gid)
+	case models.ActionFinished:
 
-		if err := s.resyncSlots(ctx, onForwardError, ctx.toSlotSlice(slots, false)...); err != nil {
-			log.Warnf("resync group-[%d] to finished failed", gid)
+		log.Infof("group-[%d] resync to finished", g.Id)
+
+		slots := ctx.getSlotMappingByGroupId(g.Id)
+
+		if err := s.resyncSlots(ctx, slots...); err != nil {
+			log.Warnf("group-[%d] resync to finished failed", g.Id)
 			return err
 		}
 
-		s.dirtyGroupCache(gid)
+		s.dirtyGroupCache(g.Id)
 
 		g = &models.Group{
 			Id:      g.Id,
 			Servers: g.Servers,
 		}
-
-		if err := s.storeUpdateGroup(g); err != nil {
-			return err
-		}
-
-		return nil
+		return s.storeUpdateGroup(g)
 
 	default:
 

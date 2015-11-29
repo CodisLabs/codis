@@ -118,10 +118,10 @@ func (s *Topom) SlotActionPrepare() (int, error) {
 
 		m.Action.State = models.ActionPrepared
 		if err := s.resyncSlots(ctx, m); err != nil {
-			log.Infof("slot-[%d] resync-rollback to preparing", m.Id)
+			log.Warnf("slot-[%d] resync-rollback to preparing", m.Id)
 			m.Action.State = models.ActionPreparing
 			s.resyncSlots(ctx, m)
-			log.Infof("slot-[%d] resync-rollback to preparing, done", m.Id)
+			log.Warnf("slot-[%d] resync-rollback to preparing, done", m.Id)
 			return -1, err
 		}
 		if err := s.storeUpdateSlotMapping(m); err != nil {
@@ -138,6 +138,7 @@ func (s *Topom) SlotActionPrepare() (int, error) {
 
 		m.Action.State = models.ActionMigrating
 		if err := s.resyncSlots(ctx, m); err != nil {
+			log.Warnf("slot-[%d] resync to migrating failed", m.Id)
 			return -1, err
 		}
 		if err := s.storeUpdateSlotMapping(m); err != nil {
@@ -193,11 +194,12 @@ func (s *Topom) SlotActionComplete(sid int) error {
 
 		log.Infof("slot-[%d] resync to finished", m.Id)
 
-		s.dirtySlotsCache(m.Id)
-
 		if err := s.resyncSlots(ctx, m); err != nil {
+			log.Warnf("slot-[%d] resync to finished failed", m.Id)
 			return err
 		}
+
+		s.dirtySlotsCache(m.Id)
 
 		m = &models.SlotMapping{
 			Id:      m.Id,
