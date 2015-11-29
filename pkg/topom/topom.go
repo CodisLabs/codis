@@ -166,10 +166,13 @@ func (s *Topom) newContext() (*context, error) {
 	if s.closed {
 		return nil, ErrClosedTopom
 	}
-	ctx := &context{config: s.config}
-	if err := s.initContext(ctx); err != nil {
+	if err := s.reloadCache(); err != nil {
 		return nil, err
 	} else {
+		ctx := &context{config: s.config}
+		ctx.slots = s.cache.slots
+		ctx.group = s.cache.group
+		ctx.proxy = s.cache.proxy
 		return ctx, nil
 	}
 }

@@ -58,7 +58,7 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 	if err := c.Shutdown(); err != nil {
 		log.WarnErrorf(err, "proxy-[%s] shutdown failed, force remove = %t", token, force)
 		if !force {
-			return errors.Errorf("proxy-[%s] shutdown failed", token)
+			return errors.Errorf("proxy-[%s] shutdown failed", p.Token)
 		}
 	}
 

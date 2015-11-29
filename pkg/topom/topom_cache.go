@@ -38,7 +38,7 @@ func (s *Topom) dirtyCacheAll() {
 	})
 }
 
-func (s *Topom) initContext(ctx *context) error {
+func (s *Topom) reloadCache() error {
 	for i := s.cache.hooks.Len(); i != 0; i-- {
 		e := s.cache.hooks.Front()
 		s.cache.hooks.Remove(e).(func())()
@@ -61,9 +61,6 @@ func (s *Topom) initContext(ctx *context) error {
 	} else {
 		s.cache.proxy = proxy
 	}
-	ctx.slots = s.cache.slots
-	ctx.group = s.cache.group
-	ctx.proxy = s.cache.proxy
 	return nil
 }
 
