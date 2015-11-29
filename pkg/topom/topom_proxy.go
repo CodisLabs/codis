@@ -93,8 +93,8 @@ func (s *Topom) newProxyClient(p *models.Proxy) *proxy.ApiClient {
 }
 
 func (s *Topom) reinitProxy(ctx *context, p *models.Proxy, c *proxy.ApiClient) error {
-	log.Infof("reinit proxy-[%s]:\n%s", p.Token, p.Encode())
-	if err := c.FillSlots(ctx.toSlotSlice(ctx.slots, false)...); err != nil {
+	log.Infof("proxy-[%s] reinit:\n%s", p.Token, p.Encode())
+	if err := c.FillSlots(ctx.toSlotSlice(ctx.slots)...); err != nil {
 		log.ErrorErrorf(err, "proxy-[%s] fillslots failed", p.Token)
 		return errors.Errorf("proxy-[%s] fillslots failed", p.Token)
 	}
@@ -105,17 +105,18 @@ func (s *Topom) reinitProxy(ctx *context, p *models.Proxy, c *proxy.ApiClient) e
 	return nil
 }
 
-func (s *Topom) resyncSlots(ctx *context, onError func(p *models.Proxy, err error), slots ...*models.Slot) error {
+func (s *Topom) resyncSlots(ctx *context, slots ...*models.SlotMapping) error {
 	if len(slots) == 0 {
 		return nil
 	}
 	var fut sync2.Future
+	var slice = ctx.toSlotSlice(slots)
 	for _, p := range ctx.proxy {
 		fut.Add()
 		go func(p *models.Proxy) {
-			err := s.newProxyClient(p).FillSlots(slots...)
-			if err != nil && onError != nil {
-				onError(p, err)
+			err := s.newProxyClient(p).FillSlots(slice...)
+			if err != nil {
+				log.ErrorErrorf(err, "proxy-[%s] resync slots failed", p.Token)
 			}
 			fut.Done(p.Token, err)
 		}(p)
@@ -123,7 +124,7 @@ func (s *Topom) resyncSlots(ctx *context, onError func(p *models.Proxy, err erro
 	for t, v := range fut.Wait() {
 		switch err := v.(type) {
 		case error:
-			return errors.Errorf("proxy-[%s] fillslots failed", t)
+			return errors.Errorf("proxy-[%s] resync slots failed", t)
 		}
 	}
 	return nil

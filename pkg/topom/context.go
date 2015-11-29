@@ -21,13 +21,13 @@ func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {
 }
 
 func (ctx *context) getSlotMappingByGroupId(gid int) []*models.SlotMapping {
-	var slice = []*models.SlotMapping{}
+	var slots = []*models.SlotMapping{}
 	for _, m := range ctx.slots {
 		if m.GroupId == gid || m.Action.TargetId == gid {
-			slice = append(slice, m)
+			slots = append(slots, m)
 		}
 	}
-	return slice
+	return slots
 }
 
 func (ctx *context) maxSlotActionIndex() (maxIndex int) {
@@ -63,15 +63,15 @@ func (ctx *context) isSlotLocked(m *models.SlotMapping) bool {
 	case models.ActionFinished:
 		return ctx.isGroupLocked(m.Action.TargetId)
 	default:
-		log.Panicf("invalid slot-[%d] action state:\n%s", m.Id, m.Encode())
+		log.Panicf("slot-[%d] action state is invalid:\n%s", m.Id, m.Encode())
 	}
 	return false
 }
 
-func (ctx *context) toSlot(m *models.SlotMapping, forceLocked bool) *models.Slot {
+func (ctx *context) toSlot(m *models.SlotMapping) *models.Slot {
 	slot := &models.Slot{
 		Id:     m.Id,
-		Locked: forceLocked || ctx.isSlotLocked(m),
+		Locked: ctx.isSlotLocked(m),
 	}
 	switch m.Action.State {
 	case models.ActionNothing, models.ActionPending:
@@ -86,15 +86,15 @@ func (ctx *context) toSlot(m *models.SlotMapping, forceLocked bool) *models.Slot
 	case models.ActionFinished:
 		slot.BackendAddr = ctx.getGroupMaster(m.Action.TargetId)
 	default:
-		log.Panicf("invalid slot-[%d] action state:\n%s", m.Id, m.Encode())
+		log.Panicf("slot-[%d] action state is invalid:\n%s", m.Id, m.Encode())
 	}
 	return slot
 }
 
-func (ctx *context) toSlotSlice(slots []*models.SlotMapping, forceLocked bool) []*models.Slot {
+func (ctx *context) toSlotSlice(slots []*models.SlotMapping) []*models.Slot {
 	var slice = make([]*models.Slot, len(slots))
 	for i, m := range slots {
-		slice[i] = ctx.toSlot(m, forceLocked)
+		slice[i] = ctx.toSlot(m)
 	}
 	return slice
 }
