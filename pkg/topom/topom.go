@@ -71,7 +71,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 		return nil, errors.Errorf("invalid product name = %s", config.ProductName)
 	}
 	s := &Topom{config: config, store: models.NewStore(client, config.ProductName)}
-	s.xauth = rpc.NewXAuth(config.ProductName, config.ProductAuth)
+	s.xauth = rpc.NewXAuth(config.ProductName)
 	s.model = &models.Topom{
 		StartTime: time.Now().String(),
 	}
