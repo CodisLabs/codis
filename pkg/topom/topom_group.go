@@ -65,8 +65,12 @@ func (s *Topom) GroupAddServer(gid int, addr string) error {
 		return err
 	}
 
-	if g, _, _ := ctx.getGroupByServer(addr); g != nil {
-		return errors.Errorf("server-[%s] already exists", addr)
+	for _, g := range ctx.group {
+		for _, x := range g.Servers {
+			if x.Addr == addr {
+				return errors.Errorf("server-[%s] already exists", addr)
+			}
+		}
 	}
 
 	g, err := ctx.getGroup(gid)
@@ -94,7 +98,7 @@ func (s *Topom) GroupAddServer(gid int, addr string) error {
 	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) GroupDelServer(addr string) error {
+func (s *Topom) GroupDelServer(gid int, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -102,10 +106,15 @@ func (s *Topom) GroupDelServer(addr string) error {
 		return err
 	}
 
-	g, index, err := ctx.getGroupByServer(addr)
+	g, err := ctx.getGroup(gid)
 	if err != nil {
 		return err
 	}
+	index, err := ctx.getGroupIndex(g, addr)
+	if err != nil {
+		return err
+	}
+
 	if g.Promoting.State != models.ActionNothing {
 		return errors.Errorf("group-[%d] is promoting", g.Id)
 	}
@@ -129,7 +138,7 @@ func (s *Topom) GroupDelServer(addr string) error {
 	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) GroupPromoteServer(addr string) error {
+func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -137,10 +146,15 @@ func (s *Topom) GroupPromoteServer(addr string) error {
 		return err
 	}
 
-	g, index, err := ctx.getGroupByServer(addr)
+	g, err := ctx.getGroup(gid)
 	if err != nil {
 		return err
 	}
+	index, err := ctx.getGroupIndex(g, addr)
+	if err != nil {
+		return err
+	}
+
 	if g.Promoting.State != models.ActionNothing {
 		return errors.Errorf("group-[%d] is promoting", g.Id)
 	}

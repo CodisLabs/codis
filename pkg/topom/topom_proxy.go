@@ -124,7 +124,9 @@ func (s *Topom) resyncSlots(ctx *context, slots ...*models.SlotMapping) error {
 	for t, v := range fut.Wait() {
 		switch err := v.(type) {
 		case error:
-			return errors.Errorf("proxy-[%s] resync slots failed", t)
+			if err != nil {
+				return errors.Errorf("proxy-[%s] resync slots failed", t)
+			}
 		}
 	}
 	return nil

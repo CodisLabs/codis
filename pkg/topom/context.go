@@ -106,6 +106,15 @@ func (ctx *context) getGroup(gid int) (*models.Group, error) {
 	return nil, errors.Errorf("group-[%d] doesn't exist", gid)
 }
 
+func (ctx *context) getGroupIndex(g *models.Group, addr string) (int, error) {
+	for i, x := range g.Servers {
+		if x.Addr == addr {
+			return i, nil
+		}
+	}
+	return -1, errors.Errorf("group-[%d] doesn't have server-[%s]", g.Id, addr)
+}
+
 func (ctx *context) getGroupByServer(addr string) (*models.Group, int, error) {
 	for _, g := range ctx.group {
 		for i, x := range g.Servers {
