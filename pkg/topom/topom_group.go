@@ -4,6 +4,7 @@
 package topom
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -107,9 +108,6 @@ func (s *Topom) GroupDelServer(addr string) error {
 			return errors.Errorf("group-[%d] can't remove master, still in use", g.Id)
 		}
 	}
-	if g.Servers[index].Action.State != models.ActionNothing {
-		return errors.Errorf("server-[%s] action isn't empty", addr)
-	}
 
 	var slice = make([]*models.GroupServer, 0, len(g.Servers))
 	for i, x := range g.Servers {
@@ -143,12 +141,6 @@ func (s *Topom) GroupPromoteServer(addr string) error {
 	if index == 0 {
 		return errors.Errorf("group-[%d] can't promote master", g.Id)
 	}
-	for _, x := range g.Servers {
-		if x.Action.State != models.ActionNothing {
-			return errors.Errorf("server-[%s] action isn't empty", x.Addr)
-		}
-	}
-
 	if n := s.action.executor.Get(); n != 0 {
 		return errors.Errorf("slots-migration is running = %d", n)
 	}
@@ -205,10 +197,11 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		var slice = make([]*models.GroupServer, 0, len(g.Servers))
 		for i, x := range g.Servers {
 			if i != index {
-				slice = append(slice, x)
+				slice = append(slice, &models.GroupServer{Addr: x.Addr})
+			} else {
+				slice[0].Addr = x.Addr
 			}
 		}
-		slice[0] = &models.GroupServer{Addr: g.Servers[index].Addr}
 
 		s.dirtyGroupCache(g.Id)
 
@@ -269,8 +262,8 @@ func (s *Topom) SyncCreateAction(addr string) error {
 	if err != nil {
 		return err
 	}
-	if g.Servers[index].Action.State != models.ActionNothing {
-		return errors.Errorf("server-[%s] action already exists", addr)
+	if g.Servers[index].Action.State == models.ActionPending {
+		return errors.Errorf("server-[%s] action already exist", addr)
 	}
 
 	s.dirtyGroupCache(g.Id)
@@ -280,7 +273,7 @@ func (s *Topom) SyncCreateAction(addr string) error {
 	return s.storeUpdateGroup(g)
 }
 
-func (s *Topom) RemoveSyncAction(addr string) error {
+func (s *Topom) SyncRemoveAction(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -294,9 +287,6 @@ func (s *Topom) RemoveSyncAction(addr string) error {
 	}
 	if g.Servers[index].Action.State == models.ActionNothing {
 		return errors.Errorf("server-[%s] action doesn't exist", addr)
-	}
-	if g.Servers[index].Action.State != models.ActionPending {
-		return errors.Errorf("server-[%d] action isn't pending", addr)
 	}
 
 	s.dirtyGroupCache(g.Id)
@@ -322,34 +312,20 @@ func (s *Topom) SyncActionPrepare() (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	log.Infof("server-[%s] action prepare:\n%s", addr, g.Encode())
-
-	switch g.Servers[index].Action.State {
-
-	case models.ActionPending:
-
-		s.dirtyGroupCache(g.Id)
-
-		g.Servers[index].Action.State = models.ActionSyncing
-		if err := s.storeUpdateGroup(g); err != nil {
-			return "", err
-		}
-
-		fallthrough
-
-	case models.ActionSyncing:
-
-		return addr, nil
-
-	default:
-
+	if g.Servers[index].Action.State != models.ActionPending {
 		return "", errors.Errorf("server-[%s] action state is invalid", addr)
-
 	}
+
+	log.Infof("server-[%s] action prepare", addr)
+
+	s.dirtyGroupCache(g.Id)
+
+	g.Servers[index].Action.Index = 0
+	g.Servers[index].Action.State = models.ActionSyncing
+	return addr, s.storeUpdateGroup(g)
 }
 
-func (s *Topom) SyncActionComplete(addr string) error {
+func (s *Topom) SyncActionComplete(addr string, failed bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -358,24 +334,17 @@ func (s *Topom) SyncActionComplete(addr string) error {
 	}
 
 	g, index, err := ctx.getGroupByServer(addr)
-	if err != nil {
-		return err
+	if g == nil {
+		return nil
+	}
+	if g.Servers[index].Action.State != models.ActionSyncing {
+		return nil
 	}
 
-	log.Infof("server-[%s] action complete:\n%s", addr, g.Encode())
+	log.Infof("server-[%s] action failed = %t", addr, failed)
 
-	switch g.Servers[index].Action.State {
+	s.dirtyGroupCache(g.Id)
 
-	case models.ActionSyncing:
-
-		s.dirtyGroupCache(g.Id)
-
-		g.Servers[index] = &models.GroupServer{Addr: addr}
-		return s.storeUpdateGroup(g)
-
-	default:
-
-		return errors.Errorf("server-[%s] action state is invalid", addr)
-
-	}
+	g.Servers[index].Action.State = fmt.Sprintf("synced:%t", !failed)
+	return s.storeUpdateGroup(g)
 }

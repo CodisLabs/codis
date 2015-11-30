@@ -120,7 +120,7 @@ func (ctx *context) getGroupByServer(addr string) (*models.Group, int, error) {
 func (ctx *context) maxSyncActionIndex() (maxIndex int) {
 	for _, g := range ctx.group {
 		for _, x := range g.Servers {
-			if x.Action.State != models.ActionNothing {
+			if x.Action.State == models.ActionPending {
 				maxIndex = utils.MaxInt(maxIndex, x.Action.Index)
 			}
 		}
@@ -132,7 +132,7 @@ func (ctx *context) minSyncActionIndex() string {
 	var d *models.GroupServer
 	for _, g := range ctx.group {
 		for _, x := range g.Servers {
-			if x.Action.State != models.ActionNothing {
+			if x.Action.State == models.ActionPending {
 				if d == nil || x.Action.Index < d.Action.Index {
 					d = x
 				}
@@ -175,6 +175,13 @@ func (ctx *context) isGroupLocked(gid int) bool {
 		default:
 			log.Panicf("invalid state of group-[%d] = %s", g.Id, g.Encode())
 		}
+	}
+	return false
+}
+
+func (ctx *context) isGroupPromoting(gid int) bool {
+	if g := ctx.group[gid]; g != nil {
+		return g.Promoting.State == models.ActionNothing
 	}
 	return false
 }
