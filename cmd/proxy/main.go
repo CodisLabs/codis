@@ -116,7 +116,7 @@ func main() {
 		configFile = args["-c"].(string)
 	}
 
-	var maxFileFrag = 10
+	var maxFileFrag = 10000000
 	var maxFragSize int64 = bytesize.GB * 1
 	if s, ok := args["--log-filesize"].(string); ok && s != "" {
 		v, err := bytesize.Parse(s)
