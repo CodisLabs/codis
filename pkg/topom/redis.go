@@ -141,6 +141,26 @@ func (c *RedisClient) MigrateSlot(slot int, target string) (int, error) {
 	}
 }
 
+func (c *RedisClient) SlotsInfo() (map[int]int, error) {
+	if reply, err := c.command("SLOTSINFO"); err != nil {
+		return nil, err
+	} else {
+		infos, err := redis.Values(reply, nil)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		slots := make(map[int]int)
+		for i, info := range infos {
+			p, err := redis.Ints(info, nil)
+			if err != nil || len(p) != 2 {
+				return nil, errors.Errorf("invalid response[%d] = %v", i, info)
+			}
+			slots[p[0]] = p[1]
+		}
+		return slots, nil
+	}
+}
+
 var ErrClosedRedisPool = errors.New("use of closed redis pool")
 
 type RedisPool struct {

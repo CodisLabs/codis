@@ -5,7 +5,6 @@ package topom
 
 import (
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -66,9 +65,6 @@ func (s *Topom) GroupAddServer(gid int, addr string) error {
 		return err
 	}
 
-	if _, _, err := net.SplitHostPort(addr); err != nil {
-		return errors.Errorf("invalid server address: %s", err)
-	}
 	if g, _, _ := ctx.getGroupByServer(addr); g != nil {
 		return errors.Errorf("server-[%s] already exists", addr)
 	}
@@ -79,6 +75,17 @@ func (s *Topom) GroupAddServer(gid int, addr string) error {
 	}
 	if g.Promoting.State != models.ActionNothing {
 		return errors.Errorf("group-[%d] is promoting", g.Id)
+	}
+
+	c, err := NewRedisClient(addr, s.config.ProductAuth, time.Second)
+	if err != nil {
+		log.WarnErrorf(err, "create redis client to %s failed", addr)
+		return err
+	}
+	defer c.Close()
+	if _, err := c.SlotsInfo(); err != nil {
+		log.WarnErrorf(err, "redis %s check slots-info failed", addr)
+		return err
 	}
 
 	s.dirtyGroupCache(g.Id)
