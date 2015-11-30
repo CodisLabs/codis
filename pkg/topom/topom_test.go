@@ -4,30 +4,42 @@
 package topom
 
 import (
-	"math"
+	"bufio"
+	"net"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
+	"github.com/wandoulabs/codis/pkg/proxy/redis"
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
 var config = NewDefaultConfig()
 
+var codis []*memCodis
+
 func init() {
 	config.AdminAddr = "0.0.0.0:0"
 	config.ProductName = "topom_test"
 	config.ProductAuth = "topom_auth"
+	for i := 0; i < 3; i++ {
+		codis = append(codis, newMemCodis())
+	}
 }
 
 func openTopom() *Topom {
 	t, err := New(newMemClient(nil), config)
 	assert.MustNoError(err)
 	return t
+}
+
+func stats(t *Topom) *Stats {
+	stats, err := t.Stats()
+	assert.MustNoError(err)
+	return stats
 }
 
 func openProxy() (*proxy.Proxy, *proxy.ApiClient, string) {
@@ -52,11 +64,11 @@ func newProxyConfig() *proxy.Config {
 
 func TestTopomClose(x *testing.T) {
 	t := openTopom()
-	assert.Must(t.IsOnline() && !t.IsClosed())
+	assert.Must(!t.IsClosed())
 
 	assert.Must(t.Close() == nil)
 
-	assert.Must(!t.IsOnline() && t.IsClosed())
+	assert.Must(t.IsClosed())
 }
 
 func TestTopomExclusive(x *testing.T) {
@@ -75,9 +87,9 @@ func TestTopomExclusive(x *testing.T) {
 }
 
 func assertProxyStats(t *Topom, c *ApiClient, fails []string) {
-	wg := t.RefreshProxyStats(time.Second)
-	assert.Must(wg != nil)
-	wg.Wait()
+	w, _ := t.RefreshProxyStats(time.Second)
+	assert.Must(w != nil)
+	w.Wait()
 
 	fn := func(m map[string]*ProxyStats) {
 		for _, token := range fails {
@@ -92,7 +104,7 @@ func assertProxyStats(t *Topom, c *ApiClient, fails []string) {
 		}
 		assert.Must(cnt == len(fails))
 	}
-	fn(t.Stats().Proxy.Stats)
+	fn(stats(t).Proxy.Stats)
 	if c != nil {
 		stats, err := c.Stats()
 		assert.Must(err == nil)
@@ -109,7 +121,7 @@ func TestProxyCreate(x *testing.T) {
 
 	assert.Must(t.CreateProxy(addr1) == nil)
 	assert.Must(t.CreateProxy(addr1) != nil)
-	assert.Must(len(t.GetProxyModels()) == 1)
+	assert.Must(len(stats(t).Proxy.Models) == 1)
 
 	_, c2, addr2 := openProxy()
 	defer c2.Shutdown()
@@ -117,7 +129,7 @@ func TestProxyCreate(x *testing.T) {
 	assert.Must(c2.Shutdown() == nil)
 
 	assert.Must(t.CreateProxy(addr2) != nil)
-	assert.Must(len(t.GetProxyModels()) == 1)
+	assert.Must(len(stats(t).Proxy.Models) == 1)
 
 	assertProxyStats(t, nil, []string{})
 
@@ -134,24 +146,25 @@ func TestProxyRemove(x *testing.T) {
 	defer c1.Shutdown()
 
 	assert.Must(t.CreateProxy(addr1) == nil)
-	assert.Must(len(t.GetProxyModels()) == 1)
+	assert.Must(len(stats(t).Proxy.Models) == 1)
 
 	assert.Must(t.RemoveProxy(p1.Token(), false) == nil)
-	assert.Must(len(t.GetProxyModels()) == 0)
+	assert.Must(len(stats(t).Proxy.Models) == 0)
 
 	p2, c2, addr2 := openProxy()
 	defer c2.Shutdown()
 
 	assert.Must(t.CreateProxy(addr2) == nil)
-	assert.Must(len(t.GetProxyModels()) == 1)
+	assert.Must(len(stats(t).Proxy.Models) == 1)
 
 	assert.Must(c2.Shutdown() == nil)
 
 	assert.Must(t.RemoveProxy(p2.Token(), false) != nil)
 	assert.Must(t.RemoveProxy(p2.Token(), true) == nil)
-	assert.Must(len(t.GetProxyModels()) == 0)
+	assert.Must(len(stats(t).Proxy.Models) == 0)
 }
 
+/*
 func assertGroupList(t *Topom, c *ApiClient, glist ...*models.Group) {
 	fn := func(array []*models.Group) {
 		var m = make(map[int]*models.Group)
@@ -793,14 +806,14 @@ func TestApiAction(x *testing.T) {
 	assert.Must(t.CompleteAction(1) == nil)
 	assert.Must(c.SlotRemoveAction(1) != nil)
 }
+*/
 
 type memStore struct {
-	sync.Mutex
 	data map[string][]byte
 }
 
 func newMemStore() *memStore {
-	return &memStore{data: make(map[string][]byte)}
+	return &memStore{make(map[string][]byte)}
 }
 
 type memClient struct {
@@ -815,8 +828,6 @@ func newMemClient(store *memStore) models.Client {
 }
 
 func (c *memClient) Create(path string, data []byte) error {
-	c.Lock()
-	defer c.Unlock()
 	if _, ok := c.data[path]; ok {
 		return errors.Errorf("node already exists")
 	}
@@ -825,28 +836,20 @@ func (c *memClient) Create(path string, data []byte) error {
 }
 
 func (c *memClient) Update(path string, data []byte) error {
-	c.Lock()
-	defer c.Unlock()
 	c.data[path] = data
 	return nil
 }
 
 func (c *memClient) Delete(path string) error {
-	c.Lock()
-	defer c.Unlock()
 	delete(c.data, path)
 	return nil
 }
 
 func (c *memClient) Read(path string) ([]byte, error) {
-	c.Lock()
-	defer c.Unlock()
 	return c.data[path], nil
 }
 
 func (c *memClient) List(path string) ([]string, error) {
-	c.Lock()
-	defer c.Unlock()
 	path = filepath.Clean(path)
 	var list []string
 	for k, _ := range c.data {
@@ -858,7 +861,47 @@ func (c *memClient) List(path string) ([]string, error) {
 }
 
 func (c *memClient) Close() error {
-	c.Lock()
-	defer c.Unlock()
 	return nil
+}
+
+type memCodis struct {
+	l net.Listener
+}
+
+func newMemCodis() *memCodis {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	assert.Must(err == nil)
+	go func() {
+		for {
+			c, err := l.Accept()
+			assert.Must(err == nil)
+			go memCodisClient(c)
+		}
+	}()
+	return &memCodis{l}
+}
+
+func (c *memCodis) Addr() string {
+	return c.l.Addr().String()
+}
+
+func memCodisClient(c net.Conn) {
+	defer c.Close()
+	dec := redis.NewDecoder(bufio.NewReader(c))
+	enc := redis.NewEncoder(bufio.NewWriter(c))
+	for {
+		r, err := dec.Decode()
+		assert.Must(err == nil)
+		assert.Must(r.Type == redis.TypeArray && len(r.Value) != 0)
+		switch string(r.Value[0]) {
+		case "SLOTSINFO":
+			err := enc.Encode(redis.NewArray([]*redis.Resp{}), true)
+			assert.Must(err == nil)
+		case "AUTH":
+			enc.Encode(redis.NewBulkBytes([]byte("OK")), true)
+			assert.Must(err == nil)
+		default:
+			return
+		}
+	}
 }
