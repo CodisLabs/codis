@@ -181,7 +181,7 @@ func (ctx *context) isGroupLocked(gid int) bool {
 
 func (ctx *context) isGroupPromoting(gid int) bool {
 	if g := ctx.group[gid]; g != nil {
-		return g.Promoting.State == models.ActionNothing
+		return g.Promoting.State != models.ActionNothing
 	}
 	return false
 }

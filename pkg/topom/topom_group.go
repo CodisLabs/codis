@@ -348,3 +348,38 @@ func (s *Topom) SyncActionComplete(addr string, failed bool) error {
 	g.Servers[index].Action.State = fmt.Sprintf("synced:%t", !failed)
 	return s.storeUpdateGroup(g)
 }
+
+func (s *Topom) newSyncActionExecutor(addr string) (func() error, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return nil, err
+	}
+
+	g, index, err := ctx.getGroupByServer(addr)
+	if g == nil {
+		return nil, nil
+	}
+	if g.Servers[index].Action.State != models.ActionSyncing {
+		return nil, nil
+	}
+
+	var master = "NO:ONE"
+	if index != 0 {
+		master = g.Servers[0].Addr
+	}
+	return func() error {
+		c, err := NewRedisClient(addr, s.config.ProductAuth, time.Minute*15)
+		if err != nil {
+			log.WarnErrorf(err, "create redis client to %s failed", addr)
+			return err
+		}
+		defer c.Close()
+		if err := c.SetMaster(master); err != nil {
+			log.WarnErrorf(err, "redis %s set master to %s failed", addr, master)
+			return err
+		}
+		return nil
+	}, nil
+}

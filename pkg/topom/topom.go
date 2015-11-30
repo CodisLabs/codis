@@ -311,8 +311,10 @@ func (s *Topom) StartDaemonRoutines() {
 			for !s.IsClosed() {
 				if err := s.ProcessSlotAction(); err != nil {
 					log.WarnErrorf(err, "process slot action failed")
+					time.Sleep(time.Second * 5)
+				} else {
+					time.Sleep(time.Second)
 				}
-				time.Sleep(time.Second)
 			}
 		}()
 
@@ -320,8 +322,10 @@ func (s *Topom) StartDaemonRoutines() {
 			for !s.IsClosed() {
 				if err := s.ProcessSyncAction(); err != nil {
 					log.WarnErrorf(err, "process sync action failed")
+					time.Sleep(time.Second * 5)
+				} else {
+					time.Sleep(time.Second)
 				}
-				time.Sleep(time.Second)
 			}
 		}()
 	})

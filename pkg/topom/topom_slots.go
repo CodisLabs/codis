@@ -101,6 +101,10 @@ func (s *Topom) SlotActionPrepare() (int, error) {
 
 	case models.ActionPending:
 
+		if s.action.disabled.Get() {
+			return -1, nil
+		}
+
 		s.dirtySlotsCache(m.Id)
 
 		m.Action.State = models.ActionPreparing
@@ -210,6 +214,58 @@ func (s *Topom) SlotActionComplete(sid int) error {
 	default:
 
 		return errors.Errorf("slot-[%d] action state is invalid", m.Id)
+
+	}
+}
+
+func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return nil, err
+	}
+
+	m, err := ctx.getSlotMapping(sid)
+	if err != nil {
+		return nil, err
+	}
+
+	switch m.Action.State {
+
+	case models.ActionMigrating:
+
+		if s.action.disabled.Get() {
+			return nil, nil
+		}
+		if ctx.isGroupPromoting(m.GroupId) {
+			return nil, nil
+		}
+		if ctx.isGroupPromoting(m.Action.TargetId) {
+			return nil, nil
+		}
+
+		from := ctx.getGroupMaster(m.GroupId)
+		dest := ctx.getGroupMaster(m.Action.TargetId)
+
+		s.action.executor.Incr()
+		return func() (int, error) {
+			defer s.action.executor.Decr()
+			if from != "" {
+				return s.redisp.MigrateSlot(sid, from, dest)
+			}
+			return 0, nil
+		}, nil
+
+	case models.ActionFinished:
+
+		return func() (int, error) {
+			return 0, nil
+		}, nil
+
+	default:
+
+		return nil, errors.Errorf("slot-[%d] action state is invalid", m.Id)
 
 	}
 }
