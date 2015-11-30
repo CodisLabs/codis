@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	_ "net/http/pprof"
 
@@ -300,6 +301,16 @@ func (s *apiServer) GroupAddServer(params martini.Params) (int, string) {
 	}
 	addr, err := s.decodeXAddr(params)
 	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	c, err := NewRedisClient(addr, s.topom.Config().ProductAuth, time.Second)
+	if err != nil {
+		log.WarnErrorf(err, "create redis client to %s failed", addr)
+		return rpc.ApiResponseError(err)
+	}
+	defer c.Close()
+	if _, err := c.SlotsInfo(); err != nil {
+		log.WarnErrorf(err, "redis %s check slots-info failed", addr)
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.topom.GroupAddServer(gid, addr); err != nil {
