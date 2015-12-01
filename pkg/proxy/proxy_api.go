@@ -62,6 +62,7 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Get("/stats/:xauth", api.Stats)
 		r.Get("/slots/:xauth", api.Slots)
 		r.Put("/start/:xauth", api.Start)
+		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
 	})
@@ -172,6 +173,21 @@ func (s *apiServer) Start(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) LogLevel(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	v := params["value"]
+	if v == "" {
+		return rpc.ApiResponseError(errors.New("missing loglevel"))
+	}
+	if !log.SetLevelString(v) {
+		return rpc.ApiResponseError(errors.New("invalid loglevel"))
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
 func (s *apiServer) Shutdown(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -253,6 +269,11 @@ func (c *ApiClient) Slots() ([]*models.Slot, error) {
 
 func (c *ApiClient) Start() error {
 	url := c.encodeURL("/api/proxy/start/%s", c.xauth)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) LogLevel(level log.LogLevel) error {
+	url := c.encodeURL("/api/proxy/loglevel/%s/%s", c.xauth, level)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

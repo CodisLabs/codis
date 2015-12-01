@@ -54,21 +54,11 @@ Options:
 			log.StdLog = log.New(w, "")
 		}
 	}
-	log.SetLevel(log.LEVEL_INFO)
+	log.SetLevel(log.LevelInfo)
 
 	if s, ok := utils.Argument(d, "--log-level"); ok {
-		var level = strings.ToUpper(s)
-		switch s {
-		case "ERROR":
-			log.SetLevel(log.LEVEL_ERROR)
-		case "DEBUG":
-			log.SetLevel(log.LEVEL_DEBUG)
-		case "WARN", "WARNING":
-			log.SetLevel(log.LEVEL_WARN)
-		case "INFO":
-			log.SetLevel(log.LEVEL_INFO)
-		default:
-			log.Panicf("invalid option --log-level = '%s'", level)
+		if !log.SetLevelString(s) {
+			log.Panicf("invalid --log-level = '%s'", s)
 		}
 	}
 

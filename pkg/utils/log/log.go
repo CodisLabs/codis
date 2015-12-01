@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -39,12 +40,12 @@ const (
 )
 
 const (
-	LEVEL_NONE = LogLevel(1<<iota - 1)
-	LEVEL_ERROR
-	LEVEL_WARN
-	LEVEL_INFO
-	LEVEL_DEBUG
-	LEVEL_ALL = LEVEL_DEBUG
+	LevelNone = LogLevel(1<<iota - 1)
+	LevelError
+	LevelWarn
+	LevelInfo
+	LevelDebug
+	LevelAll = LevelDebug
 )
 
 func (t LogType) String() string {
@@ -61,6 +62,23 @@ func (t LogType) String() string {
 		return "[INFO]"
 	case TYPE_DEBUG:
 		return "[DEBUG]"
+	}
+}
+
+func (l LogLevel) String() string {
+	switch l {
+	default:
+		return "NONE"
+	case LevelDebug:
+		return "DEBUG"
+	case LevelInfo:
+		return "INFO"
+	case LevelWarn:
+		return "WARN"
+	case LevelError:
+		return "ERROR"
+	case LevelNone:
+		return "NONE"
 	}
 }
 
@@ -103,8 +121,8 @@ func New(writer io.Writer, prefix string) *Logger {
 	return &Logger{
 		out:   out,
 		log:   log.New(out, prefix, LstdFlags|Lshortfile),
-		level: LEVEL_ALL,
-		trace: LEVEL_ERROR,
+		level: LevelAll,
+		trace: LevelError,
 	}
 }
 
@@ -151,6 +169,24 @@ func (l *Logger) SetPrefix(prefix string) {
 
 func (l *Logger) SetLevel(v LogLevel) {
 	l.level.Set(v)
+}
+
+func (l *Logger) SetLevelString(s string) bool {
+	switch strings.ToUpper(s) {
+	case "ERROR":
+		l.SetLevel(LevelError)
+	case "DEBUG":
+		l.SetLevel(LevelDebug)
+	case "WARN", "WARNING":
+		l.SetLevel(LevelWarn)
+	case "INFO":
+		l.SetLevel(LevelInfo)
+	case "NONE":
+		l.SetLevel(LevelNone)
+	default:
+		return false
+	}
+	return true
 }
 
 func (l *Logger) SetTraceLevel(v LogLevel) {
@@ -388,27 +424,31 @@ func (l *Logger) output(traceskip int, err error, t LogType, s string) error {
 }
 
 func Flags() int {
-	return StdLog.log.Flags()
+	return StdLog.Flags()
 }
 
 func Prefix() string {
-	return StdLog.log.Prefix()
+	return StdLog.Prefix()
 }
 
 func SetFlags(flags int) {
-	StdLog.log.SetFlags(flags)
+	StdLog.SetFlags(flags)
 }
 
 func SetPrefix(prefix string) {
-	StdLog.log.SetPrefix(prefix)
+	StdLog.SetPrefix(prefix)
 }
 
 func SetLevel(v LogLevel) {
-	StdLog.level.Set(v)
+	StdLog.SetLevel(v)
+}
+
+func SetLevelString(s string) bool {
+	return StdLog.SetLevelString(s)
 }
 
 func SetTrace(v LogLevel) {
-	StdLog.trace.Set(v)
+	StdLog.SetTraceLevel(v)
 }
 
 func Panic(v ...interface{}) {
