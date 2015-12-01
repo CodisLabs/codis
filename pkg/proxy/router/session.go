@@ -88,8 +88,8 @@ func (s *Session) Serve(d Dispatcher, maxPipeline int) {
 	tasks := make(chan *Request, maxPipeline)
 	var ch = make(chan struct{})
 	go func() {
+		defer close(ch)
 		s.loopWriter(tasks)
-		close(ch)
 	}()
 
 	s.loopReader(tasks, d)
