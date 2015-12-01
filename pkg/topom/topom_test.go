@@ -6,6 +6,7 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils/assert"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var config = NewDefaultConfig()
@@ -34,6 +35,7 @@ func openProxy() (*proxy.Proxy, *proxy.ApiClient, string) {
 
 	c := proxy.NewApiClient(s.Model().AdminAddr)
 	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
+	assert.MustNoError(c.LogLevel(log.LevelError))
 	return s, c, s.Model().AdminAddr
 }
 
