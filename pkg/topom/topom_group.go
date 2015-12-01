@@ -175,13 +175,13 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		return err
 	}
 
-	log.Infof("group-[%d] action promote-commit:\n%s", g.Id, g.Encode())
+	log.Warnf("group-[%d] action promote-commit:\n%s", g.Id, g.Encode())
 
 	switch g.Promoting.State {
 
 	case models.ActionPreparing:
 
-		log.Infof("group-[%d] resync to prepared", g.Id)
+		log.Warnf("group-[%d] resync to prepared", g.Id)
 
 		slots := ctx.getSlotMappingByGroupId(g.Id)
 
@@ -236,7 +236,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 	case models.ActionFinished:
 
-		log.Infof("group-[%d] resync to finished", g.Id)
+		log.Warnf("group-[%d] resync to finished", g.Id)
 
 		slots := ctx.getSlotMappingByGroupId(g.Id)
 
@@ -326,7 +326,7 @@ func (s *Topom) SyncActionPrepare() (string, error) {
 		return "", errors.Errorf("server-[%s] action state is invalid", addr)
 	}
 
-	log.Infof("server-[%s] action prepare", addr)
+	log.Warnf("server-[%s] action prepare", addr)
 
 	s.dirtyGroupCache(g.Id)
 
@@ -351,7 +351,7 @@ func (s *Topom) SyncActionComplete(addr string, failed bool) error {
 		return nil
 	}
 
-	log.Infof("server-[%s] action failed = %t", addr, failed)
+	log.Warnf("server-[%s] action failed = %t", addr, failed)
 
 	s.dirtyGroupCache(g.Id)
 

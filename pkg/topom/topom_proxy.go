@@ -93,7 +93,7 @@ func (s *Topom) newProxyClient(p *models.Proxy) *proxy.ApiClient {
 }
 
 func (s *Topom) reinitProxy(ctx *context, p *models.Proxy, c *proxy.ApiClient) error {
-	log.Infof("proxy-[%s] reinit:\n%s", p.Token, p.Encode())
+	log.Warnf("proxy-[%s] reinit:\n%s", p.Token, p.Encode())
 	if err := c.FillSlots(ctx.toSlotSlice(ctx.slots)...); err != nil {
 		log.ErrorErrorf(err, "proxy-[%s] fillslots failed", p.Token)
 		return errors.Errorf("proxy-[%s] fillslots failed", p.Token)

@@ -97,7 +97,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 		return nil, err
 	}
 
-	log.Infof("create new topom:\n%s", s.model.Encode())
+	log.Warnf("create new topom:\n%s", s.model.Encode())
 
 	go s.serveAdmin()
 
@@ -251,7 +251,7 @@ func (s *Topom) SetSlotActionInterval(ms int) {
 	ms = utils.MaxInt(ms, 0)
 	ms = utils.MinInt(ms, 1000)
 	s.action.interval.Set(int64(ms))
-	log.Infof("set action interval = %d", ms)
+	log.Warnf("set action interval = %d", ms)
 }
 
 func (s *Topom) GetSlotActionDisabled() bool {
@@ -260,7 +260,7 @@ func (s *Topom) GetSlotActionDisabled() bool {
 
 func (s *Topom) SetSlotActionDisabled(value bool) {
 	s.action.disabled.Set(value)
-	log.Infof("set action disabled = %t", value)
+	log.Warnf("set action disabled = %t", value)
 }
 
 func (s *Topom) serveAdmin() {
@@ -269,7 +269,7 @@ func (s *Topom) serveAdmin() {
 	}
 	defer s.Close()
 
-	log.Infof("admin start service on %s", s.ladmin.Addr())
+	log.Warnf("admin start service on %s", s.ladmin.Addr())
 
 	eh := make(chan error, 1)
 	go func(l net.Listener) {
@@ -281,7 +281,7 @@ func (s *Topom) serveAdmin() {
 
 	select {
 	case <-s.exit.C:
-		log.Infof("admin shutdown")
+		log.Warnf("admin shutdown")
 	case err := <-eh:
 		log.ErrorErrorf(err, "admin exit on error")
 	}

@@ -95,7 +95,7 @@ func (s *Topom) SlotActionPrepare() (int, error) {
 		return -1, nil
 	}
 
-	log.Infof("slot-[%d] action prepare:\n%s", m.Id, m.Encode())
+	log.Warnf("slot-[%d] action prepare:\n%s", m.Id, m.Encode())
 
 	switch m.Action.State {
 
@@ -116,7 +116,7 @@ func (s *Topom) SlotActionPrepare() (int, error) {
 
 	case models.ActionPreparing:
 
-		log.Infof("slot-[%d] resync to prepared", m.Id)
+		log.Warnf("slot-[%d] resync to prepared", m.Id)
 
 		s.dirtySlotsCache(m.Id)
 
@@ -136,7 +136,7 @@ func (s *Topom) SlotActionPrepare() (int, error) {
 
 	case models.ActionPrepared:
 
-		log.Infof("slot-[%d] resync to migrating", m.Id)
+		log.Warnf("slot-[%d] resync to migrating", m.Id)
 
 		s.dirtySlotsCache(m.Id)
 
@@ -179,7 +179,7 @@ func (s *Topom) SlotActionComplete(sid int) error {
 		return err
 	}
 
-	log.Infof("slot-[%d] action complete:\n%s", m.Id, m.Encode())
+	log.Warnf("slot-[%d] action complete:\n%s", m.Id, m.Encode())
 
 	switch m.Action.State {
 
@@ -196,7 +196,7 @@ func (s *Topom) SlotActionComplete(sid int) error {
 
 	case models.ActionFinished:
 
-		log.Infof("slot-[%d] resync to finished", m.Id)
+		log.Warnf("slot-[%d] resync to finished", m.Id)
 
 		if err := s.resyncSlots(ctx, m); err != nil {
 			log.Warnf("slot-[%d] resync to finished failed", m.Id)
