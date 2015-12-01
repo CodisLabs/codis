@@ -7,12 +7,15 @@ import (
 	"sync"
 
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
+	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
 )
 
 type Dispatcher interface {
 	Dispatch(r *Request) error
 }
+
+var ErrDiscardedRequest = errors.New("discarded request")
 
 type Request struct {
 	OpStr string
