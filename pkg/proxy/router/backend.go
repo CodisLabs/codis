@@ -31,7 +31,7 @@ func NewBackendConn(addr, auth string) *BackendConn {
 }
 
 func (bc *BackendConn) Run() {
-	log.Infof("backend conn [%p] to %s, start service", bc, bc.addr)
+	log.Warnf("backend conn [%p] to %s, start service", bc, bc.addr)
 	for k := 0; ; k++ {
 		err := bc.loopWriter()
 		if err == nil {
@@ -45,7 +45,7 @@ func (bc *BackendConn) Run() {
 		log.WarnErrorf(err, "backend conn [%p] to %s, restart [%d]", bc, bc.addr, k)
 		time.Sleep(time.Millisecond * 50)
 	}
-	log.Infof("backend conn [%p] to %s, stop and exit", bc, bc.addr)
+	log.Warnf("backend conn [%p] to %s, stop and exit", bc, bc.addr)
 }
 
 func (bc *BackendConn) Addr() string {

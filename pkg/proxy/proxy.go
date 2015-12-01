@@ -72,7 +72,7 @@ func New(config *Config) (*Proxy, error) {
 		return nil, err
 	}
 
-	log.Infof("[%p] create new proxy:\n%s", s, s.model.Encode())
+	log.Warnf("[%p] create new proxy:\n%s", s, s.model.Encode())
 
 	go s.serveAdmin()
 	go s.serveProxy()
@@ -218,7 +218,7 @@ func (s *Proxy) serveAdmin() {
 	}
 	defer s.Close()
 
-	log.Infof("[%p] admin start service on %s", s, s.ladmin.Addr())
+	log.Warnf("[%p] admin start service on %s", s, s.ladmin.Addr())
 
 	eh := make(chan error, 1)
 	go func(l net.Listener) {
@@ -230,7 +230,7 @@ func (s *Proxy) serveAdmin() {
 
 	select {
 	case <-s.exit.C:
-		log.Infof("[%p] admin shutdown", s)
+		log.Warnf("[%p] admin shutdown", s)
 	case err := <-eh:
 		log.ErrorErrorf(err, "[%p] admin exit on error", s)
 	}
@@ -248,7 +248,7 @@ func (s *Proxy) serveProxy() {
 	case <-s.init.C:
 	}
 
-	log.Infof("[%p] proxy start service on %s", s, s.lproxy.Addr())
+	log.Warnf("[%p] proxy start service on %s", s, s.lproxy.Addr())
 
 	ch := make(chan net.Conn, 4096)
 	go func() {
@@ -279,7 +279,7 @@ func (s *Proxy) serveProxy() {
 
 	select {
 	case <-s.exit.C:
-		log.Infof("[%p] proxy shutdown", s)
+		log.Warnf("[%p] proxy shutdown", s)
 	case err := <-eh:
 		log.ErrorErrorf(err, "[%p] proxy exit on error", s)
 	}
