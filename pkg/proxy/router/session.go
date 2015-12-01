@@ -18,28 +18,30 @@ import (
 )
 
 type Session struct {
-	*redis.Conn
+	Conn *redis.Conn
 
 	Ops int64
 
-	LastOpUnix int64
 	CreateUnix int64
+	LastOpUnix int64
 
 	auth       string
 	authorized bool
 
 	quit   bool
 	failed atomic2.Bool
+
+	exit sync.Once
 }
 
 func (s *Session) String() string {
 	o := &struct {
 		Ops        int64  `json:"ops"`
-		LastOpUnix int64  `json:"lastop"`
 		CreateUnix int64  `json:"create"`
+		LastOpUnix int64  `json:"lastop,omitempty"`
 		RemoteAddr string `json:"remote"`
 	}{
-		s.Ops, s.LastOpUnix, s.CreateUnix,
+		s.Ops, s.CreateUnix, s.LastOpUnix,
 		s.Conn.Sock.RemoteAddr().String(),
 	}
 	b, _ := json.Marshal(o)
@@ -69,49 +71,42 @@ func (s *Session) SetKeepAlivePeriod(period int) error {
 	return s.Conn.SetKeepAlivePeriod(time.Second * time.Duration(period))
 }
 
-func (s *Session) Close() error {
-	return s.Conn.Close()
-}
-
-func (s *Session) Serve(d Dispatcher, maxPipeline int) {
-	var errlist errors.ErrorList
-	defer func() {
-		if err := errlist.First(); err != nil {
-			log.Infof("session [%p] closed: %s, error = %s", s, s, err)
+func (s *Session) CloseWithError(err error) {
+	s.exit.Do(func() {
+		if err != nil {
+			log.Infof("session [%p] closed: %s, error: %s", s, s, err)
 		} else {
 			log.Infof("session [%p] closed: %s, quit", s, s)
 		}
-		s.Close()
-	}()
+		s.Conn.Close()
+	})
+}
 
+func (s *Session) Serve(d Dispatcher, maxPipeline int) {
 	incrSessions()
 
 	tasks := make(chan *Request, maxPipeline)
+	var ch = make(chan struct{})
 	go func() {
-		defer func() {
-			for _ = range tasks {
-			}
-		}()
-		if err := s.loopWriter(tasks); err != nil {
-			errlist.PushBack(err)
-		}
-		s.Close()
+		s.loopWriter(tasks)
+		close(ch)
 	}()
 
-	defer close(tasks)
-	if err := s.loopReader(tasks, d); err != nil {
-		errlist.PushBack(err)
-	}
+	s.loopReader(tasks, d)
+	<-ch
 
 	decrSessions()
 }
 
-func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
-	if d == nil {
-		return errors.New("nil dispatcher")
-	}
+func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) (err error) {
+	defer func() {
+		if err != nil {
+			s.CloseWithError(err)
+		}
+		close(tasks)
+	}()
 	for !s.quit {
-		resp, err := s.Reader.Decode()
+		resp, err := s.Conn.Reader.Decode()
 		if err != nil {
 			return err
 		}
@@ -125,9 +120,14 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) error {
 	return nil
 }
 
-func (s *Session) loopWriter(tasks <-chan *Request) error {
+func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
+	defer func() {
+		s.CloseWithError(err)
+		for _ = range tasks {
+		}
+	}()
 	p := &FlushPolicy{
-		Encoder:     s.Writer,
+		Encoder:     s.Conn.Writer,
 		MaxBuffered: 32,
 		MaxInterval: 300,
 	}
