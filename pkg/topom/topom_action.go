@@ -3,11 +3,7 @@
 
 package topom
 
-import (
-	"time"
-
-	"github.com/wandoulabs/codis/pkg/utils"
-)
+import "time"
 
 func (s *Topom) ProcessSlotAction() error {
 	for !s.IsClosed() {
@@ -46,24 +42,12 @@ func (s *Topom) processSlotAction(sid int) (err error) {
 			}
 			s.action.progress.remain.Set(int64(n))
 			s.action.progress.failed.Set(false)
-			s.noopInterval()
+			if ms := s.GetSlotActionInterval(); ms != 0 {
+				time.Sleep(time.Millisecond * time.Duration(ms))
+			}
 		}
 	}
 	return nil
-}
-
-func (s *Topom) noopInterval() int {
-	var ms int
-	for !s.IsClosed() {
-		if d := s.GetSlotActionInterval() - ms; d <= 0 {
-			return ms
-		} else {
-			d = utils.MinInt(d, 50)
-			time.Sleep(time.Millisecond * time.Duration(d))
-			ms += d
-		}
-	}
-	return ms
 }
 
 func (s *Topom) ProcessSyncAction() error {

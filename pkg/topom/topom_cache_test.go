@@ -13,95 +13,113 @@ func TestSlotsCache(x *testing.T) {
 	t := openTopom()
 	defer t.Close()
 
-	verify := func(sid, gid int) {
+	const sid = 0
+
+	check := func(gid int) {
 		ctx, err := t.newContext()
 		assert.MustNoError(err)
 		m, err := ctx.getSlotMapping(sid)
 		assert.MustNoError(err)
-		assert.Must(m.Id == sid && m.GroupId == gid)
+		assert.Must(m.Id == 0 && m.GroupId == gid)
 	}
 
-	m := &models.SlotMapping{Id: 0}
-	verify(m.Id, 0)
+	m := &models.SlotMapping{Id: sid}
+	check(0)
 
-	t.dirtySlotsCache(m.Id)
+	t.dirtySlotsCache(sid)
 	m.GroupId = 100
 	assert.MustNoError(t.storeUpdateSlotMapping(m))
-	verify(m.Id, 100)
+	check(100)
 
-	t.dirtySlotsCache(m.Id)
+	t.dirtySlotsCache(sid)
 	m.GroupId = 200
-	verify(m.Id, 100)
+	check(100)
+
+	t.dirtyCacheAll()
+	m.GroupId = 200
+	check(100)
 
 	t.dirtyCacheAll()
 	m.GroupId = 300
 	assert.MustNoError(t.storeUpdateSlotMapping(m))
-	verify(m.Id, 300)
+	check(300)
 }
 
 func TestGroupCache(x *testing.T) {
 	t := openTopom()
 	defer t.Close()
 
-	verify := func(gid int, exists bool, action string) {
+	const gid = 100
+
+	check := func(exists bool, state string) {
 		ctx, err := t.newContext()
 		assert.MustNoError(err)
-		if exists {
+		if !exists {
+			assert.Must(ctx.group[gid] == nil)
+		} else {
 			g, err := ctx.getGroup(gid)
 			assert.MustNoError(err)
-			assert.Must(g.Id == gid && g.Promoting.State == action)
-		} else {
-			assert.Must(ctx.group[gid] == nil)
+			assert.Must(g.Id == gid && g.Promoting.State == state)
 		}
 	}
 
-	g := &models.Group{Id: 100}
-	verify(g.Id, false, "")
+	g := &models.Group{Id: gid}
+	check(false, "")
 
-	t.dirtyGroupCache(g.Id)
-	g.Promoting.State = models.ActionPreparing
+	t.dirtyGroupCache(gid)
+	check(false, "")
+
+	t.dirtyGroupCache(gid)
 	assert.MustNoError(t.storeCreateGroup(g))
-	verify(g.Id, true, models.ActionPreparing)
+	check(true, models.ActionNothing)
 
-	t.dirtyGroupCache(g.Id)
-	g.Promoting.State = models.ActionPrepared
-	verify(g.Id, true, models.ActionPreparing)
+	t.dirtyGroupCache(gid)
+	g.Promoting.State = models.ActionPreparing
+	check(true, models.ActionNothing)
 
-	t.dirtyGroupCache(g.Id)
+	t.dirtyGroupCache(gid)
+	g.Promoting.State = models.ActionPreparing
 	assert.MustNoError(t.storeUpdateGroup(g))
-	verify(g.Id, true, models.ActionPrepared)
+	check(true, models.ActionPreparing)
 
-	t.dirtyGroupCache(g.Id)
+	t.dirtyCacheAll()
+	g.Promoting.State = models.ActionPrepared
+	assert.MustNoError(t.storeUpdateGroup(g))
+	check(true, models.ActionPrepared)
+
+	t.dirtyGroupCache(gid)
 	assert.MustNoError(t.storeRemoveGroup(g))
-	verify(g.Id, false, "")
+	check(false, "")
 }
 
 func TestProxyCache(x *testing.T) {
 	t := openTopom()
 	defer t.Close()
 
-	verify := func(token string, exists bool) {
+	const token = "fake_proxy_token"
+
+	check := func(exists bool) {
 		ctx, err := t.newContext()
 		assert.MustNoError(err)
-		if exists {
+		if !exists {
+			assert.Must(ctx.proxy[token] == nil)
+		} else {
 			p, err := ctx.getProxy(token)
 			assert.MustNoError(err)
 			assert.Must(p.Token == token)
-		} else {
-			assert.Must(ctx.proxy[token] == nil)
 		}
 	}
 
-	p := &models.Proxy{Token: "123"}
-	verify(p.Token, false)
+	p := &models.Proxy{Token: token}
+	check(false)
 
 	t.dirtyProxyCache(p.Token)
 	assert.MustNoError(t.storeCreateProxy(p))
-	verify(p.Token, true)
+	check(true)
 
 	t.dirtyProxyCache(p.Token)
 	assert.MustNoError(t.storeRemoveProxy(p))
-	verify(p.Token, false)
+	check(false)
 }
 
 type memStore struct {
