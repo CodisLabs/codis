@@ -13,14 +13,14 @@ func TestSlotsCache(x *testing.T) {
 	t := openTopom()
 	defer t.Close()
 
-	const sid = 0
+	const sid = 100
 
 	check := func(gid int) {
 		ctx, err := t.newContext()
 		assert.MustNoError(err)
 		m, err := ctx.getSlotMapping(sid)
 		assert.MustNoError(err)
-		assert.Must(m.Id == 0 && m.GroupId == gid)
+		assert.Must(m.Id == sid && m.GroupId == gid)
 	}
 
 	m := &models.SlotMapping{Id: sid}
