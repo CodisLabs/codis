@@ -96,14 +96,11 @@ func TestSlotState(x *testing.T) {
 	}
 
 	for _, m.Action.State = range sstates {
-		t.dirtySlotsCache(m.Id)
-		assert.MustNoError(t.storeUpdateSlotMapping(m))
+		contextUpdateSlotMapping(t, m)
 		for _, g1.Promoting.State = range gstates {
-			t.dirtyGroupCache(g1.Id)
-			assert.MustNoError(t.storeUpdateGroup(g1))
+			contextUpdateGroup(t, g1)
 			for _, g2.Promoting.State = range gstates {
-				t.dirtyGroupCache(g2.Id)
-				assert.MustNoError(t.storeUpdateGroup(g2))
+				contextUpdateGroup(t, g2)
 				check()
 			}
 		}

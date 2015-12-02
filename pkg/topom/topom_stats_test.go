@@ -2,10 +2,13 @@ package topom
 
 import (
 	"bufio"
+	"container/list"
+	"fmt"
 	"net"
 	"testing"
 	"time"
 
+	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy/redis"
 	"github.com/wandoulabs/codis/pkg/utils/assert"
 	"github.com/wandoulabs/codis/pkg/utils/log"
@@ -15,10 +18,10 @@ func TestFakeServer(x *testing.T) {
 	s := newFakeServer()
 	defer s.Close()
 
-	p := NewRedisPool("foobar", time.Second*10)
+	p := NewRedisPool("foobar", time.Second)
 	defer p.Close()
 
-	c, err := p.GetClient(s.Addr())
+	c, err := p.GetClient(s.Addr)
 	assert.MustNoError(err)
 	defer p.PutClient(c)
 
@@ -31,36 +34,143 @@ func TestFakeServer(x *testing.T) {
 	_, err = c.SlotsInfo()
 	assert.MustNoError(err)
 
-	_, err = c.MigrateSlot(0, s.Addr())
+	_, err = c.MigrateSlot(0, s.Addr)
 	assert.MustNoError(err)
 }
 
+func TestProxyStats(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	check := func(succ, fail []string) {
+		w, err := t.RefreshProxyStats(time.Second)
+		assert.MustNoError(err)
+		m := w.Wait()
+		assert.Must(len(m) == len(succ)+len(fail))
+		for _, t := range succ {
+			s, ok := m[t].(*ProxyStats)
+			assert.Must(ok && s != nil && s.Stats != nil)
+		}
+		for _, t := range fail {
+			s, ok := m[t].(*ProxyStats)
+			assert.Must(ok && s != nil && s.Stats == nil)
+			assert.Must(s.Error != nil)
+		}
+	}
+
+	p1, c1 := openProxy()
+	defer c1.Shutdown()
+
+	p2, c2 := openProxy()
+	defer c2.Shutdown()
+
+	contextCreateProxy(t, p1)
+	check([]string{p1.Token}, []string{})
+
+	contextCreateProxy(t, p2)
+	check([]string{p1.Token, p2.Token}, []string{})
+
+	assert.MustNoError(c1.Shutdown())
+	check([]string{p2.Token}, []string{p1.Token})
+
+	assert.MustNoError(c2.Shutdown())
+	check([]string{}, []string{p1.Token, p2.Token})
+
+	p3, c3 := openProxy()
+	defer c3.Shutdown()
+
+	contextCreateProxy(t, p3)
+	check([]string{p3.Token}, []string{p1.Token, p2.Token})
+
+	contextRemoveProxy(t, p1)
+	check([]string{p3.Token}, []string{p2.Token})
+}
+
+func TestRedisStats(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	check := func(succ, fail []string) {
+		w, err := t.RefreshRedisStats(time.Second)
+		assert.MustNoError(err)
+		m := w.Wait()
+		assert.Must(len(m) == len(succ)+len(fail))
+		for _, addr := range succ {
+			s, ok := m[addr].(*RedisStats)
+			assert.Must(ok && s != nil && s.Stats != nil)
+		}
+		for _, addr := range fail {
+			s, ok := m[addr].(*RedisStats)
+			fmt.Println(ok, addr, s)
+			assert.Must(ok && s != nil && s.Stats == nil)
+			assert.Must(s.Error != nil)
+		}
+	}
+
+	g := &models.Group{Id: 1}
+
+	s1 := newFakeServer()
+	defer s1.Close()
+
+	s2 := newFakeServer()
+	defer s2.Close()
+
+	g.Servers = []*models.GroupServer{
+		&models.GroupServer{Addr: s1.Addr},
+		&models.GroupServer{Addr: s2.Addr},
+	}
+
+	check([]string{}, []string{})
+
+	contextCreateGroup(t, g)
+	check([]string{s1.Addr, s2.Addr}, []string{})
+
+	s1.Close()
+	check([]string{s2.Addr}, []string{s1.Addr})
+
+	s2.Close()
+	check([]string{}, []string{s1.Addr, s2.Addr})
+
+	s3 := newFakeServer()
+	defer s3.Close()
+
+	g.Servers = []*models.GroupServer{
+		&models.GroupServer{Addr: s3.Addr},
+	}
+	contextUpdateGroup(t, g)
+	check([]string{s3.Addr}, []string{})
+
+	contextRemoveGroup(t, g)
+	check([]string{}, []string{})
+}
+
 type fakeServer struct {
-	l net.Listener
+	net.Listener
+	list.List
+	Addr string
 }
 
 func newFakeServer() *fakeServer {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.MustNoError(err)
-	f := &fakeServer{l}
+	f := &fakeServer{Listener: l, Addr: l.Addr().String()}
 	go func() {
+		defer func() {
+			for e := f.Front(); e != nil; e = e.Next() {
+				c := e.Value.(net.Conn)
+				c.Close()
+			}
+		}()
 		for {
 			c, err := l.Accept()
 			if err != nil {
 				return
 			}
+			f.PushBack(c)
 			go f.Serve(c)
 		}
 	}()
 	return f
-}
-
-func (s *fakeServer) Addr() string {
-	return s.l.Addr().String()
-}
-
-func (s *fakeServer) Close() error {
-	return s.l.Close()
 }
 
 func (s *fakeServer) Serve(c net.Conn) {

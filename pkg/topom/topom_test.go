@@ -23,7 +23,7 @@ func openTopom() *Topom {
 	return t
 }
 
-func openProxy() (*proxy.Proxy, *proxy.ApiClient, string) {
+func openProxy() (*models.Proxy, *proxy.ApiClient) {
 	config := proxy.NewDefaultConfig()
 	config.AdminAddr = "0.0.0.0:0"
 	config.ProxyAddr = "0.0.0.0:0"
@@ -36,19 +36,10 @@ func openProxy() (*proxy.Proxy, *proxy.ApiClient, string) {
 	c := proxy.NewApiClient(s.Model().AdminAddr)
 	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
 	assert.MustNoError(c.LogLevel(log.LevelError))
-	return s, c, s.Model().AdminAddr
-}
 
-func proxyModels(t *Topom) map[string]*models.Proxy {
-	stats, err := t.Stats()
+	p, err := c.Model()
 	assert.MustNoError(err)
-	return stats.Proxy.Models
-}
-
-func groupModels(t *Topom) map[int]*models.Group {
-	stats, err := t.Stats()
-	assert.MustNoError(err)
-	return stats.Group.Models
+	return p, c
 }
 
 func TestTopomClose(x *testing.T) {

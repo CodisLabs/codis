@@ -122,6 +122,36 @@ func TestProxyCache(x *testing.T) {
 	check(false)
 }
 
+func contextUpdateSlotMapping(t *Topom, m *models.SlotMapping) {
+	t.dirtySlotsCache(m.Id)
+	assert.MustNoError(t.storeUpdateSlotMapping(m))
+}
+
+func contextCreateGroup(t *Topom, g *models.Group) {
+	t.dirtyGroupCache(g.Id)
+	assert.MustNoError(t.storeCreateGroup(g))
+}
+
+func contextRemoveGroup(t *Topom, g *models.Group) {
+	t.dirtyGroupCache(g.Id)
+	assert.MustNoError(t.storeRemoveGroup(g))
+}
+
+func contextUpdateGroup(t *Topom, g *models.Group) {
+	t.dirtyGroupCache(g.Id)
+	assert.MustNoError(t.storeUpdateGroup(g))
+}
+
+func contextCreateProxy(t *Topom, p *models.Proxy) {
+	t.dirtyProxyCache(p.Token)
+	assert.MustNoError(t.storeCreateProxy(p))
+}
+
+func contextRemoveProxy(t *Topom, p *models.Proxy) {
+	t.dirtyProxyCache(p.Token)
+	assert.MustNoError(t.storeRemoveProxy(p))
+}
+
 type memStore struct {
 	data map[string][]byte
 }
