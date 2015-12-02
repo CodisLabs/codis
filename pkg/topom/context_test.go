@@ -70,10 +70,18 @@ func TestSlotState(x *testing.T) {
 		}
 	}
 
-	g1 := &models.Group{Id: gid1}
-	g1.Servers = append(g1.Servers, &models.GroupServer{Addr: server1})
-	g2 := &models.Group{Id: gid2}
-	g2.Servers = append(g2.Servers, &models.GroupServer{Addr: server2})
+	g1 := &models.Group{
+		Id: gid1,
+		Servers: []*models.GroupServer{
+			&models.GroupServer{Addr: server1},
+		},
+	}
+	g2 := &models.Group{
+		Id: gid2,
+		Servers: []*models.GroupServer{
+			&models.GroupServer{Addr: server2},
+		},
+	}
 
 	m := &models.SlotMapping{Id: sid}
 	m.GroupId = gid1

@@ -3,7 +3,6 @@ package topom
 import (
 	"bufio"
 	"container/list"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -101,7 +100,6 @@ func TestRedisStats(x *testing.T) {
 		}
 		for _, addr := range fail {
 			s, ok := m[addr].(*RedisStats)
-			fmt.Println(ok, addr, s)
 			assert.Must(ok && s != nil && s.Stats == nil)
 			assert.Must(s.Error != nil)
 		}
@@ -155,12 +153,6 @@ func newFakeServer() *fakeServer {
 	assert.MustNoError(err)
 	f := &fakeServer{Listener: l, Addr: l.Addr().String()}
 	go func() {
-		defer func() {
-			for e := f.Front(); e != nil; e = e.Next() {
-				c := e.Value.(net.Conn)
-				c.Close()
-			}
-		}()
 		for {
 			c, err := l.Accept()
 			if err != nil {
@@ -171,6 +163,13 @@ func newFakeServer() *fakeServer {
 		}
 	}()
 	return f
+}
+
+func (s *fakeServer) Close() error {
+	for e := s.List.Front(); e != nil; e = e.Next() {
+		e.Value.(net.Conn).Close()
+	}
+	return s.Listener.Close()
 }
 
 func (s *fakeServer) Serve(c net.Conn) {

@@ -9,16 +9,6 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
-func (s *Topom) GetSlots() ([]*models.Slot, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	ctx, err := s.newContext()
-	if err != nil {
-		return nil, err
-	}
-	return ctx.toSlotSlice(ctx.slots), nil
-}
-
 func (s *Topom) SlotCreateAction(sid int, gid int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
