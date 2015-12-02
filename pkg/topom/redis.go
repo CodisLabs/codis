@@ -129,8 +129,8 @@ func (c *RedisClient) MigrateSlot(slot int, target string) (int, error) {
 	if err != nil {
 		return 0, errors.Trace(err)
 	}
-	timeout := int(c.Timeout / time.Millisecond)
-	if reply, err := c.command("SLOTSMGRTTAGSLOT", host, port, timeout, slot); err != nil {
+	mseconds := int(c.Timeout / time.Millisecond)
+	if reply, err := c.command("SLOTSMGRTTAGSLOT", host, port, mseconds, slot); err != nil {
 		return 0, err
 	} else {
 		p, err := redis.Ints(redis.Values(reply, nil))

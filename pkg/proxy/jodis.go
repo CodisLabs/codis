@@ -33,7 +33,7 @@ type Jodis struct {
 	watching bool
 }
 
-func NewJodis(addr string, timeout int, s *models.Proxy) *Jodis {
+func NewJodis(addr string, seconds int, s *models.Proxy) *Jodis {
 	var m = map[string]string{
 		"addr":     s.ProxyAddr,
 		"start_at": s.StartTime,
@@ -45,8 +45,7 @@ func NewJodis(addr string, timeout int, s *models.Proxy) *Jodis {
 		log.PanicErrorf(err, "json marshal failed")
 	}
 	p := filepath.Join("/zk/codis", fmt.Sprintf("db_%s", s.ProductName), "proxy", s.Token)
-	t := time.Duration(timeout) * time.Second
-	return &Jodis{path: p, data: b, addr: addr, timeout: t}
+	return &Jodis{path: p, data: b, addr: addr, timeout: time.Second * time.Duration(seconds)}
 }
 
 func (j *Jodis) Path() string {

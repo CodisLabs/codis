@@ -52,10 +52,10 @@ func NewSession(c net.Conn, auth string) *Session {
 	return NewSessionSize(c, auth, 1024*32, 1800)
 }
 
-func NewSessionSize(c net.Conn, auth string, bufsize int, timeout int) *Session {
+func NewSessionSize(c net.Conn, auth string, bufsize int, seconds int) *Session {
 	s := &Session{CreateUnix: time.Now().Unix(), auth: auth}
 	s.Conn = redis.NewConnSize(c, bufsize)
-	s.Conn.ReaderTimeout = time.Second * time.Duration(timeout)
+	s.Conn.ReaderTimeout = time.Second * time.Duration(seconds)
 	s.Conn.WriterTimeout = time.Second * 30
 	log.Infof("session [%p] create: %s", s, s)
 	return s
