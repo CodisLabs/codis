@@ -40,7 +40,7 @@ func newApiServer(p *Proxy) http.Handler {
 					break
 				}
 			}
-			log.Infof("[%p] API call %s from %s [%s]", p, path, remoteAddr, headerAddr)
+			log.Warnf("[%p] API call %s from %s [%s]", p, path, remoteAddr, headerAddr)
 		}
 		c.Next()
 	})
