@@ -12,6 +12,10 @@ import (
 var config = NewDefaultConfig()
 
 func init() {
+	log.SetLevel(log.LevelError)
+}
+
+func init() {
 	config.AdminAddr = "0.0.0.0:0"
 	config.ProductName = "topom_test"
 	config.ProductAuth = "topom_auth"
@@ -35,7 +39,6 @@ func openProxy() (*models.Proxy, *proxy.ApiClient) {
 
 	c := proxy.NewApiClient(s.Model().AdminAddr)
 	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
-	assert.MustNoError(c.LogLevel(log.LevelError))
 
 	p, err := c.Model()
 	assert.MustNoError(err)
