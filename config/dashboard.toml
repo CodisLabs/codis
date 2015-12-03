@@ -4,6 +4,11 @@
 #                                                #
 ##################################################
 
+# Set Coordinator, only accept "zookeeper" & "etcd"
+[coordinator]
+    name = "etcd"
+    addr = "127.0.0.1:2379"
+
 # Set Codis Product {Name/Auth}.
 product_name = "Demo2"
 product_auth = ""

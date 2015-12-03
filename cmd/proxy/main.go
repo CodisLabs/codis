@@ -24,7 +24,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--ulimit=NLIMIT] [--host-admin=ADDR] [--host-proxy=ADDR]
+	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--ulimit=NLIMIT]
 	codis-proxy  --version
 
 Options:

@@ -8,10 +8,16 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/wandoulabs/codis/pkg/models/etcd"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
 type Config struct {
+	Coordinator struct {
+		Name string `toml:"name" json:"name"`
+		Addr string `toml:"addr" json:"addr"`
+	} `toml:"coordinator" json:"coordinator"`
+
 	AdminAddr string `toml:"admin_addr" json:"admin_addr"`
 
 	HostAdmin string `toml:"-" json:"-"`
@@ -21,12 +27,15 @@ type Config struct {
 }
 
 func NewDefaultConfig() *Config {
-	return &Config{
+	c := &Config{
 		AdminAddr: "0.0.0.0:18080",
 
 		ProductName: "Demo2",
 		ProductAuth: "",
 	}
+	c.Coordinator.Name = etcdclient.CoordinatorName
+	c.Coordinator.Addr = "127.0.0.1:2379"
+	return c
 }
 
 func (c *Config) LoadFromFile(path string) error {

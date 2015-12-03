@@ -16,6 +16,8 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
+const CoordinatorName = "etcd"
+
 var ErrClosedEtcdClient = errors.New("use of closed etcd client")
 
 type EtcdClient struct {

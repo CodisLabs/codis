@@ -16,6 +16,8 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
+const CoordinatorName = "zookeeper"
+
 var ErrClosedZkClient = errors.New("use of closed zk client")
 
 var DefaultLogfunc = func(format string, v ...interface{}) {
