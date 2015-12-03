@@ -118,8 +118,8 @@ func (s *Topom) setup() error {
 	}
 
 	if err := s.store.Acquire(s.model); err != nil {
-		log.ErrorErrorf(err, "store: acquire lock for %s failed", s.config.ProductName)
-		return errors.Errorf("store: acquire lock for %s failed", s.config.ProductName)
+		log.ErrorErrorf(err, "store: acquire lock of %s failed", s.config.ProductName)
+		return errors.Errorf("store: acquire lock of %s failed", s.config.ProductName)
 	}
 	s.registered = true
 	return nil
@@ -148,8 +148,8 @@ func (s *Topom) Close() error {
 	}
 
 	if err := s.store.Release(); err != nil {
-		log.ErrorErrorf(err, "store: release lock for %s failed", s.config.ProductName)
-		return errors.Errorf("store: release lock for %s failed", s.config.ProductName)
+		log.ErrorErrorf(err, "store: release lock of %s failed", s.config.ProductName)
+		return errors.Errorf("store: release lock of %s failed", s.config.ProductName)
 	}
 	return nil
 }
