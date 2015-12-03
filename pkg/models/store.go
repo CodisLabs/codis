@@ -24,7 +24,7 @@ type Store struct {
 func NewStore(client Client, name string) *Store {
 	return &Store{
 		client: client,
-		prefix: filepath.Join("/codis2", name),
+		prefix: filepath.Join("/codis3", name),
 	}
 }
 
