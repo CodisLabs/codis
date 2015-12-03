@@ -9,9 +9,14 @@ import (
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils/assert"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 var config = newProxyConfig()
+
+func init() {
+	log.SetLevel(log.LevelError)
+}
 
 func newProxyConfig() *proxy.Config {
 	config := proxy.NewDefaultConfig()

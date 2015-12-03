@@ -511,8 +511,8 @@ func NewApiClient(addr string) *ApiClient {
 	return &ApiClient{addr: addr}
 }
 
-func (c *ApiClient) SetXAuth(name, auth string) {
-	c.xauth = rpc.NewXAuth(name, auth)
+func (c *ApiClient) SetXAuth(name string) {
+	c.xauth = rpc.NewXAuth(name)
 }
 
 func (c *ApiClient) encodeURL(format string, args ...interface{}) string {
@@ -634,12 +634,12 @@ func (c *ApiClient) SlotRemoveAction(sid int) error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) SetActionInterval(msecs int) error {
+func (c *ApiClient) SetSlotActionInterval(msecs int) error {
 	url := c.encodeURL("/api/topom/slots/action/interval/%s/%d", c.xauth, msecs)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) SetActionDisabled(disabled bool) error {
+func (c *ApiClient) SetSlotActionDisabled(disabled bool) error {
 	var value int
 	if disabled {
 		value = 1

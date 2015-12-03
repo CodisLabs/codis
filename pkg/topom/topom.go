@@ -190,10 +190,18 @@ func (s *Topom) Stats() (*Stats, error) {
 
 	stats.Slots = ctx.slots
 
-	stats.Group.Models = ctx.group
+	var group = []*models.Group{}
+	for _, g := range ctx.group {
+		group = append(group, g)
+	}
+	stats.Group.Models = group
 	stats.Group.Stats = s.stats.servers
 
-	stats.Proxy.Models = ctx.proxy
+	var proxy = []*models.Proxy{}
+	for _, p := range ctx.proxy {
+		proxy = append(proxy, p)
+	}
+	stats.Proxy.Models = proxy
 	stats.Proxy.Stats = s.stats.proxies
 
 	stats.SlotAction.Interval = s.action.interval.Get()
@@ -211,13 +219,13 @@ type Stats struct {
 	Slots []*models.SlotMapping `json:"slots"`
 
 	Group struct {
-		Models map[int]*models.Group  `json:"models"`
+		Models []*models.Group        `json:"models"`
 		Stats  map[string]*RedisStats `json:"stats"`
 	} `json:"group"`
 
 	Proxy struct {
-		Models map[string]*models.Proxy `json:"models"`
-		Stats  map[string]*ProxyStats   `json:"stats"`
+		Models []*models.Proxy        `json:"models"`
+		Stats  map[string]*ProxyStats `json:"stats"`
 	} `json:"proxy"`
 
 	SlotAction struct {
