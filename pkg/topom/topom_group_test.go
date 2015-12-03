@@ -61,8 +61,8 @@ func TestGroupAddServer(x *testing.T) {
 
 	const gid1 = 100
 	const gid2 = 200
-	const server1 = "server1"
-	const server2 = "server2"
+	const server1 = "server1:port"
+	const server2 = "server2:port"
 
 	assert.MustNoError(t.CreateGroup(gid1))
 	assert.MustNoError(t.GroupAddServer(gid1, server1))
@@ -90,8 +90,8 @@ func TestGroupDelServer(x *testing.T) {
 
 	const sid = 100
 	const gid = 200
-	const server1 = "server1"
-	const server2 = "server2"
+	const server1 = "server1:port"
+	const server2 = "server2:port"
 
 	reset := func() {
 		g := &models.Group{Id: gid}
@@ -140,7 +140,7 @@ func TestGroupPromote(x *testing.T) {
 
 	const sid = 100
 	const gid = 200
-	const server1 = "server1"
+	const server1 = "server1:port"
 	server2 := s.Addr
 
 	reset := func() {

@@ -14,8 +14,8 @@ func TestSlotState(x *testing.T) {
 	const sid = 1
 	const gid1 = 1
 	const gid2 = 2
-	const server1 = "server1"
-	const server2 = "server2"
+	const server1 = "server1:port"
+	const server2 = "server2:port"
 
 	check := func() {
 		ctx, err := t.newContext()

@@ -191,16 +191,18 @@ func (s *fakeServer) Serve(c net.Conn) {
 		case "INFO":
 			resp = redis.NewBulkBytes([]byte("#Fake Codis Server"))
 		case "CONFIG":
-			assert.Must(len(r.Array) == 3)
+			assert.Must(len(r.Array) >= 3)
 			sub := string(r.Array[1].Value)
 			key := string(r.Array[2].Value)
 			switch {
 			case sub == "GET" && key == "maxmemory":
+				assert.Must(len(r.Array) == 3)
 				resp = redis.NewArray([]*redis.Resp{
 					redis.NewBulkBytes([]byte("maxmemory")),
 					redis.NewInt([]byte("0")),
 				})
 			case sub == "SET" && key == "masterauth":
+				assert.Must(len(r.Array) == 4)
 				resp = redis.NewBulkBytes([]byte("OK"))
 			default:
 				log.Panicf("unknown subcommand of <%s>", cmd)
