@@ -5,6 +5,7 @@ import (
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/utils/assert"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 func newApiClient(t *Topom) *ApiClient {
@@ -28,6 +29,8 @@ func TestApiTopom(x *testing.T) {
 	s, err := c.Stats()
 	assert.MustNoError(err)
 	assert.Must(s != nil)
+
+	assert.MustNoError(c.LogLevel(log.LevelError))
 
 	assert.MustNoError(c.Shutdown())
 }

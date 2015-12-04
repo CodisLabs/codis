@@ -58,7 +58,7 @@ Options:
 
 	if s, ok := utils.Argument(d, "--log-level"); ok {
 		if !log.SetLevelString(s) {
-			log.Panicf("invalid --log-level = '%s'", s)
+			log.Panicf("option --log-level = %s", s)
 		}
 	}
 

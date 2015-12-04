@@ -88,6 +88,7 @@ func newApiServer(t *Topom) http.Handler {
 		r.Get("/xping/:xauth", api.XPing)
 		r.Get("/stats/:xauth", api.Stats)
 		r.Put("/shutdown/:xauth", api.Shutdown)
+		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Group("/proxy", func(r martini.Router) {
 			r.Put("/create/:xauth/:xaddr", api.CreateProxy)
 			r.Put("/reinit/:xauth/:token", api.ReinitProxy)
@@ -476,6 +477,22 @@ func (s *apiServer) Shutdown(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) LogLevel(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	v := params["value"]
+	if v == "" {
+		return rpc.ApiResponseError(errors.New("missing loglevel"))
+	}
+	if !log.SetLevelString(v) {
+		return rpc.ApiResponseError(errors.New("invalid loglevel"))
+	} else {
+		log.Warnf("set loglevel to %s", v)
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
 func (s *apiServer) SetSlotActionInterval(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -557,6 +574,11 @@ func (c *ApiClient) Stats() (*Stats, error) {
 
 func (c *ApiClient) Shutdown() error {
 	url := c.encodeURL("/api/topom/shutdown/%s", c.xauth)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) LogLevel(level log.LogLevel) error {
+	url := c.encodeURL("/api/topom/loglevel/%s/%s", c.xauth, level)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

@@ -82,6 +82,24 @@ func (l LogLevel) String() string {
 	}
 }
 
+func (l *LogLevel) ParseFromString(s string) bool {
+	switch strings.ToUpper(s) {
+	case "ERROR":
+		*l = LevelError
+	case "DEBUG":
+		*l = LevelDebug
+	case "WARN", "WARNING":
+		*l = LevelWarn
+	case "INFO":
+		*l = LevelInfo
+	case "NONE":
+		*l = LevelNone
+	default:
+		return false
+	}
+	return true
+}
+
 func (l *LogLevel) Set(v LogLevel) {
 	atomic.StoreInt64((*int64)(l), int64(v))
 }
@@ -172,21 +190,13 @@ func (l *Logger) SetLevel(v LogLevel) {
 }
 
 func (l *Logger) SetLevelString(s string) bool {
-	switch strings.ToUpper(s) {
-	case "ERROR":
-		l.SetLevel(LevelError)
-	case "DEBUG":
-		l.SetLevel(LevelDebug)
-	case "WARN", "WARNING":
-		l.SetLevel(LevelWarn)
-	case "INFO":
-		l.SetLevel(LevelInfo)
-	case "NONE":
-		l.SetLevel(LevelNone)
-	default:
+	var v LogLevel
+	if !v.ParseFromString(s) {
 		return false
+	} else {
+		l.SetLevel(v)
+		return true
 	}
-	return true
 }
 
 func (l *Logger) SetTraceLevel(v LogLevel) {

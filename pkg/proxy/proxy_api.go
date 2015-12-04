@@ -184,6 +184,7 @@ func (s *apiServer) LogLevel(params martini.Params) (int, string) {
 	if !log.SetLevelString(v) {
 		return rpc.ApiResponseError(errors.New("invalid loglevel"))
 	} else {
+		log.Warnf("set loglevel to %s", v)
 		return rpc.ApiResponseJson("OK")
 	}
 }
