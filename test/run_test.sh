@@ -55,7 +55,7 @@ done
 for i in {0..1}; do
     cat ../config/proxy.toml \
         | sed -e "s/Demo3/codis-test/g" \
-        | sed -e "s/11000/1100${i}/g" \
+        | sed -e "s/11080/1108${i}/g" \
         | sed -e "s/19000/1900${i}/g" \
         > proxy${i}.toml || exit $?
     nohup ../bin/codis-proxy -c proxy${i}.toml &>proxy${i}.log &
@@ -71,8 +71,8 @@ for pid in $pidlist; do
     ps -p $pid >/dev/null || exit 1
 done
 
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" proxy --create -x 127.0.0.1:11000
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" proxy --create -x 127.0.0.1:11001
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" proxy --create -x 127.0.0.1:11080
+../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" proxy --create -x 127.0.0.1:11081
 
 ../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group --create -g1
 ../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g1 --add -x 127.0.0.1:56379

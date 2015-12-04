@@ -25,7 +25,7 @@ proxy)
     docker run --name "Demo3-P21000" -d \
         --read-only -v `realpath ../config/proxy.toml`:/codis/proxy.toml \
                     -v `realpath log`:/codis/log \
-        -p 29000:19000 -p 21000:11000 \
+        -p 29000:19000 -p 21080:11080 \
         codis-image \
         codis-proxy -l log/proxy.log -c proxy.toml --host-admin ${hostip}:29000 --host-proxy ${hostip}:21000
     ;;
