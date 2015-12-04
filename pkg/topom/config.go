@@ -8,7 +8,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/wandoulabs/codis/pkg/models/etcd"
+	"github.com/wandoulabs/codis/pkg/models/zk"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 )
 
@@ -33,8 +33,8 @@ func NewDefaultConfig() *Config {
 		ProductName: "Demo2",
 		ProductAuth: "",
 	}
-	c.Coordinator.Name = etcdclient.CoordinatorName
-	c.Coordinator.Addr = "127.0.0.1:2379"
+	c.Coordinator.Name = zkclient.CoordinatorName
+	c.Coordinator.Addr = "127.0.0.1:2181"
 	return c
 }
 
