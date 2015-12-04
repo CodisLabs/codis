@@ -270,6 +270,7 @@ func (c *ZkClient) Read(path string) ([]byte, error) {
 	}
 	var data []byte
 	err := c.do(func(conn *zk.Conn) error {
+		log.Debugf("zkclient read node %s", path)
 		if bytes, _, err := conn.Get(path); err != nil {
 			if errors.NotEqual(err, zk.ErrNoNode) {
 				return errors.Trace(err)
@@ -290,6 +291,7 @@ func (c *ZkClient) List(path string) ([]string, error) {
 	}
 	var list []string
 	err := c.do(func(conn *zk.Conn) error {
+		log.Debugf("zkclient list node %s", path)
 		if files, _, err := conn.Children(path); err != nil {
 			if errors.NotEqual(err, zk.ErrNoNode) {
 				return errors.Trace(err)
