@@ -30,7 +30,7 @@ func NewDefaultConfig() *Config {
 	c := &Config{
 		AdminAddr: "0.0.0.0:18080",
 
-		ProductName: "Demo2",
+		ProductName: "Demo3",
 		ProductAuth: "",
 	}
 	c.Coordinator.Name = zkclient.CoordinatorName

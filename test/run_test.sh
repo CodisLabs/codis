@@ -22,7 +22,7 @@ trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
 make -C ../ -j4 || exit $?
 
 cat ../config/dashboard.toml \
-    | sed -e "s/Demo2/codis-test/g" \
+    | sed -e "s/Demo3/codis-test/g" \
     > dashboard.toml || exit $?
 
 nohup etcd --name=codis-test &>etcd.log &
@@ -54,7 +54,7 @@ done
 
 for i in {0..1}; do
     cat ../config/proxy.toml \
-        | sed -e "s/Demo2/codis-test/g" \
+        | sed -e "s/Demo3/codis-test/g" \
         | sed -e "s/11000/1100${i}/g" \
         | sed -e "s/19000/1900${i}/g" \
         > proxy${i}.toml || exit $?

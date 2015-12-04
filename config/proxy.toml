@@ -5,7 +5,7 @@
 ##################################################
 
 # Set Codis Product {Name/Auth}.
-product_name = "Demo2"
+product_name = "Demo3"
 product_auth = ""
 
 # Set bind address for admin(rpc), tcp only.

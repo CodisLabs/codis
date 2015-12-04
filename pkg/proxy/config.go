@@ -41,7 +41,7 @@ func NewDefaultConfig() *Config {
 		JodisAddr:    "",
 		JodisTimeout: 10,
 
-		ProductName: "Demo2",
+		ProductName: "Demo3",
 		ProductAuth: "",
 
 		BackendPingPeriod:  5,
