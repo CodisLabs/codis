@@ -127,7 +127,7 @@ func (s *apiServer) NewStats() *Stats {
 	stats.Closed = s.proxy.IsClosed()
 
 	stats.Ops.Total = router.OpsTotal()
-	stats.Ops.Cmds = router.GetAllOpStats()
+	stats.Ops.Cmds = router.GetOpStatsAll()
 
 	stats.Sessions.Total = router.SessionsTotal()
 	stats.Sessions.Alive = router.SessionsAlive()
