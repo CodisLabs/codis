@@ -13,10 +13,8 @@ import (
 )
 
 type Config struct {
-	Coordinator struct {
-		Name string `toml:"name" json:"name"`
-		Addr string `toml:"addr" json:"addr"`
-	} `toml:"coordinator" json:"coordinator"`
+	CoordinatorName string `toml:"coordinator_name" json:"coordinator_name"`
+	CoordinatorAddr string `toml:"coordinator_addr" json:"coordinator_addr"`
 
 	AdminAddr string `toml:"admin_addr" json:"admin_addr"`
 
@@ -27,15 +25,15 @@ type Config struct {
 }
 
 func NewDefaultConfig() *Config {
-	c := &Config{
+	return &Config{
+		CoordinatorName: zkclient.CoordinatorName,
+		CoordinatorAddr: "127.0.0.1:2181",
+
 		AdminAddr: "0.0.0.0:18080",
 
 		ProductName: "Demo3",
 		ProductAuth: "",
 	}
-	c.Coordinator.Name = zkclient.CoordinatorName
-	c.Coordinator.Addr = "127.0.0.1:2181"
-	return c
 }
 
 func (c *Config) LoadFromFile(path string) error {

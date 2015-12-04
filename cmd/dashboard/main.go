@@ -81,10 +81,10 @@ Options:
 
 	var client models.Client
 
-	switch config.Coordinator.Name {
+	switch config.CoordinatorName {
 
 	case zkclient.CoordinatorName:
-		addr := config.Coordinator.Addr
+		addr := config.CoordinatorAddr
 		client, err = zkclient.New(addr, time.Minute)
 		if err != nil {
 			log.PanicErrorf(err, "create zkclient to %s failed", addr)
@@ -92,7 +92,7 @@ Options:
 		defer client.Close()
 
 	case etcdclient.CoordinatorName:
-		addr := config.Coordinator.Addr
+		addr := config.CoordinatorAddr
 		client, err = etcdclient.New(addr, time.Minute)
 		if err != nil {
 			log.PanicErrorf(err, "create etcdclient to %s failed", addr)
@@ -101,7 +101,7 @@ Options:
 
 	default:
 
-		log.Panicf("invalid coordinator name = '%s'", config.Coordinator.Name)
+		log.Panicf("invalid coordinator name = '%s'", config.CoordinatorName)
 
 	}
 
