@@ -19,50 +19,43 @@ import (
 )
 
 type cmdAdmin struct {
-	product struct {
-		name string
-	}
+	product string
 }
 
 func (t *cmdAdmin) Main(d map[string]interface{}) {
-	t.product.name, _ = utils.Argument(d, "--product-name")
+	t.product, _ = d["--product"].(string)
 
 	switch {
+	case d["--remove-lock"].(bool):
+		t.handleRemoveLock(d)
+	case d["--config-dump"].(bool):
+		t.handleConfigDump(d)
 	case d["--config-convert"].(bool):
 		t.handleConfigConvert(d)
-
-	default:
-		if !utils.IsValidProduct(t.product.name) {
-			log.Panicf("invalid product name = %s", t.product.name)
-		}
-		log.Debugf("args.product.name = %s", t.product.name)
-
-		switch {
-		case d["--remove-lock"].(bool):
-			t.handleRemoveLock(d)
-		case d["--config-dump"].(bool):
-			t.handleConfigDump(d)
-		case d["--config-restore"].(bool):
-			t.handleConfigRestore(d)
-		}
+	case d["--config-restore"].(bool):
+		t.handleConfigRestore(d)
 	}
 }
 
 func (t *cmdAdmin) newTopomClient(d map[string]interface{}) models.Client {
 	switch {
 	case d["--zookeeper"] != nil:
+
 		addr := utils.ArgumentMust(d, "--zookeeper")
+
 		c, err := zkclient.New(addr, time.Minute)
 		if err != nil {
-			log.PanicErrorf(err, "create zk client to %s failed", addr)
+			log.PanicErrorf(err, "create zkclient to %s failed", addr)
 		}
 		return c
 
 	case d["--etcd"] != nil:
+
 		addr := utils.ArgumentMust(d, "--etcd")
+
 		c, err := etcdclient.New(addr, time.Minute)
 		if err != nil {
-			log.PanicErrorf(err, "create etcd client to %s failed", addr)
+			log.PanicErrorf(err, "create etcdclient to %s failed", addr)
 		}
 		return c
 
@@ -73,8 +66,11 @@ func (t *cmdAdmin) newTopomClient(d map[string]interface{}) models.Client {
 }
 
 func (t *cmdAdmin) newTopomStore(d map[string]interface{}) *models.Store {
+	if !utils.IsValidProduct(t.product) {
+		log.Panicf("invalid product = %s", t.product)
+	}
 	client := t.newTopomClient(d)
-	return models.NewStore(client, t.product.name)
+	return models.NewStore(client, t.product)
 }
 
 func (t *cmdAdmin) handleRemoveLock(d map[string]interface{}) {
@@ -82,7 +78,7 @@ func (t *cmdAdmin) handleRemoveLock(d map[string]interface{}) {
 	defer store.Close()
 
 	log.Debugf("force remove-lock")
-	if err := store.Release(true); err != nil {
+	if err := store.Release(); err != nil {
 		log.PanicErrorf(err, "force remove-lock failed")
 	}
 	log.Debugf("force remove-lock OK")
@@ -93,9 +89,7 @@ func (t *cmdAdmin) handleConfigDump(d map[string]interface{}) {
 	case d["-1"].(bool):
 		t.dumpConfigV1(d)
 	default:
-		fallthrough
-	case d["-2"].(bool):
-		t.dumpConfigV2(d)
+		t.dumpConfigV3(d)
 	}
 }
 
@@ -109,7 +103,7 @@ func (t *cmdAdmin) newZooKeeperClient(d map[string]interface{}) models.Client {
 	return client
 }
 
-type ConfigV2 struct {
+type ConfigV3 struct {
 	Slots []*models.SlotMapping `json:"slots,omitempty"`
 	Group []*models.Group       `json:"group,omitempty"`
 	Proxy []*models.Proxy       `json:"proxy,omitempty"`
@@ -131,7 +125,8 @@ func (t *cmdAdmin) dumpConfigV1(d map[string]interface{}) {
 	client := t.newTopomClient(d)
 	defer client.Close()
 
-	prefix := filepath.Join("/zk/codis", fmt.Sprintf("db_%s", t.product.name))
+	prefix := filepath.Join("/zk/codis", fmt.Sprintf("db_%s", t.product))
+
 	log.Debugf("prefix = %s", prefix)
 
 	config := make(map[string]interface{})
@@ -141,7 +136,7 @@ func (t *cmdAdmin) dumpConfigV1(d map[string]interface{}) {
 		log.PanicErrorf(err, "list path = %s failed", prefix)
 	}
 	if len(dirs) == 0 {
-		log.Panicf("no such product = %s [v1]", t.product.name)
+		log.Panicf("no such product = %s [v1]", t.product)
 	}
 	for _, dir := range dirs {
 		config[filepath.Base(dir)] = t.dumpConfigV1Recursively(client, dir)
@@ -156,73 +151,76 @@ func (t *cmdAdmin) dumpConfigV1(d map[string]interface{}) {
 
 func (t *cmdAdmin) dumpConfigV1Recursively(client models.Client, path string) interface{} {
 	log.Debugf("dump path = %s", path)
-	if plist, err := client.List(path); err != nil {
+	if files, err := client.List(path); err != nil {
 		log.PanicErrorf(err, "list path = %s failed", path)
-	} else if plist != nil {
+		return nil
+	} else if files != nil {
 		var m = make(map[string]interface{})
-		for _, path := range plist {
+		for _, path := range files {
 			m[filepath.Base(path)] = t.dumpConfigV1Recursively(client, path)
 		}
 		return m
+	} else {
+		b, err := client.Read(path)
+		if err != nil {
+			log.PanicErrorf(err, "dump path = %s failed", path)
+		}
+		if len(b) == 0 {
+			return nil
+		}
+		var v interface{}
+		if err := json.Unmarshal(b, &v); err != nil {
+			log.PanicErrorf(err, "json unmarshal failed")
+		}
+		return v
 	}
-	b, err := client.Read(path)
-	if err != nil {
-		log.PanicErrorf(err, "dump path = %s failed", path)
-	}
-	if len(b) == 0 {
-		return nil
-	}
-	var v interface{}
-	if err := json.Unmarshal(b, &v); err != nil {
-		log.PanicErrorf(err, "json unmarshal failed")
-	}
-	return v
 }
 
-func (t *cmdAdmin) dumpConfigV2(d map[string]interface{}) {
+func (t *cmdAdmin) dumpConfigV3(d map[string]interface{}) {
 	client := t.newTopomClient(d)
 	defer client.Close()
 
-	prefix := filepath.Join("/codis2", t.product.name)
+	prefix := filepath.Join("/codis3", t.product)
+
 	log.Debugf("prefix = %s", prefix)
 
-	config := &ConfigV2{}
+	config := &ConfigV3{}
 
 	dirs, err := client.List(prefix)
 	if err != nil {
 		log.PanicErrorf(err, "list path = %s failed", prefix)
 	}
 	if len(dirs) == 0 {
-		log.Panicf("no such product = %s [v2]", t.product.name)
+		log.Panicf("no such product = %s [v3]", t.product)
 	}
 
-	if plist, err := client.List(filepath.Join(prefix, "slots")); err != nil {
+	if files, err := client.List(filepath.Join(prefix, "slots")); err != nil {
 		log.PanicErrorf(err, "list slots failed")
 	} else {
-		sort.Sort(sort.StringSlice(plist))
-		for _, path := range plist {
+		sort.Sort(sort.StringSlice(files))
+		for _, path := range files {
 			s := &models.SlotMapping{}
 			t.loadAndDecode(client, path, s)
 			config.Slots = append(config.Slots, s)
 		}
 	}
 
-	if plist, err := client.List(filepath.Join(prefix, "group")); err != nil {
+	if files, err := client.List(filepath.Join(prefix, "group")); err != nil {
 		log.PanicErrorf(err, "list group failed")
 	} else {
-		sort.Sort(sort.StringSlice(plist))
-		for _, path := range plist {
+		sort.Sort(sort.StringSlice(files))
+		for _, path := range files {
 			g := &models.Group{}
 			t.loadAndDecode(client, path, g)
 			config.Group = append(config.Group, g)
 		}
 	}
 
-	if plist, err := client.List(filepath.Join(prefix, "proxy")); err != nil {
+	if files, err := client.List(filepath.Join(prefix, "proxy")); err != nil {
 		log.PanicErrorf(err, "list proxy failed")
 	} else {
-		sort.Sort(sort.StringSlice(plist))
-		for _, path := range plist {
+		sort.Sort(sort.StringSlice(files))
+		for _, path := range files {
 			p := &models.Proxy{}
 			t.loadAndDecode(client, path, p)
 			config.Proxy = append(config.Proxy, p)
@@ -260,43 +258,55 @@ func (t *cmdAdmin) loadJsonConfigV1(d map[string]interface{}) map[string]interfa
 
 func (t *cmdAdmin) convertSlotsV1(smap map[int]*models.SlotMapping, v interface{}) {
 	m := v.(map[string]interface{})
-	slotId := int(m["id"].(float64))
+
+	sid := int(m["id"].(float64))
 	status := m["state"].(map[string]interface{})["status"].(string)
-	log.Debugf("found slot-%04d status = %s", slotId, status)
+
+	log.Debugf("found slot-%04d status = %s", sid, status)
+
 	if status != "online" {
 		if status == "offline" {
 			return
 		}
 		log.Panicf("invalid slot status")
 	}
-	groupId := int(m["group_id"].(float64))
-	if smap[slotId] != nil {
-		log.Panicf("slot-%04d already exists", slotId)
+
+	gid := int(m["group_id"].(float64))
+	if smap[sid] != nil {
+		log.Panicf("slot-%04d already exists", sid)
 	}
-	smap[slotId] = &models.SlotMapping{
-		Id: slotId, GroupId: groupId,
+	smap[sid] = &models.SlotMapping{
+		Id: sid, GroupId: gid,
 	}
 }
 
 func (t *cmdAdmin) convertGroupV1(gmap map[int]*models.Group, v interface{}) {
 	m := v.(map[string]interface{})
+
 	addr := m["addr"].(string)
-	groupId := int(m["group_id"].(float64))
+	gid := int(m["group_id"].(float64))
 	isSlave := m["type"].(string) != "master"
-	log.Debugf("found group-%04d %s slave = %t", groupId, addr, isSlave)
-	if groupId <= 0 || groupId > models.MaxGroupId {
-		log.Panicf("invalid group = %d", groupId)
+
+	log.Debugf("found group-%04d %s slave = %t", gid, addr, isSlave)
+
+	if gid <= 0 || gid > models.MaxGroupId {
+		log.Panicf("invalid group = %d", gid)
 	}
-	g := gmap[groupId]
+
+	g := gmap[gid]
 	if g == nil {
-		g = &models.Group{Id: groupId}
-		gmap[groupId] = g
+		g = &models.Group{Id: gid}
+		gmap[gid] = g
 	}
+	var servers []*models.GroupServer
 	if isSlave {
-		g.Servers = append(g.Servers, addr)
+		servers = append(servers, g.Servers...)
+		servers = append(servers, &models.GroupServer{Addr: addr})
 	} else {
-		g.Servers = append([]string{addr}, g.Servers...)
+		servers = append(servers, &models.GroupServer{Addr: addr})
+		servers = append(servers, g.Servers...)
 	}
+	g.Servers = servers
 }
 
 func (t *cmdAdmin) handleConfigConvert(d map[string]interface{}) {
@@ -307,19 +317,16 @@ func (t *cmdAdmin) handleConfigConvert(d map[string]interface{}) {
 	}()
 
 	cfg1 := t.loadJsonConfigV1(d)
-	cfg2 := &ConfigV2{}
+	cfg2 := &ConfigV3{}
 
 	if slots := cfg1["slots"]; slots != nil {
 		smap := make(map[int]*models.SlotMapping)
 		for _, v := range slots.(map[string]interface{}) {
 			t.convertSlotsV1(smap, v)
 		}
-		for _, s := range smap {
-			cfg2.Slots = append(cfg2.Slots, s)
+		for i := 0; i < models.MaxSlotNum; i++ {
+			cfg2.Slots = append(cfg2.Slots, smap[i])
 		}
-		models.SortSlots(cfg2.Slots, func(s1, s2 *models.SlotMapping) bool {
-			return s1.Id < s2.Id
-		})
 	}
 
 	if servers := cfg1["servers"]; servers != nil {
@@ -329,12 +336,7 @@ func (t *cmdAdmin) handleConfigConvert(d map[string]interface{}) {
 				t.convertGroupV1(gmap, v)
 			}
 		}
-		for _, g := range gmap {
-			cfg2.Group = append(cfg2.Group, g)
-		}
-		models.SortGroup(cfg2.Group, func(g1, g2 *models.Group) bool {
-			return g1.Id < g2.Id
-		})
+		cfg2.Group = models.SortGroup(gmap)
 	}
 
 	b, err := json.MarshalIndent(cfg2, "", "    ")
@@ -344,12 +346,12 @@ func (t *cmdAdmin) handleConfigConvert(d map[string]interface{}) {
 	fmt.Println(string(b))
 }
 
-func (t *cmdAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
+func (t *cmdAdmin) loadJsonConfigV3(d map[string]interface{}) *ConfigV3 {
 	b, err := ioutil.ReadFile(utils.ArgumentMust(d, "--input"))
 	if err != nil {
 		log.PanicErrorf(err, "read file failed")
 	}
-	config := &ConfigV2{}
+	config := &ConfigV3{}
 	if err := json.Unmarshal(b, config); err != nil {
 		log.PanicErrorf(err, "json unmarshal failed")
 	}
@@ -370,7 +372,7 @@ func (t *cmdAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
 		if gmap[g.Id] != nil {
 			log.Panicf("group-%04d already exists", g.Id)
 		}
-		if g.Promoting {
+		if g.Promoting.State != models.ActionNothing {
 			log.Panicf("gorup-%04d is promoting", g.Id)
 		}
 		gmap[g.Id] = g
@@ -379,10 +381,11 @@ func (t *cmdAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
 	var xmap = make(map[string]bool)
 	for _, g := range gmap {
 		for _, x := range g.Servers {
-			if xmap[x] {
-				log.Panicf("server %s already exists", x)
+			addr := x.Addr
+			if xmap[addr] {
+				log.Panicf("server %s already exists", addr)
 			}
-			xmap[x] = true
+			xmap[addr] = true
 		}
 	}
 
@@ -407,7 +410,7 @@ func (t *cmdAdmin) loadJsonConfigV2(d map[string]interface{}) *ConfigV2 {
 }
 
 func (t *cmdAdmin) handleConfigRestore(d map[string]interface{}) {
-	config := t.loadJsonConfigV2(d)
+	config := t.loadJsonConfigV3(d)
 
 	store := t.newTopomStore(d)
 	defer store.Close()
@@ -429,27 +432,27 @@ func (t *cmdAdmin) handleConfigRestore(d map[string]interface{}) {
 	}
 
 	for _, s := range config.Slots {
-		if err := store.SaveSlotMapping(s.Id, s); err != nil {
+		if err := store.UpdateSlotMapping(s); err != nil {
 			log.PanicErrorf(err, "save slot-%04d failed", s.Id)
 		}
 		log.Debugf("update slot-%04d OK", s.Id)
 	}
 
 	for _, g := range config.Group {
-		if err := store.CreateGroup(g.Id, g); err != nil {
+		if err := store.UpdateGroup(g); err != nil {
 			log.PanicErrorf(err, "create group-%04d failed", g.Id)
 		}
 		log.Debugf("create group-%04d OK", g.Id)
 	}
 
 	for _, p := range config.Proxy {
-		if err := store.CreateProxy(p.Id, p); err != nil {
+		if err := store.UpdateProxy(p); err != nil {
 			log.PanicErrorf(err, "create proxy-%04d failed", p.Id)
 		}
 		log.Debugf("create proxy-%04d OK", p.Id)
 	}
 
-	if err := store.Release(false); err != nil {
+	if err := store.Release(); err != nil {
 		log.PanicErrorf(err, "release store lock failed")
 	}
 }
