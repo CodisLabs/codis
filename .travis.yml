@@ -3,11 +3,10 @@ language: go
 go:
     - 1.4.3
     - 1.5.1
-#   - tip
+    - 1.5.2
 
 install:
     - go get -u github.com/tools/godep
-    - make
 
 script:
     - make gotest

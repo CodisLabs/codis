@@ -40,7 +40,7 @@ func newApiServer(p *Proxy) http.Handler {
 					break
 				}
 			}
-			log.Infof("[%p] API call %s from %s [%s]", p, path, remoteAddr, headerAddr)
+			log.Warnf("[%p] API call %s from %s [%s]", p, path, remoteAddr, headerAddr)
 		}
 		c.Next()
 	})
@@ -62,6 +62,7 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Get("/stats/:xauth", api.Stats)
 		r.Get("/slots/:xauth", api.Slots)
 		r.Put("/start/:xauth", api.Start)
+		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
 	})
@@ -104,8 +105,8 @@ type Stats struct {
 	} `json:"ops"`
 
 	Sessions struct {
-		Total   int64 `json:"total"`
-		Actived int64 `json:"actived"`
+		Total int64 `json:"total"`
+		Alive int64 `json:"alive"`
 	} `json:"sessions"`
 }
 
@@ -126,10 +127,10 @@ func (s *apiServer) NewStats() *Stats {
 	stats.Closed = s.proxy.IsClosed()
 
 	stats.Ops.Total = router.OpsTotal()
-	stats.Ops.Cmds = router.GetAllOpStats()
+	stats.Ops.Cmds = router.GetOpStatsAll()
 
 	stats.Sessions.Total = router.SessionsTotal()
-	stats.Sessions.Actived = router.SessionsActived()
+	stats.Sessions.Alive = router.SessionsAlive()
 	return stats
 }
 
@@ -172,6 +173,22 @@ func (s *apiServer) Start(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) LogLevel(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	v := params["value"]
+	if v == "" {
+		return rpc.ApiResponseError(errors.New("missing loglevel"))
+	}
+	if !log.SetLevelString(v) {
+		return rpc.ApiResponseError(errors.New("invalid loglevel"))
+	} else {
+		log.Warnf("set loglevel to %s", v)
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
 func (s *apiServer) Shutdown(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -200,10 +217,6 @@ type ApiClient struct {
 
 func NewApiClient(addr string) *ApiClient {
 	return &ApiClient{addr: addr}
-}
-
-func (c *ApiClient) SetRemoteAddr(addr string) {
-	c.addr = addr
 }
 
 func (c *ApiClient) SetXAuth(name, auth string, token string) {
@@ -257,6 +270,11 @@ func (c *ApiClient) Slots() ([]*models.Slot, error) {
 
 func (c *ApiClient) Start() error {
 	url := c.encodeURL("/api/proxy/start/%s", c.xauth)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) LogLevel(level log.LogLevel) error {
+	url := c.encodeURL("/api/proxy/loglevel/%s/%s", c.xauth, level)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

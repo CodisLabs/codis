@@ -4,149 +4,128 @@
 package topom
 
 import (
-	"sync"
 	"time"
 
+	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
+	"github.com/wandoulabs/codis/pkg/utils/sync2"
 )
 
 type RedisStats struct {
-	Infom    map[string]string `json:"infom,omitempty"`
-	UnixTime int64             `json:"unixtime"`
-	Error    *rpc.RemoteError  `json:"error,omitempty"`
-}
+	Stats map[string]string `json:"stats,omitempty"`
+	Error *rpc.RemoteError  `json:"error,omitempty"`
 
-func (s *Topom) UpdateRedisStats(addr string, stats *RedisStats) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return false
-	}
-	_, ok := s.stats.servers[addr]
-	if ok {
-		s.stats.servers[addr] = stats
-		return true
-	}
-	return false
+	UnixTime int64 `json:"unixtime"`
+	Timeout  bool  `json:"timeout,omitempty"`
 }
 
 func (s *Topom) newRedisStats(addr string, timeout time.Duration) *RedisStats {
 	var ch = make(chan struct{})
 	stats := &RedisStats{}
 
-	go func() (err error) {
-		defer func() {
-			if err != nil {
-				stats.Error = rpc.NewRemoteError(err)
-			}
-			close(ch)
-		}()
-
-		c, err := s.redisp.GetClient(addr)
+	go func() {
+		defer close(ch)
+		x, err := s.redisp.Info(addr)
 		if err != nil {
-			return err
+			stats.Error = rpc.NewRemoteError(err)
+		} else {
+			stats.Stats = x
 		}
-		defer s.redisp.PutClient(c)
-
-		m, err := c.InfoMap()
-		if err != nil {
-			return err
-		}
-		stats.Infom = m
-		return nil
 	}()
 
 	select {
 	case <-ch:
 		return stats
 	case <-time.After(timeout):
-		return &RedisStats{}
+		return &RedisStats{Timeout: true}
 	}
 }
 
-func (s *Topom) RefreshRedisStats(timeout time.Duration) *sync.WaitGroup {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.closed {
-		return nil
+func (s *Topom) RefreshRedisStats(timeout time.Duration) (*sync2.Future, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return nil, err
 	}
-	var wg sync.WaitGroup
-	for addr, _ := range s.stats.servers {
-		wg.Add(1)
-		go func(addr string) {
-			defer wg.Done()
-			stats := s.newRedisStats(addr, timeout)
-			stats.UnixTime = time.Now().Unix()
-			s.UpdateRedisStats(addr, stats)
-		}(addr)
+	var fut sync2.Future
+	for _, g := range ctx.group {
+		for _, x := range g.Servers {
+			fut.Add()
+			go func(addr string) {
+				stats := s.newRedisStats(addr, timeout)
+				stats.UnixTime = time.Now().Unix()
+				fut.Done(addr, stats)
+			}(x.Addr)
+		}
 	}
-	return &wg
+	go func() {
+		stats := make(map[string]*RedisStats)
+		for k, v := range fut.Wait() {
+			stats[k] = v.(*RedisStats)
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.stats.servers = stats
+	}()
+	return &fut, nil
 }
 
 type ProxyStats struct {
-	Stats    *proxy.Stats     `json:"stats,omitempty"`
-	UnixTime int64            `json:"unixtime"`
-	Error    *rpc.RemoteError `json:"error,omitempty"`
+	Stats *proxy.Stats     `json:"stats,omitempty"`
+	Error *rpc.RemoteError `json:"error,omitempty"`
+
+	UnixTime int64 `json:"unixtime"`
+	Timeout  bool  `json:"timeout,omitempty"`
 }
 
-func (s *Topom) UpdateProxyStats(token string, stats *ProxyStats) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return false
-	}
-	_, ok := s.stats.proxies[token]
-	if ok {
-		s.stats.proxies[token] = stats
-		return true
-	}
-	return false
-}
-
-func (s *Topom) newProxyStats(c *proxy.ApiClient, timeout time.Duration) *ProxyStats {
+func (s *Topom) newProxyStats(p *models.Proxy, timeout time.Duration) *ProxyStats {
 	var ch = make(chan struct{})
 	stats := &ProxyStats{}
 
-	go func() (err error) {
-		defer func() {
-			if err != nil {
-				stats.Error = rpc.NewRemoteError(err)
-			}
-			close(ch)
-		}()
-
-		x, err := c.Stats()
+	go func() {
+		defer close(ch)
+		x, err := s.newProxyClient(p).Stats()
 		if err != nil {
-			return err
+			stats.Error = rpc.NewRemoteError(err)
+		} else {
+			stats.Stats = x
 		}
-		stats.Stats = x
-		return nil
 	}()
 
 	select {
 	case <-ch:
 		return stats
 	case <-time.After(timeout):
-		return &ProxyStats{}
+		return &ProxyStats{Timeout: true}
 	}
 }
 
-func (s *Topom) RefreshProxyStats(timeout time.Duration) *sync.WaitGroup {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.closed {
-		return nil
+func (s *Topom) RefreshProxyStats(timeout time.Duration) (*sync2.Future, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return nil, err
 	}
-	var wg sync.WaitGroup
-	for token, c := range s.clients {
-		wg.Add(1)
-		go func(token string, c *proxy.ApiClient) {
-			defer wg.Done()
-			stats := s.newProxyStats(c, timeout)
+	var fut sync2.Future
+	for _, p := range ctx.proxy {
+		fut.Add()
+		go func(p *models.Proxy) {
+			stats := s.newProxyStats(p, timeout)
 			stats.UnixTime = time.Now().Unix()
-			s.UpdateProxyStats(token, stats)
-		}(token, c)
+			fut.Done(p.Token, stats)
+		}(p)
 	}
-	return &wg
+	go func() {
+		stats := make(map[string]*ProxyStats)
+		for k, v := range fut.Wait() {
+			stats[k] = v.(*ProxyStats)
+		}
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.stats.proxies = stats
+	}()
+	return &fut, nil
 }

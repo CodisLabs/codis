@@ -36,12 +36,12 @@ func NewDefaultConfig() *Config {
 	return &Config{
 		ProtoType: "tcp4",
 		ProxyAddr: "0.0.0.0:19000",
-		AdminAddr: "0.0.0.0:11000",
+		AdminAddr: "0.0.0.0:11080",
 
 		JodisAddr:    "",
 		JodisTimeout: 10,
 
-		ProductName: "Demo2",
+		ProductName: "Demo3",
 		ProductAuth: "",
 
 		BackendPingPeriod:  5,

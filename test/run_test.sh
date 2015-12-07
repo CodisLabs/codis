@@ -21,9 +21,13 @@ trap "kill 0" EXIT SIGQUIT SIGKILL SIGTERM
 
 make -C ../ -j4 || exit $?
 
-cat ../config/dashboard.toml \
-    | sed -e "s/Demo2/codis-test/g" \
-    > dashboard.toml || exit $?
+cat > dashboard.toml <<EOF
+coordinator_name = "etcd"
+coordinator_addr = "127.0.0.1:2379"
+product_name = "codis-test"
+product_auth = ""
+admin_addr = "127.0.0.1:18080"
+EOF
 
 nohup etcd --name=codis-test &>etcd.log &
 
@@ -33,7 +37,7 @@ sleep 3
 
 ps -p $lastpid >/dev/null || exit 1
 
-nohup ../bin/codis-dashboard -c dashboard.toml --etcd="127.0.0.1:2379" &> dashboard.log &
+nohup ../bin/codis-dashboard -c dashboard.toml &> dashboard.log &
 
 lastpid=$!
 pidlist=$lastpid
@@ -54,8 +58,8 @@ done
 
 for i in {0..1}; do
     cat ../config/proxy.toml \
-        | sed -e "s/Demo2/codis-test/g" \
-        | sed -e "s/11000/1100${i}/g" \
+        | sed -e "s/Demo3/codis-test/g" \
+        | sed -e "s/11080/1108${i}/g" \
         | sed -e "s/19000/1900${i}/g" \
         > proxy${i}.toml || exit $?
     nohup ../bin/codis-proxy -c proxy${i}.toml &>proxy${i}.log &
@@ -71,24 +75,22 @@ for pid in $pidlist; do
     ps -p $pid >/dev/null || exit 1
 done
 
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" proxy --create -x 127.0.0.1:11000
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" proxy --create -x 127.0.0.1:11001
+../bin/codis-admin --dashboard=127.0.0.1:18080 --create-proxy -x 127.0.0.1:11080
+../bin/codis-admin --dashboard=127.0.0.1:18080 --create-proxy -x 127.0.0.1:11081
+../bin/codis-admin --dashboard=127.0.0.1:18080 --create-group --gid 1
+../bin/codis-admin --dashboard=127.0.0.1:18080 --group-add    --gid 1 -x 127.0.0.1:56379
+../bin/codis-admin --dashboard=127.0.0.1:18080 --group-add    --gid 1 -x 127.0.0.1:56479
+../bin/codis-admin --dashboard=127.0.0.1:18080 --create-group --gid 2
+../bin/codis-admin --dashboard=127.0.0.1:18080 --group-add    --gid 2 -x 127.0.0.1:56380
+../bin/codis-admin --dashboard=127.0.0.1:18080 --group-add    --gid 2 -x 127.0.0.1:56480
 
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group --create -g1
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g1 --add -x 127.0.0.1:56379
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g1 --add -x 127.0.0.1:56479
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g1 --master-repair -i 0
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g1 --master-repair -i 1
+../bin/codis-admin --dashboard=127.0.0.1:18080 --sync-action --create -x 127.0.0.1:56379
+../bin/codis-admin --dashboard=127.0.0.1:18080 --sync-action --create -x 127.0.0.1:56380
+../bin/codis-admin --dashboard=127.0.0.1:18080 --sync-action --create -x 127.0.0.1:56479
+../bin/codis-admin --dashboard=127.0.0.1:18080 --sync-action --create -x 127.0.0.1:56480
 
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group --create -g2
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g2 --add -x 127.0.0.1:56380
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g2 --add -x 127.0.0.1:56480
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g2 --master-repair -i 0
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" group          -g2 --master-repair -i 1
-
-
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" action --create-range --slot-beg=0 --slot-end=1023 -g1 &>/dev/null
-../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" action --set --interval=10
+../bin/codis-admin --dashboard=127.0.0.1:18080 --slot-action --create-range --beg=0 --end=1023 --gid 1 &>/dev/null
+../bin/codis-admin --dashboard=127.0.0.1:18080 --slot-action --interval=10
 
 ########################################
 # start slots-migration
@@ -100,13 +102,13 @@ run_migration() {
     let g=1
     while true; do
         now=`date +%T`
-        ../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" slots | grep "state" | grep -v "\"\"" >/dev/null
+        ../bin/codis-admin --dashboard=127.0.0.1:18080 slots | grep "state" | grep -v "\"\"" >/dev/null
         if [ $? -eq 0 ]; then
             echo $now waiting...
         else
             g=$((3-g))
             echo $now "migrate to group-[$g]"
-            ../bin/codis-admin --dashboard=127.0.0.1:18080 -n "codis-test" action --create-range --slot-beg=0 --slot-end=1023 -g $g
+            ../bin/codis-admin --dashboard=127.0.0.1:18080 --slot-action --create --sid 0 --gid $g
         fi
         sleep 1
     done

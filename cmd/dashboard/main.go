@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
@@ -25,7 +24,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] (--zookeeper=ADDR|--etcd=ADDR) [--host-admin=ADDR]
+	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR]
 	codis-dashboard  --version
 
 Options:
@@ -54,21 +53,11 @@ Options:
 			log.StdLog = log.New(w, "")
 		}
 	}
-	log.SetLevel(log.LEVEL_INFO)
+	log.SetLevel(log.LevelInfo)
 
 	if s, ok := utils.Argument(d, "--log-level"); ok {
-		var level = strings.ToUpper(s)
-		switch s {
-		case "ERROR":
-			log.SetLevel(log.LEVEL_ERROR)
-		case "DEBUG":
-			log.SetLevel(log.LEVEL_DEBUG)
-		case "WARN", "WARNING":
-			log.SetLevel(log.LEVEL_WARN)
-		case "INFO":
-			log.SetLevel(log.LEVEL_INFO)
-		default:
-			log.Panicf("invalid option --log-level = '%s'", level)
+		if !log.SetLevelString(s) {
+			log.Panicf("option --log-level = %s", s)
 		}
 	}
 
@@ -77,7 +66,7 @@ Options:
 	} else {
 		runtime.GOMAXPROCS(runtime.NumCPU())
 	}
-	log.Infof("set ncpu = %d", runtime.GOMAXPROCS(0))
+	log.Warnf("set ncpu = %d", runtime.GOMAXPROCS(0))
 
 	config := topom.NewDefaultConfig()
 	if s, ok := utils.Argument(d, "--config"); ok {
@@ -87,30 +76,33 @@ Options:
 	}
 	if s, ok := utils.Argument(d, "--host-admin"); ok {
 		config.HostAdmin = s
-		log.Infof("option --host-admin = %s", s)
+		log.Warnf("option --host-admin = %s", s)
 	}
 
 	var client models.Client
 
-	switch {
-	case d["--zookeeper"] != nil:
-		addr := utils.ArgumentMust(d, "--zookeeper")
+	switch config.CoordinatorName {
+
+	case zkclient.CoordinatorName:
+		addr := config.CoordinatorAddr
 		client, err = zkclient.New(addr, time.Minute)
 		if err != nil {
-			log.PanicErrorf(err, "create zk client to %s failed", addr)
+			log.PanicErrorf(err, "create zkclient to %s failed", addr)
 		}
 		defer client.Close()
 
-	case d["--etcd"] != nil:
-		addr := utils.ArgumentMust(d, "--etcd")
+	case etcdclient.CoordinatorName:
+		addr := config.CoordinatorAddr
 		client, err = etcdclient.New(addr, time.Minute)
 		if err != nil {
-			log.PanicErrorf(err, "create etcd client to %s failed", addr)
+			log.PanicErrorf(err, "create etcdclient to %s failed", addr)
 		}
 		defer client.Close()
 
 	default:
-		log.Panicf("nil client for topom")
+
+		log.Panicf("invalid coordinator name = '%s'", config.CoordinatorName)
+
 	}
 
 	s, err := topom.New(client, config)
@@ -121,7 +113,7 @@ Options:
 
 	s.StartDaemonRoutines()
 
-	log.Infof("create topom with config\n%s\n", config)
+	log.Warnf("create topom with config\n%s\n", config)
 
 	go func() {
 		defer s.Close()
@@ -129,12 +121,12 @@ Options:
 		signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM)
 
 		sig := <-c
-		log.Infof("[%p] dashboard receive signal = '%v'", s, sig)
+		log.Warnf("[%p] dashboard receive signal = '%v'", s, sig)
 	}()
 
 	for !s.IsClosed() {
 		time.Sleep(time.Second)
 	}
 
-	log.Infof("[%p] topom exiting ...", s)
+	log.Warnf("[%p] topom exiting ...", s)
 }

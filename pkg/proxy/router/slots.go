@@ -74,7 +74,7 @@ var ErrSlotIsNotReady = errors.New("slot is not ready, may be offline")
 
 func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 	if s.backend.bc == nil {
-		log.Infof("slot-%04d is not ready: key = %s", s.id, key)
+		log.Warnf("slot-%04d is not ready: key = %s", s.id, key)
 		return nil, ErrSlotIsNotReady
 	}
 	if err := s.slotsmgrt(r, key); err != nil {

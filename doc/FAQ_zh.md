@@ -73,7 +73,9 @@ CAS 暂时不支持, 目前只支持eval的方式来跑lua脚本，需要配合T
 
 ###Codis支持etcd吗 ? 
 
-支持，请参考使用教程
+支持，请参考使用教程，需要将配置文件中的coordinator=zookeeper改为etcd。
+
+但是需要注意：请使用codis2.0.10或更新的版本，旧版对etcd的支持有一些问题；由于etcd在2.2引入了一个与旧版不兼容的坑爹改动，导致如果使用etcd的版本>=2.2.0，暂时需要手动改一处代码，详情见[相关issue](https://github.com/wandoulabs/codis/issues/488)。
 
 ###现有redis集群上有上T的数据，如何迁移到Codis上来？
 

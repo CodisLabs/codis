@@ -5,11 +5,11 @@
 ##################################################
 
 # Set Codis Product {Name/Auth}.
-product_name = "Demo2"
+product_name = "Demo3"
 product_auth = ""
 
 # Set bind address for admin(rpc), tcp only.
-admin_addr = "0.0.0.0:11000"
+admin_addr = "0.0.0.0:11080"
 
 # Set bind address for proxy, proto_type can be "tcp", "tcp4", "tcp6", "unix" or "unixpacket".
 proto_type = "tcp4"

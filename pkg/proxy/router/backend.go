@@ -31,21 +31,15 @@ func NewBackendConn(addr, auth string) *BackendConn {
 }
 
 func (bc *BackendConn) Run() {
-	log.Infof("backend conn [%p] to %s, start service", bc, bc.addr)
+	log.Warnf("backend conn [%p] to %s, start service", bc, bc.addr)
 	for k := 0; ; k++ {
-		err := bc.loopWriter()
-		if err == nil {
+		log.Warnf("backend conn [%p] to %s, rounds-[%d]", bc, bc.addr, k)
+		if err := bc.loopWriter(k); err == nil {
 			break
-		} else {
-			for i := len(bc.input); i != 0; i-- {
-				r := <-bc.input
-				bc.setResponse(r, nil, err)
-			}
 		}
-		log.WarnErrorf(err, "backend conn [%p] to %s, restart [%d]", bc, bc.addr, k)
-		time.Sleep(time.Millisecond * 50)
+		time.Sleep(time.Millisecond * 250)
 	}
-	log.Infof("backend conn [%p] to %s, stop and exit", bc, bc.addr)
+	log.Warnf("backend conn [%p] to %s, stop and exit", bc, bc.addr)
 }
 
 func (bc *BackendConn) Addr() string {
@@ -69,26 +63,43 @@ func (bc *BackendConn) KeepAlive() bool {
 	if len(bc.input) != 0 {
 		return false
 	}
-	r := &Request{
+	bc.PushBack(&Request{
 		Resp: redis.NewArray([]*redis.Resp{
 			redis.NewBulkBytes([]byte("PING")),
 		}),
-	}
-
-	select {
-	case bc.input <- r:
-		return true
-	default:
-		return false
-	}
+	})
+	return true
 }
 
-var ErrFailedRequest = errors.New("discard failed request")
+func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round int) (err error) {
+	defer func() {
+		c.Close()
+		for r := range tasks {
+			bc.setResponse(r, nil, err)
+		}
+		log.WarnErrorf(err, "backend conn [%p] to %s, reader-[%d] exit", bc, bc.addr, round)
+	}()
+	for r := range tasks {
+		resp, err := c.Reader.Decode()
+		if err != nil {
+			return bc.setResponse(r, nil, err)
+		}
+		bc.setResponse(r, resp, nil)
+	}
+	return nil
+}
 
-func (bc *BackendConn) loopWriter() error {
+func (bc *BackendConn) loopWriter(round int) (err error) {
+	defer func() {
+		for i := len(bc.input); i != 0; i-- {
+			r := <-bc.input
+			bc.setResponse(r, nil, err)
+		}
+		log.WarnErrorf(err, "backend conn [%p] to %s, writer-[%d] exit", bc, bc.addr, round)
+	}()
 	r, ok := <-bc.input
 	if ok {
-		c, tasks, err := bc.newBackendReader()
+		c, tasks, err := bc.newBackendReader(round)
 		if err != nil {
 			return bc.setResponse(r, nil, err)
 		}
@@ -110,16 +121,15 @@ func (bc *BackendConn) loopWriter() error {
 				if err := p.Flush(flush); err != nil {
 					return bc.setResponse(r, nil, err)
 				}
-				bc.setResponse(r, nil, ErrFailedRequest)
+				bc.setResponse(r, nil, ErrDiscardedRequest)
 			}
-
 			r, ok = <-bc.input
 		}
 	}
 	return nil
 }
 
-func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) {
+func (bc *BackendConn) newBackendReader(round int) (*redis.Conn, chan<- *Request, error) {
 	c, err := redis.DialTimeout(bc.addr, 1024*512, time.Second)
 	if err != nil {
 		return nil, nil, err
@@ -133,20 +143,8 @@ func (bc *BackendConn) newBackendReader() (*redis.Conn, chan<- *Request, error) 
 	}
 
 	tasks := make(chan *Request, 4096)
-	go func() {
-		defer func() {
-			c.Close()
-			for r := range tasks {
-				bc.setResponse(r, nil, ErrFailedRequest)
-			}
-		}()
-		for r := range tasks {
-			resp, err := c.Reader.Decode()
-			if bc.setResponse(r, resp, err) != nil {
-				return
-			}
-		}
-	}()
+	go bc.loopReader(tasks, c, round)
+
 	return c, tasks, nil
 }
 

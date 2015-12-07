@@ -24,21 +24,23 @@ type rollingFile struct {
 	filePath string
 	fileFrag string
 
-	rolling string
+	rolling RollingFormat
 }
 
 var ErrClosedRollingFile = errors.New("rolling file is closed")
 
+type RollingFormat string
+
 const (
-	MonthlyRolling  = "2006-01"
-	DailyRolling    = "2006-01-02"
-	HourlyRolling   = "2006-01-02-15"
-	MinutelyRolling = "2006-01-02-15-04"
-	SecondlyRolling = "2006-01-02-15-04-05"
+	MonthlyRolling  RollingFormat = "2006-01"
+	DailyRolling                  = "2006-01-02"
+	HourlyRolling                 = "2006-01-02-15"
+	MinutelyRolling               = "2006-01-02-15-04"
+	SecondlyRolling               = "2006-01-02-15-04-05"
 )
 
 func (r *rollingFile) roll() error {
-	suffix := time.Now().Format(r.rolling)
+	suffix := time.Now().Format(string(r.rolling))
 	if r.file != nil {
 		if suffix == r.fileFrag {
 			return nil
@@ -100,7 +102,7 @@ func (r *rollingFile) Write(b []byte) (int, error) {
 	}
 }
 
-func NewRollingFile(basePath string, rolling string) (io.WriteCloser, error) {
+func NewRollingFile(basePath string, rolling RollingFormat) (io.WriteCloser, error) {
 	if _, file := filepath.Split(basePath); file == "" {
 		return nil, errors.Errorf("invalid base-path = %s, file name is required", basePath)
 	}

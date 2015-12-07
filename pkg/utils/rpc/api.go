@@ -14,9 +14,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/wandoulabs/codis/pkg/utils/atomic2"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
 	"github.com/wandoulabs/codis/pkg/utils/trace"
 )
 

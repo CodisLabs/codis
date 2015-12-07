@@ -33,7 +33,7 @@ type Jodis struct {
 	watching bool
 }
 
-func NewJodis(addr string, timeout int, s *models.Proxy) *Jodis {
+func NewJodis(addr string, seconds int, s *models.Proxy) *Jodis {
 	var m = map[string]string{
 		"addr":     s.ProxyAddr,
 		"start_at": s.StartTime,
@@ -45,8 +45,7 @@ func NewJodis(addr string, timeout int, s *models.Proxy) *Jodis {
 		log.PanicErrorf(err, "json marshal failed")
 	}
 	p := filepath.Join("/zk/codis", fmt.Sprintf("db_%s", s.ProductName), "proxy", s.Token)
-	t := time.Duration(timeout) * time.Second
-	return &Jodis{path: p, data: b, addr: addr, timeout: t}
+	return &Jodis{path: p, data: b, addr: addr, timeout: time.Second * time.Duration(seconds)}
 }
 
 func (j *Jodis) Path() string {
@@ -85,7 +84,7 @@ func (j *Jodis) Close() error {
 		if err := j.client.Delete(j.path); err != nil {
 			log.WarnErrorf(err, "jodis remove node %s failed", j.path)
 		} else {
-			log.Infof("jodis remove node %s", j.path)
+			log.Warnf("jodis remove node %s", j.path)
 		}
 	}
 	return j.client.Close()
@@ -111,7 +110,7 @@ func (j *Jodis) Rewatch() (<-chan struct{}, error) {
 		log.WarnErrorf(err, "jodis create node %s failed", j.path)
 		j.watching = false
 	} else {
-		log.Infof("jodis create node %s", j.path)
+		log.Warnf("jodis create node %s", j.path)
 		j.watching = true
 	}
 	return w, err

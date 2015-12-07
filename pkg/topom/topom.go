@@ -4,6 +4,7 @@
 package topom
 
 import (
+	"container/list"
 	"net"
 	"net/http"
 	"os"
@@ -13,46 +14,37 @@ import (
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/utils/atomic2"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/codis/pkg/utils/rpc"
+	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
 )
 
 type Topom struct {
-	mu sync.RWMutex
+	mu sync.Mutex
 
 	xauth string
 	model *models.Topom
 	store *models.Store
+	cache struct {
+		slots []*models.SlotMapping
+		group map[int]*models.Group
+		proxy map[string]*models.Proxy
+		hooks list.List
+	}
 
 	exit struct {
 		C chan struct{}
 	}
 
-	online bool
+	config *Config
 	closed bool
 
 	ladmin net.Listener
 	redisp *RedisPool
 
-	config *Config
-
-	mappings [models.MaxSlotNum]*models.SlotMapping
-
-	groups map[int]*models.Group
-	mlocks map[int]*atomic2.Int64
-
-	proxies map[string]*models.Proxy
-	clients map[string]*proxy.ApiClient
-
-	stats struct {
-		servers map[string]*RedisStats
-		proxies map[string]*ProxyStats
-	}
-	start sync.Once
+	registered bool
 
 	action struct {
 		interval atomic2.Int64
@@ -62,8 +54,14 @@ type Topom struct {
 			remain atomic2.Int64
 			failed atomic2.Bool
 		}
-		notify chan bool
+		executor atomic2.Int64
 	}
+
+	stats struct {
+		servers map[string]*RedisStats
+		proxies map[string]*ProxyStats
+	}
+	start sync.Once
 }
 
 var ErrClosedTopom = errors.New("use of closed topom")
@@ -73,7 +71,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 		return nil, errors.Errorf("invalid product name = %s", config.ProductName)
 	}
 	s := &Topom{config: config, store: models.NewStore(client, config.ProductName)}
-	s.xauth = rpc.NewXAuth(config.ProductName, config.ProductAuth)
+	s.xauth = rpc.NewXAuth(config.ProductName)
 	s.model = &models.Topom{
 		StartTime: time.Now().String(),
 	}
@@ -83,21 +81,13 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	if b, err := exec.Command("uname", "-a").Output(); err != nil {
 		log.WarnErrorf(err, "run command uname failed")
 	} else {
-		s.model.Uname = strings.TrimSpace(string(b))
+		s.model.Sys = strings.TrimSpace(string(b))
 	}
 
-	s.action.interval.Set(1000)
-	s.action.notify = make(chan bool, 1)
-
+	s.exit.C = make(chan struct{})
 	s.redisp = NewRedisPool(config.ProductAuth, time.Second*10)
 
-	s.exit.C = make(chan struct{})
-
-	s.groups = make(map[int]*models.Group)
-	s.mlocks = make(map[int]*atomic2.Int64)
-
-	s.proxies = make(map[string]*models.Proxy)
-	s.clients = make(map[string]*proxy.ApiClient)
+	s.action.interval.Set(1000)
 
 	s.stats.servers = make(map[string]*RedisStats)
 	s.stats.proxies = make(map[string]*ProxyStats)
@@ -107,7 +97,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 		return nil, err
 	}
 
-	log.Infof("[%p] create new topom:\n%s", s, s.model.Encode())
+	log.Warnf("create new topom:\n%s", s.model.Encode())
 
 	go s.serveAdmin()
 
@@ -128,52 +118,10 @@ func (s *Topom) setup() error {
 	}
 
 	if err := s.store.Acquire(s.model); err != nil {
-		log.ErrorErrorf(err, "[%p] acquire lock for %s failed", s, s.config.ProductName)
-		return errors.Errorf("store: acquire lock for %s failed", s.config.ProductName)
-	} else {
-		s.online = true
+		log.ErrorErrorf(err, "store: acquire lock of %s failed", s.config.ProductName)
+		return errors.Errorf("store: acquire lock of %s failed", s.config.ProductName)
 	}
-
-	for i := 0; i < len(s.mappings); i++ {
-		if m, err := s.store.LoadSlotMapping(i); err != nil {
-			log.ErrorErrorf(err, "[%p] load slot-[%d] failed", s, i)
-			return errors.Errorf("store: load slot-[%d] failed", i)
-		} else {
-			if m == nil {
-				m = &models.SlotMapping{Id: i}
-			}
-			s.mappings[i] = m
-		}
-	}
-
-	if glist, err := s.store.ListGroup(); err != nil {
-		log.ErrorErrorf(err, "[%p] list group failed", s)
-		return errors.Errorf("store: list group failed")
-	} else {
-		for _, g := range glist {
-			s.groups[g.Id] = g
-		}
-		for _, g := range glist {
-			for _, addr := range g.Servers {
-				s.stats.servers[addr] = nil
-			}
-		}
-	}
-
-	if plist, err := s.store.ListProxy(); err != nil {
-		log.ErrorErrorf(err, "[%p] list proxy failed", s)
-		return errors.Errorf("store: list proxy failed")
-	} else {
-		for _, p := range plist {
-			c := proxy.NewApiClient(p.AdminAddr)
-			c.SetXAuth(s.config.ProductName, s.config.ProductAuth, p.Token)
-			s.proxies[p.Token] = p
-			s.clients[p.Token] = c
-		}
-		for _, p := range plist {
-			s.stats.servers[p.Token] = nil
-		}
-	}
+	s.registered = true
 	return nil
 }
 
@@ -186,20 +134,24 @@ func (s *Topom) Close() error {
 	s.closed = true
 	close(s.exit.C)
 
-	s.ladmin.Close()
-	s.redisp.Close()
+	if s.ladmin != nil {
+		s.ladmin.Close()
+	}
+	if s.redisp != nil {
+		s.redisp.Close()
+	}
 
 	defer s.store.Close()
 
-	if !s.online {
+	if !s.registered {
 		return nil
 	}
-	if err := s.store.Release(false); err != nil {
-		log.ErrorErrorf(err, "[%p] release lock for %s failed", s, s.config.ProductName)
-		return errors.Errorf("store: release lock for %s failed", s.config.ProductName)
-	} else {
-		return nil
+
+	if err := s.store.Release(); err != nil {
+		log.ErrorErrorf(err, "store: release lock of %s failed", s.config.ProductName)
+		return errors.Errorf("store: release lock of %s failed", s.config.ProductName)
 	}
+	return nil
 }
 
 func (s *Topom) XAuth() string {
@@ -210,93 +162,105 @@ func (s *Topom) Model() *models.Topom {
 	return s.model
 }
 
-func (s *Topom) Stats() *Stats {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+func (s *Topom) newContext() (*context, error) {
+	if s.closed {
+		return nil, ErrClosedTopom
+	}
+	if err := s.reloadCache(); err != nil {
+		return nil, err
+	} else {
+		ctx := &context{}
+		ctx.slots = s.cache.slots
+		ctx.group = s.cache.group
+		ctx.proxy = s.cache.proxy
+		return ctx, nil
+	}
+}
+
+func (s *Topom) Stats() (*Stats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return nil, err
+	}
+
 	stats := &Stats{}
-	stats.Online = s.online
 	stats.Closed = s.closed
 
-	stats.Slots = s.getSlotMappings()
+	stats.Slots = ctx.slots
 
-	stats.Group.Models = s.getGroupModels()
-	stats.Group.Stats = make(map[string]*RedisStats)
-	for k, v := range s.stats.servers {
-		stats.Group.Stats[k] = v
-	}
+	stats.Group.Models = models.SortGroup(ctx.group)
+	stats.Group.Stats = s.stats.servers
 
-	stats.Proxy.Models = s.getProxyModels()
-	stats.Proxy.Stats = make(map[string]*ProxyStats)
-	for k, v := range s.stats.proxies {
-		stats.Proxy.Stats[k] = v
-	}
+	stats.Proxy.Models = models.SortProxy(ctx.proxy)
+	stats.Proxy.Stats = s.stats.proxies
 
-	stats.Action.Interval = s.action.interval.Get()
-	stats.Action.Disabled = s.action.disabled.Get()
-	stats.Action.Progress.Remain = s.action.progress.remain.Get()
-	stats.Action.Progress.Failed = s.action.progress.failed.Get()
-	return stats
+	stats.SlotAction.Interval = s.action.interval.Get()
+	stats.SlotAction.Disabled = s.action.disabled.Get()
+	stats.SlotAction.Progress.Remain = s.action.progress.remain.Get()
+	stats.SlotAction.Progress.Failed = s.action.progress.failed.Get()
+	stats.SlotAction.Executor = s.action.executor.Get()
+
+	return stats, nil
 }
 
 type Stats struct {
-	Online bool `json:"online"`
 	Closed bool `json:"closed"`
 
 	Slots []*models.SlotMapping `json:"slots"`
+
 	Group struct {
 		Models []*models.Group        `json:"models"`
 		Stats  map[string]*RedisStats `json:"stats"`
 	} `json:"group"`
+
 	Proxy struct {
 		Models []*models.Proxy        `json:"models"`
 		Stats  map[string]*ProxyStats `json:"stats"`
 	} `json:"proxy"`
 
-	Action struct {
+	SlotAction struct {
 		Interval int64 `json:"interval"`
 		Disabled bool  `json:"disabled"`
 
 		Progress struct {
 			Remain int64 `json:"remain"`
 			Failed bool  `json:"failed"`
-		} `json:"migration"`
-	} `json:"action"`
+		} `json:"progress"`
+
+		Executor int64 `json:"executor"`
+	} `json:"slot_action"`
 }
 
 func (s *Topom) Config() *Config {
 	return s.config
 }
 
-func (s *Topom) IsOnline() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.online && !s.closed
-}
-
 func (s *Topom) IsClosed() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.closed
 }
 
-func (s *Topom) GetActionInterval() int {
+func (s *Topom) GetSlotActionInterval() int {
 	return int(s.action.interval.Get())
 }
 
-func (s *Topom) SetActionInterval(ms int) {
+func (s *Topom) SetSlotActionInterval(ms int) {
 	ms = utils.MaxInt(ms, 0)
 	ms = utils.MinInt(ms, 1000)
 	s.action.interval.Set(int64(ms))
-	log.Infof("[%p] set action interval = %d", s, ms)
+	log.Warnf("set action interval = %d", ms)
 }
 
-func (s *Topom) GetActionDisabled() bool {
+func (s *Topom) GetSlotActionDisabled() bool {
 	return s.action.disabled.Get()
 }
 
-func (s *Topom) SetActionDisabled(value bool) {
+func (s *Topom) SetSlotActionDisabled(value bool) {
 	s.action.disabled.Set(value)
-	log.Infof("[%p] set action disabled = %t", s, value)
+	log.Warnf("set action disabled = %t", value)
 }
 
 func (s *Topom) serveAdmin() {
@@ -305,7 +269,7 @@ func (s *Topom) serveAdmin() {
 	}
 	defer s.Close()
 
-	log.Infof("[%p] admin start service on %s", s, s.ladmin.Addr())
+	log.Warnf("admin start service on %s", s.ladmin.Addr())
 
 	eh := make(chan error, 1)
 	go func(l net.Listener) {
@@ -317,9 +281,9 @@ func (s *Topom) serveAdmin() {
 
 	select {
 	case <-s.exit.C:
-		log.Infof("[%p] admin shutdown", s)
+		log.Warnf("admin shutdown")
 	case err := <-eh:
-		log.ErrorErrorf(err, "[%p] admin exit on error", s)
+		log.ErrorErrorf(err, "admin exit on error")
 	}
 }
 
@@ -327,8 +291,8 @@ func (s *Topom) StartDaemonRoutines() {
 	s.start.Do(func() {
 		go func() {
 			for !s.IsClosed() {
-				if wg := s.RefreshRedisStats(time.Second * 5); wg != nil {
-					wg.Wait()
+				if w, _ := s.RefreshRedisStats(time.Second * 5); w != nil {
+					w.Wait()
 				}
 				time.Sleep(time.Second)
 			}
@@ -336,33 +300,31 @@ func (s *Topom) StartDaemonRoutines() {
 
 		go func() {
 			for !s.IsClosed() {
-				if wg := s.RefreshProxyStats(time.Second * 5); wg != nil {
-					wg.Wait()
+				if w, _ := s.RefreshProxyStats(time.Second * 5); w != nil {
+					w.Wait()
 				}
 				time.Sleep(time.Second)
 			}
 		}()
 
 		go func() {
-			var ticker = time.NewTicker(time.Second)
-			defer ticker.Stop()
 			for !s.IsClosed() {
-				var slotId int = -1
-				if !s.GetActionDisabled() {
-					slotId = s.NextActionSlotId()
-				}
-				if slotId < 0 {
-					select {
-					case <-s.exit.C:
-						return
-					case <-ticker.C:
-					case <-s.action.notify:
-					}
-				} else if err := s.ProcessAction(slotId); err != nil {
-					log.WarnErrorf(err, "[%p] action on slot-[%d] failed", s, slotId)
-					time.Sleep(time.Second * 3)
+				if err := s.ProcessSlotAction(); err != nil {
+					log.WarnErrorf(err, "process slot action failed")
+					time.Sleep(time.Second * 5)
 				} else {
-					log.Infof("[%p] action on slot-[%d] completed", s, slotId)
+					time.Sleep(time.Second)
+				}
+			}
+		}()
+
+		go func() {
+			for !s.IsClosed() {
+				if err := s.ProcessSyncAction(); err != nil {
+					log.WarnErrorf(err, "process sync action failed")
+					time.Sleep(time.Second * 5)
+				} else {
+					time.Sleep(time.Second)
 				}
 			}
 		}()

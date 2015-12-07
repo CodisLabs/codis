@@ -60,23 +60,19 @@ func New(config *Config) (*Proxy, error) {
 	if b, err := exec.Command("uname", "-a").Output(); err != nil {
 		log.WarnErrorf(err, "run command uname failed")
 	} else {
-		s.model.Uname = strings.TrimSpace(string(b))
+		s.model.Sys = strings.TrimSpace(string(b))
 	}
 
 	s.router = router.NewWithAuth(config.ProductAuth)
 	s.init.C = make(chan struct{})
 	s.exit.C = make(chan struct{})
 
-	if config.JodisAddr != "" {
-		s.jodis = NewJodis(config.JodisAddr, config.JodisTimeout, s.model)
-	}
-
 	if err := s.setup(); err != nil {
 		s.Close()
 		return nil, err
 	}
 
-	log.Infof("[%p] create new proxy:\n%s", s, s.model.Encode())
+	log.Warnf("[%p] create new proxy:\n%s", s, s.model.Encode())
 
 	go s.serveAdmin()
 	go s.serveProxy()
@@ -125,6 +121,10 @@ func (s *Proxy) Start() error {
 	}
 	s.online = true
 	close(s.init.C)
+
+	if s.jodis == nil && s.config.JodisAddr != "" {
+		s.jodis = NewJodis(s.config.JodisAddr, s.config.JodisTimeout, s.model)
+	}
 	return nil
 }
 
@@ -140,7 +140,6 @@ func (s *Proxy) Close() error {
 	if s.jodis != nil {
 		s.jodis.Close()
 	}
-
 	if s.ladmin != nil {
 		s.ladmin.Close()
 	}
@@ -219,7 +218,7 @@ func (s *Proxy) serveAdmin() {
 	}
 	defer s.Close()
 
-	log.Infof("[%p] admin start service on %s", s, s.ladmin.Addr())
+	log.Warnf("[%p] admin start service on %s", s, s.ladmin.Addr())
 
 	eh := make(chan error, 1)
 	go func(l net.Listener) {
@@ -231,7 +230,7 @@ func (s *Proxy) serveAdmin() {
 
 	select {
 	case <-s.exit.C:
-		log.Infof("[%p] admin shutdown", s)
+		log.Warnf("[%p] admin shutdown", s)
 	case err := <-eh:
 		log.ErrorErrorf(err, "[%p] admin exit on error", s)
 	}
@@ -249,7 +248,7 @@ func (s *Proxy) serveProxy() {
 	case <-s.init.C:
 	}
 
-	log.Infof("[%p] proxy start service on %s", s, s.lproxy.Addr())
+	log.Warnf("[%p] proxy start service on %s", s, s.lproxy.Addr())
 
 	ch := make(chan net.Conn, 4096)
 	go func() {
@@ -280,7 +279,7 @@ func (s *Proxy) serveProxy() {
 
 	select {
 	case <-s.exit.C:
-		log.Infof("[%p] proxy shutdown", s)
+		log.Warnf("[%p] proxy shutdown", s)
 	case err := <-eh:
 		log.ErrorErrorf(err, "[%p] proxy exit on error", s)
 	}

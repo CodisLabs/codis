@@ -6,68 +6,82 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 
+	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
 type cmdProxy struct {
-	address string
-	product struct {
-		name string
-		auth string
-	}
+	addr string
+	auth string
 }
 
 func (t *cmdProxy) Main(d map[string]interface{}) {
-	t.address = utils.ArgumentMust(d, "--proxy-admin")
-	t.product.name, _ = utils.Argument(d, "--product-name")
-	t.product.auth, _ = utils.Argument(d, "--product-auth")
+	t.addr = utils.ArgumentMust(d, "--proxy")
+	t.auth, _ = d["--auth"].(string)
 
-	if t.product.name != "" {
-		if !utils.IsValidProduct(t.product.name) {
-			log.Panicf("invalid product name = %s", t.product.name)
-		}
+	switch {
+	default:
+		t.handleOverview(d)
+	case d["--start"].(bool):
+		t.handleStart(d)
+	case d["--shutdown"].(bool):
+		t.handleShutdown(d)
+	case d["--log-level"] != nil:
+		t.handleLogLevel(d)
+	case d["--fillslots"] != nil:
+		t.handleFillSlots(d)
+	}
+}
+
+func (t *cmdProxy) newProxyClient(xauth bool) *proxy.ApiClient {
+	c := proxy.NewApiClient(t.addr)
+
+	if !xauth {
+		return c
 	}
 
+	log.Debugf("call rpc model to proxy %s", t.addr)
+	p, err := c.Model()
+	if err != nil {
+		log.PanicErrorf(err, "call rpc model to proxy %s failed", t.addr)
+	}
+	log.Debugf("call rpc model OK")
+
+	c.SetXAuth(p.ProductName, t.auth, p.Token)
+
+	log.Debugf("call rpc xping to proxy %s", t.addr)
+	if err := c.XPing(); err != nil {
+		log.PanicErrorf(err, "call rpc xping failed")
+	}
+	log.Debugf("call rpc xping OK")
+
+	return c
+}
+
+func (t *cmdProxy) handleOverview(d map[string]interface{}) {
+	c := t.newProxyClient(false)
+
+	log.Debugf("call rpc overview to proxy %s", t.addr)
+	o, err := c.Overview()
+	if err != nil {
+		log.PanicErrorf(err, "call rpc overview to proxy %s failed", t.addr)
+	}
+	log.Debugf("call rpc overview OK")
+
 	var cmd string
-	for _, s := range []string{"overview", "config", "model", "slots", "stats", "shutdown"} {
+	for _, s := range []string{"config", "model", "slots", "stats"} {
 		if d[s].(bool) {
 			cmd = s
 		}
 	}
 
-	log.Debugf("args.command = %s", cmd)
-	log.Debugf("args.address = %s", t.address)
-	log.Debugf("args.product.name = %s", t.product.name)
-	log.Debugf("args.product.auth = %s", t.product.auth)
-
-	switch cmd {
-	default:
-		t.handleOverview(cmd)
-	case "shutdown":
-		t.handleShutdown()
-	}
-}
-
-func (t *cmdProxy) handleOverview(cmd string) {
-	client := proxy.NewApiClient(t.address)
-
-	log.Debugf("call rpc overview to proxy %s", t.address)
-	o, err := client.Overview()
-	if err != nil {
-		log.PanicErrorf(err, "call rpc overview to proxy %s failed", t.address)
-	}
-	log.Debugf("call rpc overview OK")
-
 	var obj interface{}
 	switch cmd {
 	default:
-		o.Slots = nil
-		o.Stats = nil
-		obj = o
-	case "overview":
 		obj = o
 	case "config":
 		obj = o.Config
@@ -86,36 +100,71 @@ func (t *cmdProxy) handleOverview(cmd string) {
 	fmt.Println(string(b))
 }
 
-func (t *cmdProxy) handleShutdown() {
-	if t.product.name == "" {
-		log.Panicf("invalid product name")
+func (t *cmdProxy) handleStart(d map[string]interface{}) {
+	c := t.newProxyClient(true)
+
+	log.Debugf("call rpc start to proxy %s", t.addr)
+	if err := c.Start(); err != nil {
+		log.PanicErrorf(err, "call rpc start to proxy %s failed", t.addr)
+	}
+	log.Debugf("call rpc start to proxy OK")
+}
+
+func (t *cmdProxy) handleLogLevel(d map[string]interface{}) {
+	c := t.newProxyClient(true)
+
+	s := utils.ArgumentMust(d, "--log-level")
+
+	var v log.LogLevel
+	if !v.ParseFromString(s) {
+		log.Panicf("option --log-level = %s", s)
 	}
 
-	client := proxy.NewApiClient(t.address)
+	log.Debugf("call rpc loglevel to proxy %s", t.addr)
+	if err := c.LogLevel(v); err != nil {
+		log.PanicErrorf(err, "call rpc loglevel to proxy %s failed", t.addr)
+	}
+	log.Debugf("call rpc loglevel OK")
+}
 
-	log.Debugf("call rpc model to proxy %s", t.address)
-	p, err := client.Model()
+func (t *cmdProxy) handleFillSlots(d map[string]interface{}) {
+	c := t.newProxyClient(true)
+
+	b, err := ioutil.ReadFile(utils.ArgumentMust(d, "--fillslots"))
 	if err != nil {
-		log.PanicErrorf(err, "call rpc model to proxy %s failed", t.address)
-	}
-	log.Debugf("call rpc model OK")
-	log.Debugf("proxy model =\n%s", p.Encode())
-
-	if t.product.name != p.ProductName {
-		log.Panicf("wrong product name, should be = %s", p.ProductName)
+		log.PanicErrorf(err, "load slots from file failed")
 	}
 
-	client.SetXAuth(p.ProductName, t.product.auth, p.Token)
-
-	log.Debugf("call rpc xping to proxy %s", t.address)
-	if err := client.XPing(); err != nil {
-		log.PanicErrorf(err, "call rpc xping failed")
+	var slots []*models.Slot
+	if err := json.Unmarshal(b, &slots); err != nil {
+		log.PanicErrorf(err, "decode slots from json failed")
 	}
-	log.Debugf("call rpc xping OK")
 
-	log.Debugf("call rpc shutdown to proxy %s", t.address)
-	if err := client.Shutdown(); err != nil {
-		log.PanicErrorf(err, "call rpc shutdown failed")
+	for _, m := range slots {
+		if m.Id < 0 || m.Id >= models.MaxSlotNum {
+			log.Panicf("invalid slot id = %d", m.Id)
+		}
+	}
+
+	if d["--locked"].(bool) {
+		for _, m := range slots {
+			m.Locked = true
+		}
+	}
+
+	log.Debugf("call rpc fillslots to proxy %s", t.addr)
+	if err := c.FillSlots(slots...); err != nil {
+		log.PanicErrorf(err, "call rpc fillslots to proxy %s failed", t.addr)
+	}
+	log.Debugf("call rpc fillslots OK")
+}
+
+func (t *cmdProxy) handleShutdown(d map[string]interface{}) {
+	c := t.newProxyClient(true)
+
+	log.Debugf("call rpc shutdown to proxy %s", t.addr)
+	if err := c.Shutdown(); err != nil {
+		log.PanicErrorf(err, "call rpc shutdown to proxy %s failed", t.addr)
 	}
 	log.Debugf("call rpc shutdown OK")
 }

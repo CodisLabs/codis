@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/wandoulabs/codis",
-	"GoVersion": "go1.5.1",
+	"GoVersion": "go1.5.2",
 	"Packages": [
 		"./..."
 	],
@@ -17,18 +17,18 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
-			"Comment": "v2.2.0-274-gd44b79c",
-			"Rev": "d44b79c3c9cd8641db8c821fb05ea03e73da94e0"
+			"Comment": "v2.2.2-1-g09b81ba",
+			"Rev": "09b81bad15e96e05dafd0494a8c165a13718c350"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
-			"Comment": "v2.2.0-274-gd44b79c",
-			"Rev": "d44b79c3c9cd8641db8c821fb05ea03e73da94e0"
+			"Comment": "v2.2.2-1-g09b81ba",
+			"Rev": "09b81bad15e96e05dafd0494a8c165a13718c350"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v2.2.0-274-gd44b79c",
-			"Rev": "d44b79c3c9cd8641db8c821fb05ea03e73da94e0"
+			"Comment": "v2.2.2-1-g09b81ba",
+			"Rev": "09b81bad15e96e05dafd0494a8c165a13718c350"
 		},
 		{
 			"ImportPath": "github.com/docopt/docopt-go",
@@ -37,16 +37,16 @@
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/internal",
-			"Rev": "3d0709611e0e29c05a4e925e8447b065abb4eef6"
+			"Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Rev": "3d0709611e0e29c05a4e925e8447b065abb4eef6"
+			"Rev": "6ece6e0a09f28cc399b21550cbf37ab39ba63cce"
 		},
 		{
 			"ImportPath": "github.com/go-martini/martini",
-			"Comment": "v1.0-166-g9987fc5",
-			"Rev": "9987fc59f060a063247d22472c2fb48654bac5f6"
+			"Comment": "v1.0-169-g15a4762",
+			"Rev": "15a47622d6a9b3e6a1eaca2681e4850f612471ea"
 		},
 		{
 			"ImportPath": "github.com/martini-contrib/binding",
@@ -66,15 +66,15 @@
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
-			"Rev": "913027ed60abbe2436b35cf960193b06b00105cf"
+			"Rev": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
-			"Rev": "9d93fad9232ca1ef0b48c13aa3d04f9ec585ce81"
+			"Rev": "357a44b2b13e2711a45e30016508134101477610"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
-			"Rev": "2cba614e8ff920c60240d2677bc019af32ee04e5"
+			"Rev": "d5cd7348bfebdf7dbb6dbb18fa488525f9024293"
 		}
 	]
 }

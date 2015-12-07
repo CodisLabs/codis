@@ -11,8 +11,8 @@ mkdir -p log
 
 case "$1" in
 dashboard)
-    docker rm -f      "Demo2-D28080" &> /dev/null
-    docker run --name "Demo2-D28080" -d \
+    docker rm -f      "Demo3-D28080" &> /dev/null
+    docker run --name "Demo3-D28080" -d \
         --read-only -v `realpath ../config/dashboard.toml`:/codis/dashboard.toml \
                     -v `realpath log`:/codis/log \
         -p 28080:18080 \
@@ -21,11 +21,11 @@ dashboard)
     ;;
 
 proxy)
-    docker rm -f      "Demo2-P21000" &> /dev/null
-    docker run --name "Demo2-P21000" -d \
+    docker rm -f      "Demo3-P21000" &> /dev/null
+    docker run --name "Demo3-P21000" -d \
         --read-only -v `realpath ../config/proxy.toml`:/codis/proxy.toml \
                     -v `realpath log`:/codis/log \
-        -p 29000:19000 -p 21000:11000 \
+        -p 29000:19000 -p 21080:11080 \
         codis-image \
         codis-proxy -l log/proxy.log -c proxy.toml --host-admin ${hostip}:29000 --host-proxy ${hostip}:21000
     ;;
@@ -33,8 +33,8 @@ proxy)
 server)
     for ((i=0;i<4;i++)); do
         let port="26379 + i"
-        docker rm -f      "Demo2-S${port}" &> /dev/null
-        docker run --name "Demo2-S${port}" -d \
+        docker rm -f      "Demo3-S${port}" &> /dev/null
+        docker run --name "Demo3-S${port}" -d \
             -v `realpath log`:/codis/log \
             -p $port:6379 \
             codis-image \
@@ -43,11 +43,11 @@ server)
     ;;
 
 cleanup)
-    docker rm -f      "Demo2-D28080" &> /dev/null
-    docker rm -f      "Demo2-P21000" &> /dev/null
+    docker rm -f      "Demo3-D28080" &> /dev/null
+    docker rm -f      "Demo3-P21000" &> /dev/null
     for ((i=0;i<4;i++)); do
         let port="26379 + i"
-        docker rm -f      "Demo2-S${port}" &> /dev/null
+        docker rm -f      "Demo3-S${port}" &> /dev/null
     done
     ;;
 

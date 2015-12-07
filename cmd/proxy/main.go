@@ -24,7 +24,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--ulimit=NLIMIT] [--host-admin=ADDR] [--host-proxy=ADDR]
+	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--ulimit=NLIMIT]
 	codis-proxy  --version
 
 Options:
@@ -54,21 +54,11 @@ Options:
 			log.StdLog = log.New(w, "")
 		}
 	}
-	log.SetLevel(log.LEVEL_INFO)
+	log.SetLevel(log.LevelInfo)
 
 	if s, ok := utils.Argument(d, "--log-level"); ok {
-		var level = strings.ToUpper(s)
-		switch s {
-		case "ERROR":
-			log.SetLevel(log.LEVEL_ERROR)
-		case "DEBUG":
-			log.SetLevel(log.LEVEL_DEBUG)
-		case "WARN", "WARNING":
-			log.SetLevel(log.LEVEL_WARN)
-		case "INFO":
-			log.SetLevel(log.LEVEL_INFO)
-		default:
-			log.Panicf("invalid option --log-level = '%s'", level)
+		if !log.SetLevelString(s) {
+			log.Panicf("option --log-level = %s", s)
 		}
 	}
 
@@ -87,7 +77,7 @@ Options:
 	} else {
 		runtime.GOMAXPROCS(runtime.NumCPU())
 	}
-	log.Infof("set ncpu = %d", runtime.GOMAXPROCS(0))
+	log.Warnf("set ncpu = %d", runtime.GOMAXPROCS(0))
 
 	config := proxy.NewDefaultConfig()
 	if s, ok := utils.Argument(d, "--config"); ok {
@@ -97,11 +87,11 @@ Options:
 	}
 	if s, ok := utils.Argument(d, "--host-admin"); ok {
 		config.HostAdmin = s
-		log.Infof("option --host-admin = %s", s)
+		log.Warnf("option --host-admin = %s", s)
 	}
 	if s, ok := utils.Argument(d, "--host-proxy"); ok {
 		config.HostProxy = s
-		log.Infof("option --host-proxy = %s", s)
+		log.Warnf("option --host-proxy = %s", s)
 	}
 
 	s, err := proxy.New(config)
@@ -110,7 +100,7 @@ Options:
 	}
 	defer s.Close()
 
-	log.Infof("create proxy with config\n%s\n", config)
+	log.Warnf("create proxy with config\n%s\n", config)
 
 	go func() {
 		defer s.Close()
@@ -118,11 +108,11 @@ Options:
 		signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM)
 
 		sig := <-c
-		log.Infof("[%p] proxy receive signal = '%v'", s, sig)
+		log.Warnf("[%p] proxy receive signal = '%v'", s, sig)
 	}()
 
 	for !s.IsClosed() && !s.IsOnline() {
-		log.Infof("[%p] proxy waiting online ...", s)
+		log.Warnf("[%p] proxy waiting online ...", s)
 		time.Sleep(time.Second)
 	}
 
@@ -130,5 +120,5 @@ Options:
 		time.Sleep(time.Second)
 	}
 
-	log.Infof("[%p] proxy exiting ...", s)
+	log.Warnf("[%p] proxy exiting ...", s)
 }

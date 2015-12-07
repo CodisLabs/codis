@@ -16,6 +16,8 @@ import (
 	"github.com/wandoulabs/codis/pkg/utils/log"
 )
 
+const CoordinatorName = "etcd"
+
 var ErrClosedEtcdClient = errors.New("use of closed etcd client")
 
 type EtcdClient struct {
@@ -180,6 +182,7 @@ func (c *EtcdClient) Read(path string) ([]byte, error) {
 	}
 	cntx, canceller := c.contextWithTimeout()
 	defer canceller()
+	log.Debugf("etcd read node %s", path)
 	r, err := c.kapi.Get(cntx, path, nil)
 	if err != nil && !isErrNoNode(err) {
 		return nil, errors.Trace(err)
@@ -198,6 +201,7 @@ func (c *EtcdClient) List(path string) ([]string, error) {
 	}
 	cntx, canceller := c.contextWithTimeout()
 	defer canceller()
+	log.Debugf("etcd list node %s", path)
 	r, err := c.kapi.Get(cntx, path, nil)
 	if err != nil && !isErrNoNode(err) {
 		return nil, errors.Trace(err)

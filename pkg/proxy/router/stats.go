@@ -4,62 +4,51 @@
 package router
 
 import (
-	"encoding/json"
 	"sync"
 
-	"github.com/wandoulabs/codis/pkg/utils/atomic2"
+	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
 )
 
-type OpStats struct {
+type opStats struct {
 	opstr string
 	calls atomic2.Int64
 	usecs atomic2.Int64
 }
 
-func (s *OpStats) OpStr() string {
-	return s.opstr
-}
-
-func (s *OpStats) Calls() int64 {
-	return s.calls.Get()
-}
-
-func (s *OpStats) USecs() int64 {
-	return s.usecs.Get()
-}
-
-func (s *OpStats) MarshalJSON() ([]byte, error) {
-	var m = make(map[string]interface{})
-	var calls = s.calls.Get()
-	var usecs = s.usecs.Get()
-
-	var perusecs int64 = 0
-	if calls != 0 {
-		perusecs = usecs / calls
+func (s *opStats) OpStats() *OpStats {
+	o := &OpStats{
+		OpStr: s.opstr,
+		Calls: s.calls.Get(),
+		Usecs: s.usecs.Get(),
 	}
+	if o.Calls != 0 {
+		o.UsecsPercall = o.Usecs / o.Calls
+	}
+	return o
+}
 
-	m["cmd"] = s.opstr
-	m["calls"] = calls
-	m["usecs"] = usecs
-	m["usecs_percall"] = perusecs
-	return json.Marshal(m)
+type OpStats struct {
+	OpStr        string `json:"opstr"`
+	Calls        int64  `json:"calls"`
+	Usecs        int64  `json:"usecs"`
+	UsecsPercall int64  `json:"usecs_percall"`
 }
 
 var cmdstats struct {
 	total atomic2.Int64
-	opmap map[string]*OpStats
+	opmap map[string]*opStats
 	rwlck sync.RWMutex
 }
 
 func init() {
-	cmdstats.opmap = make(map[string]*OpStats)
+	cmdstats.opmap = make(map[string]*opStats)
 }
 
 func OpsTotal() int64 {
 	return cmdstats.total.Get()
 }
 
-func GetOpStats(opstr string, create bool) *OpStats {
+func getOpStats(opstr string, create bool) *opStats {
 	cmdstats.rwlck.RLock()
 	s := cmdstats.opmap[opstr]
 	cmdstats.rwlck.RUnlock()
@@ -71,48 +60,48 @@ func GetOpStats(opstr string, create bool) *OpStats {
 	cmdstats.rwlck.Lock()
 	s = cmdstats.opmap[opstr]
 	if s == nil {
-		s = &OpStats{opstr: opstr}
+		s = &opStats{opstr: opstr}
 		cmdstats.opmap[opstr] = s
 	}
 	cmdstats.rwlck.Unlock()
 	return s
 }
 
-func GetAllOpStats() []*OpStats {
+func GetOpStatsAll() []*OpStats {
 	var all = make([]*OpStats, 0, 128)
 	cmdstats.rwlck.RLock()
 	for _, s := range cmdstats.opmap {
-		all = append(all, s)
+		all = append(all, s.OpStats())
 	}
 	cmdstats.rwlck.RUnlock()
 	return all
 }
 
 func incrOpStats(opstr string, usecs int64) {
-	s := GetOpStats(opstr, true)
+	s := getOpStats(opstr, true)
 	s.calls.Incr()
 	s.usecs.Add(usecs)
 	cmdstats.total.Incr()
 }
 
 var sessions struct {
-	total   atomic2.Int64
-	actived atomic2.Int64
+	total atomic2.Int64
+	alive atomic2.Int64
 }
 
 func incrSessions() {
 	sessions.total.Incr()
-	sessions.actived.Incr()
+	sessions.alive.Incr()
 }
 
 func decrSessions() {
-	sessions.actived.Decr()
+	sessions.alive.Decr()
 }
 
 func SessionsTotal() int64 {
 	return sessions.total.Get()
 }
 
-func SessionsActived() int64 {
-	return sessions.actived.Get()
+func SessionsAlive() int64 {
+	return sessions.alive.Get()
 }
