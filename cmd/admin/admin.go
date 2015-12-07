@@ -400,7 +400,7 @@ func (t *cmdAdmin) handleConfigRestore(d map[string]interface{}) {
 
 	for _, p := range config.Proxy {
 		if err := store.UpdateProxy(p); err != nil {
-			log.PanicErrorf(err, "restore proxy-%04d failed", p.Id)
+			log.PanicErrorf(err, "restore proxy-%s failed", p.Token)
 		}
 	}
 

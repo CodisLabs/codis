@@ -352,15 +352,13 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 					linked := stats.Stats["master_link_status"] == "up"
 					if i == 0 {
 						if master != "" {
-							fmt.Printf("[-] %s -> %s", addr, master)
+							fmt.Printf("[X] %s -> %s", addr, master)
 						} else {
 							fmt.Printf("[+] %s", addr)
 						}
 					} else {
-						if master != g.Servers[0].Addr {
-							fmt.Printf("[-] %s -> %s", addr, master)
-						} else if !linked {
-							fmt.Printf("[-] %s -> %s", addr, master)
+						if master != g.Servers[0].Addr || !linked {
+							fmt.Printf("[X] %s -> %s", addr, master)
 						} else {
 							fmt.Printf("[+] %s", addr)
 						}
