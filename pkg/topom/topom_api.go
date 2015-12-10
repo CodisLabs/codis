@@ -4,7 +4,6 @@
 package topom
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -63,20 +62,20 @@ func newApiServer(t *Topom) http.Handler {
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Group("/proxy", func(r martini.Router) {
-			r.Put("/create/:xauth/:xaddr", api.CreateProxy)
+			r.Put("/create/:xauth/:addr", api.CreateProxy)
 			r.Put("/reinit/:xauth/:token", api.ReinitProxy)
 			r.Put("/remove/:xauth/:token/:force", api.RemoveProxy)
 		})
 		r.Group("/group", func(r martini.Router) {
 			r.Put("/create/:xauth/:gid", api.CreateGroup)
 			r.Put("/remove/:xauth/:gid", api.RemoveGroup)
-			r.Put("/add/:xauth/:xaddr/:gid", api.GroupAddServer)
-			r.Put("/del/:xauth/:xaddr/:gid", api.GroupDelServer)
-			r.Put("/promote/:xauth/:xaddr/:gid", api.GroupPromoteServer)
+			r.Put("/add/:xauth/:gid/:addr", api.GroupAddServer)
+			r.Put("/del/:xauth/:gid/:addr", api.GroupDelServer)
+			r.Put("/promote/:xauth/:gid/:addr", api.GroupPromoteServer)
 			r.Put("/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
 			r.Group("/action", func(r martini.Router) {
-				r.Put("/create/:xauth/:xaddr", api.SyncCreateAction)
-				r.Put("/remove/:xauth/:xaddr", api.SyncRemoveAction)
+				r.Put("/create/:xauth/:addr", api.SyncCreateAction)
+				r.Put("/remove/:xauth/:addr", api.SyncRemoveAction)
 			})
 		})
 		r.Group("/slots", func(r martini.Router) {
@@ -154,16 +153,12 @@ func (s *apiServer) Stats(params martini.Params) (int, string) {
 	}
 }
 
-func (s *apiServer) decodeXAddr(params martini.Params) (string, error) {
-	xaddr := params["xaddr"]
-	if xaddr == "" {
-		return "", errors.New("missing xaddr")
+func (s *apiServer) parseAddr(params martini.Params) (string, error) {
+	addr := params["addr"]
+	if addr == "" {
+		return "", errors.New("missing addr")
 	}
-	b, err := base64.StdEncoding.DecodeString(xaddr)
-	if err != nil {
-		return "", errors.New("invalid xaddr")
-	}
-	return string(b), nil
+	return addr, nil
 }
 
 func (s *apiServer) parseToken(params martini.Params) (string, error) {
@@ -190,7 +185,7 @@ func (s *apiServer) CreateProxy(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -273,7 +268,7 @@ func (s *apiServer) GroupAddServer(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -302,7 +297,7 @@ func (s *apiServer) GroupDelServer(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -321,7 +316,7 @@ func (s *apiServer) GroupPromoteServer(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -351,7 +346,7 @@ func (s *apiServer) SyncCreateAction(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -366,7 +361,7 @@ func (s *apiServer) SyncRemoveAction(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -508,10 +503,6 @@ func (c *ApiClient) encodeURL(format string, args ...interface{}) string {
 	return rpc.EncodeURL(c.addr, format, args...)
 }
 
-func (c *ApiClient) encodeXAddr(addr string) string {
-	return base64.StdEncoding.EncodeToString([]byte(addr))
-}
-
 func (c *ApiClient) Overview() (*Overview, error) {
 	url := c.encodeURL("/topom")
 	var o = &Overview{}
@@ -555,7 +546,7 @@ func (c *ApiClient) LogLevel(level log.LogLevel) error {
 }
 
 func (c *ApiClient) CreateProxy(addr string) error {
-	url := c.encodeURL("/api/topom/proxy/create/%s/%s", c.xauth, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/proxy/create/%s/%s", c.xauth, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -584,17 +575,17 @@ func (c *ApiClient) RemoveGroup(gid int) error {
 }
 
 func (c *ApiClient) GroupAddServer(gid int, addr string) error {
-	url := c.encodeURL("/api/topom/group/add/%s/%s/%d", c.xauth, c.encodeXAddr(addr), gid)
+	url := c.encodeURL("/api/topom/group/add/%s/%d/%s", c.xauth, gid, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) GroupDelServer(gid int, addr string) error {
-	url := c.encodeURL("/api/topom/group/del/%s/%s/%d", c.xauth, c.encodeXAddr(addr), gid)
+	url := c.encodeURL("/api/topom/group/del/%s/%d/%s", c.xauth, gid, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) GroupPromoteServer(gid int, addr string) error {
-	url := c.encodeURL("/api/topom/group/promote/%s/%s/%d", c.xauth, c.encodeXAddr(addr), gid)
+	url := c.encodeURL("/api/topom/group/promote/%s/%d/%s", c.xauth, gid, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -604,12 +595,12 @@ func (c *ApiClient) GroupPromoteCommit(gid int) error {
 }
 
 func (c *ApiClient) SyncCreateAction(addr string) error {
-	url := c.encodeURL("/api/topom/group/action/create/%s/%s", c.xauth, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/group/action/create/%s/%s", c.xauth, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) SyncRemoveAction(addr string) error {
-	url := c.encodeURL("/api/topom/group/action/remove/%s/%s", c.xauth, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/group/action/remove/%s/%s", c.xauth, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

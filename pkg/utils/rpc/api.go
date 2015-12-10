@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -192,6 +193,10 @@ func ApiResponseJson(v interface{}) (int, string) {
 	}
 }
 
-func EncodeURL(addr string, format string, args ...interface{}) string {
-	return "http://" + addr + fmt.Sprintf(format, args...)
+func EncodeURL(host string, format string, args ...interface{}) string {
+	var u url.URL
+	u.Scheme = "http"
+	u.Host = host
+	u.Path = fmt.Sprintf(format, args...)
+	return u.String()
 }
