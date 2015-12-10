@@ -13,6 +13,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/go-martini/martini"
+	"github.com/martini-contrib/gzip"
 	"github.com/martini-contrib/render"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -44,6 +45,10 @@ func newApiServer(t *Topom) http.Handler {
 			log.Warnf("[%p] API call %s from %s [%s]", t, path, remoteAddr, headerAddr)
 		}
 		c.Next()
+	})
+	m.Use(gzip.All())
+	m.Use(func(c martini.Context, w http.ResponseWriter) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	})
 
 	api := &apiServer{topom: t}
