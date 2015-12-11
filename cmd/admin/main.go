@@ -20,6 +20,7 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR           [config|model|stats|slots|group|proxy]
 	codis-admin [-v] --dashboard=ADDR            --shutdown
 	codis-admin [-v] --dashboard=ADDR            --log-level=LEVEL
+	codis-admin [-v] --dashboard=ADDR            --dump-slots
 	codis-admin [-v] --dashboard=ADDR            --list-proxy
 	codis-admin [-v] --dashboard=ADDR            --create-proxy   --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --remove-proxy  (--addr=ADDR|--token=TOKEN|--pid=ID) [--force]

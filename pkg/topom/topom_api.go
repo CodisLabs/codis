@@ -64,6 +64,7 @@ func newApiServer(t *Topom) http.Handler {
 		r.Get("/model", api.Model)
 		r.Get("/xping/:xauth", api.XPing)
 		r.Get("/stats/:xauth", api.Stats)
+		r.Get("/slots/:xauth", api.Slots)
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Group("/proxy", func(r martini.Router) {
@@ -155,6 +156,17 @@ func (s *apiServer) Stats(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson(stats)
+	}
+}
+
+func (s *apiServer) Slots(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if slots, err := s.topom.Slots(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson(slots)
 	}
 }
 
@@ -538,6 +550,15 @@ func (c *ApiClient) Stats() (*Stats, error) {
 		return nil, err
 	}
 	return stats, nil
+}
+
+func (c *ApiClient) Slots() ([]*models.Slot, error) {
+	url := c.encodeURL("/api/topom/slots/%s", c.xauth)
+	slots := []*models.Slot{}
+	if err := rpc.ApiGetJson(url, &slots); err != nil {
+		return nil, err
+	}
+	return slots, nil
 }
 
 func (c *ApiClient) Shutdown() error {

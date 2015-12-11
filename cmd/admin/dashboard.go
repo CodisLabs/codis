@@ -91,7 +91,7 @@ func (t *cmdDashboard) handleOverview(d map[string]interface{}) {
 	log.Debugf("call rpc overview OK")
 
 	var cmd string
-	for _, s := range []string{"config", "model", "slots", "stats", "group", "proxy", "--list-group", "--list-proxy"} {
+	for _, s := range []string{"config", "model", "slots", "stats", "group", "proxy", "--list-group", "--list-proxy", "--dump-slots"} {
 		if d[s].(bool) {
 			cmd = s
 		}
@@ -127,6 +127,14 @@ func (t *cmdDashboard) handleOverview(d map[string]interface{}) {
 		if o.Stats != nil {
 			obj = o.Stats.Proxy.Models
 		}
+	case "--dump-slots":
+		log.Debugf("call rpc slots to dashboard %s", t.addr)
+		if slots, err := c.Slots(); err != nil {
+			log.PanicErrorf(err, "call rpc slots to dashboard %s failed", t.addr)
+		} else {
+			obj = slots
+		}
+		log.Debugf("call rpc slots OK")
 	}
 
 	b, err := json.MarshalIndent(obj, "", "    ")
