@@ -67,8 +67,8 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Get("/stats/:xauth", api.Stats)
 		r.Get("/slots/:xauth", api.Slots)
 		r.Put("/start/:xauth", api.Start)
-		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Put("/shutdown/:xauth", api.Shutdown)
+		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Put("/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
 	})
 
@@ -106,7 +106,8 @@ type Stats struct {
 
 	Ops struct {
 		Total int64             `json:"total"`
-		Cmds  []*router.OpStats `json:"cmds,omitempty"`
+		Qps   int64             `json:"qps"`
+		Cmd   []*router.OpStats `json:"cmd,omitempty"`
 	} `json:"ops"`
 
 	Sessions struct {
@@ -132,7 +133,8 @@ func (s *apiServer) NewStats() *Stats {
 	stats.Closed = s.proxy.IsClosed()
 
 	stats.Ops.Total = router.OpsTotal()
-	stats.Ops.Cmds = router.GetOpStatsAll()
+	stats.Ops.Qps = router.OpsQps()
+	stats.Ops.Cmd = router.GetOpStatsAll()
 
 	stats.Sessions.Total = router.SessionsTotal()
 	stats.Sessions.Alive = router.SessionsAlive()

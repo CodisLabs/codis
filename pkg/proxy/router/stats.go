@@ -5,6 +5,7 @@ package router
 
 import (
 	"sync"
+	"time"
 
 	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
 )
@@ -36,16 +37,29 @@ type OpStats struct {
 
 var cmdstats struct {
 	total atomic2.Int64
+	qps   atomic2.Int64
 	opmap map[string]*opStats
 	rwlck sync.RWMutex
 }
 
 func init() {
 	cmdstats.opmap = make(map[string]*opStats)
+	go func() {
+		for {
+			lastn := cmdstats.total.Get()
+			time.Sleep(time.Second)
+			delta := cmdstats.total.Get() - lastn
+			cmdstats.qps.Set(delta)
+		}
+	}()
 }
 
 func OpsTotal() int64 {
 	return cmdstats.total.Get()
+}
+
+func OpsQps() int64 {
+	return cmdstats.qps.Get()
 }
 
 func getOpStats(opstr string, create bool) *opStats {
