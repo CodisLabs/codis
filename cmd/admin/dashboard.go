@@ -6,7 +6,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 
+	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/topom"
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -27,6 +29,11 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 		t.handleShutdown(d)
 	case d["--log-level"] != nil:
 		t.handleLogLevel(d)
+
+	case d["--slots-remap"] != nil:
+		fallthrough
+	case d["--slots-status"].(bool):
+		t.handleSlotsCommand(d)
 
 	case d["--create-proxy"].(bool):
 		fallthrough
@@ -91,7 +98,7 @@ func (t *cmdDashboard) handleOverview(d map[string]interface{}) {
 	log.Debugf("call rpc overview OK")
 
 	var cmd string
-	for _, s := range []string{"config", "model", "slots", "stats", "group", "proxy", "--list-group", "--list-proxy", "--dump-slots"} {
+	for _, s := range []string{"config", "model", "slots", "stats", "group", "proxy", "--list-group", "--list-proxy"} {
 		if d[s].(bool) {
 			cmd = s
 		}
@@ -127,14 +134,6 @@ func (t *cmdDashboard) handleOverview(d map[string]interface{}) {
 		if o.Stats != nil {
 			obj = o.Stats.Proxy.Models
 		}
-	case "--dump-slots":
-		log.Debugf("call rpc slots to dashboard %s", t.addr)
-		if slots, err := c.Slots(); err != nil {
-			log.PanicErrorf(err, "call rpc slots to dashboard %s failed", t.addr)
-		} else {
-			obj = slots
-		}
-		log.Debugf("call rpc slots OK")
 	}
 
 	b, err := json.MarshalIndent(obj, "", "    ")
@@ -169,6 +168,57 @@ func (t *cmdDashboard) handleShutdown(d map[string]interface{}) {
 		log.PanicErrorf(err, "call rpc shutdown to dashboard %s failed", t.addr)
 	}
 	log.Debugf("call rpc shutdown OK")
+}
+
+func (t *cmdDashboard) handleSlotsCommand(d map[string]interface{}) {
+	c := t.newTopomClient()
+
+	switch {
+
+	case d["--slots-status"].(bool):
+
+		log.Debugf("call rpc slots to dashboard %s", t.addr)
+		o, err := c.Slots()
+		if err != nil {
+			log.PanicErrorf(err, "call rpc slots to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc slots OK")
+
+		b, err := json.MarshalIndent(o, "", "    ")
+		if err != nil {
+			log.PanicErrorf(err, "json marshal failed")
+		}
+		fmt.Println(string(b))
+
+	case d["--slots-remap"] != nil:
+
+		file := utils.ArgumentMust(d, "--slots-remap")
+		b, err := ioutil.ReadFile(file)
+		if err != nil {
+			log.PanicErrorf(err, "read file '%s' failed", file)
+		}
+
+		slots := []*models.SlotMapping{}
+		if err := json.Unmarshal(b, &slots); err != nil {
+			log.PanicErrorf(err, "json unmarshal failed")
+		}
+
+		if !d["--confirm"].(bool) {
+			b, err := json.MarshalIndent(slots, "", "    ")
+			if err != nil {
+				log.PanicErrorf(err, "json marshal failed")
+			}
+			fmt.Println(string(b))
+			return
+		}
+
+		log.Debugf("call rpc slots-remap to dashboard %s", t.addr)
+		if err := c.SlotsRemapGroup(slots); err != nil {
+			log.PanicErrorf(err, "call rpc slots-remap to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc slots-remap OK")
+
+	}
 }
 
 func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
