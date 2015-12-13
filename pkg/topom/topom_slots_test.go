@@ -418,3 +418,16 @@ func TestSlotActionFinished(x *testing.T) {
 	assert.Must(s.Locked == false)
 	assert.Must(s.BackendAddr == server2 && s.MigrateFrom == "")
 }
+
+func TestSlotsRemapGroup(x *testing.T) {
+	t := openTopom()
+	defer t.Close()
+
+	m := &models.SlotMapping{Id: 100, GroupId: 200}
+	m.Action.State = models.ActionPending
+
+	assert.Must(t.SlotsRemapGroup([]*models.SlotMapping{m}) != nil)
+
+	m.Action.State = models.ActionNothing
+	assert.MustNoError(t.SlotsRemapGroup([]*models.SlotMapping{m}))
+}

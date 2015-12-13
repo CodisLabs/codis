@@ -13,6 +13,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/go-martini/martini"
+	"github.com/martini-contrib/binding"
 	"github.com/martini-contrib/gzip"
 	"github.com/martini-contrib/render"
 
@@ -55,6 +56,9 @@ func newApiServer(t *Topom) http.Handler {
 
 	r := martini.NewRouter()
 
+	r.Get("/", func(r render.Render) {
+		r.Redirect("/topom")
+	})
 	r.Get("/topom", api.Overview)
 	r.Any("/debug/**", func(w http.ResponseWriter, req *http.Request) {
 		http.DefaultServeMux.ServeHTTP(w, req)
@@ -92,6 +96,7 @@ func newApiServer(t *Topom) http.Handler {
 				r.Put("/interval/:xauth/:value", api.SetSlotActionInterval)
 				r.Put("/disabled/:xauth/:value", api.SetSlotActionDisabled)
 			})
+			r.Put("/remap/:xauth", binding.Json([]*models.SlotMapping{}), api.SlotsRemapGroup)
 		})
 	})
 
@@ -450,17 +455,6 @@ func (s *apiServer) SlotRemoveAction(params martini.Params) (int, string) {
 	}
 }
 
-func (s *apiServer) Shutdown(params martini.Params) (int, string) {
-	if err := s.verifyXAuth(params); err != nil {
-		return rpc.ApiResponseError(err)
-	}
-	if err := s.topom.Close(); err != nil {
-		return rpc.ApiResponseError(err)
-	} else {
-		return rpc.ApiResponseJson("OK")
-	}
-}
-
 func (s *apiServer) LogLevel(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -473,6 +467,17 @@ func (s *apiServer) LogLevel(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(errors.New("invalid loglevel"))
 	} else {
 		log.Warnf("set loglevel to %s", v)
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) Shutdown(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.Close(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
 		return rpc.ApiResponseJson("OK")
 	}
 }
@@ -501,6 +506,16 @@ func (s *apiServer) SetSlotActionDisabled(params martini.Params) (int, string) {
 		s.topom.SetSlotActionDisabled(value != 0)
 		return rpc.ApiResponseJson("OK")
 	}
+}
+
+func (s *apiServer) SlotsRemapGroup(slots []*models.SlotMapping, params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.SlotsRemapGroup(slots); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	return rpc.ApiResponseJson("OK")
 }
 
 type ApiClient struct {
@@ -561,13 +576,13 @@ func (c *ApiClient) Slots() ([]*models.Slot, error) {
 	return slots, nil
 }
 
-func (c *ApiClient) Shutdown() error {
-	url := c.encodeURL("/api/topom/shutdown/%s", c.xauth)
+func (c *ApiClient) LogLevel(level log.LogLevel) error {
+	url := c.encodeURL("/api/topom/loglevel/%s/%s", c.xauth, level)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) LogLevel(level log.LogLevel) error {
-	url := c.encodeURL("/api/topom/loglevel/%s/%s", c.xauth, level)
+func (c *ApiClient) Shutdown() error {
+	url := c.encodeURL("/api/topom/shutdown/%s", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -657,4 +672,9 @@ func (c *ApiClient) SetSlotActionDisabled(disabled bool) error {
 	}
 	url := c.encodeURL("/api/topom/slots/action/disabled/%s/%d", c.xauth, value)
 	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) SlotsRemapGroup(slots []*models.SlotMapping) error {
+	url := c.encodeURL("/api/topom/slots/remap/%s", c.xauth)
+	return rpc.ApiPutJson(url, slots, nil)
 }

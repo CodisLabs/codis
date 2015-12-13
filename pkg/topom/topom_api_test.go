@@ -54,6 +54,15 @@ func TestApiSlots(x *testing.T) {
 	assert.MustNoError(c.SlotCreateActionRange(0, models.MaxSlotNum-1, gid))
 	assert.MustNoError(c.SetSlotActionInterval(2000))
 	assert.MustNoError(c.SetSlotActionDisabled(true))
+
+	assert.MustNoError(c.SlotsRemapGroup([]*models.SlotMapping{
+		&models.SlotMapping{Id: sid, GroupId: gid},
+	}))
+
+	slots, err := c.Slots()
+	assert.MustNoError(err)
+	assert.Must(len(slots) == models.MaxSlotNum)
+	assert.Must(slots[sid].BackendAddr == s.Addr)
 }
 
 func TestApiGroup(x *testing.T) {

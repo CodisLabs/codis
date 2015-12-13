@@ -259,3 +259,35 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 
 	}
 }
+
+func (s *Topom) SlotsRemapGroup(slots []*models.SlotMapping) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, m := range slots {
+		if m.Id < 0 || m.Id >= models.MaxSlotNum {
+			return errors.Errorf("invalid slot id = %d", m.Id)
+		}
+		if m.GroupId < 0 || m.GroupId > models.MaxGroupId {
+			return errors.Errorf("invalid slot-[%d] group id = %d", m.Id, m.GroupId)
+		}
+		if m.Action.State != models.ActionNothing {
+			return errors.Errorf("invalid slot-[%d] action = %s", m.Id, m.Action.State)
+		}
+	}
+
+	for _, m := range slots {
+		s.dirtySlotsCache(m.Id)
+
+		m = &models.SlotMapping{
+			Id:      m.Id,
+			GroupId: m.GroupId,
+		}
+		log.Warnf("slot-[%d] will be mapped to group-[%d]", m.Id, m.GroupId)
+
+		if err := s.storeUpdateSlotMapping(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
