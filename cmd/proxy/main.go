@@ -25,7 +25,7 @@ func main() {
 	const usage = `
 Usage:
 	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--ulimit=NLIMIT]
-	codis-proxy  --new-config
+	codis-proxy  --default-config
 	codis-proxy  --version
 
 Options:
@@ -43,7 +43,7 @@ Options:
 
 	switch {
 
-	case d["--new-config"]:
+	case d["--default-config"]:
 		fmt.Println(proxy.DefaultConfig)
 		return
 

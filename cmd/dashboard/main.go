@@ -25,7 +25,7 @@ func main() {
 	const usage = `
 Usage:
 	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR]
-	codis-dashboard  --new-config
+	codis-dashboard  --default-config
 	codis-dashboard  --version
 
 Options:
@@ -42,7 +42,7 @@ Options:
 
 	switch {
 
-	case d["--new-config"]:
+	case d["--default-config"]:
 		fmt.Println(topom.DefaultConfig)
 		return
 
