@@ -428,6 +428,12 @@ func TestSlotsRemapGroup(x *testing.T) {
 
 	assert.Must(t.SlotsRemapGroup([]*models.SlotMapping{m}) != nil)
 
+	g := &models.Group{Id: 200, Servers: []*models.GroupServer{
+		&models.GroupServer{Addr: "server"},
+	}}
+	contextCreateGroup(t, g)
+	assert.Must(t.SlotsRemapGroup([]*models.SlotMapping{m}) != nil)
+
 	m.Action.State = models.ActionNothing
 	assert.MustNoError(t.SlotsRemapGroup([]*models.SlotMapping{m}))
 }
