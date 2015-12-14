@@ -57,11 +57,13 @@ done
 # start codis-proxy
 
 for i in {0..1}; do
-    cat ../config/proxy.toml \
-        | sed -e "s/Demo3/codis-test/g" \
-        | sed -e "s/11080/1108${i}/g" \
-        | sed -e "s/19000/1900${i}/g" \
-        > proxy${i}.toml || exit $?
+    cat > proxy${i}.toml <<EOF
+product_name = "codis-test"
+product_auth = ""
+proto_type = "tcp4"
+admin_addr = "127.0.0.1:1108${i}"
+proxy_addr = "127.0.0.1:1900${i}"
+EOF
     nohup ../bin/codis-proxy -c proxy${i}.toml &>proxy${i}.log &
     lastpid=$!
     pidlist="$pidlist $lastpid"
