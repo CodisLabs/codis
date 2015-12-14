@@ -8,9 +8,28 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	"github.com/wandoulabs/codis/pkg/models/zk"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
+
+const DefaultConfig = `
+##################################################
+#                                                #
+#                  Codis-Dashboard               #
+#                                                #
+##################################################
+
+# Set Coordinator, only accept "zookeeper" & "etcd"
+coordinator_name = "zookeeper"
+coordinator_addr = "127.0.0.1:2181"
+
+# Set Codis Product {Name/Auth}.
+product_name = "codis-demo"
+product_auth = ""
+
+# Set bind address for admin(rpc), tcp only.
+admin_addr = "0.0.0.0:18080"
+`
 
 type Config struct {
 	CoordinatorName string `toml:"coordinator_name" json:"coordinator_name"`
@@ -25,15 +44,11 @@ type Config struct {
 }
 
 func NewDefaultConfig() *Config {
-	return &Config{
-		CoordinatorName: zkclient.CoordinatorName,
-		CoordinatorAddr: "127.0.0.1:2181",
-
-		AdminAddr: "0.0.0.0:18080",
-
-		ProductName: "Demo3",
-		ProductAuth: "",
+	c := &Config{}
+	if _, err := toml.Decode(DefaultConfig, c); err != nil {
+		log.PanicErrorf(err, "decode config failed")
 	}
+	return c
 }
 
 func (c *Config) LoadFromFile(path string) error {

@@ -9,7 +9,47 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/wandoulabs/codis/pkg/utils/log"
 )
+
+const DefaultConfig = `
+##################################################
+#                                                #
+#                  Codis-Proxy                   #
+#                                                #
+##################################################
+
+# Set Codis Product {Name/Auth}.
+product_name = "codis-demo"
+product_auth = ""
+
+# Set bind address for admin(rpc), tcp only.
+admin_addr = "0.0.0.0:11080"
+
+# Set bind address for proxy, proto_type can be "tcp", "tcp4", "tcp6", "unix" or "unixpacket".
+proto_type = "tcp4"
+proxy_addr = "0.0.0.0:19000"
+
+# Set jodis address & session timeout.
+jodis_addr = ""
+jodis_timeout = 10
+
+# Proxy will ping-pong backend redis periodly to keep-alive
+backend_ping_period = 5
+
+# If there is no request from client for a long time, the connection will be droped. Set 0 to disable.
+session_max_timeout = 1800
+
+# Buffer size for each client connection.
+session_max_bufsize = 131072
+
+# Number of buffered requests for each client connection.
+# Make sure this is higher than the max number of requests for each pipeline request, or your client may be blocked.
+session_max_pipeline = 1024
+
+# Set period between keep alives. Set 0 to disable.
+session_keepalive_period = 60
+`
 
 type Config struct {
 	ProtoType string `toml:"proto_type" json:"proto_type"`
@@ -33,24 +73,11 @@ type Config struct {
 }
 
 func NewDefaultConfig() *Config {
-	return &Config{
-		ProtoType: "tcp4",
-		ProxyAddr: "0.0.0.0:19000",
-		AdminAddr: "0.0.0.0:11080",
-
-		JodisAddr:    "",
-		JodisTimeout: 10,
-
-		ProductName: "Demo3",
-		ProductAuth: "",
-
-		BackendPingPeriod:  5,
-		SessionMaxTimeout:  60 * 30,
-		SessionMaxBufSize:  1024 * 128,
-		SessionMaxPipeline: 1024,
-
-		SessionKeepAlivePeriod: 60,
+	c := &Config{}
+	if _, err := toml.Decode(DefaultConfig, c); err != nil {
+		log.PanicErrorf(err, "decode config failed")
 	}
+	return c
 }
 
 func (c *Config) LoadFromFile(path string) error {
