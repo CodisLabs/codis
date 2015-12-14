@@ -304,13 +304,36 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 
 	case d["--reinit-proxy"].(bool):
 
-		token := t.parseProxyToken(d)
+		switch {
 
-		log.Debugf("call rpc reinit-proxy to dashboard %s", t.addr)
-		if err := c.ReinitProxy(token); err != nil {
-			log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.addr)
+		default:
+
+			token := t.parseProxyToken(d)
+
+			log.Debugf("call rpc reinit-proxy to dashboard %s", t.addr)
+			if err := c.ReinitProxy(token); err != nil {
+				log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.addr)
+			}
+			log.Debugf("call rpc reinit-proxy OK")
+
+		case d["--all"].(bool):
+
+			log.Debugf("call rpc stats to dashboard %s", t.addr)
+			s, err := c.Stats()
+			if err != nil {
+				log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.addr)
+			}
+			log.Debugf("call rpc stats OK")
+
+			for _, p := range s.Proxy.Models {
+				log.Debugf("call rpc reinit-proxy to dashboard %s", t.addr)
+				if err := c.ReinitProxy(p.Token); err != nil {
+					log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.addr)
+				}
+				log.Debugf("call rpc reinit-proxy OK")
+			}
+
 		}
-		log.Debugf("call rpc reinit-proxy OK")
 
 	}
 }
