@@ -326,6 +326,7 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 			log.Debugf("call rpc stats OK")
 
 			for _, p := range s.Proxy.Models {
+				fmt.Printf("%s\n", p.Encode())
 				log.Debugf("call rpc reinit-proxy to dashboard %s", t.addr)
 				if err := c.ReinitProxy(p.Token); err != nil {
 					log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.addr)
