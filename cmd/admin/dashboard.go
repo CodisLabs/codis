@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strconv"
 
 	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
@@ -390,37 +391,56 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 		}
 		log.Debugf("call rpc stats OK")
 
+		var format string
+		var wgid int
 		for _, g := range s.Group.Models {
-			fmt.Printf("group-%04d -----+ ", g.Id)
+			wgid = utils.MaxInt(wgid, len(strconv.Itoa(g.Id)))
+		}
+		format += fmt.Sprintf("group-%%0%dd", wgid)
+
+		var widx int
+		for _, g := range s.Group.Models {
+			for i, _ := range g.Servers {
+				widx = utils.MaxInt(widx, len(strconv.Itoa(i)))
+			}
+		}
+		format += fmt.Sprintf(" index-%%0%dd", widx)
+
+		var waddr int
+		for _, g := range s.Group.Models {
+			for _, x := range g.Servers {
+				waddr = utils.MaxInt(waddr, len(x.Addr))
+			}
+		}
+		format += fmt.Sprintf(" %%-%ds", waddr)
+
+		for _, g := range s.Group.Models {
 			for i, x := range g.Servers {
-				if i != 0 {
-					fmt.Println()
-					fmt.Printf("                + ")
-				}
 				var addr = x.Addr
 				switch stats := s.Group.Stats[addr]; {
 				case stats == nil:
-					fmt.Printf("[?] %s", addr)
+					fmt.Printf("[?] "+format, g.Id, i, addr)
 				case stats.Error != nil:
-					fmt.Printf("[E] %s", addr)
+					fmt.Printf("[E] "+format, g.Id, i, addr)
 				case stats.Timeout || stats.Stats == nil:
-					fmt.Printf("[?] %s", addr)
+					fmt.Printf("[T] "+format, g.Id, i, addr)
 				default:
-					master := stats.Stats["master_addr"]
-					linked := stats.Stats["master_link_status"] == "up"
-					if i == 0 {
-						if master != "" {
-							fmt.Printf("[X] %s -> %s", addr, master)
-						} else {
-							fmt.Printf("[+] %s", addr)
-						}
-					} else {
-						if master != g.Servers[0].Addr || !linked {
-							fmt.Printf("[X] %s -> %s", addr, master)
-						} else {
-							fmt.Printf("[+] %s", addr)
-						}
+					s1 := stats.Stats["master_addr"]
+					s2 := stats.Stats["master_link_status"]
+					master := s1 + ":" + s2
+					if master == ":" {
+						master = "NO:ONE"
 					}
+					expect := "NO:ONE"
+					if i != 0 {
+						expect = g.Servers[0].Addr + ":up"
+					}
+					if master == expect {
+						fmt.Printf("[ ] "+format, g.Id, i, addr)
+					} else {
+						fmt.Printf("[X] "+format, g.Id, i, addr)
+					}
+					fmt.Printf("      ==> %s", master)
 				}
 				fmt.Println()
 			}
