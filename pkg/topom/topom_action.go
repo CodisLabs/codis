@@ -18,6 +18,7 @@ func (s *Topom) ProcessSlotAction() error {
 		if err := s.processSlotAction(sid); err != nil {
 			return err
 		}
+		time.Sleep(time.Millisecond * 10)
 	}
 	return nil
 }
