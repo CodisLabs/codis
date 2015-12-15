@@ -46,7 +46,7 @@ type Config struct {
 func NewDefaultConfig() *Config {
 	c := &Config{}
 	if _, err := toml.Decode(DefaultConfig, c); err != nil {
-		log.PanicErrorf(err, "decode config failed")
+		log.PanicErrorf(err, "decode toml failed")
 	}
 	return c
 }

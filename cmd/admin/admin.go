@@ -33,6 +33,8 @@ func (t *cmdAdmin) Main(d map[string]interface{}) {
 		t.handleConfigConvert(d)
 	case d["--config-restore"] != nil:
 		t.handleConfigRestore(d)
+	case d["--list-dashboard"].(bool):
+		t.handleListDashboard(d)
 	}
 }
 
@@ -406,6 +408,38 @@ func (t *cmdAdmin) handleConfigRestore(d map[string]interface{}) {
 	for _, p := range config.Proxy {
 		if err := store.UpdateProxy(p); err != nil {
 			log.PanicErrorf(err, "restore proxy-%s failed", p.Token)
+		}
+	}
+}
+
+func (t *cmdAdmin) handleListDashboard(d map[string]interface{}) {
+	client := t.newTopomClient(d)
+	defer client.Close()
+
+	list, err := client.List("/codis3")
+	if err != nil {
+		log.PanicErrorf(err, "list products failed")
+	}
+	for _, path := range list {
+		var elem = &struct {
+			Name      string `json:"name"`
+			Dashboard string `json:"dashboard"`
+		}{filepath.Base(path), ""}
+
+		if b, err := client.Read(filepath.Join(path, "topom")); err != nil {
+			log.PanicErrorf(err, "read topom of product %s failed", elem.Name)
+		} else if b != nil {
+			var t = &models.Topom{}
+			if err := json.Unmarshal(b, t); err != nil {
+				log.PanicErrorf(err, "decode json failed")
+			}
+			elem.Dashboard = t.AdminAddr
+		}
+
+		if b, err := json.MarshalIndent(elem, "", "    "); err != nil {
+			log.PanicErrorf(err, "json encode failed")
+		} else {
+			fmt.Printf("%s\n", b)
 		}
 	}
 }

@@ -41,10 +41,11 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --create-range --beg=ID --end=ID --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --interval=VALUE
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --disabled=VALUE
-	codis-admin [-v]  --remove-lock              --product=NAME (--zookeeper=ADDR|--etcd=ADDR)
-	codis-admin [-v]  --config-dump              --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [-1]
-	codis-admin [-v]  --config-convert=FILE
-	codis-admin [-v]  --config-restore=FILE      --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [--confirm]
+	codis-admin [-v] --remove-lock               --product=NAME (--zookeeper=ADDR|--etcd=ADDR)
+	codis-admin [-v] --config-dump               --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [-1]
+	codis-admin [-v] --config-convert=FILE
+	codis-admin [-v] --config-restore=FILE       --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [--confirm]
+	codis-admin [-v] --list-dashboard                           (--zookeeper=ADDR|--etcd=ADDR)
 
 Options:
 	-a AUTH, --auth=AUTH
