@@ -420,6 +420,9 @@ func (t *cmdAdmin) handleListDashboard(d map[string]interface{}) {
 	if err != nil {
 		log.PanicErrorf(err, "list products failed")
 	}
+
+	nodes := []interface{}{}
+
 	for _, path := range list {
 		var elem = &struct {
 			Name      string `json:"name"`
@@ -436,10 +439,12 @@ func (t *cmdAdmin) handleListDashboard(d map[string]interface{}) {
 			elem.Dashboard = t.AdminAddr
 		}
 
-		if b, err := json.MarshalIndent(elem, "", "    "); err != nil {
-			log.PanicErrorf(err, "json encode failed")
-		} else {
-			fmt.Printf("%s\n", b)
-		}
+		nodes = append(nodes, elem)
+	}
+
+	if b, err := json.MarshalIndent(nodes, "", "    "); err != nil {
+		log.PanicErrorf(err, "json encode failed")
+	} else {
+		fmt.Println(string(b))
 	}
 }
