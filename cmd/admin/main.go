@@ -26,6 +26,7 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --create-proxy   --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --remove-proxy  (--addr=ADDR|--token=TOKEN|--pid=ID) [--force]
 	codis-admin [-v] --dashboard=ADDR            --reinit-proxy  (--addr=ADDR|--token=TOKEN|--pid=ID|--all)
+	codis-admin [-v] --dashboard=ADDR            --proxy-status
 	codis-admin [-v] --dashboard=ADDR            --list-group
 	codis-admin [-v] --dashboard=ADDR            --create-group   --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --remove-group   --gid=ID
