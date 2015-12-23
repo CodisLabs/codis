@@ -4,7 +4,6 @@
 package topom
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -355,7 +354,13 @@ func (s *Topom) SyncActionComplete(addr string, failed bool) error {
 
 	s.dirtyGroupCache(g.Id)
 
-	g.Servers[index].Action.State = fmt.Sprintf("synced:%t", !failed)
+	var state string
+	if !failed {
+		state = "synced"
+	} else {
+		state = "synced_failed"
+	}
+	g.Servers[index].Action.State = state
 	return s.storeUpdateGroup(g)
 }
 
