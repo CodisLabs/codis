@@ -302,6 +302,9 @@ func (self *ServerGroup) AddServer(zkConn zkhelper.Conn, s *Server, passwd strin
 
 	zkPath := fmt.Sprintf("/zk/codis/db_%s/servers/group_%d/%s", self.ProductName, self.Id, s.Addr)
 	_, err = zkhelper.CreateOrUpdate(zkConn, zkPath, string(val), 0, zkhelper.DefaultFileACLs(), true)
+	if err != nil {
+		return errors.Trace(err)
+	}
 
 	// update servers
 	servers, err = self.GetServers(zkConn)
