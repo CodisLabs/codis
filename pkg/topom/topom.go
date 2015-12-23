@@ -263,6 +263,16 @@ func (s *Topom) SetSlotActionDisabled(value bool) {
 	log.Warnf("set action disabled = %t", value)
 }
 
+func (s *Topom) Slots() ([]*models.Slot, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return nil, err
+	}
+	return ctx.toSlotSlice(ctx.slots), nil
+}
+
 func (s *Topom) serveAdmin() {
 	if s.IsClosed() {
 		return

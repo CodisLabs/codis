@@ -4,11 +4,8 @@
 package topom
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -16,7 +13,8 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/go-martini/martini"
-	"github.com/martini-contrib/cors"
+	"github.com/martini-contrib/binding"
+	"github.com/martini-contrib/gzip"
 	"github.com/martini-contrib/render"
 
 	"github.com/wandoulabs/codis/pkg/models"
@@ -49,35 +47,18 @@ func newApiServer(t *Topom) http.Handler {
 		}
 		c.Next()
 	})
+	m.Use(gzip.All())
+	m.Use(func(c martini.Context, w http.ResponseWriter) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	})
 
 	api := &apiServer{topom: t}
 
 	r := martini.NewRouter()
 
-	if binpath, err := filepath.Abs(filepath.Dir(os.Args[0])); err != nil {
-		log.WarnErrorf(err, "obtain binpath failed")
-	} else if info, err := os.Stat(filepath.Join(binpath, "assets")); err != nil || !info.IsDir() {
-		log.WarnErrorf(err, "assets doesn't exist or isn't a directory")
-	} else {
-		m.Use(martini.Static(filepath.Join(binpath, "assets/statics"), martini.StaticOptions{SkipLogging: true}))
-		m.Use(render.Renderer(render.Options{
-			Directory:  filepath.Join(binpath, "assets/template"),
-			Extensions: []string{".tmpl", ".html"},
-			Charset:    "UTF-8",
-			IndentJSON: true,
-		}))
-		m.Use(cors.Allow(&cors.Options{
-			AllowOrigins:     []string{"*"},
-			AllowMethods:     []string{"GET", "PUT"},
-			AllowHeaders:     []string{"Origin", "x-requested-with", "Content-Type", "Content-Range", "Content-Disposition", "Content-Description"},
-			ExposeHeaders:    []string{"Content-Length"},
-			AllowCredentials: false,
-		}))
-		r.Get("/", func(r render.Render) {
-			r.Redirect("/admin")
-		})
-	}
-
+	r.Get("/", func(r render.Render) {
+		r.Redirect("/topom")
+	})
 	r.Get("/topom", api.Overview)
 	r.Any("/debug/**", func(w http.ResponseWriter, req *http.Request) {
 		http.DefaultServeMux.ServeHTTP(w, req)
@@ -87,23 +68,24 @@ func newApiServer(t *Topom) http.Handler {
 		r.Get("/model", api.Model)
 		r.Get("/xping/:xauth", api.XPing)
 		r.Get("/stats/:xauth", api.Stats)
+		r.Get("/slots/:xauth", api.Slots)
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Group("/proxy", func(r martini.Router) {
-			r.Put("/create/:xauth/:xaddr", api.CreateProxy)
+			r.Put("/create/:xauth/:addr", api.CreateProxy)
 			r.Put("/reinit/:xauth/:token", api.ReinitProxy)
 			r.Put("/remove/:xauth/:token/:force", api.RemoveProxy)
 		})
 		r.Group("/group", func(r martini.Router) {
 			r.Put("/create/:xauth/:gid", api.CreateGroup)
 			r.Put("/remove/:xauth/:gid", api.RemoveGroup)
-			r.Put("/add/:xauth/:xaddr/:gid", api.GroupAddServer)
-			r.Put("/del/:xauth/:xaddr/:gid", api.GroupDelServer)
-			r.Put("/promote/:xauth/:xaddr/:gid", api.GroupPromoteServer)
+			r.Put("/add/:xauth/:gid/:addr", api.GroupAddServer)
+			r.Put("/del/:xauth/:gid/:addr", api.GroupDelServer)
+			r.Put("/promote/:xauth/:gid/:addr", api.GroupPromoteServer)
 			r.Put("/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
 			r.Group("/action", func(r martini.Router) {
-				r.Put("/create/:xauth/:xaddr", api.SyncCreateAction)
-				r.Put("/remove/:xauth/:xaddr", api.SyncRemoveAction)
+				r.Put("/create/:xauth/:addr", api.SyncCreateAction)
+				r.Put("/remove/:xauth/:addr", api.SyncRemoveAction)
 			})
 		})
 		r.Group("/slots", func(r martini.Router) {
@@ -114,6 +96,7 @@ func newApiServer(t *Topom) http.Handler {
 				r.Put("/interval/:xauth/:value", api.SetSlotActionInterval)
 				r.Put("/disabled/:xauth/:value", api.SetSlotActionDisabled)
 			})
+			r.Put("/remap/:xauth", binding.Json([]*models.SlotMapping{}), api.SlotsRemapGroup)
 		})
 	})
 
@@ -181,16 +164,23 @@ func (s *apiServer) Stats(params martini.Params) (int, string) {
 	}
 }
 
-func (s *apiServer) decodeXAddr(params martini.Params) (string, error) {
-	xaddr := params["xaddr"]
-	if xaddr == "" {
-		return "", errors.New("missing xaddr")
+func (s *apiServer) Slots(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
 	}
-	b, err := base64.StdEncoding.DecodeString(xaddr)
-	if err != nil {
-		return "", errors.New("invalid xaddr")
+	if slots, err := s.topom.Slots(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson(slots)
 	}
-	return string(b), nil
+}
+
+func (s *apiServer) parseAddr(params martini.Params) (string, error) {
+	addr := params["addr"]
+	if addr == "" {
+		return "", errors.New("missing addr")
+	}
+	return addr, nil
 }
 
 func (s *apiServer) parseToken(params martini.Params) (string, error) {
@@ -217,7 +207,7 @@ func (s *apiServer) CreateProxy(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -300,7 +290,7 @@ func (s *apiServer) GroupAddServer(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -329,7 +319,7 @@ func (s *apiServer) GroupDelServer(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -348,7 +338,7 @@ func (s *apiServer) GroupPromoteServer(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -378,7 +368,7 @@ func (s *apiServer) SyncCreateAction(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -393,7 +383,7 @@ func (s *apiServer) SyncRemoveAction(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	addr, err := s.decodeXAddr(params)
+	addr, err := s.parseAddr(params)
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
@@ -465,17 +455,6 @@ func (s *apiServer) SlotRemoveAction(params martini.Params) (int, string) {
 	}
 }
 
-func (s *apiServer) Shutdown(params martini.Params) (int, string) {
-	if err := s.verifyXAuth(params); err != nil {
-		return rpc.ApiResponseError(err)
-	}
-	if err := s.topom.Close(); err != nil {
-		return rpc.ApiResponseError(err)
-	} else {
-		return rpc.ApiResponseJson("OK")
-	}
-}
-
 func (s *apiServer) LogLevel(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -488,6 +467,17 @@ func (s *apiServer) LogLevel(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(errors.New("invalid loglevel"))
 	} else {
 		log.Warnf("set loglevel to %s", v)
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) Shutdown(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.Close(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
 		return rpc.ApiResponseJson("OK")
 	}
 }
@@ -518,6 +508,16 @@ func (s *apiServer) SetSlotActionDisabled(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) SlotsRemapGroup(slots []*models.SlotMapping, params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.SlotsRemapGroup(slots); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	return rpc.ApiResponseJson("OK")
+}
+
 type ApiClient struct {
 	addr  string
 	xauth string
@@ -533,10 +533,6 @@ func (c *ApiClient) SetXAuth(name string) {
 
 func (c *ApiClient) encodeURL(format string, args ...interface{}) string {
 	return rpc.EncodeURL(c.addr, format, args...)
-}
-
-func (c *ApiClient) encodeXAddr(addr string) string {
-	return base64.StdEncoding.EncodeToString([]byte(addr))
 }
 
 func (c *ApiClient) Overview() (*Overview, error) {
@@ -571,9 +567,13 @@ func (c *ApiClient) Stats() (*Stats, error) {
 	return stats, nil
 }
 
-func (c *ApiClient) Shutdown() error {
-	url := c.encodeURL("/api/topom/shutdown/%s", c.xauth)
-	return rpc.ApiPutJson(url, nil, nil)
+func (c *ApiClient) Slots() ([]*models.Slot, error) {
+	url := c.encodeURL("/api/topom/slots/%s", c.xauth)
+	slots := []*models.Slot{}
+	if err := rpc.ApiGetJson(url, &slots); err != nil {
+		return nil, err
+	}
+	return slots, nil
 }
 
 func (c *ApiClient) LogLevel(level log.LogLevel) error {
@@ -581,8 +581,13 @@ func (c *ApiClient) LogLevel(level log.LogLevel) error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
+func (c *ApiClient) Shutdown() error {
+	url := c.encodeURL("/api/topom/shutdown/%s", c.xauth)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
 func (c *ApiClient) CreateProxy(addr string) error {
-	url := c.encodeURL("/api/topom/proxy/create/%s/%s", c.xauth, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/proxy/create/%s/%s", c.xauth, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -611,17 +616,17 @@ func (c *ApiClient) RemoveGroup(gid int) error {
 }
 
 func (c *ApiClient) GroupAddServer(gid int, addr string) error {
-	url := c.encodeURL("/api/topom/group/add/%s/%s/%d", c.xauth, c.encodeXAddr(addr), gid)
+	url := c.encodeURL("/api/topom/group/add/%s/%d/%s", c.xauth, gid, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) GroupDelServer(gid int, addr string) error {
-	url := c.encodeURL("/api/topom/group/del/%s/%s/%d", c.xauth, c.encodeXAddr(addr), gid)
+	url := c.encodeURL("/api/topom/group/del/%s/%d/%s", c.xauth, gid, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) GroupPromoteServer(gid int, addr string) error {
-	url := c.encodeURL("/api/topom/group/promote/%s/%s/%d", c.xauth, c.encodeXAddr(addr), gid)
+	url := c.encodeURL("/api/topom/group/promote/%s/%d/%s", c.xauth, gid, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -631,12 +636,12 @@ func (c *ApiClient) GroupPromoteCommit(gid int) error {
 }
 
 func (c *ApiClient) SyncCreateAction(addr string) error {
-	url := c.encodeURL("/api/topom/group/action/create/%s/%s", c.xauth, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/group/action/create/%s/%s", c.xauth, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) SyncRemoveAction(addr string) error {
-	url := c.encodeURL("/api/topom/group/action/remove/%s/%s", c.xauth, c.encodeXAddr(addr))
+	url := c.encodeURL("/api/topom/group/action/remove/%s/%s", c.xauth, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
@@ -667,4 +672,9 @@ func (c *ApiClient) SetSlotActionDisabled(disabled bool) error {
 	}
 	url := c.encodeURL("/api/topom/slots/action/disabled/%s/%d", c.xauth, value)
 	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) SlotsRemapGroup(slots []*models.SlotMapping) error {
+	url := c.encodeURL("/api/topom/slots/remap/%s", c.xauth)
+	return rpc.ApiPutJson(url, slots, nil)
 }

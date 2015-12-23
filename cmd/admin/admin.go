@@ -29,10 +29,12 @@ func (t *cmdAdmin) Main(d map[string]interface{}) {
 		t.handleRemoveLock(d)
 	case d["--config-dump"].(bool):
 		t.handleConfigDump(d)
-	case d["--config-convert"].(bool):
+	case d["--config-convert"] != nil:
 		t.handleConfigConvert(d)
-	case d["--config-restore"].(bool):
+	case d["--config-restore"] != nil:
 		t.handleConfigRestore(d)
+	case d["--list-dashboard"].(bool):
+		t.handleListDashboard(d)
 	}
 }
 
@@ -196,10 +198,10 @@ func (t *cmdAdmin) dumpConfigV3(d map[string]interface{}) {
 	fmt.Println(string(b))
 }
 
-func (t *cmdAdmin) loadJsonConfigV1(d map[string]interface{}) map[string]interface{} {
-	b, err := ioutil.ReadFile(utils.ArgumentMust(d, "--input"))
+func (t *cmdAdmin) loadJsonConfigV1(file string) map[string]interface{} {
+	b, err := ioutil.ReadFile(file)
 	if err != nil {
-		log.PanicErrorf(err, "read file failed")
+		log.PanicErrorf(err, "read file '%s' failed", file)
 	}
 	var v interface{}
 	if err := json.Unmarshal(b, &v); err != nil {
@@ -269,7 +271,7 @@ func (t *cmdAdmin) handleConfigConvert(d map[string]interface{}) {
 		}
 	}()
 
-	cfg1 := t.loadJsonConfigV1(d)
+	cfg1 := t.loadJsonConfigV1(utils.ArgumentMust(d, "--config-convert"))
 	cfg2 := &ConfigV3{}
 
 	if slots := cfg1["slots"]; slots != nil {
@@ -302,10 +304,10 @@ func (t *cmdAdmin) handleConfigConvert(d map[string]interface{}) {
 	fmt.Println(string(b))
 }
 
-func (t *cmdAdmin) loadJsonConfigV3(d map[string]interface{}) *ConfigV3 {
-	b, err := ioutil.ReadFile(utils.ArgumentMust(d, "--input"))
+func (t *cmdAdmin) loadJsonConfigV3(file string) *ConfigV3 {
+	b, err := ioutil.ReadFile(file)
 	if err != nil {
-		log.PanicErrorf(err, "read file failed")
+		log.PanicErrorf(err, "read file '%s' failed", file)
 	}
 
 	config := &ConfigV3{}
@@ -367,10 +369,15 @@ func (t *cmdAdmin) handleConfigRestore(d map[string]interface{}) {
 	store := t.newTopomStore(d)
 	defer store.Close()
 
-	config := t.loadJsonConfigV3(d)
+	config := t.loadJsonConfigV3(utils.ArgumentMust(d, "--config-restore"))
 
-	if err := store.Acquire(&models.Topom{}); err != nil {
-		log.PanicErrorf(err, "acquire store lock failed")
+	if !d["--confirm"].(bool) {
+		b, err := json.MarshalIndent(config, "", "    ")
+		if err != nil {
+			log.PanicErrorf(err, "json marshal failed")
+		}
+		fmt.Println(string(b))
+		return
 	}
 
 	proxy, err := store.ListProxy()
@@ -403,8 +410,41 @@ func (t *cmdAdmin) handleConfigRestore(d map[string]interface{}) {
 			log.PanicErrorf(err, "restore proxy-%s failed", p.Token)
 		}
 	}
+}
 
-	if err := store.Release(); err != nil {
-		log.PanicErrorf(err, "release store lock failed")
+func (t *cmdAdmin) handleListDashboard(d map[string]interface{}) {
+	client := t.newTopomClient(d)
+	defer client.Close()
+
+	list, err := client.List("/codis3")
+	if err != nil {
+		log.PanicErrorf(err, "list products failed")
+	}
+
+	nodes := []interface{}{}
+
+	for _, path := range list {
+		var elem = &struct {
+			Name      string `json:"name"`
+			Dashboard string `json:"dashboard"`
+		}{filepath.Base(path), ""}
+
+		if b, err := client.Read(filepath.Join(path, "topom")); err != nil {
+			log.PanicErrorf(err, "read topom of product %s failed", elem.Name)
+		} else if b != nil {
+			var t = &models.Topom{}
+			if err := json.Unmarshal(b, t); err != nil {
+				log.PanicErrorf(err, "decode json failed")
+			}
+			elem.Dashboard = t.AdminAddr
+		}
+
+		nodes = append(nodes, elem)
+	}
+
+	if b, err := json.MarshalIndent(nodes, "", "    "); err != nil {
+		log.PanicErrorf(err, "json encode failed")
+	} else {
+		fmt.Println(string(b))
 	}
 }

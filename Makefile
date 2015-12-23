@@ -27,6 +27,7 @@ clean:
 
 distclean: clean
 	@rm -rf Godeps/_workspace/pkg
+	@rm -rf scripts/tmp test/tmp
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
 
 gotest: build-all

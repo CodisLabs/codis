@@ -144,31 +144,6 @@ func New(writer io.Writer, prefix string) *Logger {
 	}
 }
 
-func OpenFile(path string) (*os.File, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0666)
-	return f, errors.Trace(err)
-}
-
-func MustOpenFile(path string) *os.File {
-	f, err := OpenFile(path)
-	if err != nil {
-		PanicErrorf(err, "open file log '%s' failed", path)
-	}
-	return f
-}
-
-func FileLog(path string) (*Logger, error) {
-	f, err := OpenFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return New(f, ""), nil
-}
-
-func MustFileLog(path string) *Logger {
-	return New(MustOpenFile(path), "")
-}
-
 func (l *Logger) Flags() int {
 	return l.log.Flags()
 }

@@ -6,7 +6,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"strconv"
 
+	"github.com/wandoulabs/codis/pkg/models"
 	"github.com/wandoulabs/codis/pkg/proxy"
 	"github.com/wandoulabs/codis/pkg/topom"
 	"github.com/wandoulabs/codis/pkg/utils"
@@ -28,11 +31,18 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 	case d["--log-level"] != nil:
 		t.handleLogLevel(d)
 
+	case d["--slots-remap"] != nil:
+		fallthrough
+	case d["--slots-status"].(bool):
+		t.handleSlotsCommand(d)
+
 	case d["--create-proxy"].(bool):
 		fallthrough
 	case d["--remove-proxy"].(bool):
 		fallthrough
 	case d["--reinit-proxy"].(bool):
+		fallthrough
+	case d["--proxy-status"].(bool):
 		t.handleProxyCommand(d)
 
 	case d["--create-group"].(bool):
@@ -163,6 +173,57 @@ func (t *cmdDashboard) handleShutdown(d map[string]interface{}) {
 	log.Debugf("call rpc shutdown OK")
 }
 
+func (t *cmdDashboard) handleSlotsCommand(d map[string]interface{}) {
+	c := t.newTopomClient()
+
+	switch {
+
+	case d["--slots-status"].(bool):
+
+		log.Debugf("call rpc slots to dashboard %s", t.addr)
+		o, err := c.Slots()
+		if err != nil {
+			log.PanicErrorf(err, "call rpc slots to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc slots OK")
+
+		b, err := json.MarshalIndent(o, "", "    ")
+		if err != nil {
+			log.PanicErrorf(err, "json marshal failed")
+		}
+		fmt.Println(string(b))
+
+	case d["--slots-remap"] != nil:
+
+		file := utils.ArgumentMust(d, "--slots-remap")
+		b, err := ioutil.ReadFile(file)
+		if err != nil {
+			log.PanicErrorf(err, "read file '%s' failed", file)
+		}
+
+		slots := []*models.SlotMapping{}
+		if err := json.Unmarshal(b, &slots); err != nil {
+			log.PanicErrorf(err, "json unmarshal failed")
+		}
+
+		if !d["--confirm"].(bool) {
+			b, err := json.MarshalIndent(slots, "", "    ")
+			if err != nil {
+				log.PanicErrorf(err, "json marshal failed")
+			}
+			fmt.Println(string(b))
+			return
+		}
+
+		log.Debugf("call rpc slots-remap to dashboard %s", t.addr)
+		if err := c.SlotsRemapGroup(slots); err != nil {
+			log.PanicErrorf(err, "call rpc slots-remap to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc slots-remap OK")
+
+	}
+}
+
 func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
 	switch {
 
@@ -245,14 +306,77 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 
 	case d["--reinit-proxy"].(bool):
 
-		token := t.parseProxyToken(d)
+		switch {
 
-		log.Debugf("call rpc reinit-proxy to dashboard %s", t.addr)
-		if err := c.ReinitProxy(token); err != nil {
-			log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.addr)
+		default:
+
+			token := t.parseProxyToken(d)
+
+			log.Debugf("call rpc reinit-proxy to dashboard %s", t.addr)
+			if err := c.ReinitProxy(token); err != nil {
+				log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.addr)
+			}
+			log.Debugf("call rpc reinit-proxy OK")
+
+		case d["--all"].(bool):
+
+			log.Debugf("call rpc stats to dashboard %s", t.addr)
+			s, err := c.Stats()
+			if err != nil {
+				log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.addr)
+			}
+			log.Debugf("call rpc stats OK")
+
+			for _, p := range s.Proxy.Models {
+				fmt.Printf("reinit proxy: %s\n", p.Encode())
+				log.Debugf("call rpc reinit-proxy to dashboard %s", t.addr)
+				if err := c.ReinitProxy(p.Token); err != nil {
+					log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.addr)
+				}
+				log.Debugf("call rpc reinit-proxy OK")
+			}
+
 		}
-		log.Debugf("call rpc reinit-proxy OK")
 
+	case d["--proxy-status"].(bool):
+
+		log.Debugf("call rpc stats to dashboard %s", t.addr)
+		s, err := c.Stats()
+		if err != nil {
+			log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc stats OK")
+
+		var format string
+		var wpid int
+		for _, p := range s.Proxy.Models {
+			wpid = utils.MaxInt(wpid, len(strconv.Itoa(p.Id)))
+		}
+		format += fmt.Sprintf("proxy-%%0%dd    [T] %%s", wpid)
+
+		var waddr1, waddr2 int
+		for _, p := range s.Proxy.Models {
+			waddr1 = utils.MaxInt(waddr1, len(p.AdminAddr))
+			waddr2 = utils.MaxInt(waddr2, len(p.ProxyAddr))
+		}
+		format += fmt.Sprintf("    [A] %%-%ds", waddr1)
+		format += fmt.Sprintf("    [P] %%-%ds", waddr2)
+
+		for _, p := range s.Proxy.Models {
+			var xfmt string
+			switch stats := s.Proxy.Stats[p.Token]; {
+			case stats == nil:
+				xfmt = "[?] " + format
+			case stats.Error != nil:
+				xfmt = "[E] " + format
+			case stats.Timeout || stats.Stats == nil:
+				xfmt = "[T] " + format
+			default:
+				xfmt = "[ ] " + format
+			}
+			fmt.Printf(xfmt, p.Id, p.Token, p.AdminAddr, p.ProxyAddr)
+			fmt.Println()
+		}
 	}
 }
 
@@ -332,37 +456,53 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 		}
 		log.Debugf("call rpc stats OK")
 
+		var format string
+		var wgid, widx int
 		for _, g := range s.Group.Models {
-			fmt.Printf("group-%04d -----+ ", g.Id)
+			wgid = utils.MaxInt(wgid, len(strconv.Itoa(g.Id)))
+			for i, _ := range g.Servers {
+				widx = utils.MaxInt(widx, len(strconv.Itoa(i)))
+			}
+		}
+		format += fmt.Sprintf("group-%%0%dd [%%0%dd]", wgid, widx)
+
+		var waddr int
+		for _, g := range s.Group.Models {
+			for _, x := range g.Servers {
+				waddr = utils.MaxInt(waddr, len(x.Addr))
+			}
+		}
+		format += fmt.Sprintf(" %%-%ds", waddr)
+
+		for _, g := range s.Group.Models {
 			for i, x := range g.Servers {
-				if i != 0 {
-					fmt.Println()
-					fmt.Printf("                + ")
-				}
 				var addr = x.Addr
 				switch stats := s.Group.Stats[addr]; {
 				case stats == nil:
-					fmt.Printf("[?] %s", addr)
+					fmt.Printf("[?] "+format, g.Id, i, addr)
 				case stats.Error != nil:
-					fmt.Printf("[E] %s", addr)
+					fmt.Printf("[E] "+format, g.Id, i, addr)
 				case stats.Timeout || stats.Stats == nil:
-					fmt.Printf("[?] %s", addr)
+					fmt.Printf("[T] "+format, g.Id, i, addr)
 				default:
-					master := stats.Stats["master_addr"]
-					linked := stats.Stats["master_link_status"] == "up"
-					if i == 0 {
-						if master != "" {
-							fmt.Printf("[X] %s -> %s", addr, master)
-						} else {
-							fmt.Printf("[+] %s", addr)
-						}
+					var master string
+					if s, ok := stats.Stats["master_addr"]; ok {
+						master = s + ":" + stats.Stats["master_link_status"]
 					} else {
-						if master != g.Servers[0].Addr || !linked {
-							fmt.Printf("[X] %s -> %s", addr, master)
-						} else {
-							fmt.Printf("[+] %s", addr)
-						}
+						master = "NO:ONE"
 					}
+					var expect string
+					if i == 0 {
+						expect = "NO:ONE"
+					} else {
+						expect = g.Servers[0].Addr + ":up"
+					}
+					if master == expect {
+						fmt.Printf("[ ] "+format, g.Id, i, addr)
+					} else {
+						fmt.Printf("[X] "+format, g.Id, i, addr)
+					}
+					fmt.Printf("      ==> %s", master)
 				}
 				fmt.Println()
 			}

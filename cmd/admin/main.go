@@ -20,10 +20,13 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR           [config|model|stats|slots|group|proxy]
 	codis-admin [-v] --dashboard=ADDR            --shutdown
 	codis-admin [-v] --dashboard=ADDR            --log-level=LEVEL
+	codis-admin [-v] --dashboard=ADDR            --slots-remap=FILE [--confirm]
+	codis-admin [-v] --dashboard=ADDR            --slots-status
 	codis-admin [-v] --dashboard=ADDR            --list-proxy
 	codis-admin [-v] --dashboard=ADDR            --create-proxy   --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --remove-proxy  (--addr=ADDR|--token=TOKEN|--pid=ID) [--force]
-	codis-admin [-v] --dashboard=ADDR            --reinit-proxy  (--addr=ADDR|--token=TOKEN|--pid=ID)
+	codis-admin [-v] --dashboard=ADDR            --reinit-proxy  (--addr=ADDR|--token=TOKEN|--pid=ID|--all)
+	codis-admin [-v] --dashboard=ADDR            --proxy-status
 	codis-admin [-v] --dashboard=ADDR            --list-group
 	codis-admin [-v] --dashboard=ADDR            --create-group   --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --remove-group   --gid=ID
@@ -39,10 +42,11 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --create-range --beg=ID --end=ID --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --interval=VALUE
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --disabled=VALUE
-	codis-admin [-v]  --remove-lock                  --product=NAME (--zookeeper=ADDR|--etcd=ADDR)
-	codis-admin [-v]  --config-dump                  --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [-1]
-	codis-admin [-v]  --config-convert  --input=FILE
-	codis-admin [-v]  --config-restore  --input=FILE --product=NAME (--zookeeper=ADDR|--etcd=ADDR)
+	codis-admin [-v] --remove-lock               --product=NAME (--zookeeper=ADDR|--etcd=ADDR)
+	codis-admin [-v] --config-dump               --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [-1]
+	codis-admin [-v] --config-convert=FILE
+	codis-admin [-v] --config-restore=FILE       --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [--confirm]
+	codis-admin [-v] --list-dashboard                           (--zookeeper=ADDR|--etcd=ADDR)
 
 Options:
 	-a AUTH, --auth=AUTH

@@ -3,7 +3,11 @@
 
 package topom
 
-import "time"
+import (
+	"time"
+
+	"github.com/wandoulabs/codis/pkg/utils/log"
+)
 
 func (s *Topom) ProcessSlotAction() error {
 	for !s.IsClosed() {
@@ -14,6 +18,7 @@ func (s *Topom) ProcessSlotAction() error {
 		if err := s.processSlotAction(sid); err != nil {
 			return err
 		}
+		time.Sleep(time.Millisecond * 10)
 	}
 	return nil
 }
@@ -27,6 +32,8 @@ func (s *Topom) processSlotAction(sid int) (err error) {
 			s.action.progress.failed.Set(false)
 		}
 	}()
+	log.Warnf("slot-[%d] process action", sid)
+
 	for !s.IsClosed() {
 		if exec, err := s.newSlotActionExecutor(sid); err != nil {
 			return err
@@ -37,6 +44,8 @@ func (s *Topom) processSlotAction(sid int) (err error) {
 			if err != nil {
 				return err
 			}
+			log.Debugf("slot-[%d] action executor %d", sid, n)
+
 			if n == 0 {
 				return s.SlotActionComplete(sid)
 			}
@@ -55,6 +64,8 @@ func (s *Topom) ProcessSyncAction() error {
 	if err != nil || addr == "" {
 		return err
 	}
+	log.Warnf("sync-[%s] process action", addr)
+
 	exec, err := s.newSyncActionExecutor(addr)
 	if err != nil || exec == nil {
 		return err

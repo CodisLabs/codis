@@ -25,6 +25,7 @@ func main() {
 	const usage = `
 Usage:
 	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR]
+	codis-dashboard  --default-config
 	codis-dashboard  --version
 
 Options:
@@ -39,10 +40,17 @@ Options:
 		log.PanicError(err, "parse arguments failed")
 	}
 
-	if d["--version"].(bool) {
+	switch {
+
+	case d["--default-config"]:
+		fmt.Println(topom.DefaultConfig)
+		return
+
+	case d["--version"].(bool):
 		fmt.Println("version:", utils.Version)
 		fmt.Println("compile:", utils.Compile)
 		return
+
 	}
 
 	if s, ok := utils.Argument(d, "--log"); ok {
@@ -83,7 +91,7 @@ Options:
 
 	switch config.CoordinatorName {
 
-	case zkclient.CoordinatorName:
+	case "zookeeper":
 		addr := config.CoordinatorAddr
 		client, err = zkclient.New(addr, time.Minute)
 		if err != nil {
@@ -91,7 +99,7 @@ Options:
 		}
 		defer client.Close()
 
-	case etcdclient.CoordinatorName:
+	case "etcd":
 		addr := config.CoordinatorAddr
 		client, err = etcdclient.New(addr, time.Minute)
 		if err != nil {

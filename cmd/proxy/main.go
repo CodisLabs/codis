@@ -25,6 +25,7 @@ func main() {
 	const usage = `
 Usage:
 	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--ulimit=NLIMIT]
+	codis-proxy  --default-config
 	codis-proxy  --version
 
 Options:
@@ -40,10 +41,17 @@ Options:
 		log.PanicError(err, "parse arguments failed")
 	}
 
-	if d["--version"].(bool) {
+	switch {
+
+	case d["--default-config"]:
+		fmt.Println(proxy.DefaultConfig)
+		return
+
+	case d["--version"].(bool):
 		fmt.Println("version:", utils.Version)
 		fmt.Println("compile:", utils.Compile)
 		return
+
 	}
 
 	if s, ok := utils.Argument(d, "--log"); ok {
