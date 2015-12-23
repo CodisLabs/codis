@@ -1,0 +1,17 @@
+{
+  "name": "convert-hex",
+  "version": "0.1.0",
+  "description": "Convert to/from hex string and array of bytes",
+  "keywords": [
+    "string",
+    "strings",
+    "convert",
+    "hex",
+    "bytes"
+  ],
+  "repo": "cryptocoinjs/convert-hex",
+  "scripts": [
+    "convert-hex.js"
+  ],
+  "main": "convert-hex.js"
+}

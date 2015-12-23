@@ -1,0 +1,4 @@
+.gitignore
+test/
+.DS_Store
+references/

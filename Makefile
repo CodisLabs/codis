@@ -1,6 +1,6 @@
-.PHONY:    codis-server codis-dashboard codis-proxy codis-admin docker
+.PHONY:    codis-server codis-dashboard codis-proxy codis-admin codis-fe docker
 
-build-all: codis-server codis-dashboard codis-proxy codis-admin
+build-all: codis-server codis-dashboard codis-proxy codis-admin codis-fe
 
 godep-env:
 	@bash version
@@ -15,6 +15,10 @@ codis-admin: godep-env
 
 codis-dashboard: godep-env
 	godep go build -i -o bin/codis-dashboard ./cmd/dashboard
+
+codis-fe: godep-env
+	godep go build -i -o bin/codis-fe ./cmd/fe
+	@rm -rf bin/assets; cp -rf cmd/fe/assets bin/
 
 codis-server:
 	@mkdir -p bin

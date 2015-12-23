@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="../assets/jquery/jquery-1.10.2.min.js"></script>
+        <link href="../assets/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap/js/bootstrap.min.js"></script>
+        <link href="../assets/bootstrap-dialog/css/bootstrap-dialog.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap-dialog/js/bootstrap-dialog.min.js"></script>
+        <title>Dialog ID</title>
+        <meta charset="utf-8" />
+    </head>
+    <body>
+        <script type="text/javascript">
+            $(function() {
+                var dialogId = 'my-dialog-1';
+                var dialog = new BootstrapDialog({
+                    id: dialogId,
+                    title: 'Set custom id for your dialog',
+                    message: 'Check out the dialog you have created and see if the id is set as expected.'
+                });
+                dialog.open();
+            });
+        </script>
+    </body>
+</html>

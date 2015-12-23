@@ -1,0 +1,125 @@
+<?xml version="1.0"?>
+<errors>
+	<error id="10">
+		<title>Can't plot zero or subzero values on a logarithmic axis</title>
+		<description>
+			This error occurs in the following situations:
+			<ul>
+				<li>If a zero or subzero data value is added to a logarithmic axis</li>
+				<li>If the minimum of a logarithimic axis is set to 0 or less</li>
+				<li>If the threshold is set to 0 or less</li>
+			</ul>
+		</description>
+	</error>
+
+	<error id="12">
+		<title>Highcharts expects point configuration to be numbers or arrays in turbo mode</title>
+		<description>
+			This error occurs if the <code>series.data</code> option contains object configurations and the number
+			of points exceeds the <code>turboThreshold</code>. It can be fixed by either setting the <code>turboThreshold</code>
+			option to a higher value, or changing your point configurations to numbers or arrays. See <a href="http://api.highcharts.com/highcharts#plotOptions.series.turboThreshold">turboThreshold</a>.
+		</description>
+	</error>
+	
+
+	<error id="13">
+		<title>Rendering div not found</title>
+		<description>
+			This error occurs if the <a href="http://api.highcharts.com/highcharts#chart.renderTo">chart.renderTo</a> 
+			option is misconfigured so that Highcharts is unable to find the HTML element to render the chart in.
+		</description>
+	</error>
+	<error id="14">
+		<title>String value sent to series.data, expected Number</title>
+		<description>
+			<p>This happens if you pass in a string as a data point, for example in a setup like this:</p>
+			<pre>series: [{
+	data: ["3", "5", "1", "6"]
+}]</pre>
+			<p>Highcharts expects the data values to be numbers. The most common reason for this is that data is parsed
+				from CSV or from a XML source, and the implementer forgot to run <code>parseFloat</code> on the 
+				parsed value.</p>
+				
+				
+			<p>For performance reasons internal type casting is not performed,
+			and only the first value is checked (since 2.3).</p> 
+		</description>
+	</error>
+	<error id="15">
+		<title>Highcharts expects data to be sorted</title>
+		<description>
+			<p>This happens when you are trying to create a line series or a stock chart where the data is not
+				sorted in ascending X order. For performance reasons, Highcharts does not sort the data,
+				instead it is required that the implementer pre-sorts the data.</p> 
+		</description>
+	</error>
+	<error id="16">
+		<title>Highcharts already defined in the page</title>
+		<description>
+			<p>This error happens the second time Highcharts or Highstock is loaded in the same page, so the <code>Highcharts</code>
+			namespace is already defined. Keep in mind that the <code>Highcharts.Chart</code> constructor and all features
+			of Highcharts are included in Highstock, so if you are running <code>Chart</code> and <code>StockChart</code> in combination, you 
+			only need to load the highstock.js file. </p> 
+		</description>
+	</error>
+	<error id="17">
+		<title>The requested series type does not exist</title>
+		<description>
+			<p>This error happens when you are setting <code>chart.type</code> or <code>series.type</code> to a series type
+			that isn't defined in Highcharts. A typical reason may be that your are missing the extension file where the series type
+			is defined, for example in order to run an <code>arearange</code> series you need to load the <code>highcharts-more.js</code>
+			file.</p> 
+		</description>
+	</error>
+	<error id="18">
+		<title>The requested axis does not exist</title>
+		<description>
+			<p>This error happens when you set a series' <code>xAxis</code> or <code>yAxis</code> property to point to an axis that does not exist.</p> 
+		</description>
+	</error>
+	
+	<error id="19">
+		<title>Too many ticks</title>
+		<description>
+			<p>This error happens when you try to apply too many ticks to an axis, specifically when you add more ticks than the axis
+				pixel length. In practice, it doesn't make sense to add ticks so densely that they can't be distinguished from each other. One cause of
+				the error may be that you set a <code>tickInterval</code> that is too small for the data value range. In general, <code>tickPixelInterval</code>
+				is a better option, as it will handle this automatically. Another case is if you try to set categories on a datetime axis, which will result
+				in Highcharts trying to add one tick on every millisecond since 1970.</p> 
+		</description>
+	</error>
+	
+	<error id="20">
+		<title>Can't add object point configuration to a long data series</title>
+		<description>
+			<p>In Highstock, if you try to add a point using the object literal configuration syntax, it works only when the number of data points is 
+				below the series' <a href="http://api.highcharts.com/highstock#plotOptions.series.turboThreshold">turboThreshold</a>. Instead of the object
+				syntax, use the Array syntax.</p> 
+		</description>
+	</error>
+	
+	<error id="21">
+		<title>Can't find Proj4js library</title>
+		<description>
+			<p>Using latitude/longitude functionality in Highmaps requires the <a href="http://proj4js.org">Proj4js</a> library to be loaded.</p> 
+		</description>
+	</error>
+
+	<error id="22">
+		<title>Map does not support latitude/longitude</title>
+		<description>
+			<p>The loaded map does not support latitude/longitude functionality. This is only supported with maps from the 
+				<a href="http://code.highcharts.com/mapdata">official Highmaps map collection</a> from version 1.1.0 onwards. If you are using a custom 
+				map, consider using the <a href="http://proj4js.org">Proj4js</a> library to convert between projections.</p>
+		</description>
+	</error>	
+
+	<error id="23">
+		<title>Unsupported color format used for color interpolation</title>
+		<description>
+			<p>Highcharts supports three color formats primarily: hex (<code>#FFFFFF</code>), rgb (<code>rgba(255,255,255)</code> and rgba (<code>rgba(255,255,255,1)</code>. If any other format,
+			like 3-digit colors (<code>#FFF</code>), named colors (<code>white</code>) or gradient structures are used in for example a heatmap, Highcharts will fail to interpolate and just jumps to the end color.
+			We have chosen to preserve this limitation in order to keep the weight of the implementation at a minimum.</p> 
+		</description>
+	</error>
+</errors>
