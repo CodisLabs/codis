@@ -386,8 +386,8 @@
                             </span>
                         </td>
                         <td style="width: 140px;">[[server.actionstate]]</td>
-                        <td style="width: 24%;">[[server.memory]] / [[server.maxmem]]</td>
-                        <td ng-switch="server.status">
+                        <td style="width: 220px;">[[server.memory]] / [[server.maxmem]]</td>
+                        <td style="width: 220px;" ng-switch="server.status">
                             <span ng-switch-when="ERROR" class="status_label_error">[[server.status]]</span>
                             <span ng-switch-when="TIMEOUT" class="status_label_warning">[[server.status]]</span>
                             <span ng-switch-when="PENDING" class="status_label_pending">[[server.status]]</span>
