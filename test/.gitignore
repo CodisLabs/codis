@@ -1,7 +1,1 @@
-*.log
-*.log.*
-*.out
-*.rdb
-*.cfg
-*.toml
-codis-test.etcd
+/tmp

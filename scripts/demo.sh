@@ -12,7 +12,7 @@ done
 
 rm -rf tmp; mkdir -p tmp && pushd tmp
 if [ $? -ne 0 ]; then
-    echo "change directory failed"
+    echo "pushd failed"
     exit 1
 fi
 
