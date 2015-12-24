@@ -16,9 +16,9 @@ import (
 	"github.com/c4pt0r/cfg"
 	"github.com/docopt/docopt-go"
 
+	"github.com/wandoulabs/codis/pkg/utils"
 	"github.com/wandoulabs/codis/pkg/utils/errors"
 	"github.com/wandoulabs/codis/pkg/utils/log"
-	"github.com/wandoulabs/codis/pkg/utils"
 )
 
 // global objects
@@ -37,12 +37,16 @@ type Command struct {
 	Ctx   interface{}
 }
 
-var usage = `usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
+var usage = `usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--password=<password>] [--zk=<zk>] [--product=<product>] [--dashboard-addr=<dashboard-addr>]
 		<command> [<args>...]
 options:
    -c	set config file
    -L	set output log file, default is stdout
-   --log-level=<loglevel>	set log level: info, warn, error, debug [default: info]
+   --log-level=<loglevelconfig>	set log level: info, warn, error, debug [default: info]
+   --passwd=<passwd>            password overrides which in config file	
+   --product=<product>	        product overrides which in config file	
+   --zk=<zk>	                zk/etcd addr overrides which in config file
+   --dashboard-addr=<dashboard-addr>	dashboard-addr overrides which in config file
 
 commands:
 	server
@@ -140,6 +144,22 @@ func main() {
 
 	if err := config.Load(); err != nil {
 		log.PanicErrorf(err, "load config file error")
+	}
+
+	if s, ok := args["--password"].(string); ok && s != "" {
+		config.WriteString("password", s)
+	}
+
+	if s, ok := args["--zk"].(string); ok && s != "" {
+		config.WriteString("zk", s)
+	}
+
+	if s, ok := args["--product"].(string); ok && s != "" {
+		config.WriteString("product", s)
+	}
+
+	if s, ok := args["--dashboard-addr"].(string); ok && s != "" {
+		config.WriteString("dashboard_addr", s)
 	}
 
 	// load global vars
