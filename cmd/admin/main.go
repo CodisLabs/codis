@@ -46,7 +46,7 @@ Usage:
 	codis-admin [-v] --config-dump               --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [-1]
 	codis-admin [-v] --config-convert=FILE
 	codis-admin [-v] --config-restore=FILE       --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [--confirm]
-	codis-admin [-v] --list-dashboard                           (--zookeeper=ADDR|--etcd=ADDR)
+	codis-admin [-v] --dashboard-list                           (--zookeeper=ADDR|--etcd=ADDR)
 
 Options:
 	-a AUTH, --auth=AUTH

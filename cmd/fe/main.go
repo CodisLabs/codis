@@ -49,15 +49,15 @@ func init() {
 func main() {
 	const usage = `
 Usage:
-	codis-fe [--ncpu=N] [--codis-map=CONF] [--log=FILE] [--log-level=LEVEL] [--listen=ADDR]
+	codis-fe [--ncpu=N] [--dashboard-list=LIST] [--log=FILE] [--log-level=LEVEL] [--listen=ADDR]
 	codis-fe  --version
 
 Options:
-	--ncpu=N                    set runtime.GOMAXPROCS to N, default is runtime.NumCPU().
-	-c CONF, --codis-map=CONF   set the config file, default is codis.json.
-	-l FILE, --log=FILE         set path/name of daliy rotated log file.
-	--log-level=LEVEL           set the log-level, should be INFO,WARN,DEBUG or ERROR, default is INFO.
-	--listen=ADDR               set the listen address, default is 0.0.0.0:8080
+	--ncpu=N                        set runtime.GOMAXPROCS to N, default is runtime.NumCPU().
+	-d LIST, --dashboard-list=LIST  set config file, default is codis.json.
+	-l FILE, --log=FILE             set path/name of daliy rotated log file.
+	--log-level=LEVEL               set the log-level, should be INFO,WARN,DEBUG or ERROR, default is INFO.
+	--listen=ADDR                   set the listen address, default is 0.0.0.0:8080
 `
 	d, err := docopt.Parse(usage, nil, true, "", false)
 	if err != nil {
@@ -99,24 +99,24 @@ Options:
 		log.Warnf("option --listen = %s", s)
 	}
 
-	var config = "codis.json"
-	if s, ok := utils.Argument(d, "--codis-map"); ok {
-		listen = s
-		log.Warnf("option --codis-map = %s", s)
+	var path = "codis.json"
+	if s, ok := utils.Argument(d, "--dashboard-list"); ok {
+		path = s
+		log.Warnf("option --dashboard-list = %s", s)
 	}
 
-	loader := &ConfigLoader{path: config}
+	loader := &ConfigLoader{path: path}
 	router := &ReverseProxy{}
 
 	go func() {
 		for {
 			m, err := loader.Reload()
 			if err != nil {
-				log.WarnErrorf(err, "reload %s failed", config)
+				log.WarnErrorf(err, "reload %s failed", path)
 				time.Sleep(time.Second * 5)
 			} else {
 				if m != nil {
-					log.Infof("reload %s = %v", config, m)
+					log.Infof("reload %s = %v", path, m)
 					router.Update(m)
 				}
 				time.Sleep(time.Second)
