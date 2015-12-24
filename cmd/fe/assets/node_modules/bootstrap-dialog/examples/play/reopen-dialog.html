@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="../assets/jquery/jquery-1.10.2.min.js"></script>
+        <link href="../assets/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap/js/bootstrap.min.js"></script>
+        <link href="../assets/bootstrap-dialog/css/bootstrap-dialog.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap-dialog/js/bootstrap-dialog.min.js"></script>
+        <title>Reopen Dialog</title>
+        <meta charset="utf-8" />
+    </head>
+    <body>
+        <button id="btn-open" class="btn btn-primary btn-block">Open your dialog</button>
+        <script type="text/javascript">
+            /**
+             * This example demonstrates how to create a dialog, close it and reopen it again.
+             */
+            $(function() {
+                // Create your dialog but do not open it.
+                var dialog = new BootstrapDialog({
+                    title: 'Your dialog',
+                    message: 'This dialog can be opened and closed again and again.',
+                    autodestroy: false
+                });
+
+                // Use your dialog you have created above.
+                $('#btn-open').on('click', {dialog: dialog}, function(event) {
+                    event.data.dialog.open();
+                });
+            });
+        </script>
+    </body>
+</html>

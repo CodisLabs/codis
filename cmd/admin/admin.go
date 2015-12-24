@@ -33,8 +33,8 @@ func (t *cmdAdmin) Main(d map[string]interface{}) {
 		t.handleConfigConvert(d)
 	case d["--config-restore"] != nil:
 		t.handleConfigRestore(d)
-	case d["--list-dashboard"].(bool):
-		t.handleListDashboard(d)
+	case d["--dashboard-list"].(bool):
+		t.handleDashboardList(d)
 	}
 }
 
@@ -412,7 +412,7 @@ func (t *cmdAdmin) handleConfigRestore(d map[string]interface{}) {
 	}
 }
 
-func (t *cmdAdmin) handleListDashboard(d map[string]interface{}) {
+func (t *cmdAdmin) handleDashboardList(d map[string]interface{}) {
 	client := t.newTopomClient(d)
 	defer client.Close()
 

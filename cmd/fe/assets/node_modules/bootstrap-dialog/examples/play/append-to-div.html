@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="../assets/jquery/jquery-1.10.2.min.js"></script>
+        <link href="../assets/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap/js/bootstrap.min.js"></script>
+        <link href="../assets/bootstrap-dialog/css/bootstrap-dialog.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap-dialog/js/bootstrap-dialog.min.js"></script>
+        <title>Append modal to div</title>
+        <meta charset="utf-8" />
+    </head>
+    <body>
+        <div id="modal-container"></div>
+        <script type="text/javascript">
+            /**
+             * This example demonstrates how to append modal stuff to a div other than body.
+             */
+            $(function() {
+                var dialog = new BootstrapDialog({
+                    title: 'Not in body',
+                    message: 'But somewhere else.'
+                });
+                dialog.realize();
+                $('#modal-container').append(dialog.getModal());
+                dialog.open();
+            });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,16 @@
+/bower_components/
+/node_modules/
+npm-debug.log
+
+/.idea/
+.DS_Store
+
+/test/
+/src/
+/example/
+.editorconfig
+bower.json
+CONTRIBUTING.md
+Gruntfile.js
+karma.conf.js
+README.md
