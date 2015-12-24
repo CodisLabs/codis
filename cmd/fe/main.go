@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -136,7 +137,9 @@ Options:
 
 	r := martini.NewRouter()
 	r.Get("/list", func() (int, string) {
-		return rpc.ApiResponseJson(router.Names())
+		names := router.Names()
+		sort.Sort(sort.StringSlice(names))
+		return rpc.ApiResponseJson(names)
 	})
 
 	r.Any("/**", func(w http.ResponseWriter, req *http.Request) {

@@ -166,7 +166,9 @@ function renderSlotsCharts(slots_array) {
             }
         },
         xAxis: {
-            categories: ['Pending', 'Default']
+            categories: ['Migration', 'Default'],
+            min: 0,
+            max: 1,
         },
         yAxis: {
             min: 0,
@@ -375,7 +377,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         });
         $scope.chart_ops = newChatsOpsConfig();
 
-        $scope.refresh_interval = 3;
+        $scope.refresh_interval = 2;
 
         $scope.resetOverview = function () {
             $scope.codis_name = "NA";
@@ -455,7 +457,8 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
 
         $scope.refreshStats = function () {
             var codis_name = $scope.codis_name;
-            if (isValidInput(codis_name)) {
+            var codis_addr = $scope.codis_addr;
+            if (isValidInput(codis_name) && isValidInput(codis_addr)) {
                 var xauth = genXAuth(codis_name);
                 var url = concatUrl("/api/topom/stats/" + xauth, codis_name);
                 $http.get(url).then(function (resp) {

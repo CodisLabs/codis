@@ -43,7 +43,7 @@
         <div class="row">
             <div class="col-md-4">
                 <h4 style="padding-left:20px;"><b>Overview</b></h4>
-                <table class="table table-bordered" style="font-weight:bold;">
+                <table class="table table-bordered" style="font-weight: bold;">
                     <col width="35%">
                     <col width="65%">
                     <tbody>
@@ -96,10 +96,7 @@
             </div>
             <div class="col-md-8">
                 <h4 style="padding-left:70px; padding-bottom: 16px;"><b>QPS</b></h4>
-
-                <div class="content">
-                    <highchart config="chart_ops" style="height:285px"></highchart>
-                </div>
+                <highchart config="chart_ops" style="height:290px"></highchart>
             </div>
         </div>
 
@@ -108,10 +105,10 @@
                  style="margin-bottom: 14px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
                 <form class="form-inline">
                     <h4 style="padding-left:20px; padding-right:20px; display: inline;">Proxy</h4>
-                    <span ng-if="codis_addr != 'NA'">
+                    <span ng-if="codis_addr != 'NA'" style="float: right;">
                     <input style="width: 250px; " type="text" class="form-control" placeholder="Proxy Admin Address"
                            ng-model="new_proxy">
-                    <button class="btn btn-success" style="width: 120px;"
+                    <button class="btn btn-warning" style="width: 120px;"
                             ng-click="createProxy(new_proxy)"
                             ng-disabled="!new_proxy">Add Proxy
                     </button>
@@ -122,17 +119,17 @@
                 <table class="table table-bordered table-striped table-hover table-condensed">
                     <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Token</th>
+                        <th style="width: 1px;">ID</th>
+                        <th style="width: 1px; padding-right: 20px;">Token</th>
                         <th>Proxy</th>
                         <th>Admin</th>
-                        <th>Status</th>
+                        <th style="width: 350px;">Status</th>
                         <th style="width: 35px;"></th>
                     </tr>
                     </thead>
                     <tr ng-repeat="proxy in proxy_array">
-                        <td style="width: 1px;" class="text-center">[[proxy.id]]</td>
-                        <td style="width: 1px; padding-right: 20px; font-family: Courier, monospace; font-size: small; vertical-align: middle;">
+                        <td class="text-center">[[proxy.id]]</td>
+                        <td style="font-family: Courier, monospace; font-size: small; vertical-align: middle;">
                             [[proxy.token]]
                         </td>
                         <td>[[proxy.proxy_addr]]</td>
@@ -173,13 +170,13 @@
                         </button>
                     </span>
                     <span ng-if="codis_addr != 'NA'" style="float: right;">
-                        <input style="width: 140px; margin-left: 100px; " type="text"
+                        <input style="width: 80px; margin-left: 100px; " type="text"
                                class="form-control" placeholder="Begin"
                                ng-model="migrate_slot_id_beg">
-                        <input style="width: 140px; " type="text"
+                        <input style="width: 80px; " type="text"
                                class="form-control" placeholder="End"
                                ng-model="migrate_slot_id_end">
-                        <input style="width: 140px; "
+                        <input style="width: 120px; "
                                pattern="^(?:[1-9][0-9]{3}|[1-9][0-9]{2}|[1-9][0-9]|[1-9])$"
                                class="form-control" placeholder="Target Group"
                                ng-model="migrate_range_to_group_id">
@@ -260,24 +257,26 @@
                         <table class="table table-bordered table-striped table-hover table-condensed">
                             <thead>
                             <tr>
-                                <th>Slot</th>
-                                <th>Group</th>
-                                <th>Target</th>
+                                <th style="width: 1px;">Slot</th>
+                                <th style="width: 1px">Group</th>
+                                <th style="width: 1px">Target</th>
+                                <th style="width: 1px">Index</th>
                                 <th>Status</th>
                                 <th style="width: 35px;"></th>
                             </tr>
                             </thead>
                             <tr ng-repeat="slot in slots_actions">
-                                <td style="width: 1px;" class="text-center">[[slot.id]]</td>
+                                <td class="text-center">[[slot.id]]</td>
                                 <td>[[slot.group_id]]</td>
                                 <td>[[slot.action.target_id]]</td>
+                                <td>[[slot.action.index]]</td>
                                 <td ng-switch="slot.action.state">
-                        <span ng-switch-when="pending">
-                            state=[[slot.action.state]],index=[[slot.action.index]]
-                        </span>
-                        <span ng-switch-default class="status_label_warning">
-                            state=[[slot.action.state]],index=[[slot.action.index]]
-                        </span>
+                                    <span ng-switch-when="pending">
+                                        state=[[slot.action.state]]
+                                    </span>
+                                    <span ng-switch-default style="color: red; font-weight: bold;">
+                                        state=[[slot.action.state]]
+                                    </span>
                                 </td>
                                 <td class="button_tight_column" ng-switch="slot.action.state">
                                     <span ng-switch-when="pending">
@@ -344,9 +343,9 @@
                                 </button>
                             </span>
                         </th>
-                        <th/>
-                        <th>Memory</th>
-                        <th>Keys</th>
+                        <th style="width: 140px;"/>
+                        <th style="width: 220px;">Memory</th>
+                        <th style="width: 320px;">Keys</th>
                         <th style="width: 35px;" ng-switch="group.canremove">
                             <span ng-switch-when="true">
                                 <button class="btn btn-primary btn-xs"
@@ -366,8 +365,8 @@
                                 </button>
                             </span>
                         </td>
-                        <td style="width: 24%;">[[server.server]]</td>
-                        <td style="width: 24%;" ng-switch="server.master_status">
+                        <td>[[server.server]]</td>
+                        <td ng-switch="server.master_status">
                             <span ng-switch-when="false" class="status_label_error">[[server.master]]</span>
                             <span ng-switch-default>[[server.master]]</span>
                         </td>
@@ -385,9 +384,9 @@
                                 </button>
                             </span>
                         </td>
-                        <td style="width: 140px;">[[server.actionstate]]</td>
-                        <td style="width: 220px;">[[server.memory]] / [[server.maxmem]]</td>
-                        <td style="width: 220px;" ng-switch="server.status">
+                        <td>[[server.actionstate]]</td>
+                        <td>[[server.memory]] / [[server.maxmem]]</td>
+                        <td ng-switch="server.status">
                             <span ng-switch-when="ERROR" class="status_label_error">[[server.status]]</span>
                             <span ng-switch-when="TIMEOUT" class="status_label_warning">[[server.status]]</span>
                             <span ng-switch-when="PENDING" class="status_label_pending">[[server.status]]</span>
