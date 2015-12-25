@@ -129,8 +129,12 @@ Options:
 	}
 	assets := filepath.Join(binpath, "assets")
 
-	if _, err := os.Stat(assets); err != nil {
-		log.PanicErrorf(err, "get stat of assets failed")
+	fi, err := os.Stat(assets)
+	if err != nil {
+		log.PanicErrorf(err, "get stat of %s failed", assets)
+	}
+	if !fi.IsDir() {
+		log.Panicf("%s is not a directory", assets)
 	}
 
 	m.Use(martini.Static(assets, martini.StaticOptions{SkipLogging: true}))
