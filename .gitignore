@@ -1,5 +1,4 @@
 *.log
-*.rdb
 *.swp
 *.out
 *.dump
