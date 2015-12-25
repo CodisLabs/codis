@@ -50,7 +50,7 @@ func init() {
 func main() {
 	const usage = `
 Usage:
-	codis-fe [--ncpu=N] --dashboard-list=LIST --listen=ADDR [--log=FILE] [--log-level=LEVEL]
+	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] --dashboard-list=LIST --listen=ADDR
 	codis-fe  --version
 
 Options:
