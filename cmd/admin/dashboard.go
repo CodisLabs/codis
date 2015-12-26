@@ -352,15 +352,15 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 		for _, p := range s.Proxy.Models {
 			wpid = utils.MaxInt(wpid, len(strconv.Itoa(p.Id)))
 		}
-		format += fmt.Sprintf("proxy-%%0%dd    [T] %%s", wpid)
+		format += fmt.Sprintf("proxy-%%0%dd [T] %%s", wpid)
 
 		var waddr1, waddr2 int
 		for _, p := range s.Proxy.Models {
 			waddr1 = utils.MaxInt(waddr1, len(p.AdminAddr))
 			waddr2 = utils.MaxInt(waddr2, len(p.ProxyAddr))
 		}
-		format += fmt.Sprintf("    [A] %%-%ds", waddr1)
-		format += fmt.Sprintf("    [P] %%-%ds", waddr2)
+		format += fmt.Sprintf(" [A] %%-%ds", waddr1)
+		format += fmt.Sprintf(" [P] %%-%ds", waddr2)
 
 		for _, p := range s.Proxy.Models {
 			var xfmt string
