@@ -57,7 +57,7 @@ Options:
 	if err != nil {
 		log.PanicErrorf(err, "rpc fetch model failed")
 	}
-	log.Warnf("model = \n%s", t.Encode())
+	log.Warnf("topom =\n%s", t.Encode())
 
 	client.SetXAuth(t.ProductName)
 
@@ -67,9 +67,10 @@ Options:
 		hc.LogProxyStats()
 		hc.LogGroupStats()
 		hc.Maintains(client, lasthc)
-		time.Sleep(time.Second * 5)
 
 		lasthc = hc
+
+		time.Sleep(time.Second * 5)
 	}
 }
 
@@ -242,10 +243,12 @@ func (hc *HealthyChecker) Maintains(client *topom.ApiClient, lasthc *HealthyChec
 			switch hc.sstatus[x.Addr] {
 			case CodeSynced, CodeUnSync:
 			default:
-				switch slave := lasthc.xplan[g.Id]; slave {
-				case "":
+				slave := lasthc.xplan[g.Id]
+				if slave == "" {
 					log.Warnf("try to promote group-[%d], but no healthy slave founded", g.Id)
-				default:
+				} else if g.Promoting.State != "" {
+					log.Warnf("try to promote group-[%d] with slave %s, but group is promoting = %s, please fix it manually", g.Id, slave, g.Promoting.State)
+				} else {
 					log.Warnf("try to promote group-[%d] with slave %s", g.Id, slave)
 					if err := client.GroupPromoteServer(g.Id, slave); err != nil {
 						log.PanicErrorf(err, "rpc promote server failed")
@@ -253,6 +256,7 @@ func (hc *HealthyChecker) Maintains(client *topom.ApiClient, lasthc *HealthyChec
 					if err := client.GroupPromoteCommit(g.Id); err != nil {
 						log.PanicErrorf(err, "rpc promote commit failed")
 					}
+					log.Warnf("done.")
 				}
 			}
 		}
