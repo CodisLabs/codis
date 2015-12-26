@@ -56,8 +56,23 @@ admin_addr = "0.0.0.0:18080"
 EOF
 
 nohup codis-dashboard -c dashboard.toml &> dashboard.log &
-pidlist=$lastpid
+lastpid=$!
+pidlist="$pidlist $lastpid"
 echo "dashboard.pid=$lastpid"
+
+cat > codis.json <<EOF
+[
+    {
+        "name": "codis-test",
+        "dashboard": "127.0.0.1:18080"
+    }
+]
+EOF
+
+nohup ../../bin/codis-fe -d codis.json --listen 127.0.0.1:8080 &> fe.log &
+lastpid=$!
+pidlist="$pidlist $lastpid"
+echo "fe.pid=$lastpid"
 
 sleep 3
 

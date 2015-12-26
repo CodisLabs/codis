@@ -121,8 +121,8 @@
                     <tr>
                         <th style="width: 1px;">ID</th>
                         <th style="width: 1px; padding-right: 20px;">Token</th>
-                        <th>Proxy</th>
-                        <th>Admin</th>
+                        <th style="min-width: 200px;">Proxy</th>
+                        <th style="min-width: 200px;">Admin</th>
                         <th style="width: 350px;">Status</th>
                         <th style="width: 35px;"></th>
                     </tr>
@@ -245,7 +245,7 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td>Show Details</td>
+                                <td>Show Actions</td>
                                 <td>
                                     <input type="checkbox" ng-model="show_slots_actions">
                                 </td>
@@ -261,7 +261,7 @@
                                 <th style="width: 1px">Group</th>
                                 <th style="width: 1px">Target</th>
                                 <th style="width: 1px">Index</th>
-                                <th>Status</th>
+                                <th style="min-width: 120px;">Status</th>
                                 <th style="width: 35px;"></th>
                             </tr>
                             </thead>
@@ -333,8 +333,8 @@
                                 G-[[group.id]]
                             </snap>
                         </th>
-                        <th>Server</th>
-                        <th>Master</th>
+                        <th style="width: 250px;">Server</th>
+                        <th style="min-width: 250px;">Master</th>
                         <th style="width: 35px;" ng-switch="group.ispromoting">
                             <span ng-switch-when="true">
                                 <button class="btn btn-danger btn-xs"
