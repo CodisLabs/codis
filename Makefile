@@ -3,7 +3,7 @@
 build-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe
 
 godep-env:
-	@bash version
+	@mkdir -p bin && bash version
 	@command -v godep 2>&1 >/dev/null || go get -u github.com/tools/godep
 	@GOPATH=`godep path` godep restore
 

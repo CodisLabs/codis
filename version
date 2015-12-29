@@ -18,3 +18,8 @@ const (
     Compile = "$compile"
 )
 EOF
+
+cat << EOF > bin/version
+version = $version
+compile = $compile
+EOF
