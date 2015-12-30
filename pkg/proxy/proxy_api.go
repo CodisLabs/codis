@@ -106,6 +106,7 @@ type Stats struct {
 
 	Ops struct {
 		Total int64             `json:"total"`
+		Fails int64             `json:"fails"`
 		Qps   int64             `json:"qps"`
 		Cmd   []*router.OpStats `json:"cmd,omitempty"`
 	} `json:"ops"`
@@ -132,8 +133,9 @@ func (s *apiServer) NewStats() *Stats {
 	stats.Online = s.proxy.IsOnline()
 	stats.Closed = s.proxy.IsClosed()
 
-	stats.Ops.Total = router.OpsTotal()
-	stats.Ops.Qps = router.OpsQps()
+	stats.Ops.Total = router.OpTotal()
+	stats.Ops.Fails = router.OpFails()
+	stats.Ops.Qps = router.OpQps()
 	stats.Ops.Cmd = router.GetOpStatsAll()
 
 	stats.Sessions.Total = router.SessionsTotal()
