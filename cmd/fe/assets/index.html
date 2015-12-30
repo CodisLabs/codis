@@ -123,7 +123,8 @@
                         <th style="width: 1px; padding-right: 20px;">Token</th>
                         <th style="min-width: 200px;">Proxy</th>
                         <th style="min-width: 200px;">Admin</th>
-                        <th style="width: 350px;">Status</th>
+                        <th style="min-width: 200px;">Sessions</th>
+                        <th style="min-width: 250px;">Commands</th>
                         <th style="width: 35px;"></th>
                     </tr>
                     </thead>
@@ -134,6 +135,7 @@
                         </td>
                         <td>[[proxy.proxy_addr]]</td>
                         <td>[[proxy.admin_addr]]</td>
+                        <td>[[proxy.sessions]]</td>
                         <td ng-switch="proxy.status">
                             <span ng-switch-when="ERROR" class="status_label_error">[[proxy.status]]</span>
                             <span ng-switch-when="TIMEOUT" class="status_label_warning">[[proxy.status]]</span>
@@ -335,19 +337,19 @@
                         </th>
                         <th style="width: 250px;">Server</th>
                         <th style="min-width: 250px;">Master</th>
+                        <th style="width: 35px;"/>
+                        <th style="width: 140px;"/>
+                        <th style="width: 220px;">Memory</th>
+                        <th style="width: 320px;">Keys</th>
                         <th style="width: 35px;" ng-switch="group.ispromoting">
                             <span ng-switch-when="true">
                                 <button class="btn btn-danger btn-xs"
                                         ng-click="promoteCommit(group.id)">
                                     <span class="glyphicon glyphicon-repeat"></span>
                                 </button>
+
                             </span>
-                        </th>
-                        <th style="width: 140px;"/>
-                        <th style="width: 220px;">Memory</th>
-                        <th style="width: 320px;">Keys</th>
-                        <th style="width: 35px;" ng-switch="group.canremove">
-                            <span ng-switch-when="true">
+                            <span ng-switch-default ng-if="group.canremove">
                                 <button class="btn btn-primary btn-xs"
                                         ng-click="removeGroup(group.id)">
                                     <span class="glyphicon glyphicon-trash"></span>

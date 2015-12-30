@@ -227,6 +227,7 @@ function processProxyStats(codis_stats) {
     for (var i = 0; i < proxy_array.length; i++) {
         var p = proxy_array[i];
         var s = proxy_stats[p.token];
+        p.sessions = "NA";
         if (!s) {
             p.status = "PENDING";
         } else if (s.timeout) {
@@ -234,7 +235,8 @@ function processProxyStats(codis_stats) {
         } else if (s.error) {
             p.status = "ERROR";
         } else {
-            p.status = "sessions=" + s.stats.sessions.total + ",alive=" + s.stats.sessions.alive + ",qps=" + s.stats.ops.qps;
+            p.sessions = "total=" + s.stats.sessions.total + ",alive=" + s.stats.sessions.alive;
+            p.status =  "total=" + s.stats.ops.total + ",fails=" + s.stats.ops.fails + ",qps=" + s.stats.ops.qps;
             qps += s.stats.ops.qps;
             sessions += s.stats.sessions.alive;
         }
