@@ -394,7 +394,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         });
         $scope.chart_ops = newChatsOpsConfig();
 
-        $scope.refresh_interval = 2;
+        $scope.refresh_interval = 3;
 
         $scope.resetOverview = function () {
             $scope.codis_name = "NA";
