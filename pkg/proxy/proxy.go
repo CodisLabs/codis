@@ -140,6 +140,12 @@ func (s *Server) handleConns() {
 	for {
 		c, err := s.listener.Accept()
 		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				log.WarnErrorf(err, "[%p] proxy accept new connection failed, get temporary error", s)
+				time.Sleep(time.Millisecond*10)
+				continue
+			}
+			log.WarnErrorf(err, "[%p] proxy accept new connection failed, get non-temporary error, must shutdown", s)
 			return
 		} else {
 			ch <- c
