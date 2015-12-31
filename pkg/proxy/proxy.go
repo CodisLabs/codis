@@ -258,20 +258,23 @@ func (s *Proxy) serveProxy() {
 	}()
 
 	eh := make(chan error, 1)
-	go func(l net.Listener) {
-		defer close(ch)
+	go func(l net.Listener) (err error) {
+		defer func() {
+			eh <- err
+			close(ch)
+		}()
 		for {
 			c, err := s.acceptConn(l)
 			if err != nil {
-				eh <- err
-				return
-			} else {
-				ch <- c
+				return err
 			}
+			ch <- c
 		}
 	}(s.lproxy)
 
-	go s.keepAlive()
+	if seconds := s.config.BackendPingPeriod; seconds > 0 {
+		go s.keepAlive(seconds)
+	}
 
 	if s.jodis != nil {
 		go s.jodis.Run()
@@ -285,22 +288,18 @@ func (s *Proxy) serveProxy() {
 	}
 }
 
-func (s *Proxy) keepAlive() {
-	ticker := time.NewTicker(time.Second)
+func (s *Proxy) keepAlive(seconds int) {
+	var ticker = time.NewTicker(time.Second)
 	defer ticker.Stop()
-	var tick int
 	for {
-		select {
-		case <-s.exit.C:
-			return
-		case <-ticker.C:
-			if maxTick := s.config.BackendPingPeriod; maxTick != 0 {
-				if tick++; tick >= maxTick {
-					tick = 0
-					s.router.KeepAlive()
-				}
+		for i := 0; i < seconds; i++ {
+			select {
+			case <-s.exit.C:
+				return
+			case <-ticker.C:
 			}
 		}
+		s.router.KeepAlive()
 	}
 }
 
