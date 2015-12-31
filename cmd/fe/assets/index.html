@@ -121,6 +121,7 @@
                     <tr>
                         <th style="width: 1px;">ID</th>
                         <th style="width: 1px; padding-right: 20px;">Token</th>
+                        <th style="width: 35px;"/>
                         <th style="min-width: 200px;">Proxy</th>
                         <th style="min-width: 200px;">Admin</th>
                         <th style="min-width: 200px;">Sessions</th>
@@ -133,6 +134,14 @@
                         <td style="font-family: Courier, monospace; font-size: small; vertical-align: middle;">
                             [[proxy.token]]
                         </td>
+                        <td ng-switch="proxy.status">
+                            <span ng-switch-when="HEALTHY" class="btn btn-success btn-xs" ng-click="reinitProxy(proxy)">
+                                <span class="glyphicon glyphicon-repeat"></span>
+                            </span>
+                            <span ng-switch-when="PENDING" class="btn btn-danger btn-xs" ng-click="reinitProxy(proxy)">
+                                <span class="glyphicon glyphicon-repeat"></span>
+                            </span>
+                        </td>
                         <td>[[proxy.proxy_addr]]</td>
                         <td>[[proxy.admin_addr]]</td>
                         <td>[[proxy.sessions]]</td>
@@ -140,7 +149,7 @@
                             <span ng-switch-when="ERROR" class="status_label_error">[[proxy.status]]</span>
                             <span ng-switch-when="TIMEOUT" class="status_label_warning">[[proxy.status]]</span>
                             <span ng-switch-when="PENDING" class="status_label_pending">[[proxy.status]]</span>
-                            <span ng-switch-default>[[proxy.status]]</span>
+                            <span ng-switch-default>[[proxy.commands]]</span>
                         </td>
                         <td class="button_tight_column">
                             <button class="btn btn-danger btn-xs" ng-click="removeProxy(proxy)">

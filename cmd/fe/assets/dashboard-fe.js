@@ -228,6 +228,7 @@ function processProxyStats(codis_stats) {
         var p = proxy_array[i];
         var s = proxy_stats[p.token];
         p.sessions = "NA";
+        p.commands = "NA";
         if (!s) {
             p.status = "PENDING";
         } else if (s.timeout) {
@@ -235,8 +236,13 @@ function processProxyStats(codis_stats) {
         } else if (s.error) {
             p.status = "ERROR";
         } else {
-            p.sessions = "total=" + s.stats.sessions.total + ",alive=" + s.stats.sessions.alive;
-            p.status =  "total=" + s.stats.ops.total + ",fails=" + s.stats.ops.fails + ",qps=" + s.stats.ops.qps;
+            if (s.stats.online) {
+                p.sessions = "total=" + s.stats.sessions.total + ",alive=" + s.stats.sessions.alive;
+                p.commands = "total=" + s.stats.ops.total + ",fails=" + s.stats.ops.fails + ",qps=" + s.stats.ops.qps;
+                p.status = "HEALTHY";
+            } else {
+                p.status = "PENDING";
+            }
             qps += s.stats.ops.qps;
             sessions += s.stats.sessions.alive;
         }
@@ -500,6 +506,21 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 alertAction("Remove and Shutdown proxy: " + toJsonHtml(proxy), function () {
                     var xauth = genXAuth(codis_name);
                     var url = concatUrl("/api/topom/proxy/remove/" + xauth + "/" + proxy.token + "/0", codis_name);
+                    $http.put(url).then(function () {
+                        $scope.refreshStats();
+                    }, function (failedResp) {
+                        alertErrorResp(failedResp);
+                    });
+                });
+            }
+        }
+
+        $scope.reinitProxy = function (proxy) {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name)) {
+                alertAction("Reinit and Start proxy: " + toJsonHtml(proxy), function () {
+                    var xauth = genXAuth(codis_name);
+                    var url = concatUrl("/api/topom/proxy/reinit/" + xauth + "/" + proxy.token, codis_name);
                     $http.put(url).then(function () {
                         $scope.refreshStats();
                     }, function (failedResp) {
