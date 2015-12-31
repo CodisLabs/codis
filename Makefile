@@ -1,25 +1,25 @@
-.PHONY:    codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe docker
+.PHONY:    codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe godep docker
 
 build-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe
 
-godep-env:
+godep:
 	@mkdir -p bin && bash version
 	@command -v godep 2>&1 >/dev/null || go get -u github.com/tools/godep
 	@GOPATH=`godep path` godep restore
 
-codis-proxy: godep-env
+codis-proxy: godep
 	godep go build -i -o bin/codis-proxy ./cmd/proxy
 
-codis-admin: godep-env
+codis-admin: godep
 	godep go build -i -o bin/codis-admin ./cmd/admin
 
-codis-dashboard: godep-env
+codis-dashboard: godep
 	godep go build -i -o bin/codis-dashboard ./cmd/dashboard
 
-codis-ha: godep-env
+codis-ha: godep
 	godep go build -i -o bin/codis-ha ./cmd/ha
 
-codis-fe: godep-env
+codis-fe: godep
 	godep go build -i -o bin/codis-fe ./cmd/fe
 	@rm -rf bin/assets; cp -rf cmd/fe/assets bin/
 
