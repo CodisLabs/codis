@@ -115,13 +115,13 @@ Options:
 
 	s, err := topom.New(client, config)
 	if err != nil {
-		log.PanicErrorf(err, "create topom with config file failed\n%s\n", config)
+		log.PanicErrorf(err, "create topom with config file failed\n%s", config)
 	}
 	defer s.Close()
 
 	s.StartDaemonRoutines()
 
-	log.Warnf("create topom with config\n%s\n", config)
+	log.Warnf("create topom with config\n%s", config)
 
 	go func() {
 		defer s.Close()

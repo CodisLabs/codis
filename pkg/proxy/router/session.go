@@ -142,6 +142,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 			return err
 		}
 		if err := p.Encode(resp, len(tasks) == 0); err != nil {
+			incrOpFails()
 			return err
 		}
 	}

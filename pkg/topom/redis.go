@@ -186,7 +186,7 @@ func NewRedisPool(auth string, timeout time.Duration) *RedisPool {
 
 	if timeout != 0 {
 		go func() {
-			var ticker = time.NewTicker(timeout)
+			var ticker = time.NewTicker(time.Minute)
 			defer ticker.Stop()
 			for {
 				select {

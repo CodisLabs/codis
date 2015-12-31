@@ -207,10 +207,9 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		for i, x := range g.Servers {
 			if i != index {
 				slice = append(slice, &models.GroupServer{Addr: x.Addr})
-			} else {
-				slice[0].Addr = x.Addr
 			}
 		}
+		slice[0].Addr = g.Servers[index].Addr
 
 		s.dirtyGroupCache(g.Id)
 
