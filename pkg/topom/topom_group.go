@@ -64,6 +64,10 @@ func (s *Topom) GroupAddServer(gid int, addr string) error {
 		return err
 	}
 
+	if addr == "" {
+		return errors.Errorf("invalid server address")
+	}
+
 	for _, g := range ctx.group {
 		for _, x := range g.Servers {
 			if x.Addr == addr {
@@ -270,6 +274,10 @@ func (s *Topom) SyncCreateAction(addr string) error {
 	if err != nil {
 		return err
 	}
+	if g.Promoting.State != models.ActionNothing {
+		return errors.Errorf("group-[%d] is promoting", g.Id)
+	}
+
 	if g.Servers[index].Action.State == models.ActionPending {
 		return errors.Errorf("server-[%s] action already exist", addr)
 	}
@@ -293,6 +301,10 @@ func (s *Topom) SyncRemoveAction(addr string) error {
 	if err != nil {
 		return err
 	}
+	if g.Promoting.State != models.ActionNothing {
+		return errors.Errorf("group-[%d] is promoting", g.Id)
+	}
+
 	if g.Servers[index].Action.State == models.ActionNothing {
 		return errors.Errorf("server-[%s] action doesn't exist", addr)
 	}
@@ -320,6 +332,10 @@ func (s *Topom) SyncActionPrepare() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if g.Promoting.State != models.ActionNothing {
+		return "", nil
+	}
+
 	if g.Servers[index].Action.State != models.ActionPending {
 		return "", errors.Errorf("server-[%s] action state is invalid", addr)
 	}
@@ -342,9 +358,13 @@ func (s *Topom) SyncActionComplete(addr string, failed bool) error {
 	}
 
 	g, index, err := ctx.getGroupByServer(addr)
-	if g == nil {
+	if err != nil {
 		return nil
 	}
+	if g.Promoting.State != models.ActionNothing {
+		return nil
+	}
+
 	if g.Servers[index].Action.State != models.ActionSyncing {
 		return nil
 	}
@@ -372,9 +392,10 @@ func (s *Topom) newSyncActionExecutor(addr string) (func() error, error) {
 	}
 
 	g, index, err := ctx.getGroupByServer(addr)
-	if g == nil {
+	if err != nil {
 		return nil, nil
 	}
+
 	if g.Servers[index].Action.State != models.ActionSyncing {
 		return nil, nil
 	}
@@ -384,7 +405,7 @@ func (s *Topom) newSyncActionExecutor(addr string) (func() error, error) {
 		master = g.Servers[0].Addr
 	}
 	return func() error {
-		c, err := NewRedisClient(addr, s.config.ProductAuth, time.Minute*15)
+		c, err := NewRedisClient(addr, s.config.ProductAuth, time.Minute*30)
 		if err != nil {
 			log.WarnErrorf(err, "create redis client to %s failed", addr)
 			return err
