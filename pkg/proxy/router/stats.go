@@ -37,9 +37,12 @@ type OpStats struct {
 
 var cmdstats struct {
 	total atomic2.Int64
-	qps   atomic2.Int64
+	fails atomic2.Int64
+
 	opmap map[string]*opStats
 	rwlck sync.RWMutex
+
+	qps atomic2.Int64
 }
 
 func init() {
@@ -54,11 +57,15 @@ func init() {
 	}()
 }
 
-func OpsTotal() int64 {
+func OpTotal() int64 {
 	return cmdstats.total.Get()
 }
 
-func OpsQps() int64 {
+func OpFails() int64 {
+	return cmdstats.fails.Get()
+}
+
+func OpQps() int64 {
 	return cmdstats.qps.Get()
 }
 
@@ -91,11 +98,18 @@ func GetOpStatsAll() []*OpStats {
 	return all
 }
 
+func incrOpTotal() {
+	cmdstats.total.Incr()
+}
+
+func incrOpFails() {
+	cmdstats.fails.Incr()
+}
+
 func incrOpStats(opstr string, usecs int64) {
 	s := getOpStats(opstr, true)
 	s.calls.Incr()
 	s.usecs.Add(usecs)
-	cmdstats.total.Incr()
 }
 
 var sessions struct {

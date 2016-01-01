@@ -129,19 +129,24 @@ function renderSlotsCharts(slots_array) {
     }
     var series = [];
     for (var g in groups) {
+        var xaxis = 2;
+        if (g == 0) {
+            xaxis = 0;
+        }
         var s = {name: 'Group-' + g, data: [], group_id: g};
         for (var beg = 0, end = 0; end <= n; end++) {
             if (end == n || slots_array[end].group_id != g) {
                 if (beg < end) {
-                    s.data.push({x: 1, low: beg, high: end, group_id: g});
+                    s.data.push({x: xaxis, low: beg, high: end - 1, group_id: g});
                 }
                 beg = end + 1;
             }
         }
+        xaxis = 1;
         for (var beg = 0, end = 0; end <= n; end++) {
             if (end == n || !(slots_array[end].action.target_id && slots_array[end].action.target_id == g)) {
                 if (beg < end) {
-                    s.data.push({x: 0, low: beg, high: end, group_id: g});
+                    s.data.push({x: xaxis, low: beg, high: end - 1, group_id: g});
                 }
                 beg = end + 1;
             }
@@ -166,13 +171,14 @@ function renderSlotsCharts(slots_array) {
             }
         },
         xAxis: {
-            categories: ['Migration', 'Default'],
+            categories: ['Offline', 'Migrating', 'Default'],
             min: 0,
-            max: 1,
+            max: 2,
         },
         yAxis: {
             min: 0,
             max: 1024,
+            tickInterval: 64,
             title: {
                 style: {
                     display: 'none',
@@ -200,10 +206,13 @@ function renderSlotsCharts(slots_array) {
         },
         tooltip: {
             formatter: function () {
-                if (this.point.x != 0) {
-                    return '<b>Slot-[' + this.point.low + "," + this.point.high + "]</b> in <b>Group-[" + this.point.group_id + "]</b>";
-                } else {
+                switch (this.point.x) {
+                case 0:
+                    return '<b>Slot-[' + this.point.low + "," + this.point.high + "]</b> are <b>Offline</b>";
+                case 1:
                     return '<b>Slot-[' + this.point.low + "," + this.point.high + "]</b> will be moved to <b>Group-[" + this.point.group_id + "]</b>";
+                case 2:
+                    return '<b>Slot-[' + this.point.low + "," + this.point.high + "]</b> --> <b>Group-[" + this.point.group_id + "]</b>";
                 }
             }
         },
@@ -218,6 +227,8 @@ function processProxyStats(codis_stats) {
     for (var i = 0; i < proxy_array.length; i++) {
         var p = proxy_array[i];
         var s = proxy_stats[p.token];
+        p.sessions = "NA";
+        p.commands = "NA";
         if (!s) {
             p.status = "PENDING";
         } else if (s.timeout) {
@@ -225,7 +236,13 @@ function processProxyStats(codis_stats) {
         } else if (s.error) {
             p.status = "ERROR";
         } else {
-            p.status = "sessions=" + s.stats.sessions.total + ",alive=" + s.stats.sessions.alive + ",qps=" + s.stats.ops.qps;
+            if (s.stats.online) {
+                p.sessions = "total=" + s.stats.sessions.total + ",alive=" + s.stats.sessions.alive;
+                p.commands = "total=" + s.stats.ops.total + ",fails=" + s.stats.ops.fails + ",qps=" + s.stats.ops.qps;
+                p.status = "HEALTHY";
+            } else {
+                p.status = "PENDING";
+            }
             qps += s.stats.ops.qps;
             sessions += s.stats.sessions.alive;
         }
@@ -377,7 +394,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         });
         $scope.chart_ops = newChatsOpsConfig();
 
-        $scope.refresh_interval = 2;
+        $scope.refresh_interval = 3;
 
         $scope.resetOverview = function () {
             $scope.codis_name = "NA";
@@ -489,6 +506,21 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 alertAction("Remove and Shutdown proxy: " + toJsonHtml(proxy), function () {
                     var xauth = genXAuth(codis_name);
                     var url = concatUrl("/api/topom/proxy/remove/" + xauth + "/" + proxy.token + "/0", codis_name);
+                    $http.put(url).then(function () {
+                        $scope.refreshStats();
+                    }, function (failedResp) {
+                        alertErrorResp(failedResp);
+                    });
+                });
+            }
+        }
+
+        $scope.reinitProxy = function (proxy) {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name)) {
+                alertAction("Reinit and Start proxy: " + toJsonHtml(proxy), function () {
+                    var xauth = genXAuth(codis_name);
+                    var url = concatUrl("/api/topom/proxy/reinit/" + xauth + "/" + proxy.token, codis_name);
                     $http.put(url).then(function () {
                         $scope.refreshStats();
                     }, function (failedResp) {

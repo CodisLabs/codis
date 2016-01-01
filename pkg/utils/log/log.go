@@ -68,7 +68,7 @@ func (t LogType) String() string {
 func (l LogLevel) String() string {
 	switch l {
 	default:
-		return "NONE"
+		return "UNKNOWN"
 	case LevelDebug:
 		return "DEBUG"
 	case LevelInfo:

@@ -110,8 +110,11 @@ func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) (err error) {
 		if err != nil {
 			return err
 		}
+		incrOpTotal()
+
 		r, err := s.handleRequest(resp, d)
 		if err != nil {
+			incrOpFails()
 			return err
 		} else {
 			tasks <- r
@@ -124,6 +127,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 	defer func() {
 		s.CloseWithError(err)
 		for _ = range tasks {
+			incrOpFails()
 		}
 	}()
 	p := &FlushPolicy{
@@ -134,9 +138,11 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
 		if err != nil {
+			incrOpFails()
 			return err
 		}
 		if err := p.Encode(resp, len(tasks) == 0); err != nil {
+			incrOpFails()
 			return err
 		}
 	}

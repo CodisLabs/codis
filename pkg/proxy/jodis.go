@@ -124,7 +124,7 @@ func (j *Jodis) Run() {
 			log.WarnErrorf(err, "jodis watch node %s failed", j.path)
 			delay = delay * 2
 			delay = utils.MaxInt(delay, 2)
-			delay = utils.MinInt(delay, 20)
+			delay = utils.MinInt(delay, 30)
 			for i := 0; i < delay && !j.IsClosed(); i++ {
 				time.Sleep(time.Second)
 			}
