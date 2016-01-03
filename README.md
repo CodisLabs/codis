@@ -42,14 +42,14 @@ Codis is a proxy based high performance Redis cluster solution written in Go. It
 
 ## Snapshots
 
-Dashboard
-![main](doc/pictures/snapshot.png)
-
-Migrate
-![migrate](doc/pictures/snapshot_migrate.png)
+Proxy
+![proxy](doc/pictures/snapshots1.png)
 
 Slots
-![slots](doc/pictures/slots.png)
+![slots](doc/pictures/snapshots2.png)
+
+Group
+![group](doc/pictures/snapshots3.png)
 
 ##Benchmarks
 [See benchmark results](doc/benchmark.md)
