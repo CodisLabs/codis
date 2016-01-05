@@ -14,7 +14,7 @@ all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe
 
 godep:
 	@mkdir -p bin && bash version
-	@GOPATH=`${GODEP} path` ${GODEP} restore -v 2>&1 | while IFS= read -r line; do echo "  **** $${line}"; done
+	@GOPATH=`${GODEP} path` ${GODEP} restore -v 2>&1 | while IFS= read -r line; do echo "  >>>> $${line}"; done
 	@echo
 
 codis-proxy: godep
