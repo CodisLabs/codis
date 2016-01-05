@@ -1,5 +1,7 @@
 .DEFAULT_GOAL := all
 
+.PHONY: godep
+
 GODEP :=
 
 ifndef GODEP
