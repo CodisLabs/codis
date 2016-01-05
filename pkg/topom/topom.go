@@ -166,7 +166,7 @@ func (s *Topom) newContext() (*context, error) {
 	if s.closed {
 		return nil, ErrClosedTopom
 	}
-	if err := s.reloadCache(); err != nil {
+	if err := s.refillCache(); err != nil {
 		return nil, err
 	} else {
 		ctx := &context{}

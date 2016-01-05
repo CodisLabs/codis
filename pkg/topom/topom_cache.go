@@ -41,24 +41,24 @@ func (s *Topom) dirtyCacheAll() {
 	})
 }
 
-func (s *Topom) reloadCache() error {
+func (s *Topom) refillCache() error {
 	for i := s.cache.hooks.Len(); i != 0; i-- {
 		e := s.cache.hooks.Front()
 		s.cache.hooks.Remove(e).(func())()
 	}
-	if slots, err := s.reloadSlotsCache(s.cache.slots); err != nil {
+	if slots, err := s.refillCacheSlots(s.cache.slots); err != nil {
 		log.ErrorErrorf(err, "store: load slots failed")
 		return errors.Errorf("store: load slots failed")
 	} else {
 		s.cache.slots = slots
 	}
-	if group, err := s.reloadGroupCache(s.cache.group); err != nil {
+	if group, err := s.refillCacheGroup(s.cache.group); err != nil {
 		log.ErrorErrorf(err, "store: load group failed")
 		return errors.Errorf("store: load group failed")
 	} else {
 		s.cache.group = group
 	}
-	if proxy, err := s.reloadProxyCache(s.cache.proxy); err != nil {
+	if proxy, err := s.refillCacheProxy(s.cache.proxy); err != nil {
 		log.ErrorErrorf(err, "store: load proxy failed")
 		return errors.Errorf("store: load proxy failed")
 	} else {
@@ -67,7 +67,7 @@ func (s *Topom) reloadCache() error {
 	return nil
 }
 
-func (s *Topom) reloadSlotsCache(slots []*models.SlotMapping) ([]*models.SlotMapping, error) {
+func (s *Topom) refillCacheSlots(slots []*models.SlotMapping) ([]*models.SlotMapping, error) {
 	if slots == nil {
 		return s.store.SlotMappings()
 	}
@@ -88,7 +88,7 @@ func (s *Topom) reloadSlotsCache(slots []*models.SlotMapping) ([]*models.SlotMap
 	return slots, nil
 }
 
-func (s *Topom) reloadGroupCache(group map[int]*models.Group) (map[int]*models.Group, error) {
+func (s *Topom) refillCacheGroup(group map[int]*models.Group) (map[int]*models.Group, error) {
 	if group == nil {
 		return s.store.ListGroup()
 	}
@@ -109,7 +109,7 @@ func (s *Topom) reloadGroupCache(group map[int]*models.Group) (map[int]*models.G
 	return group, nil
 }
 
-func (s *Topom) reloadProxyCache(proxy map[string]*models.Proxy) (map[string]*models.Proxy, error) {
+func (s *Topom) refillCacheProxy(proxy map[string]*models.Proxy) (map[string]*models.Proxy, error) {
 	if proxy == nil {
 		return s.store.ListProxy()
 	}
