@@ -660,8 +660,8 @@ func (c *ApiClient) SlotRemoveAction(sid int) error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) SetSlotActionInterval(msecs int) error {
-	url := c.encodeURL("/api/topom/slots/action/interval/%s/%d", c.xauth, msecs)
+func (c *ApiClient) SetSlotActionInterval(usecs int) error {
+	url := c.encodeURL("/api/topom/slots/action/interval/%s/%d", c.xauth, usecs)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
