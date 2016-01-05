@@ -401,6 +401,34 @@ Options:
 
 **注意：因此，应用 codis-ha 时还需要结合对 codis-proxy 和 codis-server 的可用性监控，否则 codis-ha 无法保证可靠性。**
 
+#### 2.6 Codis Admin（命令行工具）
+
+**注意：使用 codis-admin 是十分危险的。**
+
+##### 2.6.1 codis-dashboard 异常退出的修复
+
+当 codis-dashboard 启动时，会在外部存储上存放一条数据，用于存储 dashboard 信息，同时作为 LOCK 存在。当 codis-dashboard 安全退出时，会主动删除该数据。当 codis-dashboard 异常退出时，由于之前 LOCK 未安全删除，重启往往会失败。因此 codis-admin 提供了强制删除工具：
+
+1. 确认 codis-dashboard 进程已经退出（**很重要**）；
+2. 运行 codis-admin 删除 LOCK：
+
+```bash
+$ ./bin/codis-admin --remove-lock --product=codis-demo --zookeeper=127.0.0.1:2181
+```
+
+##### 2.6.2 codis-proxy 异常退出的修复
+
+通常 codis-proxy 都是通过 codis-dashboard 进行移除，移除过程中 codis-dashboard 为了安全会向 codis-proxy 发送 `offline` 指令，成功后才会将 proxy 信息从外部存储中移除。如果 codis-proxy 异常退出，该操作会失败。此时可以使用 codis-admin 工具进行移除：
+
+1. 确认 codis-proxy 进城已经退出（**很重要**）；
+2. 运行 codis-admin 删除 proxy：
+
+```bash
+$ ./bin/codis-admin --dashboard=127.0.0.1:18080 --remove-proxy --addr=127.0.0.1:11080 --force
+```
+
+选项 `--force` 表示，无论 `offline` 操作是否成功，都从外部存储中将该节点删除。所以操作前，一定要确认该 codis-proxy 进程已经退出。
+
 ## 3. Jodis 与 HA
 
 因为 codis-proxy 是无状态的，可以比较容易的搭多个实例，达到高可用性和横向扩展。
@@ -444,7 +472,7 @@ Codis 3.x 修改了 codis-dashboard 与 codis-proxy 之间的通信方式，因�
 
 **注意2：升级完成后，需要手动关闭 Codis 2.x 的所有 proxy 和 config 组件。**
 
-###### step 1. 导出配置文件
+#### step 1. 导出配置文件
 
 ```bash
 $ ./bin/codis-admin --config-dump --product=codis_v2.0 --zookeeper=127.0.0.1:2181 -1 | tee codis_v2.0.json
@@ -454,7 +482,7 @@ $ ./bin/codis-admin --config-dump --product=codis_v2.0 --zookeeper=127.0.0.1:218
 
 选项 `-1` 表示配置文件是 Codis 1.x 版本，缺省是 Codis 3.x 版本。
 
-###### step 2. 转换配置文件
+#### step 2. 转换配置文件
 
 ```bash
 $ ./bin/codis-admin --config-convert codis_v2.0.json | tee codis_v3.0.json
@@ -462,7 +490,7 @@ $ ./bin/codis-admin --config-convert codis_v2.0.json | tee codis_v3.0.json
 
 该命令会将 Codis 1.x 版本的配置文件中有效信息提取出来，并转成 Codis 3.x 版本的配置文件并输出。
 
-###### step 3. 更新配置文件
+#### step 3. 更新配置文件
 
 **注意：更新配置文件时，请确保 Codis 3.x 中该集群不存在，否则可能导致更新失败或者集群状态异常。**
 
@@ -474,11 +502,11 @@ $ ./bin/codis-admin --config-restore=codis_v3.0.json --product=codis_v3.0 --zook
 
 选项 `--confirm` 选项表示确认提交，缺省时该命令仅仅打印配置文件作为调试。
 
-###### step 4. 启动 Codis 3.x dashboard 以及 proxy
+#### step 4. 启动 Codis 3.x dashboard 以及 proxy
 
 过程参考之前章节。因为集群信息已经存在，所以可以安全启动 codis-dashboard，并逐一添加 codis-proxy 到集群中。
 
-###### step 5. 关闭 Codis 2.x dashboard 以及 proxy
+#### step 5. 关闭 Codis 2.x dashboard 以及 proxy
 
 Codis 3.x 的组件兼容 Jodis 协议。
 
