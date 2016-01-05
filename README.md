@@ -24,7 +24,7 @@ Codis is a proxy based high performance Redis cluster solution written in Go. It
 ## Tutorial
 
 [简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md)
-[English](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md)
+[English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md)
 
 ## FAQ
 
@@ -34,7 +34,7 @@ Codis is a proxy based high performance Redis cluster solution written in Go. It
 ## High Availability
 
 [简体中文](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_zh.md#ha)
-[English](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md#ha)
+[English (WIP) ](https://github.com/wandoulabs/codis/blob/master/doc/tutorial_en.md#ha)
 
 ## Architecture
 
@@ -42,14 +42,14 @@ Codis is a proxy based high performance Redis cluster solution written in Go. It
 
 ## Snapshots
 
-Dashboard
-![main](doc/pictures/snapshot.png)
-
-Migrate
-![migrate](doc/pictures/snapshot_migrate.png)
+Proxy
+![proxy](doc/pictures/snapshots1.png)
 
 Slots
-![slots](doc/pictures/slots.png)
+![slots](doc/pictures/snapshots2.png)
+
+Group
+![group](doc/pictures/snapshots3.png)
 
 ##Benchmarks
 [See benchmark results](doc/benchmark.md)

@@ -87,7 +87,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	s.exit.C = make(chan struct{})
 	s.redisp = NewRedisPool(config.ProductAuth, time.Second*10)
 
-	s.action.interval.Set(1000)
+	s.action.interval.Set(1000 * 10)
 
 	s.stats.servers = make(map[string]*RedisStats)
 	s.stats.proxies = make(map[string]*ProxyStats)
@@ -166,7 +166,7 @@ func (s *Topom) newContext() (*context, error) {
 	if s.closed {
 		return nil, ErrClosedTopom
 	}
-	if err := s.reloadCache(); err != nil {
+	if err := s.refillCache(); err != nil {
 		return nil, err
 	} else {
 		ctx := &context{}
@@ -247,11 +247,11 @@ func (s *Topom) GetSlotActionInterval() int {
 	return int(s.action.interval.Get())
 }
 
-func (s *Topom) SetSlotActionInterval(ms int) {
-	ms = utils.MaxInt(ms, 0)
-	ms = utils.MinInt(ms, 1000)
-	s.action.interval.Set(int64(ms))
-	log.Warnf("set action interval = %d", ms)
+func (s *Topom) SetSlotActionInterval(us int) {
+	us = utils.MaxInt(us, 0)
+	us = utils.MinInt(us, 1000*1000)
+	s.action.interval.Set(int64(us))
+	log.Warnf("set action interval = %d", us)
 }
 
 func (s *Topom) GetSlotActionDisabled() bool {

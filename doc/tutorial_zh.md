@@ -1,195 +1,487 @@
 # Codis 使用文档
 
-Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接到 Codis Proxy 和连接原生的 Redis Server 没有明显的区别 ([不支持的命令列表](unsupported_cmds.md)), 上层应用可以像使用单机的 Redis 一样使用, Codis 底层会处理请求的转发, 不停机的数据迁移等工作, 所有后边的一切事情, 对于前面的客户端来说是透明的, 可以简单的认为后边连接的是一个内存无限大的 Redis 服务.
+Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接到 Codis Proxy 和连接原生的 Redis Server 没有显著区别 ([不支持的命令列表](unsupported_cmds.md)), 上层应用可以像使用单机的 Redis 一样使用, Codis 底层会处理请求的转发, 不停机的数据迁移等工作, 所有后边的一切事情, 对于前面的客户端来说是透明的, 可以简单的认为后边连接的是一个内存无限大的 Redis 服务。
 
-Codis 由四部分组成:
+Codis 3.x 由以下组件组成：
 
-* Codis Proxy   (codis-proxy)
-* Codis Dashboard (codis-config)
-* Codis Redis   (codis-server)
-* ZooKeeper/Etcd
+* **Codis Server**：基于 redis-2.8.21 分支开发。增加了额外的数据结构，以支持 slot 有关的操作以及数据迁移指令。具体的修改可以参考文档 [redis 的修改](redis_change_zh.md)。
 
-codis-proxy 是客户端连接的 Redis 代理服务, codis-proxy 本身实现了 Redis 协议, 表现得和一个原生的 Redis 没什么区别 (就像 Twemproxy), 对于一个业务来说, 可以部署多个 codis-proxy, codis-proxy 本身是无状态的.
+* **Codis Proxy**：客户端连接的 Redis 代理服务, 实现了 Redis 协议。 除部分命令不支持以外([不支持的命令列表](unsupported_cmds.md))，表现的和原生的 Redis 没有区别（就像 Twemproxy）。
 
-codis-config 是 Codis 的管理工具, 支持包括, 添加/删除 Redis 节点, 添加/删除 Proxy 节点, 发起数据迁移等操作. codis-config 本身还自带了一个 http server, 会启动一个 dashboard, 用户可以直接在浏览器上观察 Codis 集群的运行状态.
+    + 对于同一个业务集群而言，可以同时部署多个 codis-proxy 实例；
+    + 不同 codis-proxy 之间由 codis-dashboard 保证状态同步。
 
-codis-server 是 Codis 项目维护的一个 Redis 分支, 基于 2.8.21 开发, 加入了 slot 的支持和原子的数据迁移指令. Codis 上层的 codis-proxy 和 codis-config 只能和这个版本的 Redis 交互才能正常运行.
+* **Codis Dashboard**：集群管理工具，支持 codis-proxy、codis-server 的添加、删除，以及据迁移等操作。在集群状态发生改变时，codis-dashboard 维护集群下所有 codis-proxy 的状态的一致性。
 
-Codis 依赖 ZooKeeper 来存放数据路由表和 codis-proxy 节点的元信息, codis-config 发起的命令都会通过 ZooKeeper 同步到各个存活的 codis-proxy.
+    + 对于同一个业务集群而言，同一个时刻 codis-dashboard 只能有 0个或者1个；
+    + 所有对集群的修改都必须通过 codis-dashboard 完成。
 
-Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name 的产品, 各项配置都不会冲突.
+* **Codis Admin**：集群管理的命令行工具。
 
-##Build codis-proxy & codis-config
+    + 可用于控制 codis-proxy、codis-dashboard 状态以及访问外部存储。
 
-* 安装go[参考这里](https://golang.org/doc/install)
-* 根据教程正确设置$GOPATH环境变量。注意$GOPATH是本机所有go项目（包括项目依赖的第三方库）的所在目录，而非单纯codis的所在目录。
-* 将$GOPATH/bin设为$PATH的其中一个目录，例如直接PATH=$GOPATH/bin:$PATH，方便执行通过go get安装的命令
-* 执行`go get -u -d github.com/wandoulabs/codis`下载codis代码
-* 切换到`$GOPATH/src/github.com/wandoulabs/codis`目录执行`make`命令编译代码，并执行`make gotest`来跑测试
+* **Codis FE**：集群管理界面。
 
-建议只通过go get命令来下载codis，除非你非常熟悉go语言的目录引用形式从而不会导致代码放错地方。该命令会下载master分支的最新版，我们会确保master分支的稳定。
+    + 多个集群实例共享可以共享同一个前端展示页面；
+    + 通过配置文件管理后端 codis-dashboard 列表，配置文件可自动更新。
 
-执行全部指令后，会在 bin 文件夹内生成 codis-config、codis-proxy、codis-server三个可执行文件。另外, bin/assets 文件夹是 codis-config 的 dashboard http 服务需要的前端资源, 需要和 codis-config 放置在同一文件夹下)
+* **Codis HA**：为集群提供高可用。
 
+    + 依赖 codis-dashboard 实例，自动抓取集群各个组件的状态；
+    + 会根据当前集群状态自动生成主从切换策略，并在需要时通过 codis-dashboard 完成主从切换。
+
+* **Storage**：为集群状态提供外部存储。
+
+    + 提供 Namespace 概念，不同集群的会按照不同 product name 进行组织；
+    + 目前仅提供了 Zookeeper 和 Etcd 两种实现，但是提供了抽象的 interface 可自行扩展。
+
+## 0. 下载与编译
+
+#### 1. 安装 Go 运行环境 [参考这里](https://golang.org/doc/install)
+
+安装完成后可以运行下列命令进行检测：
+
+```bash
+$ go version
+go version go1.5.2 linux/amd64
 ```
 
-$ bin/codis-config -h                                                                                                                                                                                                                           (master)
-usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
-		<command> [<args>...]
-options:
-   -c	配置文件地址
-   -L	日志输出文件地址
-   --log-level=<loglevel>	输出日志级别 (debug < info (default) < warn < error < fatal)
+#### 2. 设置编译环境
 
-commands:
-	server            redis 服务器组管理
-	slot              slot 管理
-	dashboard         启动 dashboard 服务
-	action            事件管理 (目前只有删除历史事件的日志)
-	proxy             proxy 管理
+**注意 `$GOPATH` 是本机所有第三方库 go 项目所在目录，Codis 仅是其中之一。**
+
+添加 `$GOPATH/bin` 到 `$PATH`，例如：`PATH=$PATH:$GOPATH/bin`，并安装 godep 工具。
+
+```bash
+$ go env GOPATH
+/home/codis/gopath
+
+$ go get -u github.com/tools/godep && which godep
+/home/codis/gopath/bin/godep
 ```
 
-```
-$ bin/codis-proxy -h
+#### 3. 下载 Codis 源代码
 
-usage: codis-proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
+下载完成后，Codis 源码会出现在 `$GOPATH/src/github.com/wandoulabs/codis` 路径下：
 
-options:
-   -c	配置文件地址
-   -L	日志输出文件地址
-   --log-level=<loglevel>	输出日志级别 (debug < info (default) < warn < error < fatal)
-   --cpu=<cpu_num>		proxy占用的 cpu 核数, 默认1, 最好设置为机器的物理cpu数的一半到2/3左右
-   --addr=<proxy_listen_addr>		proxy 的 redis server 监听的地址, 格式 <ip or hostname>:<port>, 如: localhost:9000, :9001
-   --http-addr=<debug_http_server_addr>   proxy 的调试信息启动的http server, 可以访问 http://debug_http_server_addr/debug/vars
+```bash
+$ go get -u -d github.com/wandoulabs/codis
 ```
 
-##部署
-------------------------
+#### 4. 编译 Codis 源代码
 
-###配置文件
-`codis-config` 和 `codis-proxy` 在不加 -c 参数的时候, 默认会读取当前目录下的 config.ini 文件
+* Codis 编译过程使用了 godep，请确定编译之前 godep 能正常工作。
+* 直接通过 make 进行编译，会看到如下输出：
 
-见[config.ini](../config.ini)中的注释来根据需求修改
+```bash
+$ cd $GOPATH/src/github.com/wandoulabs/codis
+$ make
+make -j -C extern/redis-2.8.21/
+... ...
+    >>>> godep: Checking dependency ... ...
+    >>>> godep: Checking dependency ... ...
+... ...
+godep go build -i -o bin/codis-dashboard ./cmd/dashboard
+godep go build -i -o bin/codis-proxy ./cmd/proxy
+godep go build -i -o bin/codis-admin ./cmd/admin
+godep go build -i -o bin/codis-ha ./cmd/ha
+godep go build -i -o bin/codis-fe ./cmd/fe
 
-###流程
+$ ls bin/
+total 69124
+drwxr-xr-x 4 codis codis     4096 Jan  4 14:55 assets
+-rwxr-xr-x 1 codis codis 17600752 Jan  4 14:55 codis-admin
+-rwxr-xr-x 1 codis codis 18416320 Jan  4 14:55 codis-dashboard
+-rwxr-xr-x 1 codis codis  9498040 Jan  4 14:55 codis-fe
+-rwxr-xr-x 1 codis codis  9956328 Jan  4 14:55 codis-ha
+-rwxr-xr-x 1 codis codis 11057280 Jan  4 14:55 codis-proxy
+-rwxr-xr-x 1 codis codis  4234432 Jan  4 14:55 codis-server
+-rw-r--r-- 1 codis codis      148 Jan  4 14:55 version
 
-####启动 dashboard
-执行 `bin/codis-config dashboard`, 该命令会启动 dashboard
-
-####初始化 slots
-执行 `bin/codis-config slot init`，该命令会在zookeeper上创建slot相关信息
-
-####启动 Codis Redis
-和官方的Redis Server参数一样
-
-####添加 Redis Server Group
-每一个 Server Group 作为一个 Redis 服务器组存在, 只允许有一个 master, 可以有多个 slave, ***group id 仅支持大于等于1的整数***
-
-```
-$ bin/codis-config server -h                                                                                                                                                                                                                   usage:
-	codis-config server list
-	codis-config server add <group_id> <redis_addr> <role>
-	codis-config server remove <group_id> <redis_addr>
-	codis-config server promote <group_id> <redis_addr>
-	codis-config server add-group <group_id>
-	codis-config server remove-group <group_id>
-```
-如: 添加两个 server group, 每个 group 有两个 redis 实例，group的id分别为1和2，
-redis实例为一主一从。
-
-添加一个group，group的id为1， 并添加一个redis master到该group
-```
-$ bin/codis-config server add 1 localhost:6379 master
-```
-添加一个redis slave到该group
-```
-$ bin/codis-config server add 1 localhost:6380 slave
-```
-类似的，再添加group，group的id为2
-```
-$ bin/codis-config server add 2 localhost:6479 master
-$ bin/codis-config server add 2 localhost:6480 slave
+$ cat bin/version
+version = 2016-01-03 14:53:22 +0800 @51f06ae3b58a256a58f857f590430977638846a3
+compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 ```
 
-####设置 server group 服务的 slot 范围
-   Codis 采用 Pre-sharding 的技术来实现数据的分片, 默认分成 1024 个 slots (0-1023), 对于每个key来说, 通过以下公式确定所属的 Slot Id : SlotId = crc32(key) % 1024 
-   每一个 slot 都会有一个且必须有一个特定的 server group id 来表示这个 slot 的数据由哪个 server group 来提供.
+#### 网络访问受限
 
-```
-$ bin/codis-config slot -h                                                                                                                                                                                                                     
-usage:
-	codis-config slot init
-	codis-config slot info <slot_id>
-	codis-config slot set <slot_id> <group_id> <status>
-	codis-config slot range-set <slot_from> <slot_to> <group_id> <status>
-	codis-config slot migrate <slot_from> <slot_to> <group_id> [--delay=<delay_time_in_ms>]
-```
+1. 在有网络环境的机器上，Codis 源码目录中执行命令 `make godep`；
+	+ 该操作会将 Codis 编译所依赖的第三方源码下载到 `Godeps/_workspace` 目录下；
+2. 在目标环境中，按照之前步骤配置好编译环境；
+	+ 离线安装 go 以及 godep 工具；
+3. 将处理过的 Codis 目录完整复制到访问受限的服务器的正确的路径下，执行 `make` 进行源码编译。
 
-如: 
+## 1. 快速启动
 
-设置编号为[0, 511]的 slot 由 server group 1 提供服务, 编号 [512, 1023] 的 slot 由 server group 2 提供服务
+源码中提供了可供本地测试使用的脚本 `scripts/demo.sh`，该脚本会生成一个本地集群。
 
-```
-$ bin/codis-config slot range-set 0 511 1 online
-$ bin/codis-config slot range-set 512 1023 2 online
-```
+**注意：脚本依赖 etcd 作为外部存储，启动时会创建一个占用 2379 端口的 etcd 实例；如果本地已经存在该实例，会导致可能污染该实例（写入测试程序所需配置文件）并最终启动失败。**
 
-####启动 codis-proxy
-```
- bin/codis-proxy -c config.ini -L ./log/proxy.log  --cpu=8 --addr=0.0.0.0:19000 --http-addr=0.0.0.0:11000
-```
-刚启动的 codis-proxy 默认是处于 offline状态的, 然后设置 proxy 为 online 状态, 只有处于 online 状态的 proxy 才会对外提供服务
-```
- bin/codis-config -c config.ini proxy online <proxy_name>  <---- proxy的id, 如 proxy_1
-```
++ 脚本会输出每一个进程的 PID，并将每个实例的日志会输出到 `tmp` 目录下；
++ 启动后，可以通过 http://127.0.0.1:8080 来访问 codis-fe。
 
-####打开浏览器
- 访问http://localhost:18087/admin ， 现在可以在浏览器里面完成各种操作了。
-  
-
-##数据迁移
------------------------------
-
-安全和透明的数据迁移是 Codis 提供的一个重要的功能, 也是 Codis 区别于 Twemproxy 等静态的分布式 Redis 解决方案的地方。
-
-数据迁移的最小单位是 key, 我们在 codis redis 中添加了一些指令, 实现基于key的迁移, 如 SLOTSMGRT等 (命令列表),  每次会将特定 slot 一个随机的 key 发送给另外一个 codis redis 实例, 这个命令会确认对方已经接收, 同时删除本地的这个  k-v 键值, 返回这个  slot 的剩余 key 的数量, 整个操作是原子的.
-
-在 codis-config 管理工具中, 每次迁移任务的最小单位是 slot
-
-如: 将slot id 为 [0-511] 的slot的数据, 迁移到 server group 2上,  --delay 参数表示每迁移一个 key 后 sleep 的毫秒数, 默认是 0, 用于限速.
-
-```
-$ bin/codis-config slot migrate 0 511 2 --delay=10
+```bash
+$ which etcd &>/dev/null || go get github.com/coreos/etcd
+$ bash demo.sh
+etcd.pid=81455
+codis-server-16379.pid=81456
+... ...
+proxy-11080x19000.pid=81465
+... ...
+dashboard.pid=81473
+fe.pid=81475
+done
+Mon Jan  4 15:10:44 CST 2016
+Mon Jan  4 15:11:14 CST 2016
+... ...
 ```
 
-迁移的过程对于上层业务来说是安全且透明的, 数据不会丢失,  上层不会中止服务.
+## 2. 启动及参数
 
-注意, 迁移的过程中打断是可以的, 但是如果中断了一个正在迁移某个slot的任务, 下次需要先迁移掉正处于迁移状态的 slot, 否则无法继续 (即迁移程序会检查同一时刻只能有一个 slot 处于迁移状态).
+**注意：请按照顺序逐步完成操作。默认使用 `zookeeper` 作为外部存储。**
 
+**注意：Codis 3.x 支持 AUTH，但是要求所有组件使用的 AUTH 必须完全相同。**
 
-###Auto Rebalance 
+#### 2.1 Codis Dashboard
 
-Codis 支持动态的根据实例内存, 自动对slot进行迁移, 以均衡数据分布.
+##### 2.1.1 启动命令：
 
+```bash
+$ nohup ./bin/codis-dashboard --ncpu=4 --config=dashboard.toml \
+    --log=dashboard.log --log-level=WARN &
 ```
-$ bin/codis-config slot rebalance
+
+默认配置文件 `dashboard.toml` 可由 codis-dashboard 生成。
+
+##### 2.1.2 详细说明：
+
++ 启动参数说明：
+
+```bash
+$ ./bin/codis-dashboard -h
+Usage:
+    codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR]
+    codis-dashboard  --default-config
+    codis-dashboard  --version
+
+Options:
+    --ncpu=N                    最大使用 CPU 个数
+    -c CONF, --config=CONF      指定启动配置文件
+    -l FILE, --log=FILE         设置 log 输出文件
+    --log-level=LEVEL           设置 log 输出等级：INFO,WARN,DEBUG,ERROR；默认INFO，推荐WARN
 ```
 
-要求:
- * 所有的codis-server都必须设置了maxmemory参数
- * 所有的 slots 都应该处于 online 状态, 即没有迁移任务正在执行
- * 所有 server group 都必须有 Master
+参数 `--host-admin` 请参见与 Docker 有关章节。
 
-##HA
++ 默认配置文件：
 
-因为codis的proxy是无状态的，可以比较容易的搭多个proxy来实现高可用性并横向扩容。
+```bash
+$ ./bin/codis-dashboard --default-config | tee dashboard.toml
+##################################################
+#                                                #
+#                  Codis-Dashboard               #
+#                                                #
+##################################################
 
-对Java用户来说，可以使用经过我们修改过的Jedis，[Jodis](https://github.com/wandoulabs/jodis) ，来实现proxy层的HA。它会通过监控zk上的注册信息来实时获得当前可用的proxy列表，既可以保证高可用性，也可以通过轮流请求所有的proxy实现负载均衡。如果需要异步请求，可以使用我们基于Netty开发的[Nedis](https://github.com/wandoulabs/nedis)。
+# Set Coordinator, only accept "zookeeper" & "etcd"
+coordinator_name = "zookeeper"
+coordinator_addr = "127.0.0.1:2181"
 
-对下层的redis实例来说，当一个group的master挂掉的时候，应该让管理员清楚，并手动的操作，因为这涉及到了数据一致性等问题（redis的主从同步是最终一致性的）。因此codis不会自动的将某个slave升级成master。
-不过我们也提供一种解决方案：[codis-ha](https://github.com/ngaut/codis-ha)。这是一个通过codis开放的api实现自动切换主从的工具。该工具会在检测到master挂掉的时候将其下线并选择其中一个slave提升为master继续提供服务。
+# Set Codis Product {Name/Auth}.
+product_name = "codis-demo"
+product_auth = ""
 
-需要注意，codis将其中一个slave升级为master时，该组内其他slave实例是不会自动改变状态的，这些slave仍将试图从旧的master上同步数据，因而会导致组内新的master和其他slave之间的数据不一致。因为redis的slave of命令切换master时会丢弃slave上的全部数据，从新master完整同步，会消耗master资源。因此建议在知情的情况下手动操作。使用 `codis-config server add <group_id> <redis_addr> slave` 命令刷新这些节点的状态即可。codis-ha不会自动刷新其他slave的状态。
+# Set bind address for admin(rpc), tcp only.
+admin_addr = "0.0.0.0:18080"
+```
 
-##升级
-我们会不断改进codis、修复bug，因此建议永远尽量使用master上的最新版。根据安装教程执行对应命令会自动更新代码，重新编译后用新的二级制文件替换旧的然后重启进程即可。如果没有特殊说明，codis是允许集群中存在多个版本的proxy或者proxy和dashboard版本不一致的，但是建议只作为升级过程的中间阶段，不要让这种混合多版本的状态持续过长时间。
+| 参数              | 说明                               |
+|:----------------- |:---------------------------------- |
+| coordinator\_name | 外部存储类型，接受 zookeeper/etcd  |
+| coordinator\_addr | 外部存储地址                       |
+| product\_name     | 集群名称，满足正则 `\w[\w\.\-]*`   |
+| product\_auth     | 集群密码，默认为空                 |
+| admin\_addr       | RESTful API 端口                   |
+
+#### 2.2 Codis Proxy
+
+##### 2.2.1 启动命令：
+
+```bash
+$ nohup ./bin/codis-proxy --ncpu=4 --config=proxy.toml \
+    --log=proxy.log --log-level=WARN &
+```
+
+默认配置文件 `proxy.toml` 可由 codis-proxy 生成。
+
+codis-proxy 启动后，处于 `waiting` 状态，监听 `proxy_addr` 地址，但是不会 `accept` 连接，添加到集群并完成集群状态的同步，才能改变状态为 `online`。添加的方法有以下两种：
+
++ 通过 codis-fe 添加：通过 `Add Proxy` 按钮，将 `admin_addr` 加入到集群中；
++ 通过 codis-admin 命令行工具添加，方法如下：
+
+```bash
+$ ./bin/codis-admin --dashboard=127.0.0.1:18080 --create-proxy -x 127.0.0.1:11080
+```
+
+其中 `127.0.0.1:18080` 以及 `127.0.0.1:11080` 分别为 dashboard 和 proxy 的 `admin_addr` 地址；
+
+添加过程中，dashboard 会完成如下一系列动作：
+
++ 获取 proxy 信息，对集群 name 以及 auth 进行验证，并将其信息写入到外部存储中；
++ 同步 slots 状态；
++ 标记 proxy 状态为 `online`，此后 proxy 开始 `accept` 连接并开始提供服务；
+
+##### 2.2.2 详细说明：
+
++ 启动参数说明：
+
+```bash
+$ ./bin/codis-proxy -h
+Usage:
+	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--ulimit=NLIMIT]
+	codis-proxy  --default-config
+	codis-proxy  --version
+
+Options:
+	--ncpu=N                    最大使用 CPU 个数
+	-c CONF, --config=CONF      指定启动配置文件
+	-l FILE, --log=FILE         设置 log 输出文件
+	--log-level=LEVEL           设置 log 输出等级：INFO,WARN,DEBUG,ERROR；默认INFO，推荐WARN
+	--ulimit=NLIMIT             检查 ulimit -n 的结果，确保运行时最大文件描述不少于 NLIMIT
+```
+
+参数 `--host-proxy` 以及 `--host-admin` 请参见与 Docker 有关章节。
+
++ 默认配置文件：
+
+```bash
+$ ./bin/codis-proxy --default-config | tee proxy.toml
+##################################################
+#                                                #
+#                  Codis-Proxy                   #
+#                                                #
+##################################################
+
+# Set Codis Product {Name/Auth}.
+product_name = "codis-demo"
+product_auth = ""
+
+# Set bind address for admin(rpc), tcp only.
+admin_addr = "0.0.0.0:11080"
+
+# Set bind address for proxy, proto_type can be "tcp", "tcp4", "tcp6", "unix" or "unixpacket".
+proto_type = "tcp4"
+proxy_addr = "0.0.0.0:19000"
+
+# Set jodis address & session timeout.
+jodis_addr = ""
+jodis_timeout = 10
+
+# Proxy will ping-pong backend redis periodly to keep-alive
+backend_ping_period = 5
+
+# If there is no request from client for a long time, the connection will be droped. Set 0 to disable.
+session_max_timeout = 1800
+
+# Buffer size for each client connection.
+session_max_bufsize = 131072
+
+# Number of buffered requests for each client connection.
+# Make sure this is higher than the max number of requests for each pipeline request, or your client may be blocked.
+session_max_pipeline = 1024
+
+# Set period between keep alives. Set 0 to disable.
+session_keepalive_period = 60
+```
+
+| 参数                        | 说明                                                     |
+|:--------------------------- |:-------------------------------------------------------- |
+| product\_name               | 集群名称，参考 dashboard 参数说明                        |
+| product\_auth               | 集群密码，默认为空                                       |
+| admin\_addr                 | RESTful API 端口                                         |
+| proto\_type                 | Redis 端口类型，接受 tcp/tcp4/tcp6/unix/unixpacket       |
+| proxy\_addr                 | Redis 端口地址或者路径                                   |
+| jodis\_addr                 | Jodis 注册 zookeeper 地址                                |
+| jodis\_timeout              | Jodis 注册 session timeout 时间，单位 second             |
+| backend\_ping\_period       | 与 codis-server 探活周期，单位 second，0 表示禁止        |
+| session\_max\_timeout       | 与 client 连接最大读超时，单位 second，0 表示禁止        |
+| session\_max\_bufsize       | 与 client 连接读写缓冲区大小，单位 byte                  |
+| session\_max\_pipeline      | 与 client 连接最大的 pipeline 大小                       |
+| session\_keepalive\_period  | 与 client 的 tcp keepalive 周期，仅 tcp 有效，0 表示禁止 |
+
+#### 2.3 Codis Server
+
++ 启动 ./bin/codis-server，与启动普通 redis 的方法一致。
+
++ 启动完成后，可以通过 codis-fe 提供的界面或者 codis-admin 命令行工具添加到集群中。
+
+#### 2.4 Codis FE（可选组件）
+
+##### 2.4.1 启动命令：
+
+```bash
+$ nohup ./bin/codis-fe --ncpu=4 --log=fe.log --log-level=WARN \
+    --dashboard-list=codis.json --listen=127.0.0.1:8080 &
+```
+
+##### 2.4.2 详细说明：
+
++ 启动参数说明：
+
+```bash
+$ ./bin/codis-fe -h
+Usage:
+	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] --dashboard-list=LIST --listen=ADDR
+	codis-fe  --version
+
+Options:
+	--ncpu=N                        最大使用 CPU 个数
+	-d LIST, --dashboard-list=LIST  配置文件，能够自动刷新
+	-l FILE, --log=FILE             设置 log 输出文件
+	--log-level=LEVEL               设置 log 输出等级：INFO,WARN,DEBUG,ERROR；默认INFO，推荐WARN
+	--listen=ADDR                   HTTP 服务端口
+```
+
+配置文件 codis.json 可以手动编辑，也可以通过 codis-admin 从外部存储中拉取，例如：
+
+```bash
+$ ./bin/codis-admin --dashboard-list --zookeeper=127.0.0.1:2181 | tee codis.json
+[
+    {
+        "name": "codis-demo",
+        "dashboard": "127.0.0.1:18080"
+    },
+    {
+        "name": "codis-demo2",
+        "dashboard": "127.0.0.1:28080"
+    }
+]
+```
+
+#### 2.5 Codis HA（可选组件）
+
+##### 2.5.1 启动命令：
+
+```bash
+$ nohup ./bin/codis-fe --log=ha.log --log-level=WARN --dashboard=127.0.0.1:18080 &
+```
+
+##### 2.5.2 详细说明：
+
+```bash
+$ ./bin/codis-ha -h
+Usage:
+	codis-ha [--log=FILE] [--log-level=LEVEL] --dashboard=ADDR
+	codis-ha  --version
+
+Options:
+	-l FILE, --log=FILE         设置 log 输出文件
+	--log-level=LEVEL           设置 log 输出等级：INFO,WARN,DEBUG,ERROR；默认INFO，推荐WARN
+```
+##### 2.5.3 工作原理：
+
+**注意：Codis HA 工具仅仅是 Codis 集群 HA 的一部分，单独工作能力有限。**
+
++ 以 5s 为周期，codis-ha 会从 codis-dashboard 中拉取集群状态，并根据集群状态生成主从切换策略；
++ 当集群中 codis-server 出现故障时，codis-ha 会根据之前确定的替换策略，向 codis-dashboard 发出主从切换指令；
+
++ codis-ha 在以下状态下会退出：
+    1. 从 codis-dashboard 获取集群状态失败时；
+    2. 向 codis-dashboard 发送主从切换指令失败时；
+
++ codis-ha 在以下状态下无法为 group 生成替换策略：
+    1. group 中没有健康的 codis-server 时；
+    2. group 中所有健康的 codis-server 都不满足如下条件时：
+        + `slave.master == group.master && slave.master_status == up`
+        
++ codis-ha 在以下状态下无法应用替换策略：
+    1. 存在 proxy 状态异常；
+    	+ 因为主从切换需要全部 proxy 确认，因此如果 proxy 状态异常必然导致主从切换失败；
+    2. 故障 codis-server 所在 group 没有可靠替换策略时；
+
+**注意：因此，应用 codis-ha 时还需要结合对 codis-proxy 和 codis-server 的可用性监控，否则 codis-ha 无法保证可靠性。**
+
+## 3. Jodis 与 HA
+
+因为 codis-proxy 是无状态的，可以比较容易的搭多个实例，达到高可用性和横向扩展。
+
+对 Java 用户来说，可以使用基于 Jedis 的实现 [Jodis](https://github.com/wandoulabs/jodis) ，来实现 proxy 层的 HA：
+    
++ 它会通过监控 zookeeper 上的注册信息来实时获得当前可用的 proxy 列表，既可以保证高可用性；
++ 也可以通过轮流请求所有的proxy实现负载均衡。
+
+如果需要异步请求，可以使用我们基于Netty开发的 [Nedis](https://github.com/wandoulabs/nedis)。
+
+对下层的 redis 实例来说，当一个 group 的 master 挂掉的时候，应该让管理员清楚，并手动的操作，因为这涉及到了数据一致性等问题（redis的主从同步是最终一致性的）。因此 codis 不会自动的将某个 slave 升级成 master。关于外部 codis-ha 工具（具体可以参考之前的章节），这是一个通过 codis-dashboard 开放的 RESTful API 实现自动切换主从的工具。该工具会在检测到 master 挂掉的时候主动应用主从切换策略，提升单个 slave 成为新的 master。
+
+需要注意，codis 将其中一个 slave 升级为 master 时，该组内其他 slave 实例是不会自动改变状态的，这些 slave 仍将试图从旧的 master 上同步数据，因而会导致组内新的 master 和其他 slave 之间的数据不一致。因此当出现主从切换时，需要管理员手动创建新的 sync action 来完成新 master 与 slave 之间的数据同步（codis-ha 不提供自动操作的工具，因为这样太不安全了）。
+
+## 4. Docker 部署
+
+Codis 3.x 起，开始正式支持 Docker 部署。这就需要 codis-dashboard 以及 codis-proxy 能够外部的 `listen` 地址暴露出来并保存在外部存储中。
+
++ codis-proxy 增加了 `--host-admin` 以及 `--host-proxy` 参数；
++ codis-dashboard 增加了 `--host-admin` 参数；
+
+以 codis-proxy 的 Docker 为例：
+
+```bash
+$ docker run --name "Codis-Proxy" -d -p 29000:19000 -p 21080:11080 codis-image \
+    codis-proxy -c proxy.toml --host-admin 100.0.1.100:29000 --host-proxy 100.0.1.100:21080
+```
+
+codis-proxy 在启动后，会使用 `--host-admin` 和 `--host-proxy` 参数所指定的实际地址替换 Docker 内监听的地址，向 codis-dashboard 注册。这样，例如使用 Jodis 的过程中，客户端就能够通过 `100.0.1.100:29000` 来访问 proxy 实例。
+
+codis-dashboard 也是相同的道理，会使用 `--host-admin` 地址向外部存储注册，这样 codis-fe 也能通过该地址正确的对 codis-dashboard 进行操作。
+
+具体样例可以参考 `scripts/docker.sh`。
+
+## 5. 从Codis 2.x 升级
+
+Codis 3.x 修改了 codis-dashboard 与 codis-proxy 之间的通信方式，因此 Codis 2.x 并不兼容。但是我们提供了手动升级方案。
+
+**注意1：升级时，需要保证所有 slot 都处在 `online` 状态。即没有任何数据迁移操作正在进行。**
+
+**注意2：升级完成后，需要手动关闭 Codis 2.x 的所有 proxy 和 config 组件。**
+
+###### step 1. 导出配置文件
+
+```bash
+$ ./bin/codis-admin --config-dump --product=codis_v2.0 --zookeeper=127.0.0.1:2181 -1 | tee codis_v2.0.json
+```
+
+该命令会从 zookeeper 上拉取 `/zk/codis/db_codis_v2.0` 下全部的文件，并组织成 json 格式并输出。
+
+选项 `-1` 表示配置文件是 Codis 1.x 版本，缺省是 Codis 3.x 版本。
+
+###### step 2. 转换配置文件
+
+```bash
+$ ./bin/codis-admin --config-convert codis_v2.0.json | tee codis_v3.0.json
+```
+
+该命令会将 Codis 1.x 版本的配置文件中有效信息提取出来，并转成 Codis 3.x 版本的配置文件并输出。
+
+###### step 3. 更新配置文件
+
+**注意：更新配置文件时，请确保 Codis 3.x 中该集群不存在，否则可能导致更新失败或者集群状态异常。**
+
+```bash
+$ ./bin/codis-admin --config-restore=codis_v3.0.json --product=codis_v3.0 --zookeeper=127.0.0.1:2181 --confirm
+```
+
+该命令会将 Codis 3.x 版本的配置文件提交到 `/codis3/codis_v3.0` 目录下。
+
+选项 `--confirm` 选项表示确认提交，缺省时该命令仅仅打印配置文件作为调试。
+
+###### step 4. 启动 Codis 3.x dashboard 以及 proxy
+
+过程参考之前章节。因为集群信息已经存在，所以可以安全启动 codis-dashboard，并逐一添加 codis-proxy 到集群中。
+
+###### step 5. 关闭 Codis 2.x dashboard 以及 proxy
+
+Codis 3.x 的组件兼容 Jodis 协议。
+
+因为 Codis 2.x 与 Codis 3.x 在外部存储中的组织结构不同，所以可以安全的 `kill` 掉全部 Codis 2.x 组件。
+
+**注意：关闭过程请不要使用 `kill -9`，因为旧组件在退出时会自动清理部分注册信息。**

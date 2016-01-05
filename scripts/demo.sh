@@ -23,7 +23,7 @@ lastpid=$!
 pidlist=$lastpid
 echo "etcd.pid=$lastpid"
 
-for ((i=0;i<32;i++)); do
+for ((i=0;i<8;i++)); do
     let p="16379+i"
     nohup codis-server --port ${p} &>redis-${p}.log &
     lastpid=$!
@@ -31,7 +31,7 @@ for ((i=0;i<32;i++)); do
     echo "codis-server-${p}.pid=$lastpid"
 done
 
-for ((i=0;i<16;i++)); do
+for ((i=0;i<4;i++)); do
     let p1="11080+i"
     let p2="19000+i"
     cat > ${p1}.toml <<EOF
@@ -69,7 +69,7 @@ cat > codis.json <<EOF
 ]
 EOF
 
-nohup ../../bin/codis-fe -d codis.json --listen 127.0.0.1:8080 &> fe.log &
+nohup ../../bin/codis-fe -d codis.json --listen 0.0.0.0:8080 &> fe.log &
 lastpid=$!
 pidlist="$pidlist $lastpid"
 echo "fe.pid=$lastpid"
@@ -92,23 +92,23 @@ codis_admin() {
     fi
 }
 
-for ((i=0;i<16;i++)); do
+for ((i=0;i<4;i++)); do
     let g="i+1"
     codis_admin --create-group --gid $g
 done
 
-for ((i=0;i<32;i++)); do
+for ((i=0;i<8;i++)); do
     let p="16379+i"
     let g="i/2+1"
     codis_admin --group-add --gid $g -x 127.0.0.1:${p}
 done
 
-for ((i=0;i<16;i++)); do
+for ((i=0;i<4;i++)); do
     let p1="11080+i"
     codis_admin --create-proxy -x 127.0.0.1:${p1}
 done
 
-codis_admin --slot-action --interval=10
+codis_admin --slot-action --interval=100
 codis_admin --slot-action --create-range --beg=0 --end=1023 --gid=1
 
 echo done

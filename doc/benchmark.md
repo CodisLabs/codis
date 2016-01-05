@@ -1,7 +1,7 @@
 
 ## Performance (Benchmark)
 #### Intel(R) Core(TM) i7-4770 CPU @ 3.40GHz x 1 + 16G RAM
-+ Archlinux: 4.0.5-1-ARCH #1 SMP PREEMPT Sat Jun 6 18:37:49 CEST 2015 x86_64 GNU/Linux
++ Archlinux: 4.0.5-1-ARCH #1 SMP PREEMPT Sat Jun 6 18:37:49 CEST 2015 x86\_64 GNU/Linux
 
 + Go: go version go1.4.2 linux/amd64
 
@@ -34,8 +34,8 @@ alpha:
 
 + Codis - 4CPU:
 ```bash
-codis-proxy --cpu=4 -c config.ini -L proxy.log \
-  --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
+codis-proxy --ncpu=4 -c config.toml -L proxy.log \
+  --host-proxy=0.0.0.0:19000 --host-admin=0.0.0.0:10000 &
 ```
 
 + RedisBenchmark - 1CPU:
@@ -51,7 +51,7 @@ done
 ![main](bench1/bench.png)
 
 #### Intel(R) Xeon(R) CPU E5-2620 v2 @ 2.10GHz x 2 + 64G RAM
-+ CentOS: 2.6.32-279.el6.x86_64 #1 SMP Fri Jun 22 12:19:21 UTC 2012 x86_64 x86_64 x86_64 GNU/Linux
++ CentOS: 2.6.32-279.el6.x86\_64 #1 SMP Fri Jun 22 12:19:21 UTC 2012 x86\_64 x86\_64 x86\_64 GNU/Linux
 
 + Go: go version go1.3.3 linux/amd64
 
@@ -88,13 +88,13 @@ alpha:
 
 + Codis - 4CPU or 8CPU:
 ```bash
-codis-proxy --cpu=4 -c config.ini -L proxy.log \
-  --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
+codis-proxy --ncpu=4 -c config.toml -L proxy.log \
+  --host-proxy=0.0.0.0:19000 --host-admin=0.0.0.0:10000 &
 ```
 
 ```bash
-codis-proxy --cpu=8 -c config.ini -L proxy.log \
-  --addr=0.0.0.0:19000 --http-addr=0.0.0.0:10000 &
+codis-proxy --ncpu=8 -c config.toml -L proxy.log \
+  --host-proxy=0.0.0.0:19000 --host-admin=0.0.0.0:10000 &
 ```
 
 + RedisBenchmark - 1CPU:
