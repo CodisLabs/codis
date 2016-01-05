@@ -51,8 +51,8 @@ func (s *Topom) processSlotAction(sid int) (err error) {
 			}
 			s.action.progress.remain.Set(int64(n))
 			s.action.progress.failed.Set(false)
-			if ms := s.GetSlotActionInterval(); ms != 0 {
-				time.Sleep(time.Millisecond * time.Duration(ms))
+			if us := s.GetSlotActionInterval(); us != 0 {
+				time.Sleep(time.Microsecond * time.Duration(us))
 			}
 		}
 	}

@@ -108,7 +108,7 @@ for ((i=0;i<4;i++)); do
     codis_admin --create-proxy -x 127.0.0.1:${p1}
 done
 
-codis_admin --slot-action --interval=10
+codis_admin --slot-action --interval=100
 codis_admin --slot-action --create-range --beg=0 --end=1023 --gid=1
 
 echo done
