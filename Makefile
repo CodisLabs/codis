@@ -1,13 +1,19 @@
 .DEFAULT_GOAL := all
 
+.PHONY: godep
+
 GODEP :=
 
 ifndef GODEP
 GODEP := $(shell \
-	if ! command -v godep &> /dev/null; then \
-		go get -u github.com/tools/godep; \
-	fi; \
-	echo 'godep';)
+	if which godep 2>&1 >/dev/null; then \
+		echo "godep"; \
+	else \
+		if [ ! -x "${GOPATH}/bin/godep" ]; then \
+			go get -u github.com/tools/godep; \
+		fi; \
+		echo "${GOPATH}/bin/godep"; \
+	fi;)
 endif
 
 all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe
