@@ -111,6 +111,12 @@ compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 	+ 离线安装 go 以及 godep 工具；
 3. 将处理过的 Codis 目录完整复制到访问受限的服务器的正确的路径下，执行 `make` 进行源码编译。
 
+#### 离线安装 godep 方法：
+
+1. 运行 `git clone https://github.com/tools/godep.git` 下载 godep 源码；
+2. 将 godep 目录移动到 `$GOPATH/src/github.com/tools/godep`，并进入该目录；
+3. 运行命令 `go install ./`，该命令会将 godep 生成到 `$GOPATH/bin` 下。
+
 ## 1. 快速启动
 
 源码中提供了可供本地测试使用的脚本 `scripts/demo.sh`，该脚本会生成一个本地集群。
