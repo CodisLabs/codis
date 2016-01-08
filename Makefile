@@ -1,4 +1,4 @@
-.DEFAULT_GOAL := all
+.DEFAULT_GOAL := build-all
 
 .PHONY: godep
 
@@ -16,7 +16,7 @@ GODEP := $(shell \
 	fi;)
 endif
 
-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe
+build-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe
 
 godep:
 	@mkdir -p bin && bash version
