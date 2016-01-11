@@ -33,7 +33,7 @@ Codis is a proxy based high performance Redis cluster solution written in Go. It
 
 ## High Availability
 
-[简体中文](doc/tutorial_zh.md#ha)
+[简体中文](doc/tutorial_zh.md#3-jodis-与-ha)
 [English (WIP) ](doc/tutorial_en.md#ha)
 
 ## Architecture
