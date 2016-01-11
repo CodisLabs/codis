@@ -23,18 +23,18 @@ Codis is a proxy based high performance Redis cluster solution written in Go. It
 
 ## Tutorial
 
-[简体中文](https://github.com/wandoulabs/codis/blob/release3.0/doc/tutorial_zh.md)
-[English (WIP) ](https://github.com/wandoulabs/codis/blob/release3.0/doc/tutorial_en.md)
+[简体中文](doc/tutorial_zh.md)
+[English (WIP) ](doc/tutorial_en.md)
 
 ## FAQ
 
-[简体中文](https://github.com/wandoulabs/codis/blob/release3.0/doc/FAQ_zh.md)
-[English (WIP) ](https://github.com/wandoulabs/codis/blob/release3.0/doc/FAQ_en.md)
+[简体中文](doc/FAQ_zh.md)
+[English (WIP) ](FAQ_en.md)
 
 ## High Availability
 
-[简体中文](https://github.com/wandoulabs/codis/blob/release3.0/doc/tutorial_zh.md#ha)
-[English (WIP) ](https://github.com/wandoulabs/codis/blob/release3.0/doc/tutorial_en.md#ha)
+[简体中文](doc/tutorial_zh.md#ha)
+[English (WIP) ](doc/tutorial_en.md#ha)
 
 ## Architecture
 
