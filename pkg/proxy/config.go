@@ -76,3 +76,31 @@ func LoadConf(configFile string) (*Config, error) {
 	}
 	return conf, nil
 }
+
+func SetProductName(conf *Config, val string) {
+	if len(val) == 0 {
+		log.Panicf("invalid overrides: product entry is missing when setting")
+	}
+	conf.productName = val
+}
+
+func SetProxyId(conf *Config, val string) {
+	if len(val) == 0 {
+		log.Panicf("invalid overrides: need proxy_id entry when setting")
+	}
+	conf.proxyId = val
+}
+
+func SetZkAddr(conf *Config, val string) {
+	if len(val) == 0 {
+		log.Panicf("invalid overrides: need zkAddr entry when setting")
+	}
+	conf.zkAddr = val
+}
+
+func SetDashboardAddr(conf *Config, val string) {
+	if len(val) == 0 {
+		log.Panicf("invalid overrides: need dashboardAddr entry when setting")
+	}
+	conf.dashboardAddr = val
+}

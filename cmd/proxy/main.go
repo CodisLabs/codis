@@ -33,16 +33,21 @@ var (
 	configFile = "config.ini"
 )
 
-var usage = `usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--log-filesize=<filesize>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
+var usage = `usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--log-filesize=<filesize>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>] [--product=<product>] [--proxy-id=<proxy_id>]  [--zk=<zk>] [--dashboard-addr=<dashboard-addr>]
+
 
 options:
    -c	set config file
    -L	set output log file, default is stdout
-   --log-level=<loglevel>	set log level: info, warn, error, debug [default: info]
+   --log-level=<loglevel>	 set log level: info, warn, error, debug [default: info]
    --log-filesize=<maxsize>  set max log file size, suffixes "KB", "MB", "GB" are allowed, 1KB=1024 bytes, etc. Default is 1GB.
-   --cpu=<cpu_num>		num of cpu cores that proxy can use
+   --cpu=<cpu_num>		     num of cpu cores that proxy can use
    --addr=<proxy_listen_addr>		proxy listen address, example: 0.0.0.0:9000
    --http-addr=<debug_http_server_addr>		debug vars http server
+   --product=<product>	     product overrides which in config file	
+   --proxy-id=<proxy_id>	 proxy_id overrides which in config file
+   --zk=<zk>	             zk overrides which in config file
+   --dashboard-addr=<dashboard-addr>	dashboard-addr overrides which in config file
 `
 
 const banner string = `
@@ -176,6 +181,26 @@ func main() {
 		log.PanicErrorf(err, "load config failed")
 	}
 
+	// overwrite the product name
+	if args["--product"] != nil {
+		prodName := args["--product"].(string)
+		proxy.SetProductName(conf, prodName)
+	}
+	// overwrite the proxy id
+	if args["--proxy-id"] != nil {
+		proxyId := args["--proxy-id"].(string)
+		proxy.SetProxyId(conf, proxyId)
+	}
+	// overwrite the zk addr
+	if args["--zk"] != nil {
+		zk := args["--zk"].(string)
+		proxy.SetZkAddr(conf, zk)
+	}
+	// overwrite the dashboard addr
+	if args["--dashboard-addr"] != nil {
+		dashAddr := args["--dashboard-addr"].(string)
+		proxy.SetDashboardAddr(conf, dashAddr)
+	}
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, os.Kill)
 
