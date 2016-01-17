@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
 
 type Conn struct {

@@ -12,8 +12,8 @@ import (
 
 	"github.com/coreos/etcd/client"
 
-	"github.com/wandoulabs/codis/pkg/utils/errors"
-	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
 var ErrClosedEtcdClient = errors.New("use of closed etcd client")

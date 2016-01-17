@@ -13,12 +13,12 @@ import (
 
 	"github.com/docopt/docopt-go"
 
-	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/models/etcd"
-	"github.com/wandoulabs/codis/pkg/models/zk"
-	"github.com/wandoulabs/codis/pkg/topom"
-	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/models"
+	"github.com/CodisLabs/codis/pkg/models/etcd"
+	"github.com/CodisLabs/codis/pkg/models/zk"
+	"github.com/CodisLabs/codis/pkg/topom"
+	"github.com/CodisLabs/codis/pkg/utils"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
 func main() {

@@ -18,11 +18,12 @@ import (
 	"github.com/docopt/docopt-go"
 	"github.com/go-martini/martini"
 	"github.com/martini-contrib/render"
-	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/utils/errors"
-	"github.com/wandoulabs/codis/pkg/utils/log"
-	"github.com/wandoulabs/codis/pkg/utils/rpc"
-	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
+
+	"github.com/CodisLabs/codis/pkg/utils"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/rpc"
+	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
 var roundTripper http.RoundTripper

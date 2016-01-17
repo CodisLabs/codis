@@ -62,10 +62,10 @@ $ go get -u github.com/tools/godep && which godep
 
 #### 3. 下载 Codis 源代码
 
-下载完成后，Codis 源码会出现在 `$GOPATH/src/github.com/wandoulabs/codis` 路径下：
+下载完成后，Codis 源码会出现在 `$GOPATH/src/github.com/CodisLabs/codis` 路径下：
 
 ```bash
-$ go get -u -d github.com/wandoulabs/codis
+$ go get -u -d github.com/CodisLabs/codis
 ```
 
 #### 4. 编译 Codis 源代码
@@ -74,7 +74,7 @@ $ go get -u -d github.com/wandoulabs/codis
 * 直接通过 make 进行编译，会看到如下输出：
 
 ```bash
-$ cd $GOPATH/src/github.com/wandoulabs/codis
+$ cd $GOPATH/src/github.com/CodisLabs/codis
 $ make
 make -j -C extern/redis-2.8.21/
 ... ...
@@ -439,12 +439,12 @@ $ ./bin/codis-admin --dashboard=127.0.0.1:18080 --remove-proxy --addr=127.0.0.1:
 
 因为 codis-proxy 是无状态的，可以比较容易的搭多个实例，达到高可用性和横向扩展。
 
-对 Java 用户来说，可以使用基于 Jedis 的实现 [Jodis](https://github.com/wandoulabs/jodis) ，来实现 proxy 层的 HA：
+对 Java 用户来说，可以使用基于 Jedis 的实现 [Jodis](https://github.com/CodisLabs/jodis) ，来实现 proxy 层的 HA：
     
 + 它会通过监控 zookeeper 上的注册信息来实时获得当前可用的 proxy 列表，既可以保证高可用性；
 + 也可以通过轮流请求所有的proxy实现负载均衡。
 
-如果需要异步请求，可以使用我们基于Netty开发的 [Nedis](https://github.com/wandoulabs/nedis)。
+如果需要异步请求，可以使用我们基于Netty开发的 [Nedis](https://github.com/CodisLabs/nedis)。
 
 对下层的 redis 实例来说，当一个 group 的 master 挂掉的时候，应该让管理员清楚，并手动的操作，因为这涉及到了数据一致性等问题（redis的主从同步是最终一致性的）。因此 codis 不会自动的将某个 slave 升级成 master。关于外部 codis-ha 工具（具体可以参考之前的章节），这是一个通过 codis-dashboard 开放的 RESTful API 实现自动切换主从的工具。该工具会在检测到 master 挂掉的时候主动应用主从切换策略，提升单个 slave 成为新的 master。
 

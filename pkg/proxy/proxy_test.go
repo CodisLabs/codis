@@ -6,10 +6,10 @@ package proxy_test
 import (
 	"testing"
 
-	"github.com/wandoulabs/codis/pkg/models"
-	"github.com/wandoulabs/codis/pkg/proxy"
-	"github.com/wandoulabs/codis/pkg/utils/assert"
-	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/models"
+	"github.com/CodisLabs/codis/pkg/proxy"
+	"github.com/CodisLabs/codis/pkg/utils/assert"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
 var config = newProxyConfig()

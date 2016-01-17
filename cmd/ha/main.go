@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/docopt/docopt-go"
-	"github.com/wandoulabs/codis/pkg/topom"
-	"github.com/wandoulabs/codis/pkg/utils"
-	"github.com/wandoulabs/codis/pkg/utils/log"
+
+	"github.com/CodisLabs/codis/pkg/topom"
+	"github.com/CodisLabs/codis/pkg/utils"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
 func main() {

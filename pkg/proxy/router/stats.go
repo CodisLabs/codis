@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
+	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
 type opStats struct {

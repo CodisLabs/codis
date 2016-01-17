@@ -13,7 +13,7 @@ import (
 
 	"github.com/garyburd/redigo/redis"
 
-	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
 
 var ErrFailedRedisClient = errors.New("use of failed redis client")

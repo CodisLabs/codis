@@ -1,6 +1,6 @@
 {
-	"ImportPath": "github.com/wandoulabs/codis",
-	"GoVersion": "go1.5.2",
+	"ImportPath": "github.com/CodisLabs/codis",
+	"GoVersion": "go1.5.3",
 	"Packages": [
 		"./..."
 	],

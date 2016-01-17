@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wandoulabs/codis/pkg/utils/assert"
-	"github.com/wandoulabs/codis/pkg/utils/errors"
-	"github.com/wandoulabs/codis/pkg/utils/sync2/atomic2"
+	"github.com/CodisLabs/codis/pkg/utils/assert"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
 func newConnPair() (*Conn, *Conn) {
