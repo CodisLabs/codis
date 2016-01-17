@@ -10,7 +10,7 @@ import (
 	"path"
 	"sync"
 
-	"github.com/wandoulabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
 
 type rollingFile struct {

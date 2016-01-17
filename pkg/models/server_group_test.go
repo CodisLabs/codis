@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/wandoulabs/codis/pkg/utils/assert"
+	"github.com/CodisLabs/codis/pkg/utils/assert"
 	"github.com/wandoulabs/zkhelper"
 )
 

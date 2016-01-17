@@ -4,7 +4,7 @@ import sbt._
 object CodisScalaClientBuild extends Build {
 
   val basicSettings = Seq(
-    organization := "com.wandoulabs.codis",
+    organization := "com.CodisLabs.codis",
     version := "0.0.1-SNAPSHOT",
     scalaVersion := "2.10.5",
     publishMavenStyle := true,

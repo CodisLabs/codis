@@ -35,7 +35,7 @@ RUN echo 'codis:codis' | chpasswd
 ENV GOPATH /tmp/gopath
 ${ADDGODEPS}
 
-ADD pkg \${GOPATH}/src/github.com/wandoulabs/codis/pkg
+ADD pkg \${GOPATH}/src/github.com/CodisLabs/codis/pkg
 
 ENV BUILDDIR /tmp/codis
 RUN mkdir -p \${BUILDDIR}

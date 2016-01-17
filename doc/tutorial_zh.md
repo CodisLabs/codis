@@ -24,8 +24,8 @@ Codis 支持按照 Namespace 区分不同的产品, 拥有不同的 product name
 * 安装go[参考这里](https://golang.org/doc/install)
 * 根据教程正确设置$GOPATH环境变量。注意$GOPATH是本机所有go项目（包括项目依赖的第三方库）的所在目录，而非单纯codis的所在目录。
 * 将$GOPATH/bin设为$PATH的其中一个目录，例如直接PATH=$GOPATH/bin:$PATH，方便执行通过go get安装的命令
-* 执行`go get -u -d github.com/wandoulabs/codis`下载codis代码
-* 切换到`$GOPATH/src/github.com/wandoulabs/codis`目录执行`make`命令编译代码，并执行`make gotest`来跑测试
+* 执行`go get -u -d github.com/CodisLabs/codis`下载codis代码
+* 切换到`$GOPATH/src/github.com/CodisLabs/codis`目录执行`make`命令编译代码，并执行`make gotest`来跑测试
 
 建议只通过go get命令来下载codis，除非你非常熟悉go语言的目录引用形式从而不会导致代码放错地方。该命令会下载master分支的最新版，我们会确保master分支的稳定。
 
@@ -184,7 +184,7 @@ $ bin/codis-config slot rebalance
 
 因为codis的proxy是无状态的，可以比较容易的搭多个proxy来实现高可用性并横向扩容。
 
-对Java用户来说，可以使用经过我们修改过的Jedis，[Jodis](https://github.com/wandoulabs/jodis) ，来实现proxy层的HA。它会通过监控zk上的注册信息来实时获得当前可用的proxy列表，既可以保证高可用性，也可以通过轮流请求所有的proxy实现负载均衡。如果需要异步请求，可以使用我们基于Netty开发的[Nedis](https://github.com/wandoulabs/nedis)。
+对Java用户来说，可以使用经过我们修改过的Jedis，[Jodis](https://github.com/CodisLabs/jodis) ，来实现proxy层的HA。它会通过监控zk上的注册信息来实时获得当前可用的proxy列表，既可以保证高可用性，也可以通过轮流请求所有的proxy实现负载均衡。如果需要异步请求，可以使用我们基于Netty开发的[Nedis](https://github.com/CodisLabs/nedis)。
 
 对下层的redis实例来说，当一个group的master挂掉的时候，应该让管理员清楚，并手动的操作，因为这涉及到了数据一致性等问题（redis的主从同步是最终一致性的）。因此codis不会自动的将某个slave升级成master。
 不过我们也提供一种解决方案：[codis-ha](https://github.com/ngaut/codis-ha)。这是一个通过codis开放的api实现自动切换主从的工具。该工具会在检测到master挂掉的时候将其下线并选择其中一个slave提升为master继续提供服务。

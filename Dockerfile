@@ -4,12 +4,12 @@ MAINTAINER goroutine@126.com
 RUN apt-get update -y
 
 # Add codis
-Add . /go/src/github.com/wandoulabs/codis/
-WORKDIR /go/src/github.com/wandoulabs/codis/
+Add . /go/src/github.com/CodisLabs/codis/
+WORKDIR /go/src/github.com/CodisLabs/codis/
 
 # Install dependency
 RUN ./bootstrap.sh
-WORKDIR /go/src/github.com/wandoulabs/codis/sample
+WORKDIR /go/src/github.com/CodisLabs/codis/sample
 
 # Expose ports
 EXPOSE 19000

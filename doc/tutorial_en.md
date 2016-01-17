@@ -23,8 +23,8 @@ Codis support namespace, configs of products with different name  won’t be con
 
 * install go [see official doc](https://golang.org/doc/install)
 * set $GOPATH correctly and set PATH=$GOPATH/bin:$PATH to execute commands installed by `go get`
-* execute `go get -u -d github.com/wandoulabs/codis` to download codis
-* change directory to `$GOPATH/src/github.com/wandoulabs/codis` and execute `make` to compile, execute `make gotest` to run unit test
+* execute `go get -u -d github.com/CodisLabs/codis` to download codis
+* change directory to `$GOPATH/src/github.com/CodisLabs/codis` and execute `make` to compile, execute `make gotest` to run unit test
 
 Two executable file `codas-config` and `codis-proxy` should be generated in `codis/bin`(`bin/assets` is the resources for `codis-config` dashboard, should be placed at same directory with `codis-config`).
 
@@ -66,7 +66,7 @@ options:
 ### Configuration file
 `codis-config` and `codis-proxy` will take `config.ini` in current directory by default without a specific `-c`.
 
-See [config.ini](https://github.com/wandoulabs/codis/blob/master/config.ini)'s comments.
+See [config.ini](https://github.com/CodisLabs/codis/blob/master/config.ini)'s comments.
 
 ### Workflow
 0. Execute `codis-config dashboard` , start dashboard.
@@ -177,8 +177,8 @@ Requirements:
 
 Codis's proxy is stateless so you can run more than one proxies to get high availability and horizontal scalability.
 
-For Java users, you can use a modified Jedis, [Jodis](https://github.com/wandoulabs/jodis). It will watch the ZooKeeper to get the real-time available proxies, then query via them using a round robin policy to balance load and detect proxy online and offline automatically.
-If asynchronous request is required, you can use [Nedis](https://github.com/wandoulabs/nedis) which is implemented based on Netty.
+For Java users, you can use a modified Jedis, [Jodis](https://github.com/CodisLabs/jodis). It will watch the ZooKeeper to get the real-time available proxies, then query via them using a round robin policy to balance load and detect proxy online and offline automatically.
+If asynchronous request is required, you can use [Nedis](https://github.com/CodisLabs/nedis) which is implemented based on Netty.
 
 For redis instances, the designers of codis think when a master down, system administrator should know about it and promote a slave to master by hand, not automatically. Because a crashed master may result in the data in this group not consistent.
 But we also offer a solution: [codis-ha](https://github.com/ngaut/codis-ha)。It is a tool using codis rest api to promote a slave to master when it find the master down.

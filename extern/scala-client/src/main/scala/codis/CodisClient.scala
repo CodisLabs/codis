@@ -19,7 +19,7 @@ import scala.concurrent.{ExecutionContext, Future}
 
 /**
  * A codis client based on {@code CuratorFramework} and {@code rediscala}.
- * Majority implementation are adopted from <a href="https://github.com/wandoulabs/codis/tree/master/extern/jodis">Jodis</a>.
+ * Majority implementation are adopted from <a href="https://github.com/CodisLabs/codis/tree/master/extern/jodis">Jodis</a>.
  *
  * This implementation can be considered as two components.
  * One uses {@code ZooKeeper} to keep sync the list of proxy addresses by watching certain type of

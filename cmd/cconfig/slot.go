@@ -9,8 +9,8 @@ import (
 
 	"github.com/docopt/docopt-go"
 
-	"github.com/wandoulabs/codis/pkg/utils/errors"
-	"github.com/wandoulabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
 func cmdSlot(argv []string) (err error) {
