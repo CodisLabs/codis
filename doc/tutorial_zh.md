@@ -388,22 +388,19 @@ Options:
 
 **注意：Codis HA 工具仅仅是 Codis 集群 HA 的一部分，单独工作能力有限。**
 
-+ 以 5s 为周期，codis-ha 会从 codis-dashboard 中拉取集群状态，并根据集群状态生成主从切换策略；
-+ 当集群中 codis-server 出现故障时，codis-ha 会根据之前确定的替换策略，向 codis-dashboard 发出主从切换指令；
++ 默认以 5s 为周期，codis-ha 会从 codis-dashboard 中拉取集群状态，并进行主从切换；
 
 + codis-ha 在以下状态下会退出：
     1. 从 codis-dashboard 获取集群状态失败时；
     2. 向 codis-dashboard 发送主从切换指令失败时；
 
-+ codis-ha 在以下状态下无法为 group 生成替换策略：
-    1. group 中没有健康的 codis-server 时；
-    2. group 中所有健康的 codis-server 都不满足如下条件时：
-        + `slave.master == group.master && slave.master_status == up`
-        
-+ codis-ha 在以下状态下无法应用替换策略：
-    1. 存在 proxy 状态异常；
-    	+ 因为主从切换需要全部 proxy 确认，因此如果 proxy 状态异常必然导致主从切换失败；
-    2. 故障 codis-server 所在 group 没有可靠替换策略时；
++ codis-ha 在以下状态下不会进行主从切换：
+    1. 存在 proxy 状态异常：
+        + 因为提升主从需要得到所有 proxy 的确认，因此必须确保操作时所有 proxy 都能正常响应操作指令；
+    2. 网络原因造成的 master 异常：
+        + 若存在 slave 满足 `slave.master_link_status == up`，通常可以认为 master 并没有真的退出，而是由于网络原因或者响应延迟造成的 master 状态获取失败，此时 codis-ha 不会对该 group 进行操作；
+    3. 没有满足条件的 slave 时：
+        + 提升过程会选择满足 `slave.master_link_status == down`，并且 `slave.master_link_down_since_seconds` 最小的进行操作。这就要求被选择的 slave 至少在过去一段时间内与 master 是成功同步状态，这个时间间隔是 `2d+5`，其中 `d` 是 codis-ha 检查周期默认 `5`秒。
 
 **注意：因此，应用 codis-ha 时还需要结合对 codis-proxy 和 codis-server 的可用性监控，否则 codis-ha 无法保证可靠性。**
 
