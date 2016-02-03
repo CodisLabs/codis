@@ -15,7 +15,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-ha [--log=FILE] [--log-level=LEVEL] --dashboard=ADDR
+	codis-ha [--log=FILE] [--log-level=LEVEL] [--interval=SECONDS] --dashboard=ADDR
 	codis-ha  --version
 
 Options:
@@ -49,8 +49,17 @@ Options:
 		}
 	}
 
+	var interval = 5
+	if n, ok := utils.ArgumentInteger(d, "--interval"); ok {
+		if n <= 0 {
+			log.Panicf("option --interval = %d", n)
+		}
+		interval = n
+	}
+
 	dashboard := utils.ArgumentMust(d, "--dashboard")
 	log.Warnf("set dashboard = %s", dashboard)
+	log.Warnf("set interval = %d (seconds)", interval)
 
 	client := topom.NewApiClient(dashboard)
 
@@ -62,33 +71,33 @@ Options:
 
 	client.SetXAuth(t.ProductName)
 
-	var lasthc *HealthyChecker
 	for {
 		hc := newHealthyChecker(client)
 		hc.LogProxyStats()
 		hc.LogGroupStats()
-		hc.Maintains(client, lasthc)
+		hc.Maintains(client, interval*2+5)
 
-		lasthc = hc
-
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * time.Duration(interval))
 	}
 }
 
 const (
-	CodeMissing = "MISSING"
-	CodeError   = "ERROR"
-	CodeTimeout = "TIMEOUT"
-	CodeAlive   = "ALIVE"
-	CodeSynced  = "SYNCED"
-	CodeUnSync  = "UNSYNC"
+	CodeAlive = iota + 100
+	CodeError
+	CodeMissing
+	CodeTimeout
+)
+
+const (
+	CodeSyncReady = iota + 200
+	CodeSyncError
+	CodeSyncBroken
 )
 
 type HealthyChecker struct {
 	*topom.Stats
-	xplan   map[int]string
-	pstatus map[string]string
-	sstatus map[string]string
+	pstatus map[string]int
+	sstatus map[string]int
 }
 
 func newHealthyChecker(client *topom.ApiClient) *HealthyChecker {
@@ -97,12 +106,9 @@ func newHealthyChecker(client *topom.ApiClient) *HealthyChecker {
 		log.PanicErrorf(err, "rpc stats failed")
 	}
 
-	hc := &HealthyChecker{
-		Stats: stats,
-		xplan: make(map[int]string),
-	}
+	hc := &HealthyChecker{Stats: stats}
 
-	hc.pstatus = make(map[string]string)
+	hc.pstatus = make(map[string]int)
 	for _, p := range hc.Proxy.Models {
 		switch stats := hc.Proxy.Stats[p.Token]; {
 		case stats == nil:
@@ -116,7 +122,7 @@ func newHealthyChecker(client *topom.ApiClient) *HealthyChecker {
 		}
 	}
 
-	hc.sstatus = make(map[string]string)
+	hc.sstatus = make(map[string]int)
 	for _, g := range hc.Group.Models {
 		for i, x := range g.Servers {
 			var addr = x.Addr
@@ -128,26 +134,24 @@ func newHealthyChecker(client *topom.ApiClient) *HealthyChecker {
 			case stats.Timeout || stats.Stats == nil:
 				hc.sstatus[addr] = CodeTimeout
 			default:
-				var master string
-				if s, ok := stats.Stats["master_addr"]; ok {
-					master = s + ":" + stats.Stats["master_link_status"]
-				} else {
-					master = "NO:ONE"
-				}
-				var expect string
 				if i == 0 {
-					expect = "NO:ONE"
+					if stats.Stats["master_addr"] != "" {
+						hc.sstatus[addr] = CodeSyncError
+					} else {
+						hc.sstatus[addr] = CodeSyncReady
+					}
 				} else {
-					expect = g.Servers[0].Addr + ":up"
-				}
-				if master == expect {
-					hc.sstatus[addr] = CodeSynced
-				} else {
-					hc.sstatus[addr] = CodeUnSync
-				}
-				if master == expect {
-					if i != 0 && hc.xplan[g.Id] == "" {
-						hc.xplan[g.Id] = addr
+					if stats.Stats["master_addr"] != g.Servers[0].Addr {
+						hc.sstatus[addr] = CodeSyncError
+					} else {
+						switch stats.Stats["master_link_status"] {
+						default:
+							hc.sstatus[addr] = CodeSyncError
+						case "up":
+							hc.sstatus[addr] = CodeSyncReady
+						case "down":
+							hc.sstatus[addr] = CodeSyncBroken
+						}
 					}
 				}
 			}
@@ -214,50 +218,70 @@ func (hc *HealthyChecker) LogGroupStats() {
 				log.Warnf("[E] "+format, g.Id, i, x.Addr)
 			case CodeTimeout:
 				log.Warnf("[T] "+format, g.Id, i, x.Addr)
-			case CodeSynced:
+			case CodeSyncReady:
 				log.Infof("[ ] "+format, g.Id, i, x.Addr)
-			case CodeUnSync:
+			case CodeSyncError, CodeSyncBroken:
 				log.Warnf("[X] "+format, g.Id, i, x.Addr)
 			}
 		}
 	}
 }
 
-func (hc *HealthyChecker) Maintains(client *topom.ApiClient, lasthc *HealthyChecker) {
-	var giveup bool
+func (hc *HealthyChecker) Maintains(client *topom.ApiClient, maxdown int) {
+	var giveup int
 	for t, code := range hc.pstatus {
 		if code != CodeAlive {
 			log.Warnf("proxy-[%s] is unhealthy, please fix it manually", t)
-			giveup = true
+			giveup++
 		}
 	}
 
-	if giveup || lasthc == nil {
+	if giveup != 0 {
 		return
 	}
 
 	for _, g := range hc.Group.Models {
-		for i, x := range g.Servers {
-			if i != 0 {
-				continue
-			}
-			switch hc.sstatus[x.Addr] {
-			case CodeSynced, CodeUnSync:
-			default:
-				slave := lasthc.xplan[g.Id]
-				if slave == "" {
+		if len(g.Servers) != 0 {
+			switch hc.sstatus[g.Servers[0].Addr] {
+			case CodeMissing, CodeError, CodeTimeout:
+				var synced int
+				var picked, mindown = 0, maxdown + 1
+				for i := 1; i < len(g.Servers); i++ {
+					var addr = g.Servers[i].Addr
+					switch hc.sstatus[addr] {
+					case CodeSyncReady:
+						synced++
+					case CodeSyncBroken:
+						if stats := hc.Group.Stats[addr]; stats != nil && stats.Stats != nil {
+							n, err := strconv.Atoi(stats.Stats["master_link_down_since_seconds"])
+							if err != nil {
+								continue
+							}
+							if n >= 0 && n < mindown {
+								picked, mindown = i, n
+							}
+						}
+					}
+				}
+				switch {
+				case synced != 0:
+					log.Warnf("try to promote group-[%d], but find %d healthy slaves", synced)
+				case picked == 0:
 					log.Warnf("try to promote group-[%d], but no healthy slave founded", g.Id)
-				} else if g.Promoting.State != "" {
-					log.Warnf("try to promote group-[%d] with slave %s, but group is promoting = %s, please fix it manually", g.Id, slave, g.Promoting.State)
-				} else {
-					log.Warnf("try to promote group-[%d] with slave %s", g.Id, slave)
-					if err := client.GroupPromoteServer(g.Id, slave); err != nil {
-						log.PanicErrorf(err, "rpc promote server failed")
+				default:
+					var slave = g.Servers[picked].Addr
+					if g.Promoting.State != "" {
+						log.Warnf("try to promote group-[%d] with slave %s, but group is promoting = %s, please fix it manually", g.Id, slave, g.Promoting.State)
+					} else {
+						log.Warnf("try to promote group-[%d] with slave %s", g.Id, slave)
+						if err := client.GroupPromoteServer(g.Id, slave); err != nil {
+							log.PanicErrorf(err, "rpc promote server failed")
+						}
+						if err := client.GroupPromoteCommit(g.Id); err != nil {
+							log.PanicErrorf(err, "rpc promote commit failed")
+						}
+						log.Warnf("done.")
 					}
-					if err := client.GroupPromoteCommit(g.Id); err != nil {
-						log.PanicErrorf(err, "rpc promote commit failed")
-					}
-					log.Warnf("done.")
 				}
 			}
 		}
