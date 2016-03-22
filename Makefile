@@ -4,7 +4,7 @@ build: build-version godep build-proxy build-config build-server
 
 godep:
 	@go get -u github.com/tools/godep
-	GOPATH=`godep path` godep restore
+	GO15VENDOREXPERIMENT=0 GOPATH=`godep path` godep restore
 
 build-version:
 	@bash genver.sh
