@@ -114,7 +114,7 @@ func Rebalance() error {
 	for _, node := range livingNodes {
 		for len(node.CurSlots) > targetQuota[node.GroupId] {
 			for _, dest := range livingNodes {
-				if dest.GroupId != node.GroupId && len(dest.CurSlots) < targetQuota[dest.GroupId] {
+				if dest.GroupId != node.GroupId && len(dest.CurSlots) < targetQuota[dest.GroupId] && len(node.CurSlots) > targetQuota[node.GroupId] {
 					slot := node.CurSlots[len(node.CurSlots)-1]
 					// create a migration task
 					info := &MigrateTaskInfo{
