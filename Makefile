@@ -1,5 +1,7 @@
 .DEFAULT_GOAL := build-all
 
+export GO15VENDOREXPERIMENT=0
+
 .PHONY: godep
 
 GODEP :=
