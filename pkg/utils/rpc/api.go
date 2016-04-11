@@ -152,7 +152,7 @@ func apiRequestJson(method string, url string, args, reply interface{}) error {
 		} else {
 			return nil
 		}
-	case 1500:
+	case 800, 1500:
 		e, err := responseBodyAsError(rsp)
 		if err != nil {
 			return err
@@ -174,13 +174,13 @@ func ApiPutJson(url string, args, reply interface{}) error {
 
 func ApiResponseError(err error) (int, string) {
 	if err == nil {
-		return 1500, ""
+		return 800, ""
 	}
 	b, err := apiMarshalJson(NewRemoteError(err))
 	if err != nil {
-		return 1500, ""
+		return 800, ""
 	} else {
-		return 1500, string(b)
+		return 800, string(b)
 	}
 }
 
