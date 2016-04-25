@@ -423,7 +423,7 @@ $ ./bin/codis-admin --remove-lock --product=codis-demo --zookeeper=127.0.0.1:218
 
 通常 codis-proxy 都是通过 codis-dashboard 进行移除，移除过程中 codis-dashboard 为了安全会向 codis-proxy 发送 `offline` 指令，成功后才会将 proxy 信息从外部存储中移除。如果 codis-proxy 异常退出，该操作会失败。此时可以使用 codis-admin 工具进行移除：
 
-1. 确认 codis-proxy 进城已经退出（**很重要**）；
+1. 确认 codis-proxy 进程已经退出（**很重要**）；
 2. 运行 codis-admin 删除 proxy：
 
 ```bash
