@@ -268,7 +268,7 @@ function alertAction(text, callback) {
 
 function alertErrorResp(failedResp) {
     var text = "error response";
-    if (failedResp.status != 1500) {
+    if (failedResp.status != 1500 && failedResp.status != 800) {
         text = failedResp.data.toString();
     } else {
         text = toJsonHtml(failedResp.data);

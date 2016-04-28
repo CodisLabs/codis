@@ -10,7 +10,6 @@ import (
 	"strconv"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/proxy"
 	"github.com/CodisLabs/codis/pkg/topom"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -229,7 +228,7 @@ func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
 
 	default:
 
-		log.Panicf("cann't find specific proxy")
+		log.Panicf("can't find specific proxy")
 
 		return ""
 
@@ -256,7 +255,7 @@ func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
 			}
 		}
 
-		log.Panicf("cann't find specific proxy with id = %d", pid)
+		log.Panicf("can't find specific proxy with id = %d", pid)
 
 		return ""
 
@@ -264,16 +263,24 @@ func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
 
 		addr := utils.ArgumentMust(d, "--addr")
 
-		c := proxy.NewApiClient(addr)
+		c := t.newTopomClient()
 
-		log.Debugf("call rpc model to proxy %s", t.addr)
-		p, err := c.Model()
+		log.Debugf("call rpc stats to dashboard %s", t.addr)
+		s, err := c.Stats()
 		if err != nil {
-			log.PanicErrorf(err, "call rpc model to proxy %s failed", t.addr)
+			log.Debugf("call rpc stats to dashboard %s failed", t.addr)
 		}
-		log.Debugf("call rpc model OK")
+		log.Debugf("call rpc stats OK")
 
-		return p.Token
+		for _, p := range s.Proxy.Models {
+			if p.AdminAddr == addr {
+				return p.Token
+			}
+		}
+
+		log.Panicf("can't find specific proxy with addr = %s", addr)
+
+		return ""
 
 	}
 }
