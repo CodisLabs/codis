@@ -369,7 +369,7 @@ $ ./bin/codis-admin --dashboard-list --zookeeper=127.0.0.1:2181 | tee codis.json
 ##### 2.5.1 启动命令：
 
 ```bash
-$ nohup ./bin/codis-fe --log=ha.log --log-level=WARN --dashboard=127.0.0.1:18080 &
+$ nohup ./bin/codis-ha --log=ha.log --log-level=WARN --dashboard=127.0.0.1:18080 &
 ```
 
 ##### 2.5.2 详细说明：
