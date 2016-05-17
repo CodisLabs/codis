@@ -245,7 +245,7 @@ func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
 		log.Debugf("call rpc stats to dashboard %s", t.addr)
 		s, err := c.Stats()
 		if err != nil {
-			log.Debugf("call rpc stats to dashboard %s failed", t.addr)
+			log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.addr)
 		}
 		log.Debugf("call rpc stats OK")
 
@@ -268,7 +268,7 @@ func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
 		log.Debugf("call rpc stats to dashboard %s", t.addr)
 		s, err := c.Stats()
 		if err != nil {
-			log.Debugf("call rpc stats to dashboard %s failed", t.addr)
+			log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.addr)
 		}
 		log.Debugf("call rpc stats OK")
 
