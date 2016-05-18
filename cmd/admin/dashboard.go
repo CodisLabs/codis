@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -23,8 +24,10 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 	t.addr = utils.ArgumentMust(d, "--dashboard")
 
 	switch {
+
 	default:
 		t.handleOverview(d)
+
 	case d["--shutdown"].(bool):
 		t.handleShutdown(d)
 	case d["--log-level"] != nil:
@@ -64,6 +67,9 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 
 	case d["--slot-action"].(bool):
 		t.handleSlotActionCommand(d)
+
+	case d["--rebalance"].(bool):
+		t.handleSlotRebalance(d)
 
 	}
 }
@@ -603,6 +609,128 @@ func (t *cmdDashboard) handleSlotActionCommand(d map[string]interface{}) {
 			log.PanicErrorf(err, "call rpc slot-action-disabled to dashboard %s failed", t.addr)
 		}
 		log.Debugf("call rpc slot-action-disabled OK")
+
+	}
+}
+
+func (t *cmdDashboard) handleSlotRebalance(d map[string]interface{}) {
+	c := t.newTopomClient()
+
+	log.Debugf("call rpc stats to dashboard %s", t.addr)
+	s, err := c.Stats()
+	if err != nil {
+		log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.addr)
+	}
+	log.Debugf("call rpc stats OK")
+
+	if s.Slots == nil {
+		log.Panicf("slots is nil")
+	}
+	if s.Group.Models == nil {
+		log.Panicf("group is nil")
+	}
+
+	var count = make(map[int]int)
+	for _, g := range s.Group.Models {
+		if len(g.Servers) != 0 {
+			count[g.Id] = 0
+		}
+	}
+	if len(count) == 0 {
+		log.Panicf("no valid group could be found")
+	}
+
+	var bound = (len(s.Slots) + len(count) - 1) / len(count)
+	var pending []int
+	for _, s := range s.Slots {
+		if s.Action.State != models.ActionNothing {
+			count[s.Action.TargetId]++
+		}
+	}
+	for _, s := range s.Slots {
+		if s.Action.State != models.ActionNothing {
+			continue
+		}
+		if gid := s.GroupId; gid != 0 && count[gid] < bound {
+			count[gid]++
+		} else {
+			pending = append(pending, s.Id)
+		}
+	}
+
+	var plans = make(map[int][][]int)
+	for _, g := range s.Group.Models {
+		if len(g.Servers) == 0 {
+			continue
+		}
+		var batch [][]int
+		var slot int
+		var beg, end = 0, -1
+		for len(pending) != 0 && count[g.Id] < bound {
+			slot, pending = pending[0], pending[1:]
+			count[g.Id]++
+			if beg > end {
+				beg = slot
+			} else if slot != end+1 {
+				batch = append(batch, []int{beg, end})
+				beg = slot
+			}
+			end = slot
+		}
+		if beg <= end {
+			batch = append(batch, []int{beg, end})
+		}
+		if len(batch) != 0 {
+			plans[g.Id] = batch
+		}
+	}
+
+	switch {
+
+	case d["--confirm"].(bool):
+
+		if len(plans) == 0 {
+			fmt.Println("nothing changes")
+		} else {
+			for gid, batch := range plans {
+				for _, rng := range batch {
+					fmt.Printf("migrate slot-[%4d,%4d] to group-%d\n", rng[0], rng[1], gid)
+					log.Debugf("call rpc create-slot-action-range to dashboard %s", t.addr)
+					if err := c.SlotCreateActionRange(rng[0], rng[1], gid); err != nil {
+						log.PanicErrorf(err, "call rpc create-slot-action-range to dashboard %s failed", t.addr)
+					}
+					log.Debugf("call rpc create-slot-action-range OK")
+				}
+			}
+			fmt.Println("done")
+		}
+
+	default:
+
+		if len(plans) == 0 {
+			fmt.Println("# nothing changes")
+		} else {
+			fmt.Printf("CODIS_ADMIN=codis-admin\n")
+			fmt.Printf("CODIS_DASHBOARD=%s\n", t.addr)
+			fmt.Printf("FLAGS=\n")
+			var cmds = make(map[int][]string)
+			for gid, batch := range plans {
+				for _, rng := range batch {
+					var b bytes.Buffer
+					fmt.Fprintf(&b, "${CODIS_ADMIN} ${FLAGS} --dashboard=${CODIS_DASHBOARD} ")
+					fmt.Fprintf(&b, "--slot-action --create-range --beg=%-4d --end=%-4d --gid=%d", rng[0], rng[1], gid)
+					cmds[gid] = append(cmds[gid], b.String())
+				}
+			}
+			for _, g := range s.Group.Models {
+				if cmds[g.Id] == nil {
+					continue
+				}
+				for _, cmd := range cmds[g.Id] {
+					fmt.Println(cmd)
+				}
+			}
+		}
 
 	}
 }

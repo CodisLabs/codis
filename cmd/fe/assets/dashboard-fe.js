@@ -119,12 +119,18 @@ function newChatsOpsConfig() {
 
 function renderSlotsCharts(slots_array) {
     var groups = {};
+    var counts = {};
     var n = slots_array.length;
     for (var i = 0; i < n; i++) {
         var slot = slots_array[i];
         groups[slot.group_id] = true;
         if (slot.action.target_id) {
             groups[slot.action.target_id] = true;
+        }
+        if (counts[slot.group_id]) {
+            counts[slot.group_id]++;
+        } else {
+            counts[slot.group_id] = 1;
         }
     }
     var series = [];
@@ -133,7 +139,7 @@ function renderSlotsCharts(slots_array) {
         if (g == 0) {
             xaxis = 0;
         }
-        var s = {name: 'Group-' + g, data: [], group_id: g};
+        var s = {name: 'Group-' + g + ':' + (counts[g] == undefined ? 0 : counts[g]), data: [], group_id: g};
         for (var beg = 0, end = 0; end <= n; end++) {
             if (end == n || slots_array[end].group_id != g) {
                 if (beg < end) {

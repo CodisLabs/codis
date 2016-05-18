@@ -109,7 +109,7 @@ for ((i=0;i<4;i++)); do
 done
 
 codis_admin --slot-action --interval=100
-codis_admin --slot-action --create-range --beg=0 --end=1023 --gid=1
+codis_admin --rebalance --confirm
 
 echo done
 
