@@ -33,12 +33,14 @@ alpha:
 ```
 
 + Codis - 4CPU:
+
 ```bash
 codis-proxy --ncpu=4 -c config.toml -L proxy.log \
   --host-proxy=0.0.0.0:19000 --host-admin=0.0.0.0:10000 &
 ```
 
 + RedisBenchmark - 1CPU:
+
 ```bash
 for clients in {1,2,4,8,16,32,64,100,200,300,500,800}; do
   redis-benchmark -p $target -c $clients -n 5000000 -P 100 \
@@ -87,6 +89,7 @@ alpha:
 ```
 
 + Codis - 4CPU or 8CPU:
+
 ```bash
 codis-proxy --ncpu=4 -c config.toml -L proxy.log \
   --host-proxy=0.0.0.0:19000 --host-admin=0.0.0.0:10000 &
@@ -98,6 +101,7 @@ codis-proxy --ncpu=8 -c config.toml -L proxy.log \
 ```
 
 + RedisBenchmark - 1CPU:
+
 ```bash
 for clients in {1,2,4,8,16,32,64,100,200,300,500,800}; do
   redis-benchmark -p $target -c $clients -n 5000000 -P 100 \
@@ -106,6 +110,7 @@ done
 ```
 
 + MemtierBenchmark - 4CPU:
+
 ```bash
 for i in {1,2,4,8,16,32,64,100,200,300,500,800}; do
   nthread=4
