@@ -14,4 +14,5 @@ install:
     - go get -u github.com/tools/godep
 
 script:
+    - make godep
     - make gotest

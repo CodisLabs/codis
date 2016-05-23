@@ -21,23 +21,25 @@ endif
 build-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe
 
 godep:
-	@mkdir -p bin && bash version
 	@GOPATH=`${GODEP} path` ${GODEP} restore -v 2>&1 | while IFS= read -r line; do echo "  >>>> $${line}"; done
 	@echo
 
-codis-proxy: godep
+codis-deps:
+	@mkdir -p bin && bash version
+
+codis-proxy: codis-deps
 	${GODEP} go build -i -o bin/codis-proxy ./cmd/proxy
 
-codis-admin: godep
+codis-admin: codis-deps
 	${GODEP} go build -i -o bin/codis-admin ./cmd/admin
 
-codis-dashboard: godep
+codis-dashboard: codis-deps
 	${GODEP} go build -i -o bin/codis-dashboard ./cmd/dashboard
 
-codis-ha: godep
+codis-ha: codis-deps
 	${GODEP} go build -i -o bin/codis-ha ./cmd/ha
 
-codis-fe: godep
+codis-fe: codis-deps
 	${GODEP} go build -i -o bin/codis-fe ./cmd/fe
 	@rm -rf bin/assets; cp -rf cmd/fe/assets bin/
 
@@ -54,7 +56,7 @@ distclean: clean
 	@rm -rf Godeps/_workspace/pkg scripts/tmp
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
 
-gotest: godep
+gotest: codis-deps
 	${GODEP} go test ./pkg/...
 
 docker:
