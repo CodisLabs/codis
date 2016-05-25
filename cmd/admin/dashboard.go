@@ -229,18 +229,18 @@ func (t *cmdDashboard) handleSlotsCommand(d map[string]interface{}) {
 	}
 }
 
-func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
+func (t *cmdDashboard) parseProxyTokens(d map[string]interface{}) []string {
 	switch {
 
 	default:
 
 		log.Panicf("can't find specific proxy")
 
-		return ""
+		return nil
 
 	case d["--token"] != nil:
 
-		return utils.ArgumentMust(d, "--token")
+		return []string{utils.ArgumentMust(d, "--token")}
 
 	case d["--pid"] != nil:
 
@@ -255,15 +255,22 @@ func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
 		}
 		log.Debugf("call rpc stats OK")
 
+		var tokens []string
+
 		for _, p := range s.Proxy.Models {
 			if p.Id == pid {
-				return p.Token
+				tokens = append(tokens, p.Token)
 			}
 		}
 
-		log.Panicf("can't find specific proxy with id = %d", pid)
+		if len(tokens) != 0 {
+			return tokens
+		}
 
-		return ""
+		if !d["--force"].(bool) {
+			log.Panicf("can't find specific proxy with id = %d", pid)
+		}
+		return nil
 
 	case d["--addr"] != nil:
 
@@ -278,15 +285,22 @@ func (t *cmdDashboard) parseProxyToken(d map[string]interface{}) string {
 		}
 		log.Debugf("call rpc stats OK")
 
+		var tokens []string
+
 		for _, p := range s.Proxy.Models {
 			if p.AdminAddr == addr {
-				return p.Token
+				tokens = append(tokens, p.Token)
 			}
 		}
 
-		log.Panicf("can't find specific proxy with addr = %s", addr)
+		if len(tokens) != 0 {
+			return tokens
+		}
 
-		return ""
+		if !d["--force"].(bool) {
+			log.Panicf("can't find specific proxy with addr = %s", addr)
+		}
+		return nil
 
 	}
 }
@@ -308,14 +322,15 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 
 	case d["--remove-proxy"].(bool):
 
-		token := t.parseProxyToken(d)
 		force := d["--force"].(bool)
 
-		log.Debugf("call rpc remove-proxy to dashboard %s", t.addr)
-		if err := c.RemoveProxy(token, force); err != nil {
-			log.PanicErrorf(err, "call rpc remove-proxy to dashboard %s failed", t.addr)
+		for _, token := range t.parseProxyTokens(d) {
+			log.Debugf("call rpc remove-proxy to dashboard %s", t.addr)
+			if err := c.RemoveProxy(token, force); err != nil {
+				log.PanicErrorf(err, "call rpc remove-proxy to dashboard %s failed", t.addr)
+			}
+			log.Debugf("call rpc remove-proxy OK")
 		}
-		log.Debugf("call rpc remove-proxy OK")
 
 	case d["--reinit-proxy"].(bool):
 
@@ -323,13 +338,13 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 
 		default:
 
-			token := t.parseProxyToken(d)
-
-			log.Debugf("call rpc reinit-proxy to dashboard %s", t.addr)
-			if err := c.ReinitProxy(token); err != nil {
-				log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.addr)
+			for _, token := range t.parseProxyTokens(d) {
+				log.Debugf("call rpc reinit-proxy to dashboard %s", t.addr)
+				if err := c.ReinitProxy(token); err != nil {
+					log.PanicErrorf(err, "call rpc reinit-proxy to dashboard %s failed", t.addr)
+				}
+				log.Debugf("call rpc reinit-proxy OK")
 			}
-			log.Debugf("call rpc reinit-proxy OK")
 
 		case d["--all"].(bool):
 
