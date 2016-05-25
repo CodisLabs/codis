@@ -82,20 +82,21 @@ func (s *Session) CloseWithError(err error) {
 	})
 }
 
-func (s *Session) Serve(d Dispatcher, maxPipeline int) {
-	incrSessions()
-
+func (s *Session) Start(d Dispatcher, maxPipeline int) {
 	tasks := make(chan *Request, maxPipeline)
 	var ch = make(chan struct{})
+
 	go func() {
 		defer close(ch)
 		s.loopWriter(tasks)
 	}()
 
-	s.loopReader(tasks, d)
-	<-ch
-
-	decrSessions()
+	go func() {
+		incrSessions()
+		s.loopReader(tasks, d)
+		<-ch
+		decrSessions()
+	}()
 }
 
 func (s *Session) loopReader(tasks chan<- *Request, d Dispatcher) (err error) {

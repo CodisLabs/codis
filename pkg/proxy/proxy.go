@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -251,11 +252,15 @@ func (s *Proxy) serveProxy() {
 	log.Warnf("[%p] proxy start service on %s", s, s.lproxy.Addr())
 
 	ch := make(chan net.Conn, 4096)
-	go func() {
-		for c := range ch {
-			s.newSession(c)
-		}
-	}()
+
+	var nn = utils.MinInt(8, utils.MaxInt(4, runtime.GOMAXPROCS(0)))
+	for i := 0; i < nn; i++ {
+		go func() {
+			for c := range ch {
+				s.newSession(c)
+			}
+		}()
+	}
 
 	eh := make(chan error, 1)
 	go func(l net.Listener) (err error) {
@@ -307,7 +312,7 @@ func (s *Proxy) newSession(c net.Conn) {
 	x := router.NewSessionSize(c, s.config.ProductAuth,
 		s.config.SessionMaxBufSize, s.config.SessionMaxTimeout)
 	x.SetKeepAlivePeriod(s.config.SessionKeepAlivePeriod)
-	go x.Serve(s.router, s.config.SessionMaxPipeline)
+	x.Start(s.router, s.config.SessionMaxPipeline)
 }
 
 func (s *Proxy) acceptConn(l net.Listener) (net.Conn, error) {
