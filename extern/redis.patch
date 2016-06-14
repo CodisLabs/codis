@@ -1,0 +1,1242 @@
+diff --git a/extern/redis-2.8.21/redis.conf b/extern/redis-2.8.21/redis.conf
+index 6c76569..0dadba0 100644
+--- a/extern/redis-2.8.21/redis.conf
++++ b/extern/redis-2.8.21/redis.conf
+@@ -34,7 +34,7 @@
+ 
+ # By default Redis does not run as a daemon. Use 'yes' if you need it.
+ # Note that Redis will write a pid file in /var/run/redis.pid when daemonized.
+-daemonize no
++daemonize yes
+ 
+ # When running daemonized, Redis writes a pid file in /var/run/redis.pid by
+ # default. You can specify a custom pid file location here.
+diff --git a/extern/redis-2.8.21/src/Makefile b/extern/redis-2.8.21/src/Makefile
+index a65e767..10ecfd9 100644
+--- a/extern/redis-2.8.21/src/Makefile
++++ b/extern/redis-2.8.21/src/Makefile
+@@ -113,7 +113,7 @@ endif
+ 
+ REDIS_SERVER_NAME=redis-server
+ REDIS_SENTINEL_NAME=redis-sentinel
+-REDIS_SERVER_OBJ=adlist.o ae.o anet.o dict.o redis.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o pubsub.o multi.o debug.o sort.o intset.o syncio.o migrate.o endianconv.o slowlog.o scripting.o bio.o rio.o rand.o memtest.o crc64.o bitops.o sentinel.o notify.o setproctitle.o hyperloglog.o latency.o sparkline.o
++REDIS_SERVER_OBJ=adlist.o ae.o anet.o dict.o redis.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o pubsub.o multi.o debug.o sort.o intset.o syncio.o migrate.o endianconv.o slowlog.o scripting.o bio.o rio.o rand.o memtest.o crc64.o crc32.o bitops.o sentinel.o notify.o setproctitle.o hyperloglog.o latency.o sparkline.o slots.o
+ REDIS_CLI_NAME=redis-cli
+ REDIS_CLI_OBJ=anet.o sds.o adlist.o redis-cli.o zmalloc.o release.o anet.o ae.o crc64.o
+ REDIS_BENCHMARK_NAME=redis-benchmark
+diff --git a/extern/redis-2.8.21/src/Makefile.dep b/extern/redis-2.8.21/src/Makefile.dep
+index 1f24232..13a5ee9 100644
+--- a/extern/redis-2.8.21/src/Makefile.dep
++++ b/extern/redis-2.8.21/src/Makefile.dep
+@@ -20,6 +20,7 @@ config.o: config.c redis.h fmacros.h config.h ../deps/lua/src/lua.h \
+   ../deps/lua/src/luaconf.h ae.h sds.h dict.h adlist.h zmalloc.h anet.h \
+   ziplist.h intset.h version.h util.h latency.h sparkline.h rdb.h rio.h
+ crc64.o: crc64.c
++crc32.o: crc32.c
+ db.o: db.c redis.h fmacros.h config.h ../deps/lua/src/lua.h \
+   ../deps/lua/src/luaconf.h ae.h sds.h dict.h adlist.h zmalloc.h anet.h \
+   ziplist.h intset.h version.h util.h latency.h sparkline.h rdb.h rio.h
+@@ -40,6 +41,7 @@ latency.o: latency.c redis.h fmacros.h config.h ../deps/lua/src/lua.h \
+ lzf_c.o: lzf_c.c lzfP.h
+ lzf_d.o: lzf_d.c lzfP.h
+ memtest.o: memtest.c config.h
++slots.o: slots.c redis.h
+ migrate.o: migrate.c redis.h fmacros.h config.h ../deps/lua/src/lua.h \
+   ../deps/lua/src/luaconf.h ae.h sds.h dict.h adlist.h zmalloc.h anet.h \
+   ziplist.h intset.h version.h util.h latency.h sparkline.h rdb.h rio.h \
+diff --git a/extern/redis-2.8.21/src/crc32.c b/extern/redis-2.8.21/src/crc32.c
+new file mode 100644
+index 0000000..d6f54a6
+--- /dev/null
++++ b/extern/redis-2.8.21/src/crc32.c
+@@ -0,0 +1,43 @@
++#include <stdint.h>
++
++static const uint32_t IEEE_POLY = 0xedb88320;
++static const uint32_t CAST_POLY = 0x82f63b78;
++static const uint32_t KOOP_POLY = 0xeb31d82e;
++
++static uint32_t crc32tab[256];
++
++static void
++crc32_tabinit(uint32_t poly) {
++    int i, j;
++    for (i = 0; i < 256; i ++) {
++        uint32_t crc = i;
++        for (j = 0; j < 8; j ++) {
++            if (crc & 1) {
++                crc = (crc >> 1) ^ poly;
++            } else {
++                crc = (crc >> 1);
++            }
++        }
++        crc32tab[i] = crc;
++    }
++}
++
++void
++crc32_init() {
++    crc32_tabinit(IEEE_POLY);
++}
++
++static uint32_t
++crc32_update(uint32_t crc, const char *buf, int len) {
++    int i;
++    crc = ~crc;
++    for (i = 0; i < len; i ++) {
++        crc = crc32tab[(uint8_t)((char)crc ^ buf[i])] ^ (crc >> 8);
++    }
++    return ~crc;
++}
++
++uint32_t
++crc32_checksum(const char *buf, int len) {
++    return crc32_update(0, buf, len);
++}
+diff --git a/extern/redis-2.8.21/src/db.c b/extern/redis-2.8.21/src/db.c
+index dfec719..8bab0d3 100644
+--- a/extern/redis-2.8.21/src/db.c
++++ b/extern/redis-2.8.21/src/db.c
+@@ -32,9 +32,6 @@
+ #include <signal.h>
+ #include <ctype.h>
+ 
+-void SlotToKeyAdd(robj *key);
+-void SlotToKeyDel(robj *key);
+-
+ /*-----------------------------------------------------------------------------
+  * C-level DB API
+  *----------------------------------------------------------------------------*/
+@@ -90,11 +87,23 @@ robj *lookupKeyWriteOrReply(redisClient *c, robj *key, robj *reply) {
+  * The program is aborted if the key already exists. */
+ void dbAdd(redisDb *db, robj *key, robj *val) {
+     sds copy = sdsdup(key->ptr);
++
+     int retval = dictAdd(db->dict, copy, val);
+ 
++    do {
++        uint32_t crc;
++        int hastag;
++        int slot = slots_num(key->ptr, &crc, &hastag);
++        dictAdd(db->hash_slots[slot], copy, (void *)(long)crc);
++        if (hastag) {
++            incrRefCount(key);
++            zslInsert(db->tagged_keys, (double)crc, key);
++        }
++    } while (0);
++
+     redisAssertWithInfo(NULL,key,retval == REDIS_OK);
+     if (val->type == REDIS_LIST) signalListAsReady(db, key);
+- }
++}
+ 
+ /* Overwrite an existing key with a new value. Incrementing the reference
+  * count of the new value is up to the caller.
+@@ -160,6 +169,18 @@ int dbDelete(redisDb *db, robj *key) {
+     /* Deleting an entry from the expires dict will not free the sds of
+      * the key, because it is shared with the main dictionary. */
+     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
++
++    do {
++        uint32_t crc;
++        int hastag;
++        int slot = slots_num(key->ptr, &crc, &hastag);
++        if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK) {
++            if (hastag) {
++                zslDelete(db->tagged_keys, (double)crc, key);
++            }
++        }
++    } while (0);
++
+     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
+         return 1;
+     } else {
+@@ -206,11 +227,18 @@ robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
+ }
+ 
+ long long emptyDb(void(callback)(void*)) {
+-    int j;
++    int i, j;
+     long long removed = 0;
+-
++    
+     for (j = 0; j < server.dbnum; j++) {
+         removed += dictSize(server.db[j].dict);
++        for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
++            dictEmpty(server.db[j].hash_slots[i], NULL);
++        }
++        if (server.db[j].tagged_keys->length != 0) {
++            zslFree(server.db[j].tagged_keys);
++            server.db[j].tagged_keys = zslCreate();
++        }
+         dictEmpty(server.db[j].dict,callback);
+         dictEmpty(server.db[j].expires,callback);
+     }
+@@ -246,8 +274,16 @@ void signalFlushedDb(int dbid) {
+  *----------------------------------------------------------------------------*/
+ 
+ void flushdbCommand(redisClient *c) {
++    int i;
+     server.dirty += dictSize(c->db->dict);
+     signalFlushedDb(c->db->id);
++    for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
++        dictEmpty(c->db->hash_slots[i], NULL);
++    }
++    if (c->db->tagged_keys->length != 0) {
++        zslFree(c->db->tagged_keys);
++        c->db->tagged_keys = zslCreate();
++    }
+     dictEmpty(c->db->dict,NULL);
+     dictEmpty(c->db->expires,NULL);
+     addReply(c,shared.ok);
+@@ -646,7 +682,15 @@ void shutdownCommand(redisClient *c) {
+      * Also when in Sentinel mode clear the SAVE flag and force NOSAVE. */
+     if (server.loading || server.sentinel_mode)
+         flags = (flags & ~REDIS_SHUTDOWN_SAVE) | REDIS_SHUTDOWN_NOSAVE;
+-    if (prepareForShutdown(flags) == REDIS_OK) exit(0);
++    if (prepareForShutdown(flags) == REDIS_OK) {
++        for (int j = 0; j < server.dbnum; j ++) {
++            for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
++                dictRelease(server.db[j].hash_slots[i]);
++            }
++            zslFree(server.db[j].tagged_keys);
++        }
++        exit(0);
++    }
+     addReplyError(c,"Errors trying to SHUTDOWN. Check logs.");
+ }
+ 
+diff --git a/extern/redis-2.8.21/src/migrate.c b/extern/redis-2.8.21/src/migrate.c
+index 543b00f..7a35a64 100644
+--- a/extern/redis-2.8.21/src/migrate.c
++++ b/extern/redis-2.8.21/src/migrate.c
+@@ -140,7 +140,7 @@ void migrateCommand(redisClient *c) {
+         return;
+     if (getLongFromObjectOrReply(c,c->argv[4],&dbid,NULL) != REDIS_OK)
+         return;
+-    if (timeout <= 0) timeout = 1;
++    if (timeout <= 0) timeout = 1000;
+ 
+     /* Check if the key is here. If not we reply with success as there is
+      * nothing to migrate (for instance the key expired in the meantime), but
+@@ -158,8 +158,11 @@ void migrateCommand(redisClient *c) {
+             server.neterr);
+         return;
+     }
+-    if ((aeWait(fd,AE_WRITABLE,timeout*1000) & AE_WRITABLE) == 0) {
++    anetEnableTcpNoDelay(server.neterr,fd);
++
++    if ((aeWait(fd,AE_WRITABLE,timeout) & AE_WRITABLE) == 0) {
+         addReplySds(c,sdsnew("-IOERR error or timeout connecting to the client\r\n"));
++        close(fd);
+         return;
+     }
+ 
+diff --git a/extern/redis-2.8.21/src/redis.c b/extern/redis-2.8.21/src/redis.c
+index 3a9ab21..21e75d0 100644
+--- a/extern/redis-2.8.21/src/redis.c
++++ b/extern/redis-2.8.21/src/redis.c
+@@ -274,7 +274,16 @@ struct redisCommand redisCommandTable[] = {
+     {"pfcount",pfcountCommand,-2,"r",0,NULL,1,1,1,0,0},
+     {"pfmerge",pfmergeCommand,-2,"wm",0,NULL,1,-1,1,0,0},
+     {"pfdebug",pfdebugCommand,-3,"w",0,NULL,0,0,0,0,0},
+-    {"latency",latencyCommand,-2,"arslt",0,NULL,0,0,0,0,0}
++    {"latency",latencyCommand,-2,"arslt",0,NULL,0,0,0,0,0},
++    {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
++    {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
++    {"slotsmgrtslot",slotsmgrtslotCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsmgrtone",slotsmgrtoneCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotshashkey",slotshashkeyCommand,-1,"rF",0,NULL,0,0,0,0,0},
++    {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
++    {"slotsrestore",slotsrestoreCommand,-4,"awm",0,NULL,1,1,1,0,0},
+ };
+ 
+ /*============================ Utility functions ============================ */
+@@ -531,6 +540,15 @@ dictType dbDictType = {
+     dictRedisObjectDestructor   /* val destructor */
+ };
+ 
++dictType hashSlotType = {
++    dictSdsHash,                /* hash function */
++    NULL,                       /* key dup */
++    NULL,                       /* val dup */
++    dictSdsKeyCompare,          /* key compare */
++    NULL,                       /* key destructor */
++    NULL                        /* val destructor */
++};
++
+ /* server.lua_scripts sha (as sds string) -> scripts (as robj) cache. */
+ dictType shaScriptObjectDictType = {
+     dictSdsCaseHash,            /* hash function */
+@@ -595,6 +613,15 @@ dictType replScriptCacheDictType = {
+     NULL                        /* val destructor */
+ };
+ 
++dictType migrateCacheDictType = {
++    dictSdsHash,                /* hash function */
++    NULL,                       /* key dup */
++    NULL,                       /* val dup */
++    dictSdsKeyCompare,          /* key compare */
++    dictSdsDestructor,          /* key destructor */
++    NULL                        /* val destructor */
++};
++
+ int htNeedsResize(dict *dict) {
+     long long size, used;
+ 
+@@ -607,8 +634,15 @@ int htNeedsResize(dict *dict) {
+ /* If the percentage of used slots in the HT reaches REDIS_HT_MINFILL
+  * we resize the hash table to save memory */
+ void tryResizeHashTables(int dbid) {
+-    if (htNeedsResize(server.db[dbid].dict))
++    if (htNeedsResize(server.db[dbid].dict)) {
+         dictResize(server.db[dbid].dict);
++        for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
++            dict *d = server.db[dbid].hash_slots[i];
++            if (htNeedsResize(d)) {
++                dictResize(d);
++            }
++        }
++    }
+     if (htNeedsResize(server.db[dbid].expires))
+         dictResize(server.db[dbid].expires);
+ }
+@@ -624,6 +658,12 @@ int incrementallyRehash(int dbid) {
+     /* Keys dictionary */
+     if (dictIsRehashing(server.db[dbid].dict)) {
+         dictRehashMilliseconds(server.db[dbid].dict,1);
++        for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
++            dict *d = server.db[dbid].hash_slots[i];
++            if (dictIsRehashing(d)) {
++                dictRehashMilliseconds(d, 1);
++            }
++        }
+         return 1; /* already used our millisecond for this loop... */
+     }
+     /* Expires */
+@@ -1179,6 +1219,10 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
+         if (server.sentinel_mode) sentinelTimer();
+     }
+ 
++    run_with_period(1000) {
++        slotsmgrt_cleanup();
++    }
++
+     server.cronloops++;
+     return 1000/server.hz;
+ }
+@@ -1385,6 +1429,8 @@ void initServerConfig(void) {
+     server.next_client_id = 1; /* Client IDs, start from 1 .*/
+     server.loading_process_events_interval_bytes = (1024*1024*2);
+ 
++    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
++
+     updateLRUClock();
+     resetServerSaveParams();
+ 
+@@ -1648,12 +1694,14 @@ void resetServerStats(void) {
+ }
+ 
+ void initServer(void) {
+-    int j;
++    int i, j;
+ 
+     signal(SIGHUP, SIG_IGN);
+     signal(SIGPIPE, SIG_IGN);
+     setupSignalHandlers();
+ 
++    crc32_init();
++
+     if (server.syslog_enabled) {
+         openlog(server.syslog_ident, LOG_PID | LOG_NDELAY | LOG_NOWAIT,
+             server.syslog_facility);
+@@ -1705,6 +1753,10 @@ void initServer(void) {
+         server.db[j].watched_keys = dictCreate(&keylistDictType,NULL);
+         server.db[j].id = j;
+         server.db[j].avg_ttl = 0;
++        for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
++            server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
++        }
++        server.db[j].tagged_keys = zslCreate();
+     }
+     server.pubsub_channels = dictCreate(&keylistDictType,NULL);
+     server.pubsub_patterns = listCreate();
+diff --git a/extern/redis-2.8.21/src/redis.h b/extern/redis-2.8.21/src/redis.h
+index bd6e493..a15910a 100644
+--- a/extern/redis-2.8.21/src/redis.h
++++ b/extern/redis-2.8.21/src/redis.h
+@@ -421,12 +421,22 @@ typedef struct redisObject {
+     _var.ptr = _ptr; \
+ } while(0);
+ 
++void crc32_init();
++uint32_t crc32_checksum(const char *buf, int len);
++
++#define HASH_SLOTS_MASK 0x000003ff
++#define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
++
++struct zskiplist;
++
+ typedef struct redisDb {
+     dict *dict;                 /* The keyspace for this DB */
+     dict *expires;              /* Timeout of keys with a timeout set */
+     dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP) */
+     dict *ready_keys;           /* Blocked keys that received a PUSH */
+     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
++    dict *hash_slots[HASH_SLOTS_SIZE];
++    struct zskiplist *tagged_keys;
+     int id;
+     long long avg_ttl;          /* Average TTL, just for stats */
+ } redisDb;
+@@ -634,6 +644,7 @@ struct redisServer {
+     list *slaves, *monitors;    /* List of slaves and MONITORs */
+     redisClient *current_client; /* Current client, only used on crash report */
+     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
++    dict *slotsmgrt_cached_sockfds;
+     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
+     /* RDB / AOF loading information */
+     int loading;                /* We are loading data from disk if true */
+@@ -1422,6 +1433,18 @@ void pfcountCommand(redisClient *c);
+ void pfmergeCommand(redisClient *c);
+ void pfdebugCommand(redisClient *c);
+ void latencyCommand(redisClient *c);
++void slotsinfoCommand(redisClient *c);
++void slotsdelCommand(redisClient *c);
++void slotsmgrtslotCommand(redisClient *c);
++void slotsmgrtoneCommand(redisClient *c);
++void slotsmgrttagslotCommand(redisClient *c);
++void slotsmgrttagoneCommand(redisClient *c);
++void slotshashkeyCommand(redisClient *c);
++void slotscheckCommand(redisClient *c);
++void slotsrestoreCommand(redisClient *c);
++
++void slotsmgrt_cleanup();
++int slots_num(const sds s, uint32_t *pcrc, int *phastag);
+ 
+ #if defined(__GNUC__)
+ void *calloc(size_t count, size_t size) __attribute__ ((deprecated));
+diff --git a/extern/redis-2.8.21/src/slots.c b/extern/redis-2.8.21/src/slots.c
+new file mode 100644
+index 0000000..24df9ae
+--- /dev/null
++++ b/extern/redis-2.8.21/src/slots.c
+@@ -0,0 +1,817 @@
++#include "redis.h"
++
++extern void createDumpPayload(rio *payload, robj *o);
++extern int verifyDumpPayload(unsigned char *p, size_t len);
++
++static void *
++slots_tag(const sds s, int *plen) {
++    int i, j, n = sdslen(s);
++    for (i = 0; i < n && s[i] != '{'; i ++) {}
++    if (i == n) {
++        return NULL;
++    }
++    i ++;
++    for (j = i; j < n && s[j] != '}'; j ++) {}
++    if (j == n) {
++        return NULL;
++    }
++    if (plen != NULL) {
++        *plen = j - i;
++    }
++    return s + i;
++}
++
++int
++slots_num(const sds s, uint32_t *pcrc, int *phastag) {
++    int taglen;
++    int hastag = 0;
++    void *tag = slots_tag(s, &taglen);
++    if (tag == NULL) {
++        tag = s, taglen = sdslen(s);
++    } else {
++        hastag = 1;
++    }
++    uint32_t crc = crc32_checksum(tag, taglen);
++    if (pcrc != NULL) {
++        *pcrc = crc;
++    }
++    if (phastag != NULL) {
++        *phastag = hastag;
++    }
++    return crc & HASH_SLOTS_MASK;
++}
++
++static int
++parse_int(redisClient *c, robj *obj, int *p) {
++    long v;
++    if (getLongFromObjectOrReply(c, obj, &v, NULL) != REDIS_OK) {
++        return -1;
++    }
++    *p = v;
++    return 0;
++}
++
++static int
++parse_timeout(redisClient *c, robj *obj, int *p) {
++    int v;
++    if (parse_int(c, obj, &v) != 0) {
++        return -1;
++    }
++    if (v < 0) {
++        addReplyErrorFormat(c, "invalid timeout = %d", v);
++        return -1;
++    }
++    *p = (v == 0) ? 100 : v;
++    return 0;
++}
++
++static int
++parse_slot(redisClient *c, robj *obj, int *p) {
++    int v;
++    if (parse_int(c, obj, &v) != 0) {
++        return -1;
++    }
++    if (v < 0 || v >= HASH_SLOTS_SIZE) {
++        addReplyErrorFormat(c, "invalid slot number = %d", v);
++        return -1;
++    }
++    *p = v;
++    return 0;
++}
++
++/* *
++ * slotshashkey [key1 key2...]
++ * */
++void
++slotshashkeyCommand(redisClient *c) {
++    int i;
++    addReplyMultiBulkLen(c, c->argc - 1);
++    for (i = 1; i < c->argc; i ++) {
++        robj *key = c->argv[i];
++        addReplyLongLong(c, slots_num(key->ptr, NULL, NULL));
++    }
++}
++
++/* *
++ * slotsinfo [start] [count]
++ * */
++void
++slotsinfoCommand(redisClient *c) {
++    int slots_slot[HASH_SLOTS_SIZE];
++    int slots_size[HASH_SLOTS_SIZE];
++    int n = 0, beg = 0, end = HASH_SLOTS_SIZE;
++    if (c->argc >= 2) {
++        if (parse_slot(c, c->argv[1], &beg) != 0) {
++            return;
++        }
++    }
++    if (c->argc >= 3) {
++        int v;
++        if (parse_int(c, c->argv[2], &v) != 0) {
++            return;
++        }
++        if (v < 0) {
++            addReplyErrorFormat(c, "invalid slot count = %d", v);
++            return;
++        }
++        if (beg + v < end) {
++            end = beg + v;
++        }
++    }
++    if (c->argc >= 4) {
++        addReplyErrorFormat(c, "wrong number of arguments for 'slotsinfo' command");
++        return;
++    }
++    int i;
++    for (i = beg; i < end; i ++) {
++        int s = dictSize(c->db->hash_slots[i]);
++        if (s == 0) {
++            continue;
++        }
++        slots_slot[n] = i;
++        slots_size[n] = s;
++        n ++;
++    }
++    addReplyMultiBulkLen(c, n);
++    for (i = 0; i < n; i ++) {
++        addReplyMultiBulkLen(c, 2);
++        addReplyLongLong(c, slots_slot[i]);
++        addReplyLongLong(c, slots_size[i]);
++    }
++}
++
++typedef struct {
++    int fd;
++    int db;
++    int authorized;
++    time_t lasttime;
++} slotsmgrt_sockfd;
++
++static slotsmgrt_sockfd *
++slotsmgrt_get_sockfd(redisClient *c, sds host, sds port, int timeout) {
++    sds name = sdsempty();
++    name = sdscatlen(name, host, sdslen(host));
++    name = sdscatlen(name, ":", 1);
++    name = sdscatlen(name, port, sdslen(port));
++
++    slotsmgrt_sockfd *pfd = dictFetchValue(server.slotsmgrt_cached_sockfds, name);
++    if (pfd != NULL) {
++        sdsfree(name);
++        pfd->lasttime = server.unixtime;
++        return pfd;
++    }
++
++    int fd = anetTcpNonBlockConnect(server.neterr, host, atoi(port));
++    if (fd == -1) {
++        redisLog(REDIS_WARNING, "slotsmgrt: connect to target %s:%s, error = '%s'",
++                host, port, server.neterr);
++        sdsfree(name);
++        addReplyErrorFormat(c,"Can't connect to target node: %s", server.neterr);
++        return NULL;
++    }
++    anetEnableTcpNoDelay(server.neterr, fd);
++    if ((aeWait(fd, AE_WRITABLE, timeout) & AE_WRITABLE) == 0) {
++        redisLog(REDIS_WARNING, "slotsmgrt: connect to target %s:%s, aewait error = '%s'",
++                host, port, server.neterr);
++        sdsfree(name);
++        close(fd);
++        addReplySds(c, sdsnew("-IOERR error or timeout connecting to the client\r\n"));
++        return NULL;
++    }
++    redisLog(REDIS_WARNING, "slotsmgrt: connect to target %s:%s", host, port);
++
++    pfd = zmalloc(sizeof(*pfd));
++    pfd->fd = fd;
++    pfd->db = -1;
++    pfd->authorized = (server.requirepass == NULL) ? 1 : 0;
++    pfd->lasttime = server.unixtime;
++    dictAdd(server.slotsmgrt_cached_sockfds, name, pfd);
++    return pfd;
++}
++
++static void
++slotsmgrt_close_socket(sds host, sds port) {
++    sds name = sdsempty();
++    name = sdscatlen(name, host, sdslen(host));
++    name = sdscatlen(name, ":", 1);
++    name = sdscatlen(name, port, sdslen(port));
++
++    slotsmgrt_sockfd *pfd = dictFetchValue(server.slotsmgrt_cached_sockfds, name);
++    if (pfd == NULL) {
++        redisLog(REDIS_WARNING, "slotsmgrt: close target %s:%s again", host, port);
++        sdsfree(name);
++        return;
++    } else {
++        redisLog(REDIS_WARNING, "slotsmgrt: close target %s:%s", host, port);
++    }
++    dictDelete(server.slotsmgrt_cached_sockfds, name);
++    close(pfd->fd);
++    zfree(pfd);
++    sdsfree(name);
++}
++
++void
++slotsmgrt_cleanup() {
++    dictIterator *di = dictGetSafeIterator(server.slotsmgrt_cached_sockfds);
++    dictEntry *de;
++    while((de = dictNext(di)) != NULL) {
++        slotsmgrt_sockfd *pfd = dictGetVal(de);
++        if ((server.unixtime - pfd->lasttime) > 15) {
++            redisLog(REDIS_WARNING, "slotsmgrt: timeout target %s, lasttime = %ld, now = %ld",
++                   (char *)dictGetKey(de), pfd->lasttime, server.unixtime);
++            dictDelete(server.slotsmgrt_cached_sockfds, dictGetKey(de));
++            close(pfd->fd);
++            zfree(pfd);
++        }
++    }
++    dictReleaseIterator(di);
++}
++
++static int
++slotsmgrt(redisClient *c, sds host, sds port, slotsmgrt_sockfd *pfd, int db, int timeout, robj *keys[], robj *vals[], int n) {
++    rio cmd;
++    rioInitWithBuffer(&cmd, sdsempty());
++
++    int needauth = 0;
++    if (pfd->authorized == 0 && server.requirepass != NULL) {
++        needauth = 1;
++        redisAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 2));
++        redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "AUTH", 4));
++        redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, server.requirepass, strlen(server.requirepass)));
++    }
++
++    int selectdb = 0;
++    if (pfd->db != db) {
++        selectdb = 1;
++        redisAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 2));
++        redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "SELECT", 6));
++        redisAssertWithInfo(c, NULL, rioWriteBulkLongLong(&cmd, db));
++    }
++
++    redisAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 1 + 3 * n));
++    redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "SLOTSRESTORE", 12));
++
++    sds onekey = NULL;
++    for (int i = 0; i < n; i ++) {
++        robj *key = keys[i], *val = vals[i];
++        long long ttl = 0, expireat = getExpire(c->db, key);
++        if (expireat != -1) {
++            ttl = expireat - mstime();
++            if (ttl < 1) {
++                ttl = 1;
++            }
++        }
++        sds skey = key->ptr;
++        redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, skey, sdslen(skey)));
++        redisAssertWithInfo(c, NULL, rioWriteBulkLongLong(&cmd, ttl));
++        do {
++            rio pld;
++            createDumpPayload(&pld, val);
++            sds buf = pld.io.buffer.ptr;
++            redisAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, buf, sdslen(buf)));
++            sdsfree(buf);
++        } while (0);
++        if (onekey == NULL) {
++            onekey = skey;
++        }
++    }
++
++    do {
++        sds buf = cmd.io.buffer.ptr;
++        size_t pos = 0, towrite;
++        int nwritten = 0;
++        while ((towrite = sdslen(buf) - pos) > 0) {
++            towrite = (towrite > (64 * 1024) ? (64 * 1024) : towrite);
++            nwritten = syncWrite(pfd->fd, buf + pos, towrite, timeout);
++            if (nwritten != (signed)towrite) {
++                redisLog(REDIS_WARNING, "slotsmgrt: writing to target %s:%s, error '%s', "
++                        "nkeys = %d, onekey = '%s', cmd.len = %ld, pos = %ld, towrite = %ld",
++                        host, port, server.neterr, n, onekey, sdslen(buf), pos, towrite);
++                addReplySds(c, sdsnew("-IOERR error or timeout writing to target\r\n"));
++                sdsfree(buf);
++                return -1;
++            }
++            pos += nwritten;
++        }
++        sdsfree(buf);
++    } while (0);
++
++    do {
++        char buf[1024];
++        if (needauth) {
++            if (syncReadLine(pfd->fd, buf, sizeof(buf), timeout) <= 0) {
++                redisLog(REDIS_WARNING, "slotsmgrt: auth failed, reading from target %s:%s: nkeys = %d, onekey = '%s', error = '%s'",
++                        host, port, n, onekey, server.neterr);
++                addReplySds(c, sdsnew("-IOERR error or timeout reading from target\r\n"));
++                return -1;
++            }
++            if (buf[0] != '+') {
++                redisLog(REDIS_WARNING, "slotsmgrt: auth failed, reading from target %s:%s: nkeys = %d, onekey = '%s', response = '%s'",
++                        host, port, n, onekey, buf);
++                addReplyError(c, "error on slotsrestore, auth failed");
++                return -1;
++            }
++            pfd->authorized = 1;
++        }
++
++        if (selectdb) {
++            if (syncReadLine(pfd->fd, buf, sizeof(buf), timeout) <= 0) {
++                redisLog(REDIS_WARNING, "slotsmgrt: select failed, reading from target %s:%s: nkeys = %d, onekey = '%s', error = '%s'",
++                        host, port, n, onekey, server.neterr);
++                addReplySds(c, sdsnew("-IOERR error or timeout reading from target\r\n"));
++                return -1;
++            }
++            if (buf[0] != '+') {
++                redisLog(REDIS_WARNING, "slotsmgrt: select failed, reading from target %s:%s: nkeys = %d, onekey = '%s', response = '%s'",
++                        host, port, n, onekey, buf);
++                addReplyError(c, "error on slotsrestore, select failed");
++                return -1;
++            }
++            pfd->db = db;
++        }
++
++        if (syncReadLine(pfd->fd, buf, sizeof(buf), timeout) <= 0) {
++            redisLog(REDIS_WARNING, "slotsmgrt: migration failed, reading from target %s:%s: nkeys = %d, onekey = '%s', error = '%s'",
++                    host, port, n, onekey, server.neterr);
++            addReplySds(c, sdsnew("-IOERR error or timeout reading from target\r\n"));
++            return -1;
++        }
++        if (buf[0] == '-') {
++            redisLog(REDIS_WARNING, "slotsmgrt: migration failed, reading from target %s:%s: nkeys = %d, onekey = '%s', response = '%s'",
++                    host, port, n, onekey, buf);
++            addReplyError(c, "error on slotsrestore, migration failed");
++            return -1;
++        }
++    } while (0);
++
++    pfd->lasttime = server.unixtime;
++
++    redisLog(REDIS_VERBOSE, "slotsmgrt: migrate to %s:%s, nkeys = %d, onekey = '%s'", host, port, n, onekey);
++    return 0;
++}
++
++static void
++slotsremove(redisClient *c, robj **keys, int n, int rewrite) {
++    for (int i = 0; i < n; i ++) {
++        dbDelete(c->db, keys[i]);
++        signalModifiedKey(c->db, keys[i]);
++        server.dirty ++;
++    }
++    if (!rewrite) {
++        return;
++    }
++    for (int i = 0; i < n; i ++) {
++        incrRefCount(keys[i]);
++    }
++    for (int i = 0; i < c->argc; i ++) {
++        decrRefCount(c->argv[i]);
++    }
++    zfree(c->argv);
++    c->argc = n + 1;
++    c->argv = zmalloc(sizeof(robj *) * c->argc);
++    c->argv[0] = createStringObject("DEL", 3);
++    for (int i = 0; i < n; i ++) {
++        c->argv[i + 1] = keys[i];
++    }
++    c->cmd = lookupCommandOrOriginal(c->argv[0]->ptr);
++    redisAssertWithInfo(c, NULL, c->cmd != NULL);
++}
++
++/* *
++ * do migrate a key-value for slotsmgrt/slotsmgrtone commands
++ * return value:
++ *    -1 - error happens
++ *   >=0 - # of success migration (0 or 1)
++ * */
++static int
++slotsmgrtone_command(redisClient *c, sds host, sds port, int timeout, robj *key) {
++    slotsmgrt_sockfd *pfd = slotsmgrt_get_sockfd(c, host, port, timeout);
++    if (pfd == NULL) {
++        return -1;
++    }
++
++    robj *val = lookupKeyWrite(c->db, key);
++    if (val == NULL) {
++        return 0;
++    }
++    robj *keys[] = {key};
++    robj *vals[] = {val};
++    if (slotsmgrt(c, host, port, pfd, c->db->id, timeout, keys, vals, 1) != 0) {
++        slotsmgrt_close_socket(host, port);
++        return -1;
++    }
++    slotsremove(c, keys, 1, 1);
++    return 1;
++}
++
++/* *
++ * slotsmgrtslot host port timeout slot
++ * */
++void
++slotsmgrtslotCommand(redisClient *c) {
++    sds host = c->argv[1]->ptr;
++    sds port = c->argv[2]->ptr;
++    int timeout, slot;
++    if (parse_timeout(c, c->argv[3], &timeout) != 0) {
++        return;
++    }
++    if (parse_slot(c, c->argv[4], &slot) != 0) {
++        return;
++    }
++
++    dict *d = c->db->hash_slots[slot];
++    int succ = 0;
++    do {
++        const dictEntry *de = dictGetRandomKey(d);
++        if (de == NULL) {
++            break;
++        }
++        sds skey = dictGetKey(de);
++        robj *key = createStringObject(skey, sdslen(skey));
++        succ = slotsmgrtone_command(c, host, port, timeout, key);
++        decrRefCount(key);
++        if (succ < 0) {
++            return;
++        }
++    } while (0);
++    addReplyMultiBulkLen(c, 2);
++    addReplyLongLong(c, succ);
++    addReplyLongLong(c, dictSize(d));
++}
++
++/* *
++ * slotsmgrtone host port timeout key
++ * */
++void
++slotsmgrtoneCommand(redisClient *c) {
++    sds host = c->argv[1]->ptr;
++    sds port = c->argv[2]->ptr;
++    int timeout;
++    if (parse_timeout(c, c->argv[3], &timeout) != 0) {
++        return;
++    }
++
++    robj *key = c->argv[4];
++    int succ = slotsmgrtone_command(c, host, port, timeout, key);
++    if (succ < 0) {
++        return;
++    }
++    addReplyLongLong(c, succ);
++}
++
++static void
++slotsScanSdsKeyCallback(void *l, const dictEntry *de) {
++    sds skey = dictGetKey(de);
++    robj *key = createStringObject(skey, sdslen(skey));
++    listAddNodeTail((list *)l, key);
++}
++
++/* *
++ * slotsdel slot1 [slot2 ...]
++ * */
++void
++slotsdelCommand(redisClient *c) {
++    int slots_slot[HASH_SLOTS_SIZE];
++    int n = 0;
++    if (c->argc <= 1) {
++        addReplyErrorFormat(c, "wrong number of arguments for 'slotsdel' command");
++        return;
++    }
++    int i;
++    for (i = 1; i < c->argc; i ++) {
++        int slot;
++        if (parse_slot(c, c->argv[i], &slot) != 0) {
++            return;
++        }
++        slots_slot[n] = slot;
++        n ++;
++    }
++    for (i = 0; i < n; i ++) {
++        dict *d = c->db->hash_slots[slots_slot[i]];
++        int s = dictSize(d);
++        if (s == 0) {
++            continue;
++        }
++        list *l = listCreate();
++        listSetFreeMethod(l, decrRefCountVoid);
++        unsigned long cursor = 0;
++        do {
++            cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, l);
++        } while (cursor != 0);
++        while (1) {
++            listNode *head = listFirst(l);
++            if (head == NULL) {
++                break;
++            }
++            robj *key = listNodeValue(head);
++            robj *keys[] = {key};
++            slotsremove(c, keys, 1, 0);
++            listDelNode(l, head);
++        }
++        listRelease(l);
++    }
++    addReplyMultiBulkLen(c, n);
++    for (i = 0; i < n; i ++) {
++        int n = slots_slot[i];
++        int s = dictSize(c->db->hash_slots[n]);
++        addReplyMultiBulkLen(c, 2);
++        addReplyLongLong(c, n);
++        addReplyLongLong(c, s);
++    }
++}
++
++/* *
++ * slotscheck
++ * */
++void
++slotscheckCommand(redisClient *c) {
++    sds bug = NULL;
++    int i;
++    for (i = 0; i < HASH_SLOTS_SIZE && bug == NULL; i ++) {
++        dict *d = c->db->hash_slots[i];
++        if (dictSize(d) == 0) {
++            continue;
++        }
++        list *l = listCreate();
++        listSetFreeMethod(l, decrRefCountVoid);
++        unsigned long cursor = 0;
++        do {
++            cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, l);
++            while (1) {
++                listNode *head = listFirst(l);
++                if (head == NULL) {
++                    break;
++                }
++                robj *key = listNodeValue(head);
++                if (lookupKey(c->db, key) == NULL) {
++                    if (bug == NULL) {
++                        bug = sdsdup(key->ptr);
++                    }
++                }
++                listDelNode(l, head);
++            }
++        } while (cursor != 0 && bug == NULL);
++        listRelease(l);
++    }
++    if (bug != NULL) {
++        addReplyErrorFormat(c, "step 1, miss = '%s'", bug);
++        sdsfree(bug);
++        return;
++    }
++    do {
++        dict *d = c->db->dict;
++        if (dictSize(d) == 0) {
++            break;
++        }
++        list *l = listCreate();
++        listSetFreeMethod(l, decrRefCountVoid);
++        unsigned long cursor = 0;
++        do {
++            cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, l);
++            while (1) {
++                listNode *head = listFirst(l);
++                if (head == NULL) {
++                    break;
++                }
++                robj *key = listNodeValue(head);
++                int slot = slots_num(key->ptr, NULL, NULL);
++                if (dictFind(c->db->hash_slots[slot], key->ptr) == NULL) {
++                    if (bug == NULL) {
++                        bug = sdsdup(key->ptr);
++                    }
++                }
++                listDelNode(l, head);
++            }
++        } while (cursor != 0 && bug == NULL);
++        listRelease(l);
++    } while (0);
++    if (bug != NULL) {
++        addReplyErrorFormat(c, "step 2, miss = '%s'", bug);
++        sdsfree(bug);
++        return;
++    }
++    zskiplistNode *node = c->db->tagged_keys->header->level[0].forward;
++    while (node != NULL && bug == NULL) {
++        if (lookupKey(c->db, node->obj) == NULL) {
++            bug = sdsdup(node->obj->ptr);
++        }
++        node = node->level[0].forward;
++    }
++    if (bug != NULL) {
++        addReplyErrorFormat(c, "step 3, miss = '%s'", bug);
++        sdsfree(bug);
++        return;
++    }
++    addReply(c, shared.ok);
++}
++
++/* *
++ * slotsrestore key ttl val [key ttl val ...]
++ * */
++void
++slotsrestoreCommand(redisClient *c) {
++    if (c->argc < 4 || (c->argc - 1) % 3 != 0) {
++        addReplyErrorFormat(c, "wrong number of arguments for 'slotsrestore' command");
++        return;
++    }
++    int n = (c->argc - 1) / 3;
++
++    long long *ttls = zmalloc(sizeof(long long) * n);
++    robj **vals = zmalloc(sizeof(robj *) * n);
++    for (int i = 0; i < n; i ++) {
++        vals[i] = NULL;
++    }
++
++    for (int i = 0; i < n; i ++) {
++        robj *key = c->argv[i * 3 + 1];
++        robj *ttl = c->argv[i * 3 + 2];
++        robj *val = c->argv[i * 3 + 3];
++        if (lookupKeyWrite(c->db, key) != NULL) {
++            redisLog(REDIS_WARNING, "slotsrestore: slot = %d, key = '%s' already exists",
++                    slots_num(key->ptr, NULL, NULL), (char *)key->ptr);
++        }
++        if (getLongLongFromObjectOrReply(c, ttl, &ttls[i], NULL) != REDIS_OK) {
++            goto cleanup;
++        } else if (ttls[i] < 0) {
++            addReplyError(c, "invalid ttl value, must be >= 0");
++            goto cleanup;
++        }
++        rio payload;
++        int type;
++        if (verifyDumpPayload(val->ptr, sdslen(val->ptr)) != REDIS_OK) {
++            addReplyError(c, "dump payload version or checksum are wrong");
++            goto cleanup;
++        }
++        rioInitWithBuffer(&payload, val->ptr);
++        if (((type = rdbLoadObjectType(&payload)) == -1) ||
++                ((vals[i] = rdbLoadObject(type, &payload)) == NULL)) {
++            addReplyError(c, "bad data format");
++            goto cleanup;
++        }
++    }
++
++    for (int i = 0; i < n; i ++) {
++        robj *key = c->argv[i * 3 + 1];
++        long long ttl = ttls[i];
++        robj *val = vals[i];
++        dbDelete(c->db, key);
++        dbAdd(c->db, key, val);
++        incrRefCount(val);
++        if (ttl) {
++            setExpire(c->db, key, mstime() + ttl);
++        }
++        signalModifiedKey(c->db, key);
++        server.dirty ++;
++    }
++    addReply(c, shared.ok);
++
++cleanup:
++    for (int i = 0; i < n; i ++) {
++        if (vals[i] != NULL) {
++            decrRefCount(vals[i]);
++        }
++    }
++    zfree(vals);
++    zfree(ttls);
++}
++
++/* *
++ * do migrate mutli key-value(s) for {slotsmgrt/slotsmgrtone}with tag commands
++ * return value:
++ *    -1 - error happens
++ *   >=0 - # of success migration
++ * */
++static int
++slotsmgrttag_command(redisClient *c, sds host, sds port, int timeout, robj *key) {
++    uint32_t crc;
++    int hastag;
++    int slot = slots_num(key->ptr, &crc, &hastag);
++    if (!hastag) {
++        return slotsmgrtone_command(c, host, port, timeout, key);
++    }
++
++    slotsmgrt_sockfd *pfd = slotsmgrt_get_sockfd(c, host, port, timeout);
++    if (pfd == NULL) {
++        return -1;
++    }
++
++    dict *d = c->db->hash_slots[slot];
++    if (dictSize(d) == 0) {
++        return 0;
++    }
++
++    zrangespec range;
++    range.min = (double)crc;
++    range.minex = 0;
++    range.max = (double)crc;
++    range.maxex = 0;
++
++    list *l = listCreate();
++    listSetFreeMethod(l, decrRefCountVoid);
++
++    zskiplistNode *node = zslFirstInRange(c->db->tagged_keys, &range);
++    while (node != NULL && node->score == (double)crc) {
++        listAddNodeTail(l, node->obj);
++        incrRefCount(node->obj);
++        node = node->level[0].forward;
++    }
++
++    int max = listLength(l);
++    if (max == 0) {
++        listRelease(l);
++        return 0;
++    }
++
++    robj **keys = zmalloc(sizeof(robj *) * max);
++    robj **vals = zmalloc(sizeof(robj *) * max);
++
++    int n = 0;
++    for (int i = 0; i < max; i ++) {
++        listNode *head = listFirst(l);
++        robj *key = listNodeValue(head);
++        robj *val = lookupKeyWrite(c->db, key);
++        if (val != NULL) {
++            keys[n] = key;
++            vals[n] = val;
++            n ++;
++            incrRefCount(key);
++            incrRefCount(val);
++        }
++        listDelNode(l, head);
++    }
++
++    int ret = 0;
++    if (n != 0) {
++        if (slotsmgrt(c, host, port, pfd, c->db->id, timeout, keys, vals, n) != 0) {
++            slotsmgrt_close_socket(host, port);
++            ret = -1;
++        } else {
++            slotsremove(c, keys, n, 1);
++            ret = n;
++        }
++    }
++
++    listRelease(l);
++    for (int i = 0; i < n; i ++) {
++        decrRefCount(keys[i]);
++        decrRefCount(vals[i]);
++    }
++    zfree(keys);
++    zfree(vals);
++    return ret;
++}
++
++/* *
++ * slotsmgrttagslot host port timeout slot
++ * */
++void
++slotsmgrttagslotCommand(redisClient *c) {
++    sds host = c->argv[1]->ptr;
++    sds port = c->argv[2]->ptr;
++    int timeout, slot;
++    if (parse_timeout(c, c->argv[3], &timeout) != 0) {
++        return;
++    }
++    if (parse_slot(c, c->argv[4], &slot) != 0) {
++        return;
++    }
++
++    dict *d = c->db->hash_slots[slot];
++    int succ = 0;
++    do {
++        const dictEntry *de = dictGetRandomKey(d);
++        if (de == NULL) {
++            break;
++        }
++        sds skey = dictGetKey(de);
++        robj *key = createStringObject(skey, sdslen(skey));
++        succ = slotsmgrttag_command(c, host, port, timeout, key);
++        decrRefCount(key);
++        if (succ < 0) {
++            return;
++        }
++    } while (0);
++    addReplyMultiBulkLen(c, 2);
++    addReplyLongLong(c, succ);
++    addReplyLongLong(c, dictSize(d));
++}
++
++/* *
++ * slotsmgrttagone host port timeout key
++ * */
++void
++slotsmgrttagoneCommand(redisClient *c) {
++    sds host = c->argv[1]->ptr;
++    sds port = c->argv[2]->ptr;
++    int timeout;
++    if (parse_timeout(c, c->argv[3], &timeout) != 0) {
++        return;
++    }
++
++    robj *key = c->argv[4];
++    int succ = slotsmgrttag_command(c, host, port, timeout, key);
++    if (succ < 0) {
++        return;
++    }
++    addReplyLongLong(c, succ);
++}
