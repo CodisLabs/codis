@@ -19,8 +19,8 @@ func TestGetOpStr(t *testing.T) {
 		"":        "",
 	}
 	for k, v := range m {
-		resp := redis.NewArray([]*redis.Resp{redis.NewBulkBytes([]byte(k))})
-		s, err := getOpStr(resp)
+		var multi = []*redis.Resp{redis.NewBulkBytes([]byte(k))}
+		s, err := getOpStr(multi)
 		if v != "" {
 			assert.MustNoError(err)
 			assert.Must(s == v)
@@ -135,8 +135,8 @@ func TestGetOpStrCmd(t *testing.T) {
 		"evalsha":          "EVALSHA",
 	}
 	for k, v := range m {
-		resp := redis.NewArray([]*redis.Resp{redis.NewBulkBytes([]byte(k))})
-		s, err := getOpStr(resp)
+		var multi = []*redis.Resp{redis.NewBulkBytes([]byte(k))}
+		s, err := getOpStr(multi)
 		assert.MustNoError(err)
 		assert.Must(s == v)
 	}

@@ -70,7 +70,10 @@ func (s *Slot) forward(r *Request, key []byte) error {
 	}
 }
 
-var ErrSlotIsNotReady = errors.New("slot is not ready, may be offline")
+var (
+	ErrSlotIsNotReady = errors.New("slot is not ready, may be offline")
+	ErrRespIsRequired = errors.New("resp is required")
+)
 
 func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 	if s.backend.bc == nil {
@@ -82,8 +85,8 @@ func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 			s.id, s.migrate.from, s.backend.addr, key, err)
 		return nil, err
 	} else {
-		r.slot = &s.refs
-		r.slot.Add(1)
+		r.Group = &s.refs
+		r.Group.Add(1)
 		return s.backend.bc, nil
 	}
 }
@@ -92,35 +95,35 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 	if len(key) == 0 || s.migrate.bc == nil {
 		return nil
 	}
-	m := &Request{
-		Resp: redis.NewArray([]*redis.Resp{
-			redis.NewBulkBytes([]byte("SLOTSMGRTTAGONE")),
-			redis.NewBulkBytes(s.backend.host),
-			redis.NewBulkBytes(s.backend.port),
-			redis.NewBulkBytes([]byte("3000")),
-			redis.NewBulkBytes(key),
-		}),
-		Wait: &sync.WaitGroup{},
+
+	m := &Request{}
+	m.OpStr = "SLOTSMGRTTAGONE"
+	m.Multi = []*redis.Resp{
+		redis.NewBulkBytes([]byte(m.OpStr)),
+		redis.NewBulkBytes(s.backend.host),
+		redis.NewBulkBytes(s.backend.port),
+		redis.NewBulkBytes([]byte("3000")),
+		redis.NewBulkBytes(key),
 	}
+	m.Batch = &sync.WaitGroup{}
+
 	s.migrate.bc.PushBack(m)
 
-	m.Wait.Wait()
+	m.Batch.Wait()
 
 	resp, err := m.Response.Resp, m.Response.Err
-	if err != nil {
+	switch {
+	case err != nil:
 		return err
-	}
-	if resp == nil {
+	case resp == nil:
 		return ErrRespIsRequired
-	}
-	if resp.IsError() {
+	case resp.IsError():
 		return errors.New(fmt.Sprintf("error resp: %s", resp.Value))
-	}
-	if resp.IsInt() {
+	case resp.IsInt():
 		log.Debugf("slot-%04d migrate from %s to %s: key = %s, resp = %s",
 			s.id, s.migrate.from, s.backend.addr, key, resp.Value)
 		return nil
-	} else {
+	default:
 		return errors.New(fmt.Sprintf("error resp: should be integer, but got %s", resp.Type))
 	}
 }

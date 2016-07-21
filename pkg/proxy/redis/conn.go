@@ -20,7 +20,7 @@ type Conn struct {
 	ReaderTimeout time.Duration
 	WriterTimeout time.Duration
 
-	LastWriteUs int64
+	LastWrite int64
 }
 
 func DialTimeout(addr string, bufsize int, timeout time.Duration) (*Conn, error) {
@@ -74,6 +74,13 @@ func (c *Conn) SetKeepAlivePeriod(d time.Duration) error {
 	return errors.Errorf("not tcp connection")
 }
 
+func (c *Conn) FlushPolicy(maxBuffered int, maxIntervalUs int64) *FlushPolicy {
+	p := &FlushPolicy{Conn: c}
+	p.MaxBuffered = maxBuffered
+	p.MaxInterval = maxIntervalUs
+	return p
+}
+
 type connReader struct {
 	*Conn
 	hasDeadline bool
@@ -119,7 +126,7 @@ func (w *connWriter) Write(b []byte) (int, error) {
 	if err != nil {
 		err = errors.Trace(err)
 	}
-	w.LastWriteUs = utils.Microseconds()
+	w.LastWrite = utils.Microseconds()
 	return n, err
 }
 
@@ -131,4 +138,53 @@ func IsTimeout(err error) bool {
 		}
 	}
 	return false
+}
+
+type FlushPolicy struct {
+	Conn *Conn
+
+	MaxBuffered int
+	MaxInterval int64
+
+	nbuffered int
+}
+
+func (p *FlushPolicy) NeedFlush() bool {
+	if p.nbuffered != 0 {
+		if p.nbuffered > p.MaxBuffered {
+			return true
+		}
+		if d := utils.Microseconds() - p.Conn.LastWrite; d > p.MaxInterval {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *FlushPolicy) Flush(force bool) error {
+	if force || p.NeedFlush() {
+		if err := p.Conn.Flush(); err != nil {
+			return err
+		}
+		p.nbuffered = 0
+	}
+	return nil
+}
+
+func (p *FlushPolicy) Encode(resp *Resp) error {
+	if err := p.Conn.Encode(resp, false); err != nil {
+		return err
+	} else {
+		p.nbuffered++
+		return nil
+	}
+}
+
+func (p *FlushPolicy) EncodeMultiBulk(multi []*Resp) error {
+	if err := p.Conn.EncodeMultiBulk(multi, false); err != nil {
+		return err
+	} else {
+		p.nbuffered++
+		return nil
+	}
 }

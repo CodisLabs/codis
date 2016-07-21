@@ -36,11 +36,11 @@ type OpStats struct {
 }
 
 var cmdstats struct {
+	sync.RWMutex
+
 	total atomic2.Int64
 	fails atomic2.Int64
-
 	opmap map[string]*opStats
-	rwlck sync.RWMutex
 
 	qps atomic2.Int64
 }
@@ -70,45 +70,45 @@ func OpQps() int64 {
 }
 
 func getOpStats(opstr string, create bool) *opStats {
-	cmdstats.rwlck.RLock()
+	cmdstats.RLock()
 	s := cmdstats.opmap[opstr]
-	cmdstats.rwlck.RUnlock()
+	cmdstats.RUnlock()
 
 	if s != nil || !create {
 		return s
 	}
 
-	cmdstats.rwlck.Lock()
+	cmdstats.Lock()
 	s = cmdstats.opmap[opstr]
 	if s == nil {
 		s = &opStats{opstr: opstr}
 		cmdstats.opmap[opstr] = s
 	}
-	cmdstats.rwlck.Unlock()
+	cmdstats.Unlock()
 	return s
 }
 
 func GetOpStatsAll() []*OpStats {
 	var all = make([]*OpStats, 0, 128)
-	cmdstats.rwlck.RLock()
+	cmdstats.RLock()
 	for _, s := range cmdstats.opmap {
 		all = append(all, s.OpStats())
 	}
-	cmdstats.rwlck.RUnlock()
+	cmdstats.RUnlock()
 	return all
 }
 
-func incrOpTotal() {
-	cmdstats.total.Incr()
+func incrOpTotal(n int64) {
+	cmdstats.total.Add(n)
 }
 
 func incrOpFails() {
 	cmdstats.fails.Incr()
 }
 
-func incrOpStats(opstr string, usecs int64) {
+func incrOpStats(opstr string, calls int64, usecs int64) {
 	s := getOpStats(opstr, true)
-	s.calls.Incr()
+	s.calls.Add(calls)
 	s.usecs.Add(usecs)
 }
 
@@ -117,9 +117,9 @@ var sessions struct {
 	alive atomic2.Int64
 }
 
-func incrSessions() {
+func incrSessions() int64 {
 	sessions.total.Incr()
-	sessions.alive.Incr()
+	return sessions.alive.Incr()
 }
 
 func decrSessions() {

@@ -18,8 +18,9 @@ type Router struct {
 	auth string
 	pool map[string]*SharedBackendConn
 
-	slots [models.MaxSlotNum]*Slot
+	slots [models.MaxSlotNum]Slot
 
+	online bool
 	closed bool
 }
 
@@ -33,29 +34,38 @@ func NewWithAuth(auth string) *Router {
 		pool: make(map[string]*SharedBackendConn),
 	}
 	for i := 0; i < len(s.slots); i++ {
-		s.slots[i] = &Slot{id: i}
+		s.slots[i].id = i
 	}
 	return s
 }
 
-func (s *Router) Close() error {
+func (s *Router) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
-		return nil
+		return
+	}
+	s.online = true
+}
+
+func (s *Router) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return
 	}
 	for i := 0; i < len(s.slots); i++ {
 		s.resetSlot(i)
 	}
 	s.closed = true
-	return nil
 }
 
 func (s *Router) GetSlots() []*models.Slot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	slots := make([]*models.Slot, 0, len(s.slots))
-	for i, slot := range s.slots {
+	for i := 0; i < len(s.slots); i++ {
+		slot := &s.slots[i]
 		slots = append(slots, &models.Slot{
 			Id:          i,
 			BackendAddr: slot.backend.addr,
@@ -71,15 +81,14 @@ var (
 	ErrInvalidSlotId = errors.New("use of invalid slot id")
 )
 
-func (s *Router) FillSlot(i int, addr, from string, locked bool) error {
+func (s *Router) FillSlot(id int, addr, from string, locked bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return ErrClosedRouter
 	}
-	if i >= 0 && i < len(s.slots) {
-		s.fillSlot(i, addr, from, locked)
-		return nil
+	if id >= 0 && id < len(s.slots) {
+		return s.fillSlot(id, addr, from, locked)
 	} else {
 		return ErrInvalidSlotId
 	}
@@ -97,21 +106,24 @@ func (s *Router) KeepAlive() error {
 	return nil
 }
 
-func (s *Router) Dispatch(r *Request) error {
-	hkey := getHashKey(r.Resp, r.OpStr)
-	slot := s.slots[hashSlot(hkey)]
+func (s *Router) isOnline() bool {
+	return s.online && !s.closed
+}
+
+func (s *Router) dispatch(r *Request) error {
+	hkey := getHashKey(r.Multi, r.OpStr)
+	slot := &s.slots[hashSlot(hkey)]
 	return slot.forward(r, hkey)
 }
 
 func (s *Router) getBackendConn(addr string) *SharedBackendConn {
-	bc := s.pool[addr]
-	if bc != nil {
-		bc.IncrRefcnt()
+	if bc := s.pool[addr]; bc != nil {
+		return bc.IncrRefcnt()
 	} else {
-		bc = NewSharedBackendConn(addr, s.auth)
+		bc := NewSharedBackendConn(addr, s.auth)
 		s.pool[addr] = bc
+		return bc
 	}
-	return bc
 }
 
 func (s *Router) putBackendConn(bc *SharedBackendConn) {
@@ -120,8 +132,8 @@ func (s *Router) putBackendConn(bc *SharedBackendConn) {
 	}
 }
 
-func (s *Router) resetSlot(i int) {
-	slot := s.slots[i]
+func (s *Router) resetSlot(id int) {
+	slot := &s.slots[id]
 	slot.blockAndWait()
 
 	s.putBackendConn(slot.backend.bc)
@@ -131,8 +143,8 @@ func (s *Router) resetSlot(i int) {
 	slot.unblock()
 }
 
-func (s *Router) fillSlot(i int, addr, from string, locked bool) {
-	slot := s.slots[i]
+func (s *Router) fillSlot(id int, addr, from string, locked bool) error {
+	slot := &s.slots[id]
 	slot.blockAndWait()
 
 	s.putBackendConn(slot.backend.bc)
@@ -161,9 +173,10 @@ func (s *Router) fillSlot(i int, addr, from string, locked bool) {
 
 	if slot.migrate.bc != nil {
 		log.Warnf("fill slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
-			i, slot.backend.addr, slot.migrate.from, locked)
+			id, slot.backend.addr, slot.migrate.from, locked)
 	} else {
 		log.Warnf("fill slot %04d, backend.addr = %s, locked = %t",
-			i, slot.backend.addr, locked)
+			id, slot.backend.addr, locked)
 	}
+	return nil
 }

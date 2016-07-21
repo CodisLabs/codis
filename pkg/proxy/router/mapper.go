@@ -13,20 +13,23 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
 
-var charmap [128]byte
+var charmap [256]byte
 
 func init() {
 	for i := 0; i < len(charmap); i++ {
 		c := byte(i)
-		if c >= 'a' && c <= 'z' {
-			c = c - 'a' + 'A'
+		switch {
+		case c >= 'A' && c <= 'Z':
+			charmap[i] = c
+		case c >= 'a' && c <= 'z':
+			charmap[i] = c - 'a' + 'A'
 		}
-		charmap[i] = c
 	}
 }
 
 var (
-	blacklist = make(map[string]bool)
+	blackList = make(map[string]bool, 256)
+	fastOpStr = make(map[string]string, 512)
 )
 
 func init() {
@@ -38,45 +41,66 @@ func init() {
 		"LASTSAVE", "MONITOR", "SAVE", "SHUTDOWN", "SLAVEOF", "SLOWLOG", "SYNC", "TIME",
 		"SLOTSINFO", "SLOTSDEL", "SLOTSMGRTSLOT", "SLOTSMGRTONE", "SLOTSMGRTTAGSLOT", "SLOTSMGRTTAGONE", "SLOTSCHECK",
 	} {
-		blacklist[s] = true
+		blackList[s] = true
+	}
+	for _, s := range []string{
+		"GET", "SET", "SETNX", "SETEX", "PSETEX", "APPEND", "STRLEN", "DEL", "EXISTS", "SETBIT", "GETBIT",
+		"SETRANGE", "GETRANGE", "SUBSTR", "INCR", "DECR", "MGET", "RPUSH", "LPUSH", "RPUSHX", "LPUSHX", "LINSERT",
+		"RPOP", "LPOP", "BRPOP", "BRPOPLPUSH", "BLPOP", "LLEN", "LINDEX", "LSET", "LRANGE", "LTRIM", "LREM",
+		"RPOPLPUSH", "SADD", "SREM", "SMOVE", "SISMEMBER", "SCARD", "SPOP", "SRANDMEMBER", "SINTER", "SINTERSTORE",
+		"SUNION", "SUNIONSTORE", "SDIFF", "SDIFFSTORE", "SMEMBERS", "SSCAN", "ZADD", "ZINCRBY", "ZREM",
+		"ZREMRANGEBYSCORE", "ZREMRANGEBYRANK", "ZREMRANGEBYLEX", "ZUNIONSTORE", "ZINTERSTORE", "ZRANGE",
+		"ZRANGEBYSCORE", "ZREVRANGEBYSCORE", "ZRANGEBYLEX", "ZREVRANGEBYLEX", "ZCOUNT", "ZLEXCOUNT", "ZREVRANGE",
+		"ZCARD", "ZSCORE", "ZRANK", "ZREVRANK", "ZSCAN", "HSET", "HSETNX", "HGET", "HMSET", "HMGET", "HINCRBY",
+		"HINCRBYFLOAT", "HDEL", "HLEN", "HKEYS", "HVALS", "HGETALL", "HEXISTS", "HSCAN", "INCRBY", "DECRBY",
+		"INCRBYFLOAT", "GETSET", "MSET", "MSETNX", "RANDOMKEY", "SELECT", "MOVE", "RENAME", "RENAMENX",
+		"EXPIRE", "EXPIREAT", "PEXPIRE", "PEXPIREAT", "KEYS", "SCAN", "DBSIZE", "AUTH", "PING", "ECHO", "SAVE",
+		"BGSAVE", "BGREWRITEAOF", "SHUTDOWN", "LASTSAVE", "TYPE", "MULTI", "EXEC", "DISCARD", "SYNC", "PSYNC",
+		"REPLCONF", "FLUSHDB", "FLUSHALL", "SORT", "INFO", "MONITOR", "TTL", "PTTL", "PERSIST", "SLAVEOF", "ROLE",
+		"DEBUG", "CONFIG", "SUBSCRIBE", "UNSUBSCRIBE", "PSUBSCRIBE", "PUNSUBSCRIBE", "PUBLISH", "PUBSUB", "WATCH",
+		"UNWATCH", "RESTORE", "MIGRATE", "DUMP", "OBJECT", "CLIENT", "EVAL", "EVALSHA", "SLOWLOG", "SCRIPT", "TIME",
+		"BITOP", "BITCOUNT", "BITPOS", "COMMAND", "PFSELFTEST", "PFADD", "PFCOUNT", "PFMERGE", "PFDEBUG", "LATENCY",
+		"SLOTSINFO", "SLOTSDEL", "SLOTSMGRTSLOT", "SLOTSMGRTONE", "SLOTSMGRTTAGSLOT",
+		"SLOTSMGRTTAGONE", "SLOTSHASHKEY", "SLOTSCHECK", "SLOTSRESTORE",
+	} {
+		fastOpStr[s] = s
 	}
 }
 
 func isNotAllowed(opstr string) bool {
-	return blacklist[opstr]
+	return blackList[opstr]
 }
 
 var (
-	ErrBadRespType = errors.New("bad resp type for command")
-	ErrBadOpStrLen = errors.New("bad command length, too short or too long")
+	ErrBadMultiBulk = errors.New("bad multi-bulk for command")
+	ErrBadOpStrLen  = errors.New("bad command length, too short or too long")
 )
 
-func getOpStr(resp *redis.Resp) (string, error) {
-	if !resp.IsArray() || len(resp.Array) == 0 {
-		return "", ErrBadRespType
-	}
-	for _, r := range resp.Array {
-		if r.IsBulkBytes() {
-			continue
-		}
-		return "", ErrBadRespType
+const MaxOpStrLen = 64
+
+func getOpStr(multi []*redis.Resp) (string, error) {
+	if len(multi) < 1 {
+		return "", errors.Trace(ErrBadMultiBulk)
 	}
 
-	var upper [64]byte
+	var upper [MaxOpStrLen]byte
 
-	var op = resp.Array[0].Value
+	var op = multi[0].Value
 	if len(op) == 0 || len(op) > len(upper) {
 		return "", ErrBadOpStrLen
 	}
 	for i := 0; i < len(op); i++ {
-		c := uint8(op[i])
-		if k := int(c); k < len(charmap) {
-			upper[i] = charmap[k]
+		if c := charmap[op[i]]; c != 0 {
+			upper[i] = c
 		} else {
 			return strings.ToUpper(string(op)), nil
 		}
 	}
-	return string(upper[:len(op)]), nil
+	op = upper[:len(op)]
+	if opstr, ok := fastOpStr[string(op)]; ok {
+		return opstr, nil
+	}
+	return string(op), nil
 }
 
 func hashSlot(key []byte) int {
@@ -92,14 +116,14 @@ func hashSlot(key []byte) int {
 	return int(crc32.ChecksumIEEE(key) % models.MaxSlotNum)
 }
 
-func getHashKey(resp *redis.Resp, opstr string) []byte {
+func getHashKey(multi []*redis.Resp, opstr string) []byte {
 	var index = 1
 	switch opstr {
 	case "ZINTERSTORE", "ZUNIONSTORE", "EVAL", "EVALSHA":
 		index = 3
 	}
-	if index < len(resp.Array) {
-		return resp.Array[index].Value
+	if index < len(multi) {
+		return multi[index].Value
 	}
 	return nil
 }

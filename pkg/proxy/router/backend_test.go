@@ -25,12 +25,11 @@ func TestBackend(t *testing.T) {
 		bc := NewBackendConn(addr, "")
 		defer bc.Close()
 		defer close(reqc)
-		var resp = redis.NewBulkBytes(make([]byte, 4096))
+		var multi = []*redis.Resp{redis.NewBulkBytes(make([]byte, 4096))}
 		for i := 0; i < cap(reqc); i++ {
-			r := &Request{
-				Resp: resp,
-				Wait: &sync.WaitGroup{},
-			}
+			r := &Request{}
+			r.Multi = multi
+			r.Batch = &sync.WaitGroup{}
 			bc.PushBack(r)
 			reqc <- r
 		}
@@ -43,16 +42,16 @@ func TestBackend(t *testing.T) {
 		conn := redis.NewConn(c)
 		time.Sleep(time.Millisecond * 300)
 		for i := 0; i < cap(reqc); i++ {
-			_, err := conn.Reader.Decode()
+			_, err := conn.Decode()
 			assert.MustNoError(err)
 			resp := redis.NewString([]byte(strconv.Itoa(i)))
-			assert.MustNoError(conn.Writer.Encode(resp, true))
+			assert.MustNoError(conn.Encode(resp, true))
 		}
 	}()
 
 	var n int
 	for r := range reqc {
-		r.Wait.Wait()
+		r.Batch.Wait()
 		assert.Must(string(r.Response.Resp.Value) == strconv.Itoa(n))
 		n++
 	}

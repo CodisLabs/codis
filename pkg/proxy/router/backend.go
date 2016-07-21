@@ -53,8 +53,8 @@ func (bc *BackendConn) Close() {
 }
 
 func (bc *BackendConn) PushBack(r *Request) {
-	if r.Wait != nil {
-		r.Wait.Add(1)
+	if r.Batch != nil {
+		r.Batch.Add(1)
 	}
 	bc.input <- r
 }
@@ -63,11 +63,12 @@ func (bc *BackendConn) KeepAlive() bool {
 	if len(bc.input) != 0 {
 		return false
 	}
-	bc.PushBack(&Request{
-		Resp: redis.NewArray([]*redis.Resp{
-			redis.NewBulkBytes([]byte("PING")),
-		}),
-	})
+	m := &Request{}
+	m.OpStr = "PING"
+	m.Multi = []*redis.Resp{
+		redis.NewBulkBytes([]byte(m.OpStr)),
+	}
+	bc.PushBack(m)
 	return true
 }
 
@@ -80,7 +81,7 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 		log.WarnErrorf(err, "backend conn [%p] to %s, reader-[%d] exit", bc, bc.addr, round)
 	}()
 	for r := range tasks {
-		resp, err := c.Reader.Decode()
+		resp, err := c.Decode()
 		if err != nil {
 			return bc.setResponse(r, nil, err)
 		}
@@ -105,23 +106,16 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 		}
 		defer close(tasks)
 
-		p := &FlushPolicy{
-			Encoder:     c.Writer,
-			MaxBuffered: 64,
-			MaxInterval: 300,
-		}
+		p := c.FlushPolicy(256, 1000)
+
 		for ok {
-			var flush = len(bc.input) == 0
-			if bc.canForward(r) {
-				if err := p.Encode(r.Resp, flush); err != nil {
-					return bc.setResponse(r, nil, err)
-				}
-				tasks <- r
+			if err := p.EncodeMultiBulk(r.Multi); err != nil {
+				return bc.setResponse(r, nil, err)
+			}
+			if err := p.Flush(len(bc.input) == 0); err != nil {
+				return bc.setResponse(r, nil, err)
 			} else {
-				if err := p.Flush(flush); err != nil {
-					return bc.setResponse(r, nil, err)
-				}
-				bc.setResponse(r, nil, ErrDiscardedRequest)
+				tasks <- r
 			}
 			r, ok = <-bc.input
 		}
@@ -130,7 +124,7 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 }
 
 func (bc *BackendConn) newBackendReader(round int) (*redis.Conn, chan<- *Request, error) {
-	c, err := redis.DialTimeout(bc.addr, 1024*512, time.Second)
+	c, err := redis.DialTimeout(bc.addr, 1024*128, time.Second*5)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -142,7 +136,7 @@ func (bc *BackendConn) newBackendReader(round int) (*redis.Conn, chan<- *Request
 		return nil, nil, err
 	}
 
-	tasks := make(chan *Request, 4096)
+	tasks := make(chan *Request, 2048)
 	go bc.loopReader(tasks, c, round)
 
 	return c, tasks, nil
@@ -152,50 +146,38 @@ func (bc *BackendConn) verifyAuth(c *redis.Conn) error {
 	if bc.auth == "" {
 		return nil
 	}
-	resp := redis.NewArray([]*redis.Resp{
+
+	multi := []*redis.Resp{
 		redis.NewBulkBytes([]byte("AUTH")),
 		redis.NewBulkBytes([]byte(bc.auth)),
-	})
+	}
 
-	if err := c.Writer.Encode(resp, true); err != nil {
+	if err := c.EncodeMultiBulk(multi, true); err != nil {
 		return err
 	}
 
-	resp, err := c.Reader.Decode()
-	if err != nil {
+	resp, err := c.Decode()
+	switch {
+	case err != nil:
 		return err
-	}
-	if resp == nil {
+	case resp == nil:
 		return errors.New(fmt.Sprintf("error resp: nil response"))
-	}
-	if resp.IsError() {
+	case resp.IsError():
 		return errors.New(fmt.Sprintf("error resp: %s", resp.Value))
-	}
-	if resp.IsString() {
+	case resp.IsString():
 		return nil
-	} else {
+	default:
 		return errors.New(fmt.Sprintf("error resp: should be string, but got %s", resp.Type))
-	}
-}
-
-func (bc *BackendConn) canForward(r *Request) bool {
-	if r.Failed != nil && r.Failed.Get() {
-		return false
-	} else {
-		return true
 	}
 }
 
 func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) error {
 	r.Response.Resp, r.Response.Err = resp, err
-	if err != nil && r.Failed != nil {
-		r.Failed.Set(true)
+	if r.Group != nil {
+		r.Group.Done()
 	}
-	if r.Wait != nil {
-		r.Wait.Done()
-	}
-	if r.slot != nil {
-		r.slot.Done()
+	if r.Batch != nil {
+		r.Batch.Done()
 	}
 	return err
 }
@@ -224,53 +206,12 @@ func (s *SharedBackendConn) Close() bool {
 	return s.refcnt == 0
 }
 
-func (s *SharedBackendConn) IncrRefcnt() {
+func (s *SharedBackendConn) IncrRefcnt() *SharedBackendConn {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.refcnt == 0 {
 		log.Panicf("shared backend conn has been closed")
 	}
 	s.refcnt++
-}
-
-type FlushPolicy struct {
-	*redis.Encoder
-
-	MaxBuffered int
-	MaxInterval int64
-
-	nbuffered int
-	lastflush int64
-}
-
-func (p *FlushPolicy) needFlush() bool {
-	if p.nbuffered != 0 {
-		if p.nbuffered > p.MaxBuffered {
-			return true
-		}
-		if microseconds()-p.lastflush > p.MaxInterval {
-			return true
-		}
-	}
-	return false
-}
-
-func (p *FlushPolicy) Flush(force bool) error {
-	if force || p.needFlush() {
-		if err := p.Encoder.Flush(); err != nil {
-			return err
-		}
-		p.nbuffered = 0
-		p.lastflush = microseconds()
-	}
-	return nil
-}
-
-func (p *FlushPolicy) Encode(resp *redis.Resp, force bool) error {
-	if err := p.Encoder.Encode(resp, false); err != nil {
-		return err
-	} else {
-		p.nbuffered++
-		return p.Flush(force)
-	}
+	return s
 }
