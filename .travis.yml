@@ -1,20 +1,13 @@
 language: go
 
 env:
-    - GO15VENDOREXPERIMENT=0
+    - GO15VENDOREXPERIMENT=1
 
 go:
     - 1.6.2
-    - 1.6.1
     - 1.5.4
-    - 1.4.3
-    - 1.3.3
-
-install:
-    - go get -u github.com/tools/godep
 
 script:
-    - make godep
     - make gotest
 
 before_install:

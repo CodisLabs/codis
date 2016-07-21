@@ -5,8 +5,6 @@
 *.log.*
 
 .DS_Store
-
-/Godeps/_workspace
 .htaccess
 
 /bin
