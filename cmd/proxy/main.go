@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,17 +15,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docopt/docopt-go"
-
 	"github.com/CodisLabs/codis/pkg/proxy"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/docopt/docopt-go"
 )
 
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--ulimit=NLIMIT]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--ulimit=NLIMIT]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -80,12 +80,23 @@ Options:
 		}
 	}
 
+	var ncpu int
 	if n, ok := utils.ArgumentInteger(d, "--ncpu"); ok {
-		runtime.GOMAXPROCS(n)
+		ncpu = n
 	} else {
-		runtime.GOMAXPROCS(runtime.NumCPU())
+		ncpu = runtime.NumCPU()
 	}
-	log.Warnf("set ncpu = %d", runtime.GOMAXPROCS(0))
+	runtime.GOMAXPROCS(ncpu)
+
+	var maxncpu int
+	if n, ok := utils.ArgumentInteger(d, "--max-ncpu"); ok {
+		maxncpu = n
+	}
+	log.Warnf("set ncpu = %d, max-ncpu = %d", ncpu, maxncpu)
+
+	if ncpu < maxncpu {
+		go AutoGOMAXPROCS(ncpu, maxncpu)
+	}
 
 	config := proxy.NewDefaultConfig()
 	if s, ok := utils.Argument(d, "--config"); ok {
@@ -129,4 +140,45 @@ Options:
 	}
 
 	log.Warnf("[%p] proxy exiting ...", s)
+}
+
+func AutoGOMAXPROCS(min, max int) {
+	for {
+		var ncpu = runtime.GOMAXPROCS(0)
+		var less, more int
+		var usage [10]float64
+		for i := 0; i < len(usage) && more == 0; i++ {
+			u, err := utils.CPUUsage(time.Second)
+			if err != nil {
+				log.WarnErrorf(err, "get cpu usage failed")
+				time.Sleep(time.Second * 30)
+				continue
+			}
+			switch {
+			case u < 0.55 && ncpu > min:
+				less++
+			case u > 0.85 && ncpu < max:
+				more++
+			}
+			usage[i] = u
+		}
+		var nn = ncpu
+		switch {
+		case more != 0:
+			nn = ncpu + ((max - ncpu + 3) / 4)
+		case less == len(usage):
+			nn = ncpu - 1
+		}
+		if nn != ncpu {
+			runtime.GOMAXPROCS(nn)
+			var b bytes.Buffer
+			for i, u := range usage {
+				if i != 0 {
+					fmt.Fprintf(&b, ", ")
+				}
+				fmt.Fprintf(&b, "%.3f", u)
+			}
+			log.Warnf("ncpu = %d -> %d, usage = [%s]", ncpu, nn, b.Bytes())
+		}
+	}
 }
