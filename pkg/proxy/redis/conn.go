@@ -7,17 +7,20 @@ import (
 	"net"
 	"time"
 
+	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
 
 type Conn struct {
 	Sock net.Conn
 
+	*Decoder
+	*Encoder
+
 	ReaderTimeout time.Duration
 	WriterTimeout time.Duration
 
-	Reader *Decoder
-	Writer *Encoder
+	LastWriteUs int64
 }
 
 func DialTimeout(addr string, bufsize int, timeout time.Duration) (*Conn, error) {
@@ -29,14 +32,22 @@ func DialTimeout(addr string, bufsize int, timeout time.Duration) (*Conn, error)
 }
 
 func NewConn(sock net.Conn) *Conn {
-	return NewConnSize(sock, 1024*64)
+	return NewConnSize(sock, 8192)
 }
 
 func NewConnSize(sock net.Conn, bufsize int) *Conn {
 	conn := &Conn{Sock: sock}
-	conn.Reader = NewDecoderSize(&connReader{Conn: conn}, bufsize)
-	conn.Writer = NewEncoderSize(&connWriter{Conn: conn}, bufsize)
+	conn.Decoder = NewDecoderSize(&connReader{Conn: conn}, bufsize)
+	conn.Encoder = NewEncoderSize(&connWriter{Conn: conn}, bufsize)
 	return conn
+}
+
+func (c *Conn) LocalAddr() string {
+	return c.Sock.LocalAddr().String()
+}
+
+func (c *Conn) RemoteAddr() string {
+	return c.Sock.RemoteAddr().String()
 }
 
 func (c *Conn) Close() error {
@@ -108,6 +119,7 @@ func (w *connWriter) Write(b []byte) (int, error) {
 	if err != nil {
 		err = errors.Trace(err)
 	}
+	w.LastWriteUs = utils.Microseconds()
 	return n, err
 }
 

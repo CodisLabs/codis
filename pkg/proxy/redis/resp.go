@@ -93,9 +93,3 @@ func NewArray(array []*Resp) *Resp {
 		Array: array,
 	}
 }
-
-func (r *Resp) Append(x *Resp) {
-	if r.Type == TypeArray {
-		r.Array = append(r.Array, x)
-	}
-}

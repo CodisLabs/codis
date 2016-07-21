@@ -4,15 +4,11 @@
 package redis
 
 import (
-	"io"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/utils/assert"
-	"github.com/CodisLabs/codis/pkg/utils/errors"
-	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
 func newConnPair() (*Conn, *Conn) {
@@ -42,83 +38,9 @@ func newConnPair() (*Conn, *Conn) {
 	return conn1, conn2
 }
 
-func TestConnReaderTimeout(t *testing.T) {
-	resp := NewString([]byte("hello world"))
-
-	conn1, conn2 := newConnPair()
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var err error
-
-		conn1.ReaderTimeout = time.Millisecond * 10
-		_, err = conn1.Reader.Decode()
-		assert.Must(err != nil && IsTimeout(err))
-
-		conn1.Reader.Err = nil
-		conn1.ReaderTimeout = 0
-		_, err = conn1.Reader.Decode()
-		assert.MustNoError(err)
-
-		_, err = conn1.Reader.Decode()
-		assert.Must(err != nil && errors.Equal(err, io.EOF))
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var err error
-
-		time.Sleep(time.Millisecond * 100)
-
-		err = conn2.Writer.Encode(resp, true)
-		assert.MustNoError(err)
-
-		conn2.Close()
-	}()
-
-	wg.Wait()
-
-	conn1.Close()
-	conn2.Close()
-}
-
-func TestConnWriterTimeout(t *testing.T) {
-	resp := NewString([]byte("hello world"))
-
-	conn1, conn2 := newConnPair()
-
-	var wg sync.WaitGroup
-
-	var count atomic2.Int64
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer conn2.Close()
-
-		conn2.WriterTimeout = time.Millisecond * 50
-		for {
-			if err := conn2.Writer.Encode(resp, true); err != nil {
-				assert.Must(IsTimeout(err))
-				return
-			}
-			count.Incr()
-		}
-	}()
-
-	wg.Wait()
-
-	for i := count.Get(); i != 0; i-- {
-		_, err := conn1.Reader.Decode()
-		assert.MustNoError(err)
+func BenchmarkConn128K(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		c := NewConnSize(&net.TCPConn{}, 128*1024)
+		c.Close()
 	}
-	_, err := conn1.Reader.Decode()
-	assert.Must(err != nil && errors.Equal(err, io.EOF))
-
-	conn1.Close()
-	conn2.Close()
 }
