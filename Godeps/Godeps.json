@@ -8,8 +8,8 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/BurntSushi/toml",
-			"Comment": "v0.2.0-9-gf0aeabc",
-			"Rev": "f0aeabca5a127c4078abb8c8d64298b147264b55"
+			"Comment": "v0.2.0-21-g9906417",
+			"Rev": "99064174e013895bbd9b025c31100bd1d9b590ca"
 		},
 		{
 			"ImportPath": "github.com/codegangsta/inject",
@@ -18,28 +18,28 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
-			"Comment": "v2.3.6-1-g5b3ffa8",
-			"Rev": "5b3ffa86fad83fbc5d1b7109371f560eeb15b3ed"
+			"Comment": "v2.3.7-5-g97dd451",
+			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context",
-			"Comment": "v2.3.6-1-g5b3ffa8",
-			"Rev": "5b3ffa86fad83fbc5d1b7109371f560eeb15b3ed"
+			"Comment": "v2.3.7-5-g97dd451",
+			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
-			"Comment": "v2.3.6-1-g5b3ffa8",
-			"Rev": "5b3ffa86fad83fbc5d1b7109371f560eeb15b3ed"
+			"Comment": "v2.3.7-5-g97dd451",
+			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
-			"Comment": "v2.3.6-1-g5b3ffa8",
-			"Rev": "5b3ffa86fad83fbc5d1b7109371f560eeb15b3ed"
+			"Comment": "v2.3.7-5-g97dd451",
+			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v2.3.6-1-g5b3ffa8",
-			"Rev": "5b3ffa86fad83fbc5d1b7109371f560eeb15b3ed"
+			"Comment": "v2.3.7-5-g97dd451",
+			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
 		},
 		{
 			"ImportPath": "github.com/docopt/docopt-go",
@@ -58,12 +58,12 @@
 		},
 		{
 			"ImportPath": "github.com/go-martini/martini",
-			"Comment": "v1.0-184-g0c6ad59",
-			"Rev": "0c6ad5903d2bf9337762caa9c357247279c230c3"
+			"Comment": "v1.0-185-gc257c41",
+			"Rev": "c257c412d547ac70fcaf5596c1a50a7cb832c1fc"
 		},
 		{
 			"ImportPath": "github.com/martini-contrib/binding",
-			"Rev": "8aaceec3b52c275477f32c95ea5c6e8ccaba04c5"
+			"Rev": "05d3e151b6cf34dacac6306226a33db68459a3b5"
 		},
 		{
 			"ImportPath": "github.com/martini-contrib/gzip",
@@ -79,11 +79,11 @@
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
-			"Rev": "4b20de542e40ed2b89d65ae195fc20a330919b92"
+			"Rev": "e64db453f3512cade908163702045e0f31137843"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
-			"Rev": "62685c2d7ca23c807425dca88b11a3e2323dab41"
+			"Rev": "4d38db76854b199960801a1734443fd02870d7e1"
 		}
 	]
 }

@@ -25,7 +25,7 @@ import (
 
 // Bind wraps up the functionality of the Form and Json middleware
 // according to the Content-Type and verb of the request.
-// A Content-Type is required for POST and PUT requests.
+// A Content-Type is required for POST, PUT and PATCH requests.
 // Bind invokes the ErrorHandler middleware to bail out if errors
 // occurred. If you want to perform your own error handling, use
 // Form or Json middleware directly. An interface pointer can
@@ -35,7 +35,7 @@ func Bind(obj interface{}, ifacePtr ...interface{}) martini.Handler {
 	return func(context martini.Context, req *http.Request) {
 		contentType := req.Header.Get("Content-Type")
 
-		if req.Method == "POST" || req.Method == "PUT" || contentType != "" {
+		if req.Method == "POST" || req.Method == "PUT" || req.Method == "PATCH" || contentType != "" {
 			if strings.Contains(contentType, "form-urlencoded") {
 				context.Invoke(Form(obj, ifacePtr...))
 			} else if strings.Contains(contentType, "multipart/form-data") {
@@ -256,7 +256,8 @@ func mapForm(formStruct reflect.Value, form map[string][]string,
 			}
 
 			inputValue, exists := form[inputFieldName]
-			if exists {
+			inputFile, existsFile := formfile[inputFieldName]
+			if exists && !existsFile {
 				numElems := len(inputValue)
 				if structField.Kind() == reflect.Slice && numElems > 0 {
 					sliceOf := structField.Type().Elem().Kind()
@@ -266,13 +267,18 @@ func mapForm(formStruct reflect.Value, form map[string][]string,
 					}
 					formStruct.Field(i).Set(slice)
 				} else {
-					setWithProperType(typeField.Type.Kind(), inputValue[0], structField, inputFieldName, errors)
+					kind := typeField.Type.Kind()
+					if structField.Kind() == reflect.Ptr {
+						structField.Set(reflect.New(typeField.Type.Elem()))
+						structField = structField.Elem()
+						kind = typeField.Type.Elem().Kind()
+					}
+					setWithProperType(kind, inputValue[0], structField, inputFieldName, errors)
 				}
 				continue
 			}
 
-			inputFile, exists := formfile[inputFieldName]
-			if !exists {
+			if !existsFile {
 				continue
 			}
 			fhType := reflect.TypeOf((*multipart.FileHeader)(nil))

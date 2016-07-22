@@ -30,7 +30,11 @@ type BeforeFunc func(ResponseWriter)
 
 // NewResponseWriter creates a ResponseWriter that wraps an http.ResponseWriter
 func NewResponseWriter(rw http.ResponseWriter) ResponseWriter {
-	return &responseWriter{rw, 0, 0, nil}
+	newRw := responseWriter{rw, 0, 0, nil}
+	if cn, ok := rw.(http.CloseNotifier); ok {
+		return &closeNotifyResponseWriter{newRw, cn}
+	}
+	return &newRw
 }
 
 type responseWriter struct {
@@ -80,10 +84,6 @@ func (rw *responseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return hijacker.Hijack()
 }
 
-func (rw *responseWriter) CloseNotify() <-chan bool {
-	return rw.ResponseWriter.(http.CloseNotifier).CloseNotify()
-}
-
 func (rw *responseWriter) callBefore() {
 	for i := len(rw.beforeFuncs) - 1; i >= 0; i-- {
 		rw.beforeFuncs[i](rw)
@@ -95,4 +95,13 @@ func (rw *responseWriter) Flush() {
 	if ok {
 		flusher.Flush()
 	}
+}
+
+type closeNotifyResponseWriter struct {
+	responseWriter
+	closeNotifier http.CloseNotifier
+}
+
+func (rw *closeNotifyResponseWriter) CloseNotify() <-chan bool {
+	return rw.closeNotifier.CloseNotify()
 }
