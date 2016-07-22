@@ -4,6 +4,7 @@
 package models
 
 type Topom struct {
+	Token     string `json:"token"`
 	StartTime string `json:"start_time"`
 	AdminAddr string `json:"admin_addr"`
 

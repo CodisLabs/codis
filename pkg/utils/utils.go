@@ -5,7 +5,6 @@ package utils
 
 import (
 	"net"
-	"regexp"
 
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
@@ -61,8 +60,4 @@ func ResolveAddr(network string, locAddr, hostbndAddr string) (string, error) {
 		return resolveAddr(network, locAddr, true)
 	}
 	return resolveAddr(network, hostbndAddr, false)
-}
-
-func IsValidProduct(name string) bool {
-	return regexp.MustCompile(`^\w[\w\.\-]*$`).MatchString(name)
 }
