@@ -14,6 +14,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/topom"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 )
 
 type cmdDashboard struct {
@@ -378,14 +379,14 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 		var format string
 		var wpid int
 		for _, p := range s.Proxy.Models {
-			wpid = utils.MaxInt(wpid, len(strconv.Itoa(p.Id)))
+			wpid = math2.MaxInt(wpid, len(strconv.Itoa(p.Id)))
 		}
 		format += fmt.Sprintf("proxy-%%0%dd [T] %%s", wpid)
 
 		var waddr1, waddr2 int
 		for _, p := range s.Proxy.Models {
-			waddr1 = utils.MaxInt(waddr1, len(p.AdminAddr))
-			waddr2 = utils.MaxInt(waddr2, len(p.ProxyAddr))
+			waddr1 = math2.MaxInt(waddr1, len(p.AdminAddr))
+			waddr2 = math2.MaxInt(waddr2, len(p.ProxyAddr))
 		}
 		format += fmt.Sprintf(" [A] %%-%ds", waddr1)
 		format += fmt.Sprintf(" [P] %%-%ds", waddr2)
@@ -487,9 +488,9 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 		var format string
 		var wgid, widx int
 		for _, g := range s.Group.Models {
-			wgid = utils.MaxInt(wgid, len(strconv.Itoa(g.Id)))
+			wgid = math2.MaxInt(wgid, len(strconv.Itoa(g.Id)))
 			for i, _ := range g.Servers {
-				widx = utils.MaxInt(widx, len(strconv.Itoa(i)))
+				widx = math2.MaxInt(widx, len(strconv.Itoa(i)))
 			}
 		}
 		format += fmt.Sprintf("group-%%0%dd [%%0%dd]", wgid, widx)
@@ -497,7 +498,7 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 		var waddr int
 		for _, g := range s.Group.Models {
 			for _, x := range g.Servers {
-				waddr = utils.MaxInt(waddr, len(x.Addr))
+				waddr = math2.MaxInt(waddr, len(x.Addr))
 			}
 		}
 		format += fmt.Sprintf(" %%-%ds", waddr)

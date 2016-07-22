@@ -10,9 +10,9 @@ import (
 )
 
 func (s *Topom) ProcessSlotAction() error {
-	for !s.IsClosed() {
-		sid, err := s.SlotActionPrepare()
-		if err != nil || sid < 0 {
+	for s.IsOnline() {
+		sid, ok, err := s.SlotActionPrepare()
+		if err != nil || !ok {
 			return err
 		}
 		if err := s.processSlotAction(sid); err != nil {
@@ -34,7 +34,7 @@ func (s *Topom) processSlotAction(sid int) (err error) {
 	}()
 	log.Warnf("slot-[%d] process action", sid)
 
-	for !s.IsClosed() {
+	for s.IsOnline() {
 		if exec, err := s.newSlotActionExecutor(sid); err != nil {
 			return err
 		} else if exec == nil {

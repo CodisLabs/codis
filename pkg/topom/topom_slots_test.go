@@ -100,10 +100,12 @@ func TestSlotRemoveAction(x *testing.T) {
 }
 
 func prepareSlotAction(t *Topom, sid int, must bool) *models.SlotMapping {
-	i, err := t.SlotActionPrepare()
+	i, ok, err := t.SlotActionPrepare()
 	if must {
 		assert.MustNoError(err)
-		assert.Must(sid == i)
+		assert.Must(ok && sid == i)
+	} else {
+		assert.Must(ok == false)
 	}
 	return getSlotMapping(t, sid)
 }

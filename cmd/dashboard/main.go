@@ -119,7 +119,7 @@ Options:
 	}
 	defer s.Close()
 
-	s.StartDaemonRoutines()
+	s.Start(true)
 
 	log.Warnf("create topom with config\n%s", config)
 

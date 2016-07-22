@@ -11,10 +11,9 @@ import (
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/models/zk"
-	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 )
 
 var ErrClosedJodis = errors.New("use of closed jodis")
@@ -22,30 +21,33 @@ var ErrClosedJodis = errors.New("use of closed jodis")
 type Jodis struct {
 	mu sync.Mutex
 
-	addr string
 	path string
 	data []byte
 
-	client  *zkclient.ZkClient
-	closed  bool
-	timeout time.Duration
+	client models.Client
+	closed bool
 
 	watching bool
 }
 
-func NewJodis(addr string, seconds int, s *models.Proxy) *Jodis {
+func NewJodis(c models.Client, p *models.Proxy, compatible bool) *Jodis {
 	var m = map[string]string{
-		"addr":     s.ProxyAddr,
-		"start_at": s.StartTime,
-		"token":    s.Token,
-		"state":    "online",
+		"addr":  p.ProxyAddr,
+		"start": p.StartTime,
+		"token": p.Token,
+		"state": "online",
 	}
 	b, err := json.MarshalIndent(m, "", "    ")
 	if err != nil {
 		log.PanicErrorf(err, "json marshal failed")
 	}
-	p := filepath.Join("/zk/codis", fmt.Sprintf("db_%s", s.ProductName), "proxy", s.Token)
-	return &Jodis{path: p, data: b, addr: addr, timeout: time.Second * time.Duration(seconds)}
+	var path string
+	if compatible {
+		path = filepath.Join("/zk/codis", fmt.Sprintf("db_%s", p.ProductName), "proxy", p.Token)
+	} else {
+		path = models.JodisPath(p.ProductName, p.Token)
+	}
+	return &Jodis{path: path, data: b, client: c}
 }
 
 func (j *Jodis) Path() string {
@@ -76,10 +78,6 @@ func (j *Jodis) Close() error {
 	}
 	j.closed = true
 
-	if j.client == nil {
-		return nil
-	}
-
 	if j.watching {
 		if err := j.client.Delete(j.path); err != nil {
 			log.WarnErrorf(err, "jodis remove node %s failed", j.path)
@@ -96,15 +94,6 @@ func (j *Jodis) Rewatch() (<-chan struct{}, error) {
 	if j.closed {
 		return nil, ErrClosedJodis
 	}
-
-	if j.client == nil {
-		client, err := zkclient.New(j.addr, j.timeout)
-		if err != nil {
-			return nil, err
-		}
-		j.client = client
-	}
-
 	w, err := j.client.CreateEphemeral(j.path, j.data)
 	if err != nil {
 		log.WarnErrorf(err, "jodis create node %s failed", j.path)
@@ -116,21 +105,21 @@ func (j *Jodis) Rewatch() (<-chan struct{}, error) {
 	return w, err
 }
 
-func (j *Jodis) Run() {
-	var delay int
-	for !j.IsClosed() {
-		w, err := j.Rewatch()
-		if err != nil {
-			log.WarnErrorf(err, "jodis watch node %s failed", j.path)
-			delay = delay * 2
-			delay = utils.MaxInt(delay, 2)
-			delay = utils.MinInt(delay, 30)
-			for i := 0; i < delay && !j.IsClosed(); i++ {
-				time.Sleep(time.Second)
+func (j *Jodis) Start() {
+	go func() {
+		var delay int
+		for !j.IsClosed() {
+			w, err := j.Rewatch()
+			if err != nil {
+				log.WarnErrorf(err, "jodis watch node %s failed", j.path)
+				delay = math2.MinMaxInt(delay*2, 2, 30)
+				for i := 0; i < delay && !j.IsClosed(); i++ {
+					time.Sleep(time.Second)
+				}
+			} else {
+				delay = 0
+				<-w
 			}
-		} else {
-			delay = 0
-			<-w
 		}
-	}
+	}()
 }

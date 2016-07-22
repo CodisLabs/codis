@@ -189,11 +189,11 @@ func (c *memClient) Delete(path string) error {
 	return nil
 }
 
-func (c *memClient) Read(path string) ([]byte, error) {
+func (c *memClient) Read(path string, must bool) ([]byte, error) {
 	return c.data[path], nil
 }
 
-func (c *memClient) List(path string) ([]string, error) {
+func (c *memClient) List(path string, must bool) ([]string, error) {
 	path = filepath.Clean(path)
 	var list []string
 	for k, _ := range c.data {
@@ -206,4 +206,18 @@ func (c *memClient) List(path string) ([]string, error) {
 
 func (c *memClient) Close() error {
 	return nil
+}
+
+var ErrNotSupport = errors.New("not support")
+
+func (c *memClient) CreateEphemeral(path string, data []byte) (<-chan struct{}, error) {
+	return nil, errors.Trace(ErrNotSupport)
+}
+
+func (c *memClient) CreateEphemeralInOrder(path string, data []byte) (<-chan struct{}, string, error) {
+	return nil, "", errors.Trace(ErrNotSupport)
+}
+
+func (c *memClient) WatchInOrder(path string) (<-chan struct{}, []string, error) {
+	return nil, nil, errors.Trace(ErrNotSupport)
 }

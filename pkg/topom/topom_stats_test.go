@@ -4,7 +4,6 @@
 package topom
 
 import (
-	"bufio"
 	"container/list"
 	"net"
 	"testing"
@@ -177,8 +176,8 @@ func (s *fakeServer) Close() error {
 
 func (s *fakeServer) Serve(c net.Conn) {
 	defer c.Close()
-	dec := redis.NewDecoder(bufio.NewReader(c))
-	enc := redis.NewEncoder(bufio.NewWriter(c))
+	dec := redis.NewDecoder(c)
+	enc := redis.NewEncoder(c)
 	for {
 		r, err := dec.Decode()
 		if err != nil {

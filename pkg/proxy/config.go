@@ -30,9 +30,11 @@ admin_addr = "0.0.0.0:11080"
 proto_type = "tcp4"
 proxy_addr = "0.0.0.0:19000"
 
-# Set jodis address & session timeout.
+# Set jodis address & session timeout, only accept "zookeeper" & "etcd".
+jodis_name = ""
 jodis_addr = ""
-jodis_timeout = 10
+jodis_timeout = 20
+jodis_compatible = 0
 
 # Proxy will ping-pong backend redis periodly to keep-alive
 backend_ping_period = 5
@@ -49,6 +51,9 @@ session_max_pipeline = 1024
 
 # Set period between keep alives. Set 0 to disable.
 session_keepalive_period = 60
+
+# Set max number of alive sessions. Set 0 to unlimited number.
+max_alive_sessions = 1000
 `
 
 type Config struct {
@@ -59,8 +64,10 @@ type Config struct {
 	HostProxy string `toml:"-" json:"-"`
 	HostAdmin string `toml:"-" json:"-"`
 
-	JodisAddr    string `toml:"jodis_addr" json:"jodis_addr"`
-	JodisTimeout int    `toml:"jodis_timeout" json:"jodis_timeout"`
+	JodisName       string `toml:"jodis_name" json:"jodis_name"`
+	JodisAddr       string `toml:"jodis_addr" json:"jodis_addr"`
+	JodisTimeout    int    `toml:"jodis_timeout" json:"jodis_timeout"`
+	JodisCompatible int    `toml:"jodis_compatible" json:"jodis_compatible"`
 
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
@@ -70,6 +77,8 @@ type Config struct {
 	SessionMaxBufSize      int `toml:"session_max_bufsize" json:"session_max_bufsize"`
 	SessionMaxPipeline     int `toml:"session_max_pipeline" json:"session_max_pipeline"`
 	SessionKeepAlivePeriod int `toml:"session_keepalive_period" json:"session_keepalive_period"`
+
+	MaxAliveSessions int `toml:"max_alive_sessions" json:"max_alive_sessions"`
 }
 
 func NewDefaultConfig() *Config {

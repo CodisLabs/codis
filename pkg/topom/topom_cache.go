@@ -75,7 +75,7 @@ func (s *Topom) refillCacheSlots(slots []*models.SlotMapping) ([]*models.SlotMap
 		if slots[i] != nil {
 			continue
 		}
-		m, err := s.store.LoadSlotMapping(i)
+		m, err := s.store.LoadSlotMapping(i, false)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +96,7 @@ func (s *Topom) refillCacheGroup(group map[int]*models.Group) (map[int]*models.G
 		if group[i] != nil {
 			continue
 		}
-		g, err := s.store.LoadGroup(i)
+		g, err := s.store.LoadGroup(i, false)
 		if err != nil {
 			return nil, err
 		}
@@ -117,7 +117,7 @@ func (s *Topom) refillCacheProxy(proxy map[string]*models.Proxy) (map[string]*mo
 		if proxy[t] != nil {
 			continue
 		}
-		p, err := s.store.LoadProxy(t)
+		p, err := s.store.LoadProxy(t, false)
 		if err != nil {
 			return nil, err
 		}

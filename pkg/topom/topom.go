@@ -17,6 +17,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
@@ -24,6 +25,7 @@ import (
 type Topom struct {
 	mu sync.Mutex
 
+	token string
 	xauth string
 	model *models.Topom
 	store *models.Store
@@ -39,12 +41,11 @@ type Topom struct {
 	}
 
 	config *Config
+	online bool
 	closed bool
 
 	ladmin net.Listener
 	redisp *RedisPool
-
-	registered bool
 
 	action struct {
 		interval atomic2.Int64
@@ -61,19 +62,19 @@ type Topom struct {
 		servers map[string]*RedisStats
 		proxies map[string]*ProxyStats
 	}
-	start sync.Once
 }
 
 var ErrClosedTopom = errors.New("use of closed topom")
 
 func New(client models.Client, config *Config) (*Topom, error) {
-	if !utils.IsValidProduct(config.ProductName) {
-		return nil, errors.Errorf("invalid product name = %s", config.ProductName)
+	if err := models.ValidProductName(config.ProductName); err != nil {
+		return nil, err
 	}
 	s := &Topom{config: config, store: models.NewStore(client, config.ProductName)}
+	s.token = rpc.NewToken()
 	s.xauth = rpc.NewXAuth(config.ProductName)
 	s.model = &models.Topom{
-		StartTime: time.Now().String(),
+		Token: s.token, StartTime: time.Now().String(),
 	}
 	s.model.ProductName = config.ProductName
 	s.model.Pid = os.Getpid()
@@ -116,12 +117,6 @@ func (s *Topom) setup() error {
 		}
 		s.model.AdminAddr = x
 	}
-
-	if err := s.store.Acquire(s.model); err != nil {
-		log.ErrorErrorf(err, "store: acquire lock of %s failed", s.config.ProductName)
-		return errors.Errorf("store: acquire lock of %s failed", s.config.ProductName)
-	}
-	s.registered = true
 	return nil
 }
 
@@ -143,14 +138,81 @@ func (s *Topom) Close() error {
 
 	defer s.store.Close()
 
-	if !s.registered {
+	if s.online {
+		if err := s.store.Release(); err != nil {
+			log.ErrorErrorf(err, "store: release lock of %s failed", s.config.ProductName)
+			return errors.Errorf("store: release lock of %s failed", s.config.ProductName)
+		}
+	}
+	return nil
+}
+
+func (s *Topom) Start(routines bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedTopom
+	}
+	if s.online {
+		return nil
+	} else {
+		if err := s.store.Acquire(s.model); err != nil {
+			log.ErrorErrorf(err, "store: acquire lock of %s failed", s.config.ProductName)
+			return errors.Errorf("store: acquire lock of %s failed", s.config.ProductName)
+		}
+		s.online = true
+	}
+
+	if !routines {
 		return nil
 	}
 
-	if err := s.store.Release(); err != nil {
-		log.ErrorErrorf(err, "store: release lock of %s failed", s.config.ProductName)
-		return errors.Errorf("store: release lock of %s failed", s.config.ProductName)
-	}
+	go func() {
+		for !s.IsClosed() {
+			if s.IsOnline() {
+				if w, _ := s.RefreshRedisStats(time.Second * 5); w != nil {
+					w.Wait()
+				}
+			}
+			time.Sleep(time.Second)
+		}
+	}()
+
+	go func() {
+		for !s.IsClosed() {
+			if s.IsOnline() {
+				if w, _ := s.RefreshProxyStats(time.Second * 5); w != nil {
+					w.Wait()
+				}
+			}
+			time.Sleep(time.Second)
+		}
+	}()
+
+	go func() {
+		for !s.IsClosed() {
+			if s.IsOnline() {
+				if err := s.ProcessSlotAction(); err != nil {
+					log.WarnErrorf(err, "process slot action failed")
+					time.Sleep(time.Second * 5)
+				}
+			}
+			time.Sleep(time.Second)
+		}
+	}()
+
+	go func() {
+		for !s.IsClosed() {
+			if s.IsOnline() {
+				if err := s.ProcessSyncAction(); err != nil {
+					log.WarnErrorf(err, "process sync action failed")
+					time.Sleep(time.Second * 5)
+				}
+			}
+			time.Sleep(time.Second)
+		}
+	}()
+
 	return nil
 }
 
@@ -162,18 +224,24 @@ func (s *Topom) Model() *models.Topom {
 	return s.model
 }
 
+var ErrNotOnline = errors.New("topom is not online")
+
 func (s *Topom) newContext() (*context, error) {
 	if s.closed {
 		return nil, ErrClosedTopom
 	}
-	if err := s.refillCache(); err != nil {
-		return nil, err
+	if s.online {
+		if err := s.refillCache(); err != nil {
+			return nil, err
+		} else {
+			ctx := &context{}
+			ctx.slots = s.cache.slots
+			ctx.group = s.cache.group
+			ctx.proxy = s.cache.proxy
+			return ctx, nil
+		}
 	} else {
-		ctx := &context{}
-		ctx.slots = s.cache.slots
-		ctx.group = s.cache.group
-		ctx.proxy = s.cache.proxy
-		return ctx, nil
+		return nil, ErrNotOnline
 	}
 }
 
@@ -206,6 +274,7 @@ func (s *Topom) Stats() (*Stats, error) {
 }
 
 type Stats struct {
+	Online bool `json:"online"`
 	Closed bool `json:"closed"`
 
 	Slots []*models.SlotMapping `json:"slots"`
@@ -237,6 +306,12 @@ func (s *Topom) Config() *Config {
 	return s.config
 }
 
+func (s *Topom) IsOnline() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.online && !s.closed
+}
+
 func (s *Topom) IsClosed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -248,8 +323,7 @@ func (s *Topom) GetSlotActionInterval() int {
 }
 
 func (s *Topom) SetSlotActionInterval(us int) {
-	us = utils.MaxInt(us, 0)
-	us = utils.MinInt(us, 1000*1000)
+	us = math2.MinMaxInt(us, 0, 1000*1000)
 	s.action.interval.Set(int64(us))
 	log.Warnf("set action interval = %d", us)
 }
@@ -295,48 +369,4 @@ func (s *Topom) serveAdmin() {
 	case err := <-eh:
 		log.ErrorErrorf(err, "admin exit on error")
 	}
-}
-
-func (s *Topom) StartDaemonRoutines() {
-	s.start.Do(func() {
-		go func() {
-			for !s.IsClosed() {
-				if w, _ := s.RefreshRedisStats(time.Second * 5); w != nil {
-					w.Wait()
-				}
-				time.Sleep(time.Second)
-			}
-		}()
-
-		go func() {
-			for !s.IsClosed() {
-				if w, _ := s.RefreshProxyStats(time.Second * 5); w != nil {
-					w.Wait()
-				}
-				time.Sleep(time.Second)
-			}
-		}()
-
-		go func() {
-			for !s.IsClosed() {
-				if err := s.ProcessSlotAction(); err != nil {
-					log.WarnErrorf(err, "process slot action failed")
-					time.Sleep(time.Second * 5)
-				} else {
-					time.Sleep(time.Second)
-				}
-			}
-		}()
-
-		go func() {
-			for !s.IsClosed() {
-				if err := s.ProcessSyncAction(); err != nil {
-					log.WarnErrorf(err, "process sync action failed")
-					time.Sleep(time.Second * 5)
-				} else {
-					time.Sleep(time.Second)
-				}
-			}
-		}()
-	})
 }

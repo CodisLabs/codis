@@ -18,6 +18,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
 )
 
@@ -28,9 +29,7 @@ type Proxy struct {
 	xauth string
 	model *models.Proxy
 
-	jodis *Jodis
-
-	init, exit struct {
+	exit struct {
 		C chan struct{}
 	}
 	online bool
@@ -38,6 +37,7 @@ type Proxy struct {
 
 	lproxy net.Listener
 	ladmin net.Listener
+	xjodis *Jodis
 
 	config *Config
 	router *router.Router
@@ -46,8 +46,8 @@ type Proxy struct {
 var ErrClosedProxy = errors.New("use of closed proxy")
 
 func New(config *Config) (*Proxy, error) {
-	if !utils.IsValidProduct(config.ProductName) {
-		return nil, errors.Errorf("invalid product name = %s", config.ProductName)
+	if err := models.ValidProductName(config.ProductName); err != nil {
+		return nil, err
 	}
 	s := &Proxy{config: config}
 	s.token = rpc.NewToken()
@@ -64,9 +64,8 @@ func New(config *Config) (*Proxy, error) {
 		s.model.Sys = strings.TrimSpace(string(b))
 	}
 
-	s.router = router.NewWithAuth(config.ProductAuth)
-	s.init.C = make(chan struct{})
 	s.exit.C = make(chan struct{})
+	s.router = router.NewWithAuth(config.ProductAuth)
 
 	if err := s.setup(); err != nil {
 		s.Close()
@@ -108,6 +107,14 @@ func (s *Proxy) setup() error {
 		s.model.AdminAddr = x
 	}
 
+	if s.config.JodisName != "" {
+		c, err := models.NewClient(s.config.JodisName, s.config.JodisAddr, s.config.JodisTimeout)
+		if err != nil {
+			return err
+		}
+		s.xjodis = NewJodis(c, s.model, s.config.JodisCompatible != 0)
+	}
+
 	return nil
 }
 
@@ -121,11 +128,7 @@ func (s *Proxy) Start() error {
 		return nil
 	}
 	s.online = true
-	close(s.init.C)
-
-	if s.jodis == nil && s.config.JodisAddr != "" {
-		s.jodis = NewJodis(s.config.JodisAddr, s.config.JodisTimeout, s.model)
-	}
+	s.router.Start()
 	return nil
 }
 
@@ -138,8 +141,8 @@ func (s *Proxy) Close() error {
 	s.closed = true
 	close(s.exit.C)
 
-	if s.jodis != nil {
-		s.jodis.Close()
+	if s.xjodis != nil {
+		s.xjodis.Close()
 	}
 	if s.ladmin != nil {
 		s.ladmin.Close()
@@ -187,13 +190,13 @@ func (s *Proxy) Slots() []*models.Slot {
 	return s.router.GetSlots()
 }
 
-func (s *Proxy) FillSlot(i int, addr, from string, locked bool) error {
+func (s *Proxy) FillSlot(idx int, addr, from string, locked bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return ErrClosedProxy
 	}
-	return s.router.FillSlot(i, addr, from, locked)
+	return s.router.FillSlot(idx, addr, from, locked)
 }
 
 func (s *Proxy) FillSlots(slots []*models.Slot) error {
@@ -203,10 +206,10 @@ func (s *Proxy) FillSlots(slots []*models.Slot) error {
 		return ErrClosedProxy
 	}
 	for _, slot := range slots {
-		i, locked := slot.Id, slot.Locked
+		idx, locked := slot.Id, slot.Locked
 		addr := slot.BackendAddr
 		from := slot.MigrateFrom
-		if err := s.router.FillSlot(i, addr, from, locked); err != nil {
+		if err := s.router.FillSlot(idx, addr, from, locked); err != nil {
 			return err
 		}
 	}
@@ -243,17 +246,11 @@ func (s *Proxy) serveProxy() {
 	}
 	defer s.Close()
 
-	select {
-	case <-s.exit.C:
-		return
-	case <-s.init.C:
-	}
-
 	log.Warnf("[%p] proxy start service on %s", s, s.lproxy.Addr())
 
-	ch := make(chan net.Conn, 4096)
+	ch := make(chan net.Conn, 1024)
 
-	var nn = utils.MinInt(8, utils.MaxInt(4, runtime.GOMAXPROCS(0)))
+	var nn = math2.MinMaxInt(runtime.GOMAXPROCS(0), 4, 12)
 	for i := 0; i < nn; i++ {
 		go func() {
 			for c := range ch {
@@ -280,9 +277,8 @@ func (s *Proxy) serveProxy() {
 	if seconds := s.config.BackendPingPeriod; seconds > 0 {
 		go s.keepAlive(seconds)
 	}
-
-	if s.jodis != nil {
-		go s.jodis.Run()
+	if s.xjodis != nil {
+		s.xjodis.Start()
 	}
 
 	select {
@@ -312,20 +308,18 @@ func (s *Proxy) newSession(c net.Conn) {
 	x := router.NewSessionSize(c, s.config.ProductAuth,
 		s.config.SessionMaxBufSize, s.config.SessionMaxTimeout)
 	x.SetKeepAlivePeriod(s.config.SessionKeepAlivePeriod)
-	x.Start(s.router, s.config.SessionMaxPipeline)
+	x.Start(s.router, s.config.SessionMaxPipeline, s.config.MaxAliveSessions)
 }
 
 func (s *Proxy) acceptConn(l net.Listener) (net.Conn, error) {
-	var delay time.Duration
+	var delay int
 	for {
 		c, err := l.Accept()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Temporary() {
 				log.WarnErrorf(err, "[%p] proxy accept new connection failed", s)
-				delay = delay * 2
-				delay = utils.MaxDuration(delay, time.Millisecond*10)
-				delay = utils.MinDuration(delay, time.Millisecond*500)
-				time.Sleep(delay)
+				delay = math2.MinMaxInt(delay*2, 10, 500)
+				time.Sleep(time.Duration(delay) * time.Millisecond)
 				continue
 			}
 		}

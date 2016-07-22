@@ -27,6 +27,7 @@ func init() {
 func openTopom() *Topom {
 	t, err := New(newMemClient(nil), config)
 	assert.MustNoError(err)
+	assert.MustNoError(t.Start(false))
 	return t
 }
 
@@ -60,16 +61,19 @@ func TestTopomClose(x *testing.T) {
 func TestTopomExclusive(x *testing.T) {
 	store := newMemStore()
 
-	t, err := New(newMemClient(store), config)
+	t1, err := New(newMemClient(store), config)
 	assert.MustNoError(err)
+	assert.MustNoError(t1.Start(false))
 
-	defer t.Close()
+	defer t1.Close()
 
-	_, err = New(newMemClient(store), config)
-	assert.Must(err != nil)
-
-	t.Close()
-
-	_, err = New(newMemClient(store), config)
+	t2, err := New(newMemClient(store), config)
 	assert.MustNoError(err)
+	assert.Must(t2.Start(false) != nil)
+
+	t1.Close()
+
+	t3, err := New(newMemClient(store), config)
+	assert.MustNoError(err)
+	assert.MustNoError(t3.Start(false))
 }
