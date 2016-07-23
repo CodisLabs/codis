@@ -8,11 +8,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/docopt/docopt-go"
+
 	"github.com/CodisLabs/codis/pkg/topom"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
-	"github.com/docopt/docopt-go"
 )
 
 func main() {

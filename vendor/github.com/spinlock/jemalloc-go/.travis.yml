@@ -1,0 +1,15 @@
+language: go
+
+env:
+    - GO15VENDOREXPERIMENT=1
+
+os:
+    - linux
+    - osx
+
+go:
+    - 1.6.3
+    - 1.5.4
+
+script:
+    - make install

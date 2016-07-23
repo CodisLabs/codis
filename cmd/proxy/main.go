@@ -15,10 +15,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/docopt/docopt-go"
+
 	"github.com/CodisLabs/codis/pkg/proxy"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
-	"github.com/docopt/docopt-go"
 )
 
 func main() {
