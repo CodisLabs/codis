@@ -206,7 +206,7 @@ func (p *RedisPool) isRecyclable(c *RedisClient) bool {
 	if c.LastErr != nil {
 		return false
 	}
-	return p.timeout == 0 || c.LastUse.Add(p.timeout).After(time.Now())
+	return p.timeout == 0 || time.Since(c.LastUse) < p.timeout
 }
 
 func (p *RedisPool) Close() error {

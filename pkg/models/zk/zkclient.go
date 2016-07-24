@@ -115,7 +115,7 @@ func (c *Client) shell(fn func(conn *zk.Conn) error) error {
 				return err
 			}
 		}
-		if retryAt := c.dialAt.Add(time.Second); time.Now().After(retryAt) {
+		if time.Since(c.dialAt) > time.Second {
 			if err := c.reset(); err != nil {
 				log.DebugErrorf(err, "zkclient reset connection failed")
 			}
