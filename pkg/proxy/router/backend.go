@@ -106,7 +106,7 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 		}
 		defer close(tasks)
 
-		p := c.FlushPolicy(256, 1000)
+		p := c.FlushPolicy(256, time.Millisecond)
 
 		for ok {
 			if err := p.EncodeMultiBulk(r.Multi); err != nil {

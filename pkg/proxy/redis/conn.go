@@ -7,7 +7,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
 
@@ -20,7 +19,7 @@ type Conn struct {
 	ReaderTimeout time.Duration
 	WriterTimeout time.Duration
 
-	LastWrite int64
+	LastWrite time.Time
 }
 
 func DialTimeout(addr string, bufsize int, timeout time.Duration) (*Conn, error) {
@@ -74,10 +73,10 @@ func (c *Conn) SetKeepAlivePeriod(d time.Duration) error {
 	return errors.Errorf("not tcp connection")
 }
 
-func (c *Conn) FlushPolicy(maxBuffered int, maxIntervalUs int64) *FlushPolicy {
+func (c *Conn) FlushPolicy(maxBuffered int, maxInterval time.Duration) *FlushPolicy {
 	p := &FlushPolicy{Conn: c}
 	p.MaxBuffered = maxBuffered
-	p.MaxInterval = maxIntervalUs
+	p.MaxInterval = maxInterval
 	return p
 }
 
@@ -126,7 +125,7 @@ func (w *connWriter) Write(b []byte) (int, error) {
 	if err != nil {
 		err = errors.Trace(err)
 	}
-	w.LastWrite = utils.Microseconds()
+	w.LastWrite = time.Now()
 	return n, err
 }
 
@@ -144,17 +143,17 @@ type FlushPolicy struct {
 	Conn *Conn
 
 	MaxBuffered int
-	MaxInterval int64
+	MaxInterval time.Duration
 
 	nbuffered int
 }
 
 func (p *FlushPolicy) NeedFlush() bool {
 	if p.nbuffered != 0 {
-		if p.nbuffered > p.MaxBuffered {
+		if p.MaxBuffered < p.nbuffered {
 			return true
 		}
-		if d := utils.Microseconds() - p.Conn.LastWrite; d > p.MaxInterval {
+		if p.MaxInterval < time.Since(p.Conn.LastWrite) {
 			return true
 		}
 	}

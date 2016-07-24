@@ -38,9 +38,15 @@ func newConnPair() (*Conn, *Conn) {
 	return conn1, conn2
 }
 
-func BenchmarkConn128K(b *testing.B) {
+func benchmarkConn(b *testing.B, n int) {
 	for i := 0; i < b.N; i++ {
-		c := NewConnSize(&net.TCPConn{}, 128*1024)
+		c := NewConnSize(&net.TCPConn{}, n)
 		c.Close()
 	}
 }
+
+func BenchmarkConn16K(b *testing.B)  { benchmarkConn(b, 1024*16) }
+func BenchmarkConn32K(b *testing.B)  { benchmarkConn(b, 1024*32) }
+func BenchmarkConn64K(b *testing.B)  { benchmarkConn(b, 1024*64) }
+func BenchmarkConn128K(b *testing.B) { benchmarkConn(b, 1024*128) }
+func BenchmarkConn256K(b *testing.B) { benchmarkConn(b, 1024*256) }

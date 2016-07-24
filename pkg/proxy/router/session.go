@@ -190,7 +190,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 		s.flushOpStats()
 	}()
 
-	p := s.Conn.FlushPolicy(128, 1000)
+	p := s.Conn.FlushPolicy(128, time.Millisecond)
 
 	for r := range tasks {
 		resp, err := s.handleResponse(r)

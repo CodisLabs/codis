@@ -39,5 +39,8 @@ distclean: clean
 gotest: codis-deps
 	go test ./cmd/... ./pkg/...
 
+gobench: codis-deps
+	GODEBUG=gctrace=1 go test -gcflags -l -bench=. -v ./pkg/...
+
 docker:
 	docker build --force-rm -t codis-image .
