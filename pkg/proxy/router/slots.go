@@ -13,24 +13,15 @@ import (
 )
 
 type Slot struct {
-	id int
-
-	backend struct {
-		addr string
-		host []byte
-		port []byte
-		bc   *SharedBackendConn
-	}
-	migrate struct {
-		from string
-		bc   *SharedBackendConn
-	}
-
+	id   uint32
 	lock struct {
 		hold bool
 		sync.RWMutex
 	}
 	refs sync.WaitGroup
+
+	backend *SharedBackendConn
+	migrate *SharedBackendConn
 }
 
 func (s *Slot) blockAndWait() {
@@ -50,12 +41,8 @@ func (s *Slot) unblock() {
 }
 
 func (s *Slot) reset() {
-	s.backend.addr = ""
-	s.backend.host = nil
-	s.backend.port = nil
-	s.backend.bc = nil
-	s.migrate.from = ""
-	s.migrate.bc = nil
+	s.backend = nil
+	s.migrate = nil
 }
 
 func (s *Slot) forward(r *Request, key []byte) error {
@@ -76,23 +63,23 @@ var (
 )
 
 func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
-	if s.backend.bc == nil {
+	if s.backend == nil {
 		log.Warnf("slot-%04d is not ready: key = %s", s.id, key)
 		return nil, ErrSlotIsNotReady
 	}
 	if err := s.slotsmgrt(r, key); err != nil {
 		log.Warnf("slot-%04d migrate from = %s to %s failed: key = %s, error = %s",
-			s.id, s.migrate.from, s.backend.addr, key, err)
+			s.id, s.migrate.Addr(), s.backend.Addr(), key, err)
 		return nil, err
 	} else {
 		r.Group = &s.refs
 		r.Group.Add(1)
-		return s.backend.bc, nil
+		return s.backend, nil
 	}
 }
 
 func (s *Slot) slotsmgrt(r *Request, key []byte) error {
-	if len(key) == 0 || s.migrate.bc == nil {
+	if len(key) == 0 || s.migrate == nil {
 		return nil
 	}
 
@@ -107,7 +94,7 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 	}
 	m.Batch = &sync.WaitGroup{}
 
-	s.migrate.bc.PushBack(m)
+	s.migrate.PushBack(m)
 
 	m.Batch.Wait()
 
@@ -121,7 +108,7 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 		return errors.New(fmt.Sprintf("error resp: %s", resp.Value))
 	case resp.IsInt():
 		log.Debugf("slot-%04d migrate from %s to %s: key = %s, resp = %s",
-			s.id, s.migrate.from, s.backend.addr, key, resp.Value)
+			s.id, s.migrate.Addr(), s.backend.Addr(), key, resp.Value)
 		return nil
 	default:
 		return errors.New(fmt.Sprintf("error resp: should be integer, but got %s", resp.Type))

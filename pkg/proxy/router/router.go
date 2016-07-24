@@ -4,7 +4,6 @@
 package router
 
 import (
-	"net"
 	"sync"
 
 	"github.com/CodisLabs/codis/pkg/models"
@@ -34,7 +33,7 @@ func NewWithAuth(auth string) *Router {
 		pool: make(map[string]*SharedBackendConn),
 	}
 	for i := 0; i < len(s.slots); i++ {
-		s.slots[i].id = i
+		s.slots[i].id = uint32(i)
 	}
 	return s
 }
@@ -68,8 +67,8 @@ func (s *Router) GetSlots() []*models.Slot {
 		slot := &s.slots[i]
 		slots = append(slots, &models.Slot{
 			Id:          i,
-			BackendAddr: slot.backend.addr,
-			MigrateFrom: slot.migrate.from,
+			BackendAddr: slot.backend.Addr(),
+			MigrateFrom: slot.migrate.Addr(),
 			Locked:      slot.lock.hold,
 		})
 	}
@@ -118,7 +117,7 @@ func (s *Router) dispatch(r *Request) error {
 
 func (s *Router) getBackendConn(addr string) *SharedBackendConn {
 	if bc := s.pool[addr]; bc != nil {
-		return bc.IncrRefcnt()
+		return bc.Retain()
 	} else {
 		bc := NewSharedBackendConn(addr, s.auth)
 		s.pool[addr] = bc
@@ -127,7 +126,7 @@ func (s *Router) getBackendConn(addr string) *SharedBackendConn {
 }
 
 func (s *Router) putBackendConn(bc *SharedBackendConn) {
-	if bc != nil && bc.Close() {
+	if bc != nil && bc.Release() {
 		delete(s.pool, bc.Addr())
 	}
 }
@@ -136,8 +135,8 @@ func (s *Router) resetSlot(id int) {
 	slot := &s.slots[id]
 	slot.blockAndWait()
 
-	s.putBackendConn(slot.backend.bc)
-	s.putBackendConn(slot.migrate.bc)
+	s.putBackendConn(slot.backend)
+	s.putBackendConn(slot.migrate)
 	slot.reset()
 
 	slot.unblock()
@@ -147,36 +146,27 @@ func (s *Router) fillSlot(id int, addr, from string, locked bool) error {
 	slot := &s.slots[id]
 	slot.blockAndWait()
 
-	s.putBackendConn(slot.backend.bc)
-	s.putBackendConn(slot.migrate.bc)
+	s.putBackendConn(slot.backend)
+	s.putBackendConn(slot.migrate)
 	slot.reset()
 
 	if len(addr) != 0 {
-		host, port, err := net.SplitHostPort(addr)
-		if err != nil {
-			log.ErrorErrorf(err, "split host-port failed, address = %s", addr)
-		} else {
-			slot.backend.host = []byte(host)
-			slot.backend.port = []byte(port)
-		}
-		slot.backend.addr = addr
-		slot.backend.bc = s.getBackendConn(addr)
+		slot.backend = s.getBackendConn(addr)
 	}
 	if len(from) != 0 {
-		slot.migrate.from = from
-		slot.migrate.bc = s.getBackendConn(from)
+		slot.migrate = s.getBackendConn(from)
 	}
 
 	if !locked {
 		slot.unblock()
 	}
 
-	if slot.migrate.bc != nil {
+	if slot.migrate != nil {
 		log.Warnf("fill slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
-			id, slot.backend.addr, slot.migrate.from, locked)
+			id, slot.backend.Addr(), slot.migrate.Addr(), locked)
 	} else {
 		log.Warnf("fill slot %04d, backend.addr = %s, locked = %t",
-			id, slot.backend.addr, locked)
+			id, slot.backend.Addr(), locked)
 	}
 	return nil
 }

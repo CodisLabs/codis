@@ -5,6 +5,7 @@ package router
 
 import (
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -16,16 +17,26 @@ import (
 type BackendConn struct {
 	addr string
 	auth string
+	host []byte
+	port []byte
+
 	stop sync.Once
 
 	input chan *Request
 }
 
 func NewBackendConn(addr, auth string) *BackendConn {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		log.ErrorErrorf(err, "split host-port failed, address = %s", addr)
+	}
 	bc := &BackendConn{
 		addr: addr, auth: auth,
-		input: make(chan *Request, 1024),
+		host: []byte(host),
+		port: []byte(port),
 	}
+	bc.input = make(chan *Request, 1024)
+
 	go bc.Run()
 	return bc
 }
@@ -136,7 +147,7 @@ func (bc *BackendConn) newBackendReader(round int) (*redis.Conn, chan<- *Request
 		return nil, nil, err
 	}
 
-	tasks := make(chan *Request, 2048)
+	tasks := make(chan *Request, 1024)
 	go bc.loopReader(tasks, c, round)
 
 	return c, tasks, nil
@@ -193,7 +204,14 @@ func NewSharedBackendConn(addr, auth string) *SharedBackendConn {
 	return &SharedBackendConn{BackendConn: NewBackendConn(addr, auth), refcnt: 1}
 }
 
-func (s *SharedBackendConn) Close() bool {
+func (s *SharedBackendConn) Addr() string {
+	if s == nil {
+		return ""
+	}
+	return s.addr
+}
+
+func (s *SharedBackendConn) Release() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.refcnt <= 0 {
@@ -206,7 +224,7 @@ func (s *SharedBackendConn) Close() bool {
 	return s.refcnt == 0
 }
 
-func (s *SharedBackendConn) IncrRefcnt() *SharedBackendConn {
+func (s *SharedBackendConn) Retain() *SharedBackendConn {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.refcnt == 0 {
