@@ -73,14 +73,14 @@ type Decoder struct {
 var ErrFailedDecoder = errors.New("use of failed decoder")
 
 func NewDecoder(r io.Reader) *Decoder {
-	return NewDecoderWithBufReader(bufio2.NewReaderSize(r, 8192))
+	return NewDecoderBuffer(bufio2.NewReaderSize(r, 8192))
 }
 
 func NewDecoderSize(r io.Reader, size int) *Decoder {
-	return NewDecoderWithBufReader(bufio2.NewReaderSize(r, size))
+	return NewDecoderBuffer(bufio2.NewReaderSize(r, size))
 }
 
-func NewDecoderWithBufReader(br *bufio2.Reader) *Decoder {
+func NewDecoderBuffer(br *bufio2.Reader) *Decoder {
 	return &Decoder{br: br}
 }
 

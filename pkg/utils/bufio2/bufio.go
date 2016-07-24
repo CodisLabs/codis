@@ -30,6 +30,13 @@ func NewReaderSize(rd io.Reader, size int) *Reader {
 	return &Reader{rd: rd, buf: make([]byte, size)}
 }
 
+func NewReaderBuffer(rd io.Reader, buf []byte) *Reader {
+	if len(buf) == 0 {
+		buf = make([]byte, DefaultBufferSize)
+	}
+	return &Reader{rd: rd, buf: buf}
+}
+
 func (b *Reader) makeSlice(n int) (ss []byte) {
 	if n >= 512 {
 		return make([]byte, n)
@@ -190,6 +197,13 @@ func NewWriterSize(wr io.Writer, size int) *Writer {
 		size = DefaultBufferSize
 	}
 	return &Writer{wr: wr, buf: make([]byte, size)}
+}
+
+func NewWriterBuffer(wr io.Writer, buf []byte) *Writer {
+	if len(buf) == 0 {
+		buf = make([]byte, DefaultBufferSize)
+	}
+	return &Writer{wr: wr, buf: buf}
 }
 
 func (b *Writer) Flush() error {

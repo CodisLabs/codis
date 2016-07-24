@@ -52,14 +52,14 @@ type Encoder struct {
 var ErrFailedEncoder = errors.New("use of failed redis encoder")
 
 func NewEncoder(w io.Writer) *Encoder {
-	return NewEncoderWithBufWriter(bufio2.NewWriterSize(w, 8192))
+	return NewEncoderBuffer(bufio2.NewWriterSize(w, 8192))
 }
 
 func NewEncoderSize(w io.Writer, size int) *Encoder {
-	return NewEncoderWithBufWriter(bufio2.NewWriterSize(w, size))
+	return NewEncoderBuffer(bufio2.NewWriterSize(w, size))
 }
 
-func NewEncoderWithBufWriter(bw *bufio2.Writer) *Encoder {
+func NewEncoderBuffer(bw *bufio2.Writer) *Encoder {
 	return &Encoder{bw: bw}
 }
 
