@@ -6,6 +6,7 @@ package router
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"sync"
@@ -15,8 +16,23 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
+
+var maxAliveSessions atomic2.Int64
+
+func init() {
+	maxAliveSessions.Set(math.MaxInt64)
+}
+
+func MaxAliveSessions() int {
+	return int(maxAliveSessions.Get())
+}
+
+func SetMaxAliveSessions(n int) {
+	maxAliveSessions.Set(int64(math2.MaxInt(n, 0)))
+}
 
 type Session struct {
 	Conn *redis.Conn
@@ -96,10 +112,9 @@ var (
 	ErrRouterNotOnline = errors.New("router is not online")
 )
 
-func (s *Session) Start(d *Router, maxPipeline, maxSessions int) {
+func (s *Session) Start(d *Router, maxPipeline int) {
 	s.start.Do(func() {
-		total := int(incrSessions())
-		if maxSessions != 0 && total > maxSessions {
+		if int(incrSessions()) > MaxAliveSessions() {
 			go func() {
 				s.Conn.Encode(redis.NewError([]byte("ERR max number of clients reached")), true)
 				s.CloseWithError(ErrTooManySessions)

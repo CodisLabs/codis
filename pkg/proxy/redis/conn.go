@@ -7,7 +7,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/CodisLabs/codis/pkg/utils/bufio2"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/unsafe2"
 )
 
 type Conn struct {
@@ -36,8 +38,8 @@ func NewConn(sock net.Conn) *Conn {
 
 func NewConnSize(sock net.Conn, bufsize int) *Conn {
 	conn := &Conn{Sock: sock}
-	conn.Decoder = NewDecoderSize(&connReader{Conn: conn}, bufsize)
-	conn.Encoder = NewEncoderSize(&connWriter{Conn: conn}, bufsize)
+	conn.Decoder = newConnDecoder(conn, bufsize)
+	conn.Encoder = newConnEncoder(conn, bufsize)
 	return conn
 }
 
@@ -82,7 +84,15 @@ func (c *Conn) FlushPolicy(maxBuffered int, maxInterval time.Duration) *FlushPol
 
 type connReader struct {
 	*Conn
+	unsafe2.Slice
+
 	hasDeadline bool
+}
+
+func newConnDecoder(conn *Conn, bufsize int) *Decoder {
+	r := &connReader{Conn: conn}
+	r.Slice = unsafe2.MakeSlice(bufsize)
+	return NewDecoderBuffer(bufio2.NewReaderBuffer(r, r.Buffer()))
 }
 
 func (r *connReader) Read(b []byte) (int, error) {
@@ -106,7 +116,15 @@ func (r *connReader) Read(b []byte) (int, error) {
 
 type connWriter struct {
 	*Conn
+	unsafe2.Slice
+
 	hasDeadline bool
+}
+
+func newConnEncoder(conn *Conn, bufsize int) *Encoder {
+	w := &connWriter{Conn: conn}
+	w.Slice = unsafe2.MakeSlice(bufsize)
+	return NewEncoderBuffer(bufio2.NewWriterBuffer(w, w.Buffer()))
 }
 
 func (w *connWriter) Write(b []byte) (int, error) {

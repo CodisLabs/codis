@@ -9,7 +9,6 @@ import "C"
 import (
 	"reflect"
 	"runtime"
-	"sync"
 	"unsafe"
 
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
@@ -24,8 +23,6 @@ func OffheapBytes() int {
 }
 
 type jeSlice struct {
-	mu sync.Mutex
-
 	ptr unsafe.Pointer
 	buf []byte
 }
@@ -52,15 +49,10 @@ func newJeSlice(n int, force bool) Slice {
 }
 
 func (s *jeSlice) Buffer() []byte {
-	s.mu.Lock()
-	buf := s.buf
-	s.mu.Unlock()
-	return buf
+	return s.buf
 }
 
 func (s *jeSlice) reclaim() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.ptr == nil {
 		return
 	}

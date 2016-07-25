@@ -4,11 +4,11 @@
 package proxy
 
 import (
+	"math"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +20,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
+	"github.com/CodisLabs/codis/pkg/utils/unsafe2"
 )
 
 type Proxy struct {
@@ -73,6 +74,14 @@ func New(config *Config) (*Proxy, error) {
 	}
 
 	log.Warnf("[%p] create new proxy:\n%s", s, s.model.Encode())
+
+	switch n := config.MaxAliveSessions; n {
+	case 0:
+		router.SetMaxAliveSessions(math.MaxInt32)
+	default:
+		router.SetMaxAliveSessions(n)
+	}
+	unsafe2.SetMaxOffheapBytes(config.MaxOffheapMBytes * 1024 * 1024)
 
 	go s.serveAdmin()
 	go s.serveProxy()
@@ -248,29 +257,17 @@ func (s *Proxy) serveProxy() {
 
 	log.Warnf("[%p] proxy start service on %s", s, s.lproxy.Addr())
 
-	ch := make(chan net.Conn, 1024)
-
-	var nn = math2.MinMaxInt(runtime.GOMAXPROCS(0), 4, 12)
-	for i := 0; i < nn; i++ {
-		go func() {
-			for c := range ch {
-				s.newSession(c)
-			}
-		}()
-	}
-
 	eh := make(chan error, 1)
 	go func(l net.Listener) (err error) {
 		defer func() {
 			eh <- err
-			close(ch)
 		}()
 		for {
 			c, err := s.acceptConn(l)
 			if err != nil {
 				return err
 			}
-			ch <- c
+			s.newSession(c)
 		}
 	}(s.lproxy)
 
@@ -308,7 +305,7 @@ func (s *Proxy) newSession(c net.Conn) {
 	x := router.NewSessionSize(c, s.config.ProductAuth,
 		s.config.SessionMaxBufSize, s.config.SessionMaxTimeout)
 	x.SetKeepAlivePeriod(s.config.SessionKeepAlivePeriod)
-	x.Start(s.router, s.config.SessionMaxPipeline, s.config.MaxAliveSessions)
+	x.Start(s.router, s.config.SessionMaxPipeline)
 }
 
 func (s *Proxy) acceptConn(l net.Listener) (net.Conn, error) {
