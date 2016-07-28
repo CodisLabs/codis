@@ -4,7 +4,6 @@
 package proxy
 
 import (
-	"math"
 	"net"
 	"net/http"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
+	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -35,12 +35,13 @@ type Proxy struct {
 	online bool
 	closed bool
 
+	config *Config
+	router *Router
+	ignore []byte
+
 	lproxy net.Listener
 	ladmin net.Listener
 	xjodis *Jodis
-
-	config *Config
-	router *Router
 }
 
 var ErrClosedProxy = errors.New("use of closed proxy")
@@ -63,24 +64,19 @@ func New(config *Config) (*Proxy, error) {
 	} else {
 		s.model.Sys = strings.TrimSpace(string(b))
 	}
-
 	s.exit.C = make(chan struct{})
-	s.router = NewRouter(config.ProductAuth)
 
-	if err := s.setup(); err != nil {
+	s.router = NewRouter(config)
+	s.ignore = make([]byte, config.ProxyHeapPlaceholder.Int())
+
+	if err := s.setup(config); err != nil {
 		s.Close()
 		return nil, err
 	}
 
 	log.Warnf("[%p] create new proxy:\n%s", s, s.model.Encode())
 
-	switch n := config.MaxAliveSessions; n {
-	case 0:
-		SetMaxAliveSessions(math.MaxInt32)
-	default:
-		SetMaxAliveSessions(n)
-	}
-	unsafe2.SetMaxOffheapBytes(config.MaxOffheapMBytes * 1024 * 1024)
+	unsafe2.SetMaxOffheapBytes(config.ProxyMaxOffheapBytes.Int())
 
 	go s.serveAdmin()
 	go s.serveProxy()
@@ -88,14 +84,14 @@ func New(config *Config) (*Proxy, error) {
 	return s, nil
 }
 
-func (s *Proxy) setup() error {
-	proto := s.config.ProtoType
-	if l, err := net.Listen(proto, s.config.ProxyAddr); err != nil {
+func (s *Proxy) setup(config *Config) error {
+	proto := config.ProtoType
+	if l, err := net.Listen(proto, config.ProxyAddr); err != nil {
 		return errors.Trace(err)
 	} else {
 		s.lproxy = l
 
-		x, err := utils.ResolveAddr(proto, l.Addr().String(), s.config.HostProxy)
+		x, err := utils.ResolveAddr(proto, l.Addr().String(), config.HostProxy)
 		if err != nil {
 			return err
 		}
@@ -103,24 +99,25 @@ func (s *Proxy) setup() error {
 		s.model.ProxyAddr = x
 	}
 
-	if l, err := net.Listen("tcp", s.config.AdminAddr); err != nil {
+	proto = "tcp"
+	if l, err := net.Listen(proto, config.AdminAddr); err != nil {
 		return errors.Trace(err)
 	} else {
 		s.ladmin = l
 
-		x, err := utils.ResolveAddr("tcp", l.Addr().String(), s.config.HostAdmin)
+		x, err := utils.ResolveAddr(proto, l.Addr().String(), config.HostAdmin)
 		if err != nil {
 			return err
 		}
 		s.model.AdminAddr = x
 	}
 
-	if s.config.JodisName != "" {
-		c, err := models.NewClient(s.config.JodisName, s.config.JodisAddr, s.config.JodisTimeout)
+	if config.JodisName != "" {
+		c, err := models.NewClient(config.JodisName, config.JodisAddr, config.JodisTimeout.Get())
 		if err != nil {
 			return err
 		}
-		s.xjodis = NewJodis(c, s.model, s.config.JodisCompatible != 0)
+		s.xjodis = NewJodis(c, s.model, config.JodisCompatible)
 	}
 
 	return nil
@@ -266,12 +263,12 @@ func (s *Proxy) serveProxy() {
 			if err != nil {
 				return err
 			}
-			s.newSession(c)
+			s.newSession(c, s.config).Start(s.router, s.config)
 		}
 	}(s.lproxy)
 
-	if seconds := s.config.BackendPingPeriod; seconds > 0 {
-		go s.keepAlive(seconds)
+	if d := s.config.BackendPingPeriod; d != 0 {
+		go s.keepAlive(d.Get())
 	}
 	if s.xjodis != nil {
 		s.xjodis.Start()
@@ -285,26 +282,28 @@ func (s *Proxy) serveProxy() {
 	}
 }
 
-func (s *Proxy) keepAlive(seconds int) {
-	var ticker = time.NewTicker(time.Second)
+func (s *Proxy) keepAlive(d time.Duration) {
+	var ticker = time.NewTicker(math2.MaxDuration(d, time.Second))
 	defer ticker.Stop()
 	for {
-		for i := 0; i < seconds; i++ {
-			select {
-			case <-s.exit.C:
-				return
-			case <-ticker.C:
-			}
+		select {
+		case <-s.exit.C:
+			return
+		case <-ticker.C:
+			s.router.KeepAlive()
 		}
-		s.router.KeepAlive()
 	}
 }
 
-func (s *Proxy) newSession(c net.Conn) {
-	x := NewSessionSize(c, s.config.ProductAuth,
-		s.config.SessionMaxBufSize, s.config.SessionMaxTimeout)
-	x.SetKeepAlivePeriod(s.config.SessionKeepAlivePeriod)
-	x.Start(s.router, s.config.SessionMaxPipeline)
+func (s *Proxy) newSession(sock net.Conn, config *Config) *Session {
+	c := redis.NewConn(sock,
+		config.SessionRecvBufsize.Int(),
+		config.SessionSendBufsize.Int(),
+	)
+	c.ReaderTimeout = config.SessionRecvTimeout.Get()
+	c.WriterTimeout = config.SessionSendTimeout.Get()
+	c.SetKeepAlivePeriod(config.SessionKeepAlivePeriod.Get())
+	return NewSession(c, config.ProductAuth)
 }
 
 func (s *Proxy) acceptConn(l net.Listener) (net.Conn, error) {

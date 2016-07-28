@@ -8,8 +8,10 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/CodisLabs/codis/pkg/utils/bytesize"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/timesize"
 )
 
 const DefaultConfig = `
@@ -33,30 +35,50 @@ proxy_addr = "0.0.0.0:19000"
 # Set jodis address & session timeout, only accept "zookeeper" & "etcd".
 jodis_name = ""
 jodis_addr = ""
-jodis_timeout = 20
-jodis_compatible = 0
+jodis_timeout = "20s"
+jodis_compatible = false
 
-# Proxy will ping-pong backend redis periodly to keep-alive
-backend_ping_period = 5
+# Set max number of alive sessions.
+proxy_max_clients = 1000
 
-# If there is no request from client for a long time, the connection will be droped. Set 0 to disable.
-session_max_timeout = 1800
+# Set max offheap memory size. (0 to disable)
+proxy_max_offheap_size = "1024mb"
 
-# Buffer size for each client connection.
-session_max_bufsize = 131072
+# Set heap placeholder to reduce GC frequency.
+proxy_heap_placeholder = "256mb"
 
-# Number of buffered requests for each client connection.
+# Proxy will ping backend redis in a predefined interval. (0 to disable)
+backend_ping_period = "5s"
+
+# Set backend recv buffer size & timeout.
+backend_recv_bufsize = "128kb"
+backend_recv_timeout = "50s"
+
+# Set backend send buffer & timeout.
+backend_send_bufsize = "128kb"
+backend_send_timeout = "50s"
+
+# Set backend pipeline buffer size.
+backend_max_pipeline = 1024
+
+# Set backend tcp keepalive period. (0 to disable)
+backend_keepalive_period = "75s"
+
+# If there is no request from client for a long time, the connection will be closed. (0 to disable)
+# Set session recv buffer size & timeout.
+session_recv_bufsize = "128kb"
+session_recv_timeout = "30m"
+
+# Set session send buffer size & timeout.
+session_send_bufsize = "64kb"
+session_send_timeout = "30s"
+
 # Make sure this is higher than the max number of requests for each pipeline request, or your client may be blocked.
-session_max_pipeline = 1024
+# Set session pipeline buffer size.
+session_max_pipeline = 512
 
-# Set period between keep alives. Set 0 to disable.
-session_keepalive_period = 60
-
-# Set max number of alive sessions. Set 0 to unlimited number (2147483647).
-max_alive_sessions = 1000
-
-# Set max offheap memory size (MB). Set 0 to disable.
-max_offheap_mbytes = 1024
+# Set session tcp keepalive period. (0 to disable)
+session_keepalive_period = "75s"
 `
 
 type Config struct {
@@ -67,22 +89,32 @@ type Config struct {
 	HostProxy string `toml:"-" json:"-"`
 	HostAdmin string `toml:"-" json:"-"`
 
-	JodisName       string `toml:"jodis_name" json:"jodis_name"`
-	JodisAddr       string `toml:"jodis_addr" json:"jodis_addr"`
-	JodisTimeout    int    `toml:"jodis_timeout" json:"jodis_timeout"`
-	JodisCompatible int    `toml:"jodis_compatible" json:"jodis_compatible"`
+	JodisName       string            `toml:"jodis_name" json:"jodis_name"`
+	JodisAddr       string            `toml:"jodis_addr" json:"jodis_addr"`
+	JodisTimeout    timesize.Duration `toml:"jodis_timeout" json:"jodis_timeout"`
+	JodisCompatible bool              `toml:"jodis_compatible" json:"jodis_compatible"`
 
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
 
-	BackendPingPeriod      int `toml:"backend_ping_period" json:"backend_ping_period"`
-	SessionMaxTimeout      int `toml:"session_max_timeout" json:"session_max_timeout"`
-	SessionMaxBufSize      int `toml:"session_max_bufsize" json:"session_max_bufsize"`
-	SessionMaxPipeline     int `toml:"session_max_pipeline" json:"session_max_pipeline"`
-	SessionKeepAlivePeriod int `toml:"session_keepalive_period" json:"session_keepalive_period"`
+	ProxyMaxClients      int            `toml:"proxy_max_clients" json:"proxy_max_clients"`
+	ProxyMaxOffheapBytes bytesize.Int64 `toml:"proxy_max_offheap_size" json:"proxy_max_offheap_size"`
+	ProxyHeapPlaceholder bytesize.Int64 `toml:"proxy_heap_placeholder" json:"proxy_heap_placeholder"`
 
-	MaxAliveSessions int `toml:"max_alive_sessions" json:"max_alive_sessions"`
-	MaxOffheapMBytes int `toml:"max_offheap_mbytes" json:"max_offheap_mbytes"`
+	BackendPingPeriod      timesize.Duration `toml:"backend_ping_period" json:"backend_ping_period"`
+	BackendRecvBufsize     bytesize.Int64    `toml:"backend_recv_bufsize" json:"backend_recv_bufsize"`
+	BackendRecvTimeout     timesize.Duration `toml:"backend_recv_timeout" json:"backend_recv_timeout"`
+	BackendSendBufsize     bytesize.Int64    `toml:"backend_send_bufsize" json:"backend_send_bufsize"`
+	BackendSendTimeout     timesize.Duration `toml:"backend_send_timeout" json:"backend_send_timeout"`
+	BackendMaxPipeline     int               `toml:"backend_max_pipeline" json:"backend_max_pipeline"`
+	BackendKeepAlivePeriod timesize.Duration `toml:"backend_keepalive_period" json:"backend_keepalive_period"`
+
+	SessionRecvBufsize     bytesize.Int64    `toml:"session_recv_bufsize" json:"session_recv_bufsize"`
+	SessionRecvTimeout     timesize.Duration `toml:"session_recv_timeout" json:"session_recv_timeout"`
+	SessionSendBufsize     bytesize.Int64    `toml:"session_send_bufsize" json:"session_send_bufsize"`
+	SessionSendTimeout     timesize.Duration `toml:"session_send_timeout" json:"session_send_timeout"`
+	SessionMaxPipeline     int               `toml:"session_max_pipeline" json:"session_max_pipeline"`
+	SessionKeepAlivePeriod timesize.Duration `toml:"session_keepalive_period" json:"session_keepalive_period"`
 }
 
 func NewDefaultConfig() *Config {

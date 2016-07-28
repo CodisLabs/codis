@@ -29,8 +29,7 @@ type Client interface {
 
 var ErrUnknownCoordinator = errors.New("unknown coordinator")
 
-func NewClient(coordinator string, addrlist string, seconds int) (Client, error) {
-	timeout := time.Second * time.Duration(seconds)
+func NewClient(coordinator string, addrlist string, timeout time.Duration) (Client, error) {
 	switch coordinator {
 	case "zk", "zookeeper":
 		return zkclient.New(addrlist, timeout)

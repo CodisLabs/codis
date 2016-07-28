@@ -16,25 +16,25 @@ import (
 
 type BackendConn struct {
 	addr string
-	auth string
 	host []byte
 	port []byte
-
 	stop sync.Once
 
-	input chan *Request
+	input  chan *Request
+	config *Config
 }
 
-func NewBackendConn(addr, auth string) *BackendConn {
+func NewBackendConn(addr string, config *Config) *BackendConn {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		log.ErrorErrorf(err, "split host-port failed, address = %s", addr)
 	}
 	bc := &BackendConn{
-		addr: addr, auth: auth,
+		addr: addr,
 		host: []byte(host),
 		port: []byte(port),
 	}
+	bc.config = config
 	bc.input = make(chan *Request, 1024)
 
 	go bc.Run()
@@ -111,7 +111,7 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 	}()
 	r, ok := <-bc.input
 	if ok {
-		c, tasks, err := bc.newBackendReader(round)
+		c, tasks, err := bc.newBackendReader(round, bc.config)
 		if err != nil {
 			return bc.setResponse(r, nil, err)
 		}
@@ -134,33 +134,36 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 	return nil
 }
 
-func (bc *BackendConn) newBackendReader(round int) (*redis.Conn, chan<- *Request, error) {
-	c, err := redis.DialTimeout(bc.addr, 1024*128, time.Second*5)
+func (bc *BackendConn) newBackendReader(round int, config *Config) (*redis.Conn, chan<- *Request, error) {
+	c, err := redis.DialTimeout(bc.addr, time.Second*10,
+		config.BackendRecvBufsize.Int(),
+		config.BackendSendBufsize.Int())
 	if err != nil {
 		return nil, nil, err
 	}
-	c.ReaderTimeout = time.Minute
-	c.WriterTimeout = time.Minute
+	c.ReaderTimeout = config.BackendRecvTimeout.Get()
+	c.WriterTimeout = config.BackendSendTimeout.Get()
+	c.SetKeepAlivePeriod(config.BackendKeepAlivePeriod.Get())
 
-	if err := bc.verifyAuth(c); err != nil {
+	if err := bc.verifyAuth(c, config.ProductAuth); err != nil {
 		c.Close()
 		return nil, nil, err
 	}
 
-	tasks := make(chan *Request, 1024)
+	tasks := make(chan *Request, config.BackendMaxPipeline)
 	go bc.loopReader(tasks, c, round)
 
 	return c, tasks, nil
 }
 
-func (bc *BackendConn) verifyAuth(c *redis.Conn) error {
-	if bc.auth == "" {
+func (bc *BackendConn) verifyAuth(c *redis.Conn, auth string) error {
+	if auth == "" {
 		return nil
 	}
 
 	multi := []*redis.Resp{
 		redis.NewBulkBytes([]byte("AUTH")),
-		redis.NewBulkBytes([]byte(bc.auth)),
+		redis.NewBulkBytes([]byte(auth)),
 	}
 
 	if err := c.EncodeMultiBulk(multi, true); err != nil {
@@ -200,8 +203,10 @@ type SharedBackendConn struct {
 	refcnt int
 }
 
-func NewSharedBackendConn(addr, auth string) *SharedBackendConn {
-	return &SharedBackendConn{BackendConn: NewBackendConn(addr, auth), refcnt: 1}
+func NewSharedBackendConn(addr string, config *Config) *SharedBackendConn {
+	s := &SharedBackendConn{refcnt: 1}
+	s.BackendConn = NewBackendConn(addr, config)
+	return s
 }
 
 func (s *SharedBackendConn) Addr() string {

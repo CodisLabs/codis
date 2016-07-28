@@ -1,9 +1,6 @@
 package unsafe2
 
-import (
-	"github.com/CodisLabs/codis/pkg/utils/math2"
-	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
-)
+import "github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 
 type Slice interface {
 	Buffer() []byte
@@ -17,7 +14,7 @@ func MaxOffheapBytes() int {
 }
 
 func SetMaxOffheapBytes(n int) {
-	maxOffheapBytes.Set(int64(math2.MaxInt(n, 0)))
+	maxOffheapBytes.Set(int64(n))
 }
 
 const MinOffheapSlice = 1024 * 16

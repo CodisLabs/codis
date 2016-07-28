@@ -24,22 +24,18 @@ type Conn struct {
 	LastWrite time.Time
 }
 
-func DialTimeout(addr string, bufsize int, timeout time.Duration) (*Conn, error) {
+func DialTimeout(addr string, timeout time.Duration, rbuf, wbuf int) (*Conn, error) {
 	c, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	return NewConnSize(c, bufsize), nil
+	return NewConn(c, rbuf, wbuf), nil
 }
 
-func NewConn(sock net.Conn) *Conn {
-	return NewConnSize(sock, 8192)
-}
-
-func NewConnSize(sock net.Conn, bufsize int) *Conn {
+func NewConn(sock net.Conn, rbuf, wbuf int) *Conn {
 	conn := &Conn{Sock: sock}
-	conn.Decoder = newConnDecoder(conn, bufsize)
-	conn.Encoder = newConnEncoder(conn, bufsize)
+	conn.Decoder = newConnDecoder(conn, rbuf)
+	conn.Encoder = newConnEncoder(conn, wbuf)
 	return conn
 }
 
@@ -55,24 +51,18 @@ func (c *Conn) Close() error {
 	return c.Sock.Close()
 }
 
-func (c *Conn) SetKeepAlive(keepalive bool) error {
-	if t, ok := c.Sock.(*net.TCPConn); ok {
-		if err := t.SetKeepAlive(keepalive); err != nil {
-			return errors.Trace(err)
-		}
-		return nil
-	}
-	return errors.Errorf("not tcp connection")
-}
-
 func (c *Conn) SetKeepAlivePeriod(d time.Duration) error {
 	if t, ok := c.Sock.(*net.TCPConn); ok {
-		if err := t.SetKeepAlivePeriod(d); err != nil {
+		if err := t.SetKeepAlive(d != 0); err != nil {
 			return errors.Trace(err)
 		}
-		return nil
+		if d != 0 {
+			if err := t.SetKeepAlivePeriod(d); err != nil {
+				return errors.Trace(err)
+			}
+		}
 	}
-	return errors.Errorf("not tcp connection")
+	return nil
 }
 
 func (c *Conn) FlushPolicy(maxBuffered int, maxInterval time.Duration) *FlushPolicy {

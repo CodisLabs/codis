@@ -22,7 +22,7 @@ func TestBackend(t *testing.T) {
 	addr := l.Addr().String()
 	reqc := make(chan *Request, 16384)
 	go func() {
-		bc := NewBackendConn(addr, "")
+		bc := NewBackendConn(addr, NewDefaultConfig())
 		defer bc.Close()
 		defer close(reqc)
 		var multi = []*redis.Resp{redis.NewBulkBytes(make([]byte, 4096))}
@@ -35,11 +35,13 @@ func TestBackend(t *testing.T) {
 		}
 	}()
 
+	const bufsize = 8192
+
 	go func() {
 		c, err := l.Accept()
 		assert.MustNoError(err)
 		defer c.Close()
-		conn := redis.NewConn(c)
+		conn := redis.NewConn(c, bufsize, bufsize)
 		time.Sleep(time.Millisecond * 300)
 		for i := 0; i < cap(reqc); i++ {
 			_, err := conn.Decode()

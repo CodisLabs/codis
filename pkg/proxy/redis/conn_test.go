@@ -27,11 +27,13 @@ func newConnPair() (*Conn, *Conn) {
 			if err != nil {
 				return
 			}
-			cc <- NewConnSize(c, bufsize)
+			cc <- NewConn(c, bufsize, bufsize)
 		}
 	}()
 
-	conn1, err := DialTimeout(l.Addr().String(), bufsize, time.Millisecond*50)
+	const timeout = time.Millisecond * 50
+
+	conn1, err := DialTimeout(l.Addr().String(), timeout, bufsize, bufsize)
 	assert.MustNoError(err)
 
 	conn2, ok := <-cc
@@ -42,7 +44,7 @@ func newConnPair() (*Conn, *Conn) {
 func benchmarkConn(b *testing.B, n int) {
 	unsafe2.SetMaxOffheapBytes(0)
 	for i := 0; i < b.N; i++ {
-		c := NewConnSize(&net.TCPConn{}, n)
+		c := NewConn(&net.TCPConn{}, n, n)
 		c.Close()
 	}
 }
@@ -50,7 +52,7 @@ func benchmarkConn(b *testing.B, n int) {
 func benchmarkConnOffheap(b *testing.B, n int) {
 	unsafe2.SetMaxOffheapBytes(1024 * 1024 * 512)
 	for i := 0; i < b.N; i++ {
-		c := NewConnSize(&net.TCPConn{}, n)
+		c := NewConn(&net.TCPConn{}, n, n)
 		c.Close()
 	}
 }

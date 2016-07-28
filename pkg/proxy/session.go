@@ -6,8 +6,6 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
-	"math"
-	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -16,23 +14,8 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
-	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
-
-var maxAliveSessions atomic2.Int64
-
-func init() {
-	maxAliveSessions.Set(math.MaxInt64)
-}
-
-func MaxAliveSessions() int {
-	return int(maxAliveSessions.Get())
-}
-
-func SetMaxAliveSessions(n int) {
-	maxAliveSessions.Set(int64(math2.MaxInt(n, 0)))
-}
 
 type Session struct {
 	Conn *redis.Conn
@@ -72,28 +55,14 @@ func (s *Session) String() string {
 	return string(b)
 }
 
-func NewSession(c net.Conn, auth string) *Session {
-	return NewSessionSize(c, auth, 1024*32, 1800)
-}
-
-func NewSessionSize(c net.Conn, auth string, bufsize int, seconds int) *Session {
-	s := &Session{CreateUnix: time.Now().Unix(), auth: auth}
-	s.Conn = redis.NewConnSize(c, bufsize)
-	s.Conn.ReaderTimeout = time.Second * time.Duration(seconds)
-	s.Conn.WriterTimeout = time.Second * 30
+func NewSession(conn *redis.Conn, auth string) *Session {
+	s := &Session{
+		Conn: conn, auth: auth,
+		CreateUnix: time.Now().Unix(),
+	}
 	s.stats.opmap = make(map[string]*opStats, 16)
 	log.Infof("session [%p] create: %s", s, s)
 	return s
-}
-
-func (s *Session) SetKeepAlivePeriod(period int) error {
-	if period == 0 {
-		return nil
-	}
-	if err := s.Conn.SetKeepAlive(true); err != nil {
-		return err
-	}
-	return s.Conn.SetKeepAlivePeriod(time.Second * time.Duration(period))
 }
 
 func (s *Session) CloseWithError(err error) {
@@ -112,9 +81,9 @@ var (
 	ErrRouterNotOnline = errors.New("router is not online")
 )
 
-func (s *Session) Start(d *Router, maxPipeline int) {
+func (s *Session) Start(d *Router, config *Config) {
 	s.start.Do(func() {
-		if int(incrSessions()) > MaxAliveSessions() {
+		if int(incrSessions()) > config.ProxyMaxClients {
 			go func() {
 				s.Conn.Encode(redis.NewError([]byte("ERR max number of clients reached")), true)
 				s.CloseWithError(ErrTooManySessions)
@@ -132,7 +101,7 @@ func (s *Session) Start(d *Router, maxPipeline int) {
 			return
 		}
 
-		tasks := make(chan *Request, maxPipeline)
+		tasks := make(chan *Request, config.SessionMaxPipeline)
 		var ch = make(chan struct{})
 
 		go func() {

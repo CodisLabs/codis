@@ -14,20 +14,18 @@ import (
 type Router struct {
 	mu sync.Mutex
 
-	auth string
 	pool map[string]*SharedBackendConn
 
 	slots [models.MaxSlotNum]Slot
 
+	config *Config
 	online bool
 	closed bool
 }
 
-func NewRouter(auth string) *Router {
-	s := &Router{
-		auth: auth,
-		pool: make(map[string]*SharedBackendConn),
-	}
+func NewRouter(config *Config) *Router {
+	s := &Router{config: config}
+	s.pool = make(map[string]*SharedBackendConn)
 	for i := 0; i < len(s.slots); i++ {
 		s.slots[i].id = uint32(i)
 	}
@@ -115,7 +113,7 @@ func (s *Router) getBackendConn(addr string) *SharedBackendConn {
 	if bc := s.pool[addr]; bc != nil {
 		return bc.Retain()
 	} else {
-		bc := NewSharedBackendConn(addr, s.auth)
+		bc := NewSharedBackendConn(addr, s.config)
 		s.pool[addr] = bc
 		return bc
 	}
