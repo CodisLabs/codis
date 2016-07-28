@@ -32,6 +32,7 @@ type Session struct {
 	stats struct {
 		opmap map[string]*opStats
 		total atomic2.Int64
+		flush uint
 	}
 	start sync.Once
 
@@ -449,6 +450,10 @@ func (s *Session) flushOpStats() {
 		if n := e.calls.Swap(0); n != 0 {
 			incrOpStats(e.opstr, n, e.usecs.Swap(0))
 		}
-		delete(s.stats.opmap, e.opstr)
 	}
+	s.stats.flush++
+	if (s.stats.flush & 0x4000) != 0 {
+		return
+	}
+	s.stats.opmap = make(map[string]*opStats, 16)
 }
