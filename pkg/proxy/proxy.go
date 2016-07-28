@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/proxy/router"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -41,7 +40,7 @@ type Proxy struct {
 	xjodis *Jodis
 
 	config *Config
-	router *router.Router
+	router *Router
 }
 
 var ErrClosedProxy = errors.New("use of closed proxy")
@@ -66,7 +65,7 @@ func New(config *Config) (*Proxy, error) {
 	}
 
 	s.exit.C = make(chan struct{})
-	s.router = router.NewWithAuth(config.ProductAuth)
+	s.router = NewRouter(config.ProductAuth)
 
 	if err := s.setup(); err != nil {
 		s.Close()
@@ -77,9 +76,9 @@ func New(config *Config) (*Proxy, error) {
 
 	switch n := config.MaxAliveSessions; n {
 	case 0:
-		router.SetMaxAliveSessions(math.MaxInt32)
+		SetMaxAliveSessions(math.MaxInt32)
 	default:
-		router.SetMaxAliveSessions(n)
+		SetMaxAliveSessions(n)
 	}
 	unsafe2.SetMaxOffheapBytes(config.MaxOffheapMBytes * 1024 * 1024)
 
@@ -302,7 +301,7 @@ func (s *Proxy) keepAlive(seconds int) {
 }
 
 func (s *Proxy) newSession(c net.Conn) {
-	x := router.NewSessionSize(c, s.config.ProductAuth,
+	x := NewSessionSize(c, s.config.ProductAuth,
 		s.config.SessionMaxBufSize, s.config.SessionMaxTimeout)
 	x.SetKeepAlivePeriod(s.config.SessionKeepAlivePeriod)
 	x.Start(s.router, s.config.SessionMaxPipeline)

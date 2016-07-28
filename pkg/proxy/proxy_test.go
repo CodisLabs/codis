@@ -1,13 +1,12 @@
 // Copyright 2016 CodisLabs. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package proxy_test
+package proxy
 
 import (
 	"testing"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/proxy"
 	"github.com/CodisLabs/codis/pkg/utils/assert"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 )
@@ -18,15 +17,15 @@ func init() {
 	log.SetLevel(log.LevelError)
 }
 
-func newProxyConfig() *proxy.Config {
-	config := proxy.NewDefaultConfig()
+func newProxyConfig() *Config {
+	config := NewDefaultConfig()
 	config.ProxyAddr = "0.0.0.0:0"
 	config.AdminAddr = "0.0.0.0:0"
 	return config
 }
 
-func openProxy() (*proxy.Proxy, string) {
-	s, err := proxy.New(config)
+func openProxy() (*Proxy, string) {
+	s, err := New(config)
 	assert.MustNoError(err)
 	return s, s.Model().AdminAddr
 }
@@ -35,7 +34,7 @@ func TestModel(x *testing.T) {
 	s, addr := openProxy()
 	defer s.Close()
 
-	var c = proxy.NewApiClient(addr)
+	var c = NewApiClient(addr)
 
 	p, err := c.Model()
 	assert.MustNoError(err)
@@ -47,7 +46,7 @@ func TestStats(x *testing.T) {
 	s, addr := openProxy()
 	defer s.Close()
 
-	var c = proxy.NewApiClient(addr)
+	var c = NewApiClient(addr)
 
 	c.SetXAuth(config.ProductName, config.ProductAuth, "")
 	_, err1 := c.Stats()
@@ -58,7 +57,7 @@ func TestStats(x *testing.T) {
 	assert.MustNoError(err2)
 }
 
-func verifySlots(c *proxy.ApiClient, expect map[int]*models.Slot) {
+func verifySlots(c *ApiClient, expect map[int]*models.Slot) {
 	slots, err := c.Slots()
 	assert.MustNoError(err)
 
@@ -78,7 +77,7 @@ func TestFillSlot(x *testing.T) {
 	s, addr := openProxy()
 	defer s.Close()
 
-	var c = proxy.NewApiClient(addr)
+	var c = NewApiClient(addr)
 	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
 
 	expect := make(map[int]*models.Slot)
@@ -113,7 +112,7 @@ func TestStartAndShutdown(x *testing.T) {
 	s, addr := openProxy()
 	defer s.Close()
 
-	var c = proxy.NewApiClient(addr)
+	var c = NewApiClient(addr)
 	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
 
 	expect := make(map[int]*models.Slot)

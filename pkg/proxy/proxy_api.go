@@ -15,7 +15,6 @@ import (
 	"github.com/martini-contrib/render"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/proxy/router"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -105,10 +104,10 @@ type Stats struct {
 	Closed bool `json:"closed"`
 
 	Ops struct {
-		Total int64             `json:"total"`
-		Fails int64             `json:"fails"`
-		Qps   int64             `json:"qps"`
-		Cmd   []*router.OpStats `json:"cmd,omitempty"`
+		Total int64      `json:"total"`
+		Fails int64      `json:"fails"`
+		Qps   int64      `json:"qps"`
+		Cmd   []*OpStats `json:"cmd,omitempty"`
 	} `json:"ops"`
 
 	Sessions struct {
@@ -133,13 +132,13 @@ func (s *apiServer) NewStats() *Stats {
 	stats.Online = s.proxy.IsOnline()
 	stats.Closed = s.proxy.IsClosed()
 
-	stats.Ops.Total = router.OpTotal()
-	stats.Ops.Fails = router.OpFails()
-	stats.Ops.Qps = router.OpQps()
-	stats.Ops.Cmd = router.GetOpStatsAll()
+	stats.Ops.Total = OpTotal()
+	stats.Ops.Fails = OpFails()
+	stats.Ops.Qps = OpQps()
+	stats.Ops.Cmd = GetOpStatsAll()
 
-	stats.Sessions.Total = router.SessionsTotal()
-	stats.Sessions.Alive = router.SessionsAlive()
+	stats.Sessions.Total = SessionsTotal()
+	stats.Sessions.Alive = SessionsAlive()
 	return stats
 }
 

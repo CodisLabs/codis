@@ -1,7 +1,7 @@
 // Copyright 2016 CodisLabs. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package router
+package proxy
 
 import (
 	"sync"
@@ -23,11 +23,7 @@ type Router struct {
 	closed bool
 }
 
-func New() *Router {
-	return NewWithAuth("")
-}
-
-func NewWithAuth(auth string) *Router {
+func NewRouter(auth string) *Router {
 	s := &Router{
 		auth: auth,
 		pool: make(map[string]*SharedBackendConn),
