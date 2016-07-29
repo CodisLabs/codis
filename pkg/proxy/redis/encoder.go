@@ -49,7 +49,7 @@ type Encoder struct {
 	Err error
 }
 
-var ErrFailedEncoder = errors.New("use of failed redis encoder")
+var ErrFailedEncoder = errors.New("use of failed encoder")
 
 func NewEncoder(w io.Writer) *Encoder {
 	return NewEncoderBuffer(bufio2.NewWriterSize(w, 8192))
