@@ -27,48 +27,201 @@ func init() {
 	}
 }
 
-var (
-	blackList = make(map[string]bool, 256)
-	fastOpStr = make(map[string]string, 512)
-)
+type OpFlag uint32
 
-func init() {
-	for _, s := range []string{
-		"KEYS", "MOVE", "OBJECT", "RENAME", "RENAMENX", "SCAN", "BITOP", "MSETNX", "MIGRATE", "RESTORE",
-		"BLPOP", "BRPOP", "BRPOPLPUSH", "PSUBSCRIBE", "PUBLISH", "PUNSUBSCRIBE", "SUBSCRIBE", "RANDOMKEY",
-		"UNSUBSCRIBE", "DISCARD", "EXEC", "MULTI", "UNWATCH", "WATCH", "SCRIPT",
-		"BGREWRITEAOF", "BGSAVE", "CLIENT", "CONFIG", "DBSIZE", "DEBUG", "FLUSHALL", "FLUSHDB",
-		"LASTSAVE", "MONITOR", "SAVE", "SHUTDOWN", "SLAVEOF", "SLOWLOG", "SYNC", "TIME",
-		"SLOTSINFO", "SLOTSDEL", "SLOTSMGRTSLOT", "SLOTSMGRTONE", "SLOTSMGRTTAGSLOT", "SLOTSMGRTTAGONE", "SLOTSCHECK",
-	} {
-		blackList[s] = true
-	}
-	for _, s := range []string{
-		"GET", "SET", "SETNX", "SETEX", "PSETEX", "APPEND", "STRLEN", "DEL", "EXISTS", "SETBIT", "GETBIT",
-		"SETRANGE", "GETRANGE", "SUBSTR", "INCR", "DECR", "MGET", "RPUSH", "LPUSH", "RPUSHX", "LPUSHX", "LINSERT",
-		"RPOP", "LPOP", "BRPOP", "BRPOPLPUSH", "BLPOP", "LLEN", "LINDEX", "LSET", "LRANGE", "LTRIM", "LREM",
-		"RPOPLPUSH", "SADD", "SREM", "SMOVE", "SISMEMBER", "SCARD", "SPOP", "SRANDMEMBER", "SINTER", "SINTERSTORE",
-		"SUNION", "SUNIONSTORE", "SDIFF", "SDIFFSTORE", "SMEMBERS", "SSCAN", "ZADD", "ZINCRBY", "ZREM",
-		"ZREMRANGEBYSCORE", "ZREMRANGEBYRANK", "ZREMRANGEBYLEX", "ZUNIONSTORE", "ZINTERSTORE", "ZRANGE",
-		"ZRANGEBYSCORE", "ZREVRANGEBYSCORE", "ZRANGEBYLEX", "ZREVRANGEBYLEX", "ZCOUNT", "ZLEXCOUNT", "ZREVRANGE",
-		"ZCARD", "ZSCORE", "ZRANK", "ZREVRANK", "ZSCAN", "HSET", "HSETNX", "HGET", "HMSET", "HMGET", "HINCRBY",
-		"HINCRBYFLOAT", "HDEL", "HLEN", "HKEYS", "HVALS", "HGETALL", "HEXISTS", "HSCAN", "INCRBY", "DECRBY",
-		"INCRBYFLOAT", "GETSET", "MSET", "MSETNX", "RANDOMKEY", "SELECT", "MOVE", "RENAME", "RENAMENX",
-		"EXPIRE", "EXPIREAT", "PEXPIRE", "PEXPIREAT", "KEYS", "SCAN", "DBSIZE", "AUTH", "PING", "ECHO", "SAVE",
-		"BGSAVE", "BGREWRITEAOF", "SHUTDOWN", "LASTSAVE", "TYPE", "MULTI", "EXEC", "DISCARD", "SYNC", "PSYNC",
-		"REPLCONF", "FLUSHDB", "FLUSHALL", "SORT", "INFO", "MONITOR", "TTL", "PTTL", "PERSIST", "SLAVEOF", "ROLE",
-		"DEBUG", "CONFIG", "SUBSCRIBE", "UNSUBSCRIBE", "PSUBSCRIBE", "PUNSUBSCRIBE", "PUBLISH", "PUBSUB", "WATCH",
-		"UNWATCH", "RESTORE", "MIGRATE", "DUMP", "OBJECT", "CLIENT", "EVAL", "EVALSHA", "SLOWLOG", "SCRIPT", "TIME",
-		"BITOP", "BITCOUNT", "BITPOS", "COMMAND", "PFSELFTEST", "PFADD", "PFCOUNT", "PFMERGE", "PFDEBUG", "LATENCY",
-		"SLOTSINFO", "SLOTSDEL", "SLOTSMGRTSLOT", "SLOTSMGRTONE", "SLOTSMGRTTAGSLOT",
-		"SLOTSMGRTTAGONE", "SLOTSHASHKEY", "SLOTSCHECK", "SLOTSRESTORE",
-	} {
-		fastOpStr[s] = s
-	}
+func (f OpFlag) IsNotAllow() bool {
+	return (f & FlagNotAllow) != 0
 }
 
-func isNotAllowed(opstr string) bool {
-	return blackList[opstr]
+func (f OpFlag) IsReadOnly() bool {
+	const mask = FlagWrite | FlagMayWrite
+	return (f & mask) == 0
+}
+
+type OpInfo struct {
+	Name string
+	Flag OpFlag
+}
+
+const (
+	FlagWrite = 1 << iota
+	FlagMayWrite
+	FlagNotAllow
+)
+
+var opTable = make(map[string]OpInfo, 256)
+
+func init() {
+	for _, i := range []OpInfo{
+		{"APPEND", FlagWrite},
+		{"AUTH", 0},
+		{"BGREWRITEAOF", FlagNotAllow},
+		{"BGSAVE", FlagNotAllow},
+		{"BITCOUNT", 0},
+		{"BITOP", FlagWrite | FlagNotAllow},
+		{"BITPOS", 0},
+		{"BLPOP", FlagWrite | FlagNotAllow},
+		{"BRPOP", FlagWrite | FlagNotAllow},
+		{"BRPOPLPUSH", FlagWrite | FlagNotAllow},
+		{"CLIENT", FlagNotAllow},
+		{"COMMAND", 0},
+		{"CONFIG", FlagNotAllow},
+		{"DBSIZE", FlagNotAllow},
+		{"DEBUG", FlagNotAllow},
+		{"DECR", FlagWrite},
+		{"DECRBY", FlagWrite},
+		{"DEL", FlagWrite},
+		{"DISCARD", FlagNotAllow},
+		{"DUMP", 0},
+		{"ECHO", 0},
+		{"EVAL", FlagWrite},
+		{"EVALSHA", FlagWrite},
+		{"EXEC", FlagNotAllow},
+		{"EXISTS", 0},
+		{"EXPIRE", FlagWrite},
+		{"EXPIREAT", FlagWrite},
+		{"FLUSHALL", FlagWrite | FlagNotAllow},
+		{"FLUSHDB", FlagWrite | FlagNotAllow},
+		{"GET", 0},
+		{"GETBIT", 0},
+		{"GETRANGE", 0},
+		{"GETSET", FlagWrite},
+		{"HDEL", FlagWrite},
+		{"HEXISTS", 0},
+		{"HGET", 0},
+		{"HGETALL", 0},
+		{"HINCRBY", FlagWrite},
+		{"HINCRBYFLOAT", FlagWrite},
+		{"HKEYS", 0},
+		{"HLEN", 0},
+		{"HMGET", 0},
+		{"HMSET", FlagWrite},
+		{"HSCAN", 0},
+		{"HSET", FlagWrite},
+		{"HSETNX", FlagWrite},
+		{"HVALS", 0},
+		{"INCR", FlagWrite},
+		{"INCRBY", FlagWrite},
+		{"INCRBYFLOAT", FlagWrite},
+		{"INFO", 0},
+		{"KEYS", FlagNotAllow},
+		{"LASTSAVE", FlagNotAllow},
+		{"LATENCY", FlagNotAllow},
+		{"LINDEX", 0},
+		{"LINSERT", FlagWrite},
+		{"LLEN", 0},
+		{"LPOP", FlagWrite},
+		{"LPUSH", FlagWrite},
+		{"LPUSHX", FlagWrite},
+		{"LRANGE", 0},
+		{"LREM", FlagWrite},
+		{"LSET", FlagWrite},
+		{"LTRIM", FlagWrite},
+		{"MGET", 0},
+		{"MIGRATE", FlagWrite | FlagNotAllow},
+		{"MONITOR", FlagNotAllow},
+		{"MOVE", FlagWrite | FlagNotAllow},
+		{"MSET", FlagWrite},
+		{"MSETNX", FlagWrite | FlagNotAllow},
+		{"MULTI", FlagNotAllow},
+		{"OBJECT", FlagNotAllow},
+		{"PERSIST", FlagWrite},
+		{"PEXPIRE", FlagWrite},
+		{"PEXPIREAT", FlagWrite},
+		{"PFADD", FlagWrite},
+		{"PFCOUNT", 0},
+		{"PFDEBUG", FlagWrite},
+		{"PFMERGE", FlagWrite},
+		{"PFSELFTEST", 0},
+		{"PING", 0},
+		{"PSETEX", FlagWrite},
+		{"PSUBSCRIBE", FlagNotAllow},
+		{"PSYNC", FlagNotAllow},
+		{"PTTL", 0},
+		{"PUBLISH", FlagNotAllow},
+		{"PUBSUB", 0},
+		{"PUNSUBSCRIBE", FlagNotAllow},
+		{"RANDOMKEY", FlagNotAllow},
+		{"RENAME", FlagWrite | FlagNotAllow},
+		{"RENAMENX", FlagWrite | FlagNotAllow},
+		{"REPLCONF", FlagNotAllow},
+		{"RESTORE", FlagWrite | FlagNotAllow},
+		{"ROLE", 0},
+		{"RPOP", FlagWrite},
+		{"RPOPLPUSH", FlagWrite},
+		{"RPUSH", FlagWrite},
+		{"RPUSHX", FlagWrite},
+		{"SADD", FlagWrite},
+		{"SAVE", FlagNotAllow},
+		{"SCAN", FlagNotAllow},
+		{"SCARD", 0},
+		{"SCRIPT", FlagNotAllow},
+		{"SDIFF", 0},
+		{"SDIFFSTORE", FlagWrite},
+		{"SELECT", 0},
+		{"SET", FlagWrite},
+		{"SETBIT", FlagWrite},
+		{"SETEX", FlagWrite},
+		{"SETNX", FlagWrite},
+		{"SETRANGE", FlagWrite},
+		{"SHUTDOWN", FlagNotAllow},
+		{"SINTER", 0},
+		{"SINTERSTORE", FlagWrite},
+		{"SISMEMBER", 0},
+		{"SLAVEOF", FlagNotAllow},
+		{"SLOTSCHECK", FlagNotAllow},
+		{"SLOTSDEL", FlagWrite | FlagNotAllow},
+		{"SLOTSHASHKEY", 0},
+		{"SLOTSINFO", FlagNotAllow},
+		{"SLOTSMGRTONE", FlagWrite | FlagNotAllow},
+		{"SLOTSMGRTSLOT", FlagWrite | FlagNotAllow},
+		{"SLOTSMGRTTAGONE", FlagWrite | FlagNotAllow},
+		{"SLOTSMGRTTAGSLOT", FlagWrite | FlagNotAllow},
+		{"SLOTSRESTORE", FlagWrite},
+		{"SLOWLOG", FlagNotAllow},
+		{"SMEMBERS", 0},
+		{"SMOVE", FlagWrite},
+		{"SORT", FlagWrite},
+		{"SPOP", FlagWrite},
+		{"SRANDMEMBER", 0},
+		{"SREM", FlagWrite},
+		{"SSCAN", 0},
+		{"STRLEN", 0},
+		{"SUBSCRIBE", FlagNotAllow},
+		{"SUBSTR", 0},
+		{"SUNION", 0},
+		{"SUNIONSTORE", FlagWrite},
+		{"SYNC", FlagNotAllow},
+		{"TIME", FlagNotAllow},
+		{"TTL", 0},
+		{"TYPE", 0},
+		{"UNSUBSCRIBE", FlagNotAllow},
+		{"UNWATCH", FlagNotAllow},
+		{"WATCH", FlagNotAllow},
+		{"ZADD", FlagWrite},
+		{"ZCARD", 0},
+		{"ZCOUNT", 0},
+		{"ZINCRBY", FlagWrite},
+		{"ZINTERSTORE", FlagWrite},
+		{"ZLEXCOUNT", 0},
+		{"ZRANGE", 0},
+		{"ZRANGEBYLEX", 0},
+		{"ZRANGEBYSCORE", 0},
+		{"ZRANK", 0},
+		{"ZREM", FlagWrite},
+		{"ZREMRANGEBYLEX", FlagWrite},
+		{"ZREMRANGEBYRANK", FlagWrite},
+		{"ZREMRANGEBYSCORE", FlagWrite},
+		{"ZREVRANGE", 0},
+		{"ZREVRANGEBYLEX", 0},
+		{"ZREVRANGEBYSCORE", 0},
+		{"ZREVRANK", 0},
+		{"ZSCAN", 0},
+		{"ZSCORE", 0},
+		{"ZUNIONSTORE", FlagWrite},
+	} {
+		opTable[i.Name] = i
+	}
 }
 
 var (
@@ -78,29 +231,29 @@ var (
 
 const MaxOpStrLen = 64
 
-func getOpStr(multi []*redis.Resp) (string, error) {
+func getOpInfo(multi []*redis.Resp) (string, OpFlag, error) {
 	if len(multi) < 1 {
-		return "", errors.Trace(ErrBadMultiBulk)
+		return "", 0, errors.Trace(ErrBadMultiBulk)
 	}
 
 	var upper [MaxOpStrLen]byte
 
 	var op = multi[0].Value
 	if len(op) == 0 || len(op) > len(upper) {
-		return "", ErrBadOpStrLen
+		return "", 0, errors.Trace(ErrBadOpStrLen)
 	}
 	for i := 0; i < len(op); i++ {
 		if c := charmap[op[i]]; c != 0 {
 			upper[i] = c
 		} else {
-			return strings.ToUpper(string(op)), nil
+			return strings.ToUpper(string(op)), FlagMayWrite, nil
 		}
 	}
 	op = upper[:len(op)]
-	if opstr, ok := fastOpStr[string(op)]; ok {
-		return opstr, nil
+	if r, ok := opTable[string(op)]; ok {
+		return r.Name, r.Flag, nil
 	}
-	return string(op), nil
+	return string(op), FlagMayWrite, nil
 }
 
 func hashSlot(key []byte) int {

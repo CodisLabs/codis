@@ -20,7 +20,7 @@ func TestGetOpStr(t *testing.T) {
 	}
 	for k, v := range m {
 		var multi = []*redis.Resp{redis.NewBulkBytes([]byte(k))}
-		s, err := getOpStr(multi)
+		s, _, err := getOpInfo(multi)
 		if v != "" {
 			assert.MustNoError(err)
 			assert.Must(s == v)
@@ -136,7 +136,7 @@ func TestGetOpStrCmd(t *testing.T) {
 	}
 	for k, v := range m {
 		var multi = []*redis.Resp{redis.NewBulkBytes([]byte(k))}
-		s, err := getOpStr(multi)
+		s, _, err := getOpInfo(multi)
 		assert.MustNoError(err)
 		assert.Must(s == v)
 	}

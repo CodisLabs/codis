@@ -139,6 +139,7 @@ func (s *Session) newSubRequest(r *Request, opstr string, multi []*redis.Resp) *
 	x.OpStr = opstr
 	x.Multi = multi
 	x.Batch = r.Batch
+	x.Dirty = r.Dirty
 	return x
 }
 
@@ -215,11 +216,11 @@ func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
 }
 
 func (s *Session) handleRequest(multi []*redis.Resp, d *Router) (*Request, error) {
-	opstr, err := getOpStr(multi)
+	opstr, flag, err := getOpInfo(multi)
 	if err != nil {
 		return nil, err
 	}
-	if isNotAllowed(opstr) {
+	if flag.IsNotAllow() {
 		return nil, errors.New(fmt.Sprintf("command <%s> is not allowed", opstr))
 	}
 
@@ -232,6 +233,7 @@ func (s *Session) handleRequest(multi []*redis.Resp, d *Router) (*Request, error
 	r.Multi = multi
 	r.Start = usnow
 	r.Batch = s.newBatch()
+	r.Dirty = !flag.IsReadOnly()
 
 	if opstr == "QUIT" {
 		return s.handleQuit(r)

@@ -41,7 +41,10 @@ These commands are disallowed in codis proxy, if you use them, proxy will close 
 |                  | FLUSHALL         |
 |                  | FLUSHDB          |
 |                  | LASTSAVE         |
+|                  | LATENCY          |
 |                  | MONITOR          |
+|                  | PSYNC            |
+|                  | REPLCONF         |
 |                  | RESTORE          |
 |                  | SAVE             |
 |                  | SHUTDOWN         |

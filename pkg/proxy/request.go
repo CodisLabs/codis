@@ -16,6 +16,7 @@ type Request struct {
 	Start int64
 	Batch *sync.WaitGroup
 	Group *sync.WaitGroup
+	Dirty bool
 
 	Coalesce func() error
 	Response struct {
