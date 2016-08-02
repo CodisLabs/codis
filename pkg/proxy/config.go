@@ -122,12 +122,18 @@ func NewDefaultConfig() *Config {
 	if _, err := toml.Decode(DefaultConfig, c); err != nil {
 		log.PanicErrorf(err, "decode toml failed")
 	}
+	if err := c.Validate(); err != nil {
+		log.PanicErrorf(err, "validate config failed")
+	}
 	return c
 }
 
 func (c *Config) LoadFromFile(path string) error {
 	_, err := toml.DecodeFile(path, c)
-	return errors.Trace(err)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return c.Validate()
 }
 
 func (c *Config) String() string {
@@ -136,4 +142,81 @@ func (c *Config) String() string {
 	e.Indent = "    "
 	e.Encode(c)
 	return b.String()
+}
+
+func (c *Config) Validate() error {
+	if c.ProtoType == "" {
+		return errors.New("invalid proto_type")
+	}
+	if c.ProxyAddr == "" {
+		return errors.New("invalid proxy_addr")
+	}
+	if c.AdminAddr == "" {
+		return errors.New("invalid admin_addr")
+	}
+	if c.JodisName != "" {
+		if c.JodisAddr == "" {
+			return errors.New("invalid jodis_addr")
+		}
+		if c.JodisTimeout < 0 {
+			return errors.New("invalid jodis_timeout")
+		}
+	}
+	if c.ProductName == "" {
+		return errors.New("invalid product_name")
+	}
+	if c.ProxyMaxClients < 0 {
+		return errors.New("invalid proxy_max_clients")
+	}
+
+	const MaxInt = bytesize.Int64(^uint(0) >> 1)
+
+	if d := c.ProxyMaxOffheapBytes; d < 0 || d > MaxInt {
+		return errors.New("invalid proxy_max_offheap_size")
+	}
+	if d := c.ProxyHeapPlaceholder; d < 0 || d > MaxInt {
+		return errors.New("invalid proxy_heap_placeholder")
+	}
+	if c.BackendPingPeriod < 0 {
+		return errors.New("invalid backend_ping_period")
+	}
+
+	if d := c.BackendRecvBufsize; d < 0 || d > MaxInt {
+		return errors.New("invalid backend_recv_bufsize")
+	}
+	if c.BackendRecvTimeout < 0 {
+		return errors.New("invalid backend_recv_timeout")
+	}
+	if d := c.BackendSendBufsize; d < 0 || d > MaxInt {
+		return errors.New("invalid backend_send_bufsize")
+	}
+	if c.BackendSendTimeout < 0 {
+		return errors.New("invalid backend_send_timeout")
+	}
+	if c.BackendMaxPipeline < 0 {
+		return errors.New("invalid backend_max_pipeline")
+	}
+	if c.BackendKeepAlivePeriod < 0 {
+		return errors.New("invalid backend_keepalive_period")
+	}
+
+	if d := c.SessionRecvBufsize; d < 0 || d > MaxInt {
+		return errors.New("invalid session_recv_bufsize")
+	}
+	if c.SessionRecvTimeout < 0 {
+		return errors.New("invalid session_recv_timeout")
+	}
+	if d := c.SessionSendBufsize; d < 0 || d > MaxInt {
+		return errors.New("invalid session_send_bufsize")
+	}
+	if c.SessionSendTimeout < 0 {
+		return errors.New("invalid session_send_timeout")
+	}
+	if c.SessionMaxPipeline < 0 {
+		return errors.New("invalid session_max_pipeline")
+	}
+	if c.SessionKeepAlivePeriod < 0 {
+		return errors.New("invalid session_keepalive_period")
+	}
+	return nil
 }

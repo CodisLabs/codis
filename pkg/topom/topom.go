@@ -67,8 +67,11 @@ type Topom struct {
 var ErrClosedTopom = errors.New("use of closed topom")
 
 func New(client models.Client, config *Config) (*Topom, error) {
-	if err := models.ValidProductName(config.ProductName); err != nil {
-		return nil, err
+	if err := config.Validate(); err != nil {
+		return nil, errors.Trace(err)
+	}
+	if err := models.ValidateProduct(config.ProductName); err != nil {
+		return nil, errors.Trace(err)
 	}
 	s := &Topom{config: config, store: models.NewStore(client, config.ProductName)}
 	s.token = rpc.NewToken()

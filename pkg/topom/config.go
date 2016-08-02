@@ -48,12 +48,18 @@ func NewDefaultConfig() *Config {
 	if _, err := toml.Decode(DefaultConfig, c); err != nil {
 		log.PanicErrorf(err, "decode toml failed")
 	}
+	if err := c.Validate(); err != nil {
+		log.PanicErrorf(err, "validate config failed")
+	}
 	return c
 }
 
 func (c *Config) LoadFromFile(path string) error {
 	_, err := toml.DecodeFile(path, c)
-	return errors.Trace(err)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	return c.Validate()
 }
 
 func (c *Config) String() string {
@@ -62,4 +68,20 @@ func (c *Config) String() string {
 	e.Indent = "    "
 	e.Encode(c)
 	return b.String()
+}
+
+func (c *Config) Validate() error {
+	if c.CoordinatorName == "" {
+		return errors.New("invalid coordinator_name")
+	}
+	if c.CoordinatorAddr == "" {
+		return errors.New("invalid coordinator_addr")
+	}
+	if c.AdminAddr == "" {
+		return errors.New("invalid admin_addr")
+	}
+	if c.ProductName == "" {
+		return errors.New("invalid product_name")
+	}
+	return nil
 }

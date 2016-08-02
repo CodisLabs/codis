@@ -225,7 +225,7 @@ func (s *Store) DeleteProxy(token string) error {
 	return s.client.Delete(s.ProxyPath(token))
 }
 
-func ValidProductName(name string) error {
+func ValidateProduct(name string) error {
 	if regexp.MustCompile(`^\w[\w\.\-]*$`).MatchString(name) {
 		return nil
 	}
