@@ -3,7 +3,10 @@
 
 package math2
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 func MaxInt(a, b int) int {
 	if a > b {
@@ -22,7 +25,12 @@ func MinInt(a, b int) int {
 }
 
 func MinMaxInt(v, min, max int) int {
-	return MinInt(MaxInt(v, min), max)
+	if min <= max {
+		v = MaxInt(v, min)
+		v = MinInt(v, max)
+		return v
+	}
+	panic(fmt.Sprintf("min = %d, max = %d", min, max))
 }
 
 func MaxDuration(a, b time.Duration) time.Duration {
@@ -42,5 +50,10 @@ func MinDuration(a, b time.Duration) time.Duration {
 }
 
 func MinMaxDuration(v, min, max time.Duration) time.Duration {
-	return MinDuration(MaxDuration(v, min), max)
+	if min <= max {
+		v = MaxDuration(v, min)
+		v = MinDuration(v, max)
+		return v
+	}
+	panic(fmt.Sprintf("min = %s, max = %s", min, max))
 }
