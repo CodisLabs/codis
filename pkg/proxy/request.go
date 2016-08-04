@@ -10,12 +10,12 @@ import (
 )
 
 type Request struct {
-	OpStr string
 	Multi []*redis.Resp
-
 	Start int64
 	Batch *sync.WaitGroup
 	Group *sync.WaitGroup
+
+	OpStr string
 	Dirty bool
 
 	Coalesce func() error
