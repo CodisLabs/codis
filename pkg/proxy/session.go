@@ -65,15 +65,19 @@ func NewSession(conn *redis.Conn, auth string) *Session {
 	return s
 }
 
-func (s *Session) CloseWithError(err error) {
+func (s *Session) CloseWithError(err error, half bool) {
 	s.exit.Do(func() {
 		if err != nil {
 			log.Infof("session [%p] closed: %s, error: %s", s, s, err)
 		} else {
 			log.Infof("session [%p] closed: %s, quit", s, s)
 		}
-		s.Conn.Close()
 	})
+	if half {
+		s.Conn.CloseReader()
+	} else {
+		s.Conn.Close()
+	}
 }
 
 var (
@@ -86,7 +90,7 @@ func (s *Session) Start(d *Router, config *Config) {
 		if int(incrSessions()) > config.ProxyMaxClients {
 			go func() {
 				s.Conn.Encode(redis.NewError([]byte("ERR max number of clients reached")), true)
-				s.CloseWithError(ErrTooManySessions)
+				s.CloseWithError(ErrTooManySessions, false)
 			}()
 			decrSessions()
 			return
@@ -95,7 +99,7 @@ func (s *Session) Start(d *Router, config *Config) {
 		if !d.isOnline() {
 			go func() {
 				s.Conn.Encode(redis.NewError([]byte("ERR router is not online")), true)
-				s.CloseWithError(ErrRouterNotOnline)
+				s.CloseWithError(ErrRouterNotOnline, false)
 			}()
 			decrSessions()
 			return
@@ -129,7 +133,7 @@ func (s *Session) newSubRequest(r *Request, opstr string, multi []*redis.Resp) *
 func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 	defer func() {
 		if err != nil {
-			s.CloseWithError(err)
+			s.CloseWithError(err, true)
 		}
 		close(tasks)
 	}()
@@ -142,6 +146,8 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 
 		r, err := s.handleRequest(multi, d)
 		if err != nil {
+			r.Response.Resp = redis.NewError([]byte(fmt.Sprintf("ERR dispatch failed, %s", err)))
+			tasks <- r
 			return s.incrOpFails(err)
 		} else {
 			tasks <- r
@@ -152,7 +158,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 
 func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 	defer func() {
-		s.CloseWithError(err)
+		s.CloseWithError(err, false)
 		for _ = range tasks {
 			s.incrOpFails(nil)
 		}
@@ -164,6 +170,8 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
 		if err != nil {
+			resp = redis.NewError([]byte(fmt.Sprintf("ERR backend failure, %s", err)))
+			p.Conn.Encode(resp, true)
 			return s.incrOpFails(err)
 		}
 		if err := p.Encode(resp); err != nil {
@@ -199,24 +207,25 @@ func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
 }
 
 func (s *Session) handleRequest(multi []*redis.Resp, d *Router) (*Request, error) {
-	opstr, flag, err := getOpInfo(multi)
-	if err != nil {
-		return nil, err
-	}
-	if flag.IsNotAllow() {
-		return nil, errors.New(fmt.Sprintf("command <%s> is not allowed", opstr))
-	}
-
 	usnow := utils.Microseconds()
 	s.LastOpUnix = usnow / 1e6
 	s.Ops++
 
 	r := s.alloc.New()
-	r.OpStr = opstr
 	r.Multi = multi
 	r.Start = usnow
 	r.Batch = s.alloc.NewBatch()
+
+	opstr, flag, err := getOpInfo(multi)
+	if err != nil {
+		return r, err
+	}
+	r.OpStr = opstr
 	r.Dirty = !flag.IsReadOnly()
+
+	if flag.IsNotAllow() {
+		return r, errors.New(fmt.Sprintf("command '%s' is not allowed", opstr))
+	}
 
 	if opstr == "QUIT" {
 		return s.handleQuit(r)

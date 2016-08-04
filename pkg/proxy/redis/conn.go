@@ -51,6 +51,13 @@ func (c *Conn) Close() error {
 	return c.Sock.Close()
 }
 
+func (c *Conn) CloseReader() error {
+	if t, ok := c.Sock.(*net.TCPConn); ok {
+		return t.CloseRead()
+	}
+	return c.Close()
+}
+
 func (c *Conn) SetKeepAlivePeriod(d time.Duration) error {
 	if t, ok := c.Sock.(*net.TCPConn); ok {
 		if err := t.SetKeepAlive(d != 0); err != nil {
