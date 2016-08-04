@@ -10,6 +10,7 @@ os:
 go:
     - 1.6.3
     - 1.5.4
+    - tip
 
 script:
     - make
