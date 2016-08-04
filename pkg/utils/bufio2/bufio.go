@@ -16,7 +16,7 @@ type Reader struct {
 	rpos int
 	wpos int
 
-	slice []byte
+	slice sliceAlloc
 }
 
 func NewReader(rd io.Reader) *Reader {
@@ -35,17 +35,6 @@ func NewReaderBuffer(rd io.Reader, buf []byte) *Reader {
 		buf = make([]byte, DefaultBufferSize)
 	}
 	return &Reader{rd: rd, buf: buf}
-}
-
-func (b *Reader) makeSlice(n int) (ss []byte) {
-	if n >= 512 {
-		return make([]byte, n)
-	}
-	if len(b.slice) < n {
-		b.slice = make([]byte, 8192)
-	}
-	ss, b.slice = b.slice[:n:n], b.slice[n:]
-	return
 }
 
 func (b *Reader) fill() error {
@@ -152,7 +141,7 @@ func (b *Reader) ReadBytes(delim byte) ([]byte, error) {
 			if err != bufio.ErrBufferFull {
 				return nil, b.err
 			}
-			dup := b.makeSlice(len(f))
+			dup := b.slice.Make(len(f))
 			copy(dup, f)
 			full = append(full, dup)
 		} else {
@@ -161,7 +150,7 @@ func (b *Reader) ReadBytes(delim byte) ([]byte, error) {
 		size += len(f)
 	}
 	var n int
-	var buf = b.makeSlice(size)
+	var buf = b.slice.Make(size)
 	for _, frag := range full {
 		n += copy(buf[n:], frag)
 	}
@@ -173,7 +162,7 @@ func (b *Reader) ReadFull(n int) ([]byte, error) {
 	if b.err != nil || n == 0 {
 		return nil, b.err
 	}
-	var buf = b.makeSlice(n)
+	var buf = b.slice.Make(n)
 	if _, err := io.ReadFull(b, buf); err != nil {
 		return nil, err
 	}

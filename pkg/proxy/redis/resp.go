@@ -93,3 +93,40 @@ func NewArray(array []*Resp) *Resp {
 		Array: array,
 	}
 }
+
+type RespAlloc struct {
+	alloc struct {
+		buf []Resp
+		off int
+	}
+	slice struct {
+		buf []*Resp
+		off int
+	}
+}
+
+func (p *RespAlloc) New() *Resp {
+	var d = &p.alloc
+	if len(d.buf) == d.off {
+		d.buf = make([]Resp, 16)
+		d.off = 0
+	}
+	r := &d.buf[d.off]
+	d.off += 1
+	return r
+}
+
+func (p *RespAlloc) MakeSlice(n int) []*Resp {
+	if n >= 32 {
+		return make([]*Resp, n)
+	}
+	var d = &p.slice
+	if max := len(d.buf) - d.off; max < n {
+		d.buf = make([]*Resp, 512)
+		d.off = 0
+	}
+	n += d.off
+	s := d.buf[d.off:n:n]
+	d.off = n
+	return s
+}

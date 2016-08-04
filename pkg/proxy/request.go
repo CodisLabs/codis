@@ -24,3 +24,36 @@ type Request struct {
 		Err  error
 	}
 }
+
+type RequestAlloc struct {
+	alloc struct {
+		buf []Request
+		off int
+	}
+	batch struct {
+		buf []sync.WaitGroup
+		off int
+	}
+}
+
+func (p *RequestAlloc) New() *Request {
+	var d = &p.alloc
+	if len(d.buf) == d.off {
+		d.buf = make([]Request, 64)
+		d.off = 0
+	}
+	r := &d.buf[d.off]
+	d.off += 1
+	return r
+}
+
+func (p *RequestAlloc) NewBatch() *sync.WaitGroup {
+	var d = &p.batch
+	if len(d.buf) == d.off {
+		d.buf = make([]sync.WaitGroup, 64)
+		d.off = 0
+	}
+	w := &d.buf[d.off]
+	d.off += 1
+	return w
+}

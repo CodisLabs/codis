@@ -66,8 +66,7 @@ type Decoder struct {
 
 	Err error
 
-	alloc []Resp
-	slice []*Resp
+	alloc RespAlloc
 }
 
 var ErrFailedDecoder = errors.New("use of failed decoder")
@@ -118,31 +117,12 @@ func DecodeMultiBulkFromBytes(p []byte) ([]*Resp, error) {
 	return NewDecoder(bytes.NewReader(p)).DecodeMultiBulk()
 }
 
-func (d *Decoder) newResp() (pp *Resp) {
-	if len(d.alloc) == 0 {
-		d.alloc = make([]Resp, 16)
-	}
-	pp, d.alloc = &d.alloc[0], d.alloc[1:]
-	return
-}
-
-func (d *Decoder) makeArray(n int) (ss []*Resp) {
-	if n >= 32 {
-		return make([]*Resp, n)
-	}
-	if len(d.slice) < n {
-		d.slice = make([]*Resp, 256)
-	}
-	ss, d.slice = d.slice[:n:n], d.slice[n:]
-	return
-}
-
 func (d *Decoder) decodeResp() (*Resp, error) {
 	b, err := d.br.ReadByte()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	r := d.newResp()
+	r := d.alloc.New()
 	r.Type = RespType(b)
 	switch r.Type {
 	default:
@@ -217,7 +197,7 @@ func (d *Decoder) decodeArray() ([]*Resp, error) {
 	case n == -1:
 		return nil, nil
 	}
-	array := d.makeArray(int(n))
+	array := d.alloc.MakeSlice(int(n))
 	for i := 0; i < len(array); i++ {
 		r, err := d.decodeResp()
 		if err != nil {
@@ -269,7 +249,7 @@ func (d *Decoder) decodeMultiBulk() ([]*Resp, error) {
 	case n > MaxArrayLen:
 		return nil, errors.Trace(ErrBadArrayLenTooLong)
 	}
-	multi := d.makeArray(int(n))
+	multi := d.alloc.MakeSlice(int(n))
 	for i := 0; i < len(multi); i++ {
 		r, err := d.decodeResp()
 		if err != nil {

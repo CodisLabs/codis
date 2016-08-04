@@ -38,8 +38,7 @@ type Session struct {
 
 	authorized bool
 
-	alloc []Request
-	batch []sync.WaitGroup
+	alloc RequestAlloc
 }
 
 func (s *Session) String() string {
@@ -118,24 +117,8 @@ func (s *Session) Start(d *Router, config *Config) {
 	})
 }
 
-func (s *Session) newRequest() (pp *Request) {
-	if len(s.alloc) == 0 {
-		s.alloc = make([]Request, 64)
-	}
-	pp, s.alloc = &s.alloc[0], s.alloc[1:]
-	return
-}
-
-func (s *Session) newBatch() (wg *sync.WaitGroup) {
-	if len(s.batch) == 0 {
-		s.batch = make([]sync.WaitGroup, 64)
-	}
-	wg, s.batch = &s.batch[0], s.batch[1:]
-	return
-}
-
 func (s *Session) newSubRequest(r *Request, opstr string, multi []*redis.Resp) *Request {
-	x := s.newRequest()
+	x := s.alloc.New()
 	x.OpStr = opstr
 	x.Multi = multi
 	x.Batch = r.Batch
@@ -228,11 +211,11 @@ func (s *Session) handleRequest(multi []*redis.Resp, d *Router) (*Request, error
 	s.LastOpUnix = usnow / 1e6
 	s.Ops++
 
-	r := s.newRequest()
+	r := s.alloc.New()
 	r.OpStr = opstr
 	r.Multi = multi
 	r.Start = usnow
-	r.Batch = s.newBatch()
+	r.Batch = s.alloc.NewBatch()
 	r.Dirty = !flag.IsReadOnly()
 
 	if opstr == "QUIT" {
