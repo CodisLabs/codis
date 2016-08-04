@@ -186,7 +186,7 @@ func (bc *BackendConn) verifyAuth(c *redis.Conn, auth string) error {
 }
 
 func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) error {
-	r.Response.Resp, r.Response.Err = resp, err
+	r.Resp, r.Err = resp, err
 	if r.Group != nil {
 		r.Group.Done()
 	}

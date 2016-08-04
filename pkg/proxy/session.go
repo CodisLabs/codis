@@ -153,7 +153,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		r.Start = usnow
 		r.Batch = s.alloc.NewBatch()
 		if err := s.handleRequest(r, d); err != nil {
-			r.Response.Resp = redis.NewError([]byte(fmt.Sprintf("ERR dispatch failed, %s", err)))
+			r.Resp = redis.NewError([]byte(fmt.Sprintf("ERR dispatch failed, %s", err)))
 			tasks <- r
 			return s.incrOpFails(err)
 		} else {
@@ -201,16 +201,16 @@ func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
 			return nil, err
 		}
 	}
-	resp, err := r.Response.Resp, r.Response.Err
-	if err != nil {
+	if err := r.Err; err != nil {
 		return nil, err
 	}
-	if resp == nil {
+	switch resp := r.Resp; {
+	case resp == nil:
 		return nil, ErrRespIsRequired
-	} else {
+	default:
 		s.incrOpStats(r)
+		return resp, nil
 	}
-	return resp, nil
 }
 
 func (s *Session) handleRequest(r *Request, d *Router) error {
@@ -225,16 +225,16 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 		return errors.New(fmt.Sprintf("command '%s' is not allowed", opstr))
 	}
 
-	if opstr == "QUIT" {
+	switch opstr {
+	case "QUIT":
 		return s.handleQuit(r)
-	}
-	if opstr == "AUTH" {
+	case "AUTH":
 		return s.handleAuth(r)
 	}
 
 	if !s.authorized {
 		if s.auth != "" {
-			r.Response.Resp = redis.NewError([]byte("NOAUTH Authentication required."))
+			r.Resp = redis.NewError([]byte("NOAUTH Authentication required."))
 			return nil
 		}
 		s.authorized = true
@@ -258,56 +258,60 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 
 func (s *Session) handleQuit(r *Request) error {
 	s.quit = true
-	r.Response.Resp = redis.NewString([]byte("OK"))
+	r.Resp = redis.NewString([]byte("OK"))
 	return nil
 }
 
 func (s *Session) handleAuth(r *Request) error {
 	if len(r.Multi) != 2 {
-		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'AUTH' command"))
+		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'AUTH' command"))
 		return nil
 	}
 	switch {
 	case s.auth == "":
-		r.Response.Resp = redis.NewError([]byte("ERR Client sent AUTH, but no password is set"))
+		r.Resp = redis.NewError([]byte("ERR Client sent AUTH, but no password is set"))
 	case s.auth != string(r.Multi[1].Value):
 		s.authorized = false
-		r.Response.Resp = redis.NewError([]byte("ERR invalid password"))
+		r.Resp = redis.NewError([]byte("ERR invalid password"))
 	default:
 		s.authorized = true
-		r.Response.Resp = redis.NewString([]byte("OK"))
+		r.Resp = redis.NewString([]byte("OK"))
 	}
 	return nil
 }
 
 func (s *Session) handleSelect(r *Request) error {
 	if len(r.Multi) != 2 {
-		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'SELECT' command"))
+		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'SELECT' command"))
 		return nil
 	}
 	switch db, err := strconv.Atoi(string(r.Multi[1].Value)); {
 	case err != nil:
-		r.Response.Resp = redis.NewError([]byte("ERR invalid DB index"))
+		r.Resp = redis.NewError([]byte("ERR invalid DB index"))
 	case db != 0:
-		r.Response.Resp = redis.NewError([]byte("ERR invalid DB index, only accept DB 0"))
+		r.Resp = redis.NewError([]byte("ERR invalid DB index, only accept DB 0"))
 	default:
-		r.Response.Resp = redis.NewString([]byte("OK"))
+		r.Resp = redis.NewString([]byte("OK"))
 	}
 	return nil
 }
 
 func (s *Session) handlePing(r *Request) error {
 	if len(r.Multi) != 1 {
-		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'PING' command"))
+		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'PING' command"))
 	} else {
-		r.Response.Resp = redis.NewString([]byte("PONG"))
+		r.Resp = redis.NewString([]byte("PONG"))
 	}
 	return nil
 }
 
 func (s *Session) handleRequestMGet(r *Request, d *Router) error {
 	var nkeys = len(r.Multi) - 1
-	if nkeys <= 1 {
+	switch {
+	case nkeys == 0:
+		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'MGET' command"))
+		return nil
+	case nkeys == 1:
 		return d.dispatch(r)
 	}
 	var sub = make([]*Request, nkeys)
@@ -323,10 +327,10 @@ func (s *Session) handleRequestMGet(r *Request, d *Router) error {
 	r.Coalesce = func() error {
 		var array = make([]*redis.Resp, len(sub))
 		for i, x := range sub {
-			if err := x.Response.Err; err != nil {
+			if err := x.Err; err != nil {
 				return err
 			}
-			switch resp := x.Response.Resp; {
+			switch resp := x.Resp; {
 			case resp == nil:
 				return ErrRespIsRequired
 			case resp.IsArray() && len(resp.Array) == 1:
@@ -335,7 +339,7 @@ func (s *Session) handleRequestMGet(r *Request, d *Router) error {
 				return errors.New(fmt.Sprintf("bad mget resp: %s array.len = %d", resp.Type, len(resp.Array)))
 			}
 		}
-		r.Response.Resp = redis.NewArray(array)
+		r.Resp = redis.NewArray(array)
 		return nil
 	}
 	return nil
@@ -343,12 +347,12 @@ func (s *Session) handleRequestMGet(r *Request, d *Router) error {
 
 func (s *Session) handleRequestMSet(r *Request, d *Router) error {
 	var nblks = len(r.Multi) - 1
-	if nblks <= 2 {
-		return d.dispatch(r)
-	}
-	if (nblks % 2) != 0 {
-		r.Response.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'MSET' command"))
+	switch {
+	case nblks == 0 || nblks%2 != 0:
+		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'MSET' command"))
 		return nil
+	case nblks == 2:
+		return d.dispatch(r)
 	}
 	var sub = make([]*Request, nblks/2)
 	for i := 0; i < len(sub); i++ {
@@ -363,14 +367,14 @@ func (s *Session) handleRequestMSet(r *Request, d *Router) error {
 	}
 	r.Coalesce = func() error {
 		for _, x := range sub {
-			if err := x.Response.Err; err != nil {
+			if err := x.Err; err != nil {
 				return err
 			}
-			switch resp := x.Response.Resp; {
+			switch resp := x.Resp; {
 			case resp == nil:
 				return ErrRespIsRequired
 			case resp.IsString():
-				r.Response.Resp = resp
+				r.Resp = resp
 			default:
 				return errors.New(fmt.Sprintf("bad mset resp: %s value.len = %d", resp.Type, len(resp.Value)))
 			}
@@ -382,7 +386,11 @@ func (s *Session) handleRequestMSet(r *Request, d *Router) error {
 
 func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 	var nkeys = len(r.Multi) - 1
-	if nkeys <= 1 {
+	switch {
+	case nkeys == 0:
+		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'DEL' command"))
+		return nil
+	case nkeys == 1:
 		return d.dispatch(r)
 	}
 	var sub = make([]*Request, nkeys)
@@ -398,10 +406,10 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 	r.Coalesce = func() error {
 		var n int
 		for _, x := range sub {
-			if err := x.Response.Err; err != nil {
+			if err := x.Err; err != nil {
 				return err
 			}
-			switch resp := x.Response.Resp; {
+			switch resp := x.Resp; {
 			case resp == nil:
 				return ErrRespIsRequired
 			case resp.IsInt() && len(resp.Value) == 1:
@@ -412,7 +420,7 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 				return errors.New(fmt.Sprintf("bad mdel resp: %s value.len = %d", resp.Type, len(resp.Value)))
 			}
 		}
-		r.Response.Resp = redis.NewInt([]byte(strconv.Itoa(n)))
+		r.Resp = redis.NewInt([]byte(strconv.Itoa(n)))
 		return nil
 	}
 	return nil

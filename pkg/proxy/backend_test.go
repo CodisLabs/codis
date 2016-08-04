@@ -54,7 +54,7 @@ func TestBackend(t *testing.T) {
 	var n int
 	for r := range reqc {
 		r.Batch.Wait()
-		assert.Must(string(r.Response.Resp.Value) == strconv.Itoa(n))
+		assert.Must(string(r.Resp.Value) == strconv.Itoa(n))
 		n++
 	}
 	assert.Must(n == cap(reqc))

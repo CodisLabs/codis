@@ -98,10 +98,10 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 
 	m.Batch.Wait()
 
-	resp, err := m.Response.Resp, m.Response.Err
-	switch {
-	case err != nil:
+	if err := m.Err; err != nil {
 		return err
+	}
+	switch resp := m.Resp; {
 	case resp == nil:
 		return ErrRespIsRequired
 	case resp.IsError():

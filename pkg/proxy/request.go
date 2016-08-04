@@ -18,11 +18,10 @@ type Request struct {
 	OpStr string
 	Dirty bool
 
+	*redis.Resp
+	Err error
+
 	Coalesce func() error
-	Response struct {
-		Resp *redis.Resp
-		Err  error
-	}
 }
 
 type RequestAlloc struct {
