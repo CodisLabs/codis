@@ -84,9 +84,8 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 	}
 
 	m := &Request{}
-	m.OpStr = "SLOTSMGRTTAGONE"
 	m.Multi = []*redis.Resp{
-		redis.NewBulkBytes([]byte(m.OpStr)),
+		redis.NewBulkBytes([]byte("SLOTSMGRTTAGONE")),
 		redis.NewBulkBytes(s.backend.host),
 		redis.NewBulkBytes(s.backend.port),
 		redis.NewBulkBytes([]byte("3000")),
