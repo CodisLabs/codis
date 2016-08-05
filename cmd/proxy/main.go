@@ -33,7 +33,9 @@ var (
 	configFile = "config.ini"
 )
 
-var usage = `usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--log-filesize=<filesize>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
+var usage = `
+usage: 
+   proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--log-filesize=<filesize>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>] [--online] [--remove-fence] 
 
 options:
    -c	set config file
@@ -43,6 +45,8 @@ options:
    --cpu=<cpu_num>		num of cpu cores that proxy can use
    --addr=<proxy_listen_addr>		proxy listen address, example: 0.0.0.0:9000
    --http-addr=<debug_http_server_addr>		debug vars http server
+   --online		        set proxy online
+   --remove-fence       remove proxy/fence info
 `
 
 const banner string = `
@@ -162,6 +166,16 @@ func main() {
 		httpAddr = args["--http-addr"].(string)
 	}
 
+	autoOnline := false
+	if args["--online"] != nil {
+		autoOnline = true
+	}
+
+	removeFence := false
+	if args["--remove-fence"] != nil {
+		removeFence = true
+	}
+
 	checkUlimit(1024)
 	runtime.GOMAXPROCS(cpus)
 
@@ -179,7 +193,7 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM, os.Kill)
 
-	s := proxy.New(addr, httpAddr, conf)
+	s := proxy.New(addr, httpAddr, removeFence, autoOnline, conf)
 	defer s.Close()
 
 	stats.PublishJSONFunc("router", func() string {

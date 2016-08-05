@@ -66,7 +66,7 @@ func init() {
 	err = models.SetSlotRange(conn, conf.productName, 512, 1023, 2, models.SLOT_STATUS_ONLINE)
 	assert.MustNoError(err)
 
-	s = New(":19000", ":11000", conf)
+	s = New(":19000", ":11000", false, false, conf)
 
 	err = models.SetProxyStatus(conn, conf.productName, conf.proxyId, models.PROXY_STATE_ONLINE)
 	assert.MustNoError(err)
