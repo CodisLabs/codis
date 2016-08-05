@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
-	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
@@ -175,13 +174,13 @@ func (bc *BackendConn) verifyAuth(c *redis.Conn, auth string) error {
 	case err != nil:
 		return err
 	case resp == nil:
-		return errors.New(fmt.Sprintf("error resp: nil response"))
+		return ErrRespIsRequired
 	case resp.IsError():
-		return errors.New(fmt.Sprintf("error resp: %s", resp.Value))
+		return fmt.Errorf("error resp: %s", resp.Value)
 	case resp.IsString():
 		return nil
 	default:
-		return errors.New(fmt.Sprintf("error resp: should be string, but got %s", resp.Type))
+		return fmt.Errorf("error resp: should be string, but got %s", resp.Type)
 	}
 }
 

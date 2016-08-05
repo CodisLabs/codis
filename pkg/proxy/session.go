@@ -85,11 +85,13 @@ var (
 	ErrRouterNotOnline = errors.New("router is not online")
 )
 
+var RespOK = redis.NewString([]byte("OK"))
+
 func (s *Session) Start(d *Router, config *Config) {
 	s.start.Do(func() {
 		if int(incrSessions()) > config.ProxyMaxClients {
 			go func() {
-				s.Conn.Encode(redis.NewError([]byte("ERR max number of clients reached")), true)
+				s.Conn.Encode(redis.NewErrorf("ERR max number of clients reached"), true)
 				s.CloseWithError(ErrTooManySessions, false)
 			}()
 			decrSessions()
@@ -98,7 +100,7 @@ func (s *Session) Start(d *Router, config *Config) {
 
 		if !d.isOnline() {
 			go func() {
-				s.Conn.Encode(redis.NewError([]byte("ERR router is not online")), true)
+				s.Conn.Encode(redis.NewErrorf("ERR router is not online"), true)
 				s.CloseWithError(ErrRouterNotOnline, false)
 			}()
 			decrSessions()
@@ -153,7 +155,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		r.Start = usnow
 		r.Batch = s.alloc.NewBatch()
 		if err := s.handleRequest(r, d); err != nil {
-			r.Resp = redis.NewError([]byte(fmt.Sprintf("ERR dispatch failed, %s", err)))
+			r.Resp = redis.NewErrorf("ERR dispatch failed, %s", err)
 			tasks <- r
 			return s.incrOpFails(err)
 		} else {
@@ -177,7 +179,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
 		if err != nil {
-			resp = redis.NewError([]byte(fmt.Sprintf("ERR backend failure, %s", err)))
+			resp = redis.NewErrorf("ERR backend failure, %s", err)
 			p.Conn.Encode(resp, true)
 			return s.incrOpFails(err)
 		}
@@ -222,7 +224,7 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 	r.Dirty = !flag.IsReadOnly()
 
 	if flag.IsNotAllow() {
-		return errors.New(fmt.Sprintf("command '%s' is not allowed", opstr))
+		return fmt.Errorf("command '%s' is not allowed", opstr)
 	}
 
 	switch opstr {
@@ -234,7 +236,7 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 
 	if !s.authorized {
 		if s.auth != "" {
-			r.Resp = redis.NewError([]byte("NOAUTH Authentication required."))
+			r.Resp = redis.NewErrorf("NOAUTH Authentication required")
 			return nil
 		}
 		s.authorized = true
@@ -258,47 +260,47 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 
 func (s *Session) handleQuit(r *Request) error {
 	s.quit = true
-	r.Resp = redis.NewString([]byte("OK"))
+	r.Resp = RespOK
 	return nil
 }
 
 func (s *Session) handleAuth(r *Request) error {
 	if len(r.Multi) != 2 {
-		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'AUTH' command"))
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'AUTH' command")
 		return nil
 	}
 	switch {
 	case s.auth == "":
-		r.Resp = redis.NewError([]byte("ERR Client sent AUTH, but no password is set"))
+		r.Resp = redis.NewErrorf("ERR Client sent AUTH, but no password is set")
 	case s.auth != string(r.Multi[1].Value):
 		s.authorized = false
-		r.Resp = redis.NewError([]byte("ERR invalid password"))
+		r.Resp = redis.NewErrorf("ERR invalid password")
 	default:
 		s.authorized = true
-		r.Resp = redis.NewString([]byte("OK"))
+		r.Resp = RespOK
 	}
 	return nil
 }
 
 func (s *Session) handleSelect(r *Request) error {
 	if len(r.Multi) != 2 {
-		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'SELECT' command"))
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'SELECT' command")
 		return nil
 	}
 	switch db, err := strconv.Atoi(string(r.Multi[1].Value)); {
 	case err != nil:
-		r.Resp = redis.NewError([]byte("ERR invalid DB index"))
+		r.Resp = redis.NewErrorf("ERR invalid DB index")
 	case db != 0:
-		r.Resp = redis.NewError([]byte("ERR invalid DB index, only accept DB 0"))
+		r.Resp = redis.NewErrorf("ERR invalid DB index, only accept DB 0")
 	default:
-		r.Resp = redis.NewString([]byte("OK"))
+		r.Resp = RespOK
 	}
 	return nil
 }
 
 func (s *Session) handlePing(r *Request) error {
 	if len(r.Multi) != 1 {
-		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'PING' command"))
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'PING' command")
 	} else {
 		r.Resp = redis.NewString([]byte("PONG"))
 	}
@@ -309,7 +311,7 @@ func (s *Session) handleRequestMGet(r *Request, d *Router) error {
 	var nkeys = len(r.Multi) - 1
 	switch {
 	case nkeys == 0:
-		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'MGET' command"))
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'MGET' command")
 		return nil
 	case nkeys == 1:
 		return d.dispatch(r)
@@ -336,7 +338,7 @@ func (s *Session) handleRequestMGet(r *Request, d *Router) error {
 			case resp.IsArray() && len(resp.Array) == 1:
 				array[i] = resp.Array[0]
 			default:
-				return errors.New(fmt.Sprintf("bad mget resp: %s array.len = %d", resp.Type, len(resp.Array)))
+				return fmt.Errorf("bad mget resp: %s array.len = %d", resp.Type, len(resp.Array))
 			}
 		}
 		r.Resp = redis.NewArray(array)
@@ -349,7 +351,7 @@ func (s *Session) handleRequestMSet(r *Request, d *Router) error {
 	var nblks = len(r.Multi) - 1
 	switch {
 	case nblks == 0 || nblks%2 != 0:
-		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'MSET' command"))
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'MSET' command")
 		return nil
 	case nblks == 2:
 		return d.dispatch(r)
@@ -376,7 +378,7 @@ func (s *Session) handleRequestMSet(r *Request, d *Router) error {
 			case resp.IsString():
 				r.Resp = resp
 			default:
-				return errors.New(fmt.Sprintf("bad mset resp: %s value.len = %d", resp.Type, len(resp.Value)))
+				return fmt.Errorf("bad mset resp: %s value.len = %d", resp.Type, len(resp.Value))
 			}
 		}
 		return nil
@@ -388,7 +390,7 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 	var nkeys = len(r.Multi) - 1
 	switch {
 	case nkeys == 0:
-		r.Resp = redis.NewError([]byte("ERR wrong number of arguments for 'DEL' command"))
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'DEL' command")
 		return nil
 	case nkeys == 1:
 		return d.dispatch(r)
@@ -417,10 +419,10 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 					n++
 				}
 			default:
-				return errors.New(fmt.Sprintf("bad mdel resp: %s value.len = %d", resp.Type, len(resp.Value)))
+				return fmt.Errorf("bad mdel resp: %s value.len = %d", resp.Type, len(resp.Value))
 			}
 		}
-		r.Resp = redis.NewInt([]byte(strconv.Itoa(n)))
+		r.Resp = redis.NewInt(strconv.AppendInt(nil, int64(n), 10))
 		return nil
 	}
 	return nil

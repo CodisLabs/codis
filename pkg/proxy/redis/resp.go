@@ -60,38 +60,42 @@ func (r *Resp) IsArray() bool {
 }
 
 func NewString(value []byte) *Resp {
-	return &Resp{
-		Type:  TypeString,
-		Value: value,
-	}
+	r := &Resp{}
+	r.Type = TypeString
+	r.Value = value
+	return r
 }
 
 func NewError(value []byte) *Resp {
-	return &Resp{
-		Type:  TypeError,
-		Value: value,
-	}
+	r := &Resp{}
+	r.Type = TypeError
+	r.Value = value
+	return r
+}
+
+func NewErrorf(format string, args ...interface{}) *Resp {
+	return NewError([]byte(fmt.Sprintf(format, args...)))
 }
 
 func NewInt(value []byte) *Resp {
-	return &Resp{
-		Type:  TypeInt,
-		Value: value,
-	}
+	r := &Resp{}
+	r.Type = TypeInt
+	r.Value = value
+	return r
 }
 
 func NewBulkBytes(value []byte) *Resp {
-	return &Resp{
-		Type:  TypeBulkBytes,
-		Value: value,
-	}
+	r := &Resp{}
+	r.Type = TypeBulkBytes
+	r.Value = value
+	return r
 }
 
 func NewArray(array []*Resp) *Resp {
-	return &Resp{
-		Type:  TypeArray,
-		Array: array,
-	}
+	r := &Resp{}
+	r.Type = TypeArray
+	r.Array = array
+	return r
 }
 
 type RespAlloc struct {
@@ -105,7 +109,7 @@ type RespAlloc struct {
 	}
 }
 
-func (p *RespAlloc) New() *Resp {
+func (p *RespAlloc) NewResp() *Resp {
 	var d = &p.alloc
 	if len(d.buf) == d.off {
 		d.buf = make([]Resp, 16)

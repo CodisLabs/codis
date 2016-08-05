@@ -105,12 +105,12 @@ func (s *Slot) slotsmgrt(r *Request, key []byte) error {
 	case resp == nil:
 		return ErrRespIsRequired
 	case resp.IsError():
-		return errors.New(fmt.Sprintf("error resp: %s", resp.Value))
+		return fmt.Errorf("error resp: %s", resp.Value)
 	case resp.IsInt():
 		log.Debugf("slot-%04d migrate from %s to %s: key = %s, resp = %s",
 			s.id, s.migrate.Addr(), s.backend.Addr(), key, resp.Value)
 		return nil
 	default:
-		return errors.New(fmt.Sprintf("error resp: should be integer, but got %s", resp.Type))
+		return fmt.Errorf("error resp: should be integer, but got %s", resp.Type)
 	}
 }

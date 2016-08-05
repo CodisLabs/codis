@@ -122,7 +122,7 @@ func (d *Decoder) decodeResp() (*Resp, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	r := d.alloc.New()
+	r := d.alloc.NewResp()
 	r.Type = RespType(b)
 	switch r.Type {
 	default:
