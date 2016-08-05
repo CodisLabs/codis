@@ -35,7 +35,7 @@ type RequestAlloc struct {
 	}
 }
 
-func (p *RequestAlloc) New() *Request {
+func (p *RequestAlloc) NewRequest() *Request {
 	var d = &p.alloc
 	if len(d.buf) == d.off {
 		d.buf = make([]Request, 64)
@@ -44,6 +44,15 @@ func (p *RequestAlloc) New() *Request {
 	r := &d.buf[d.off]
 	d.off += 1
 	return r
+}
+
+func (p *RequestAlloc) SubRequest(r *Request) *Request {
+	x := p.NewRequest()
+	x.Start = r.Start
+	x.Batch = r.Batch
+	x.OpStr = r.OpStr
+	x.Dirty = r.Dirty
+	return x
 }
 
 func (p *RequestAlloc) NewBatch() *sync.WaitGroup {

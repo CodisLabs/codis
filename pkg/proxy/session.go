@@ -123,15 +123,6 @@ func (s *Session) Start(d *Router, config *Config) {
 	})
 }
 
-func (s *Session) newSubRequest(r *Request, opstr string, multi []*redis.Resp) *Request {
-	x := s.alloc.New()
-	x.OpStr = opstr
-	x.Multi = multi
-	x.Batch = r.Batch
-	x.Dirty = r.Dirty
-	return x
-}
-
 func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 	defer func() {
 		if err != nil {
@@ -150,7 +141,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		s.LastOpUnix = usnow / 1e6
 		s.Ops++
 
-		r := s.alloc.New()
+		r := s.alloc.NewRequest()
 		r.Multi = multi
 		r.Start = usnow
 		r.Batch = s.alloc.NewBatch()
@@ -318,10 +309,11 @@ func (s *Session) handleRequestMGet(r *Request, d *Router) error {
 	}
 	var sub = make([]*Request, nkeys)
 	for i := 0; i < len(sub); i++ {
-		sub[i] = s.newSubRequest(r, r.OpStr, []*redis.Resp{
+		sub[i] = s.alloc.SubRequest(r)
+		sub[i].Multi = []*redis.Resp{
 			r.Multi[0],
 			r.Multi[i+1],
-		})
+		}
 		if err := d.dispatch(sub[i]); err != nil {
 			return err
 		}
@@ -358,11 +350,12 @@ func (s *Session) handleRequestMSet(r *Request, d *Router) error {
 	}
 	var sub = make([]*Request, nblks/2)
 	for i := 0; i < len(sub); i++ {
-		sub[i] = s.newSubRequest(r, r.OpStr, []*redis.Resp{
+		sub[i] = s.alloc.SubRequest(r)
+		sub[i].Multi = []*redis.Resp{
 			r.Multi[0],
 			r.Multi[i*2+1],
 			r.Multi[i*2+2],
-		})
+		}
 		if err := d.dispatch(sub[i]); err != nil {
 			return err
 		}
@@ -397,10 +390,11 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 	}
 	var sub = make([]*Request, nkeys)
 	for i := 0; i < len(sub); i++ {
-		sub[i] = s.newSubRequest(r, r.OpStr, []*redis.Resp{
+		sub[i] = s.alloc.SubRequest(r)
+		sub[i].Multi = []*redis.Resp{
 			r.Multi[0],
 			r.Multi[i+1],
-		})
+		}
 		if err := d.dispatch(sub[i]); err != nil {
 			return err
 		}
