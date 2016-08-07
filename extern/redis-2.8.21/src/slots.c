@@ -47,8 +47,13 @@ parse_int(redisClient *c, robj *obj, int *p) {
     if (getLongFromObjectOrReply(c, obj, &v, NULL) != REDIS_OK) {
         return -1;
     }
-    *p = v;
-    return 0;
+    if (v < INT_MIN || v > INT_MAX) {
+        addReplyError(c, "value is out of range");
+        return -1;
+    } else {
+        *p = v;
+        return 0;
+    }
 }
 
 static int
@@ -814,4 +819,64 @@ slotsmgrttagoneCommand(redisClient *c) {
         return;
     }
     addReplyLongLong(c, succ);
+}
+
+/* *
+ * slotsscan slotnum cursor [COUNT count]
+ * */
+void
+slotsscanCommand(redisClient *c) {
+    int slot;
+    if (parse_slot(c, c->argv[1], &slot) != 0) {
+        return;
+    }
+    unsigned long cursor;
+    if (parseScanCursorOrReply(c, c->argv[2], &cursor) == REDIS_ERR) {
+        return;
+    }
+    unsigned long count = 10;
+    if (c->argc != 3 && c->argc != 5) {
+        addReplyErrorFormat(c, "wrong number of arguments for 'slotsscan' command");
+        return;
+    }
+    if (c->argc == 5) {
+        if (strcasecmp(c->argv[3]->ptr, "count") != 0) {
+            addReply(c, shared.syntaxerr);
+            return;
+        }
+        int v;
+        if (parse_int(c, c->argv[4], &v) != 0) {
+            return;
+        }
+        if (v < 1) {
+            addReply(c, shared.syntaxerr);
+            return;
+        }
+        count = v;
+    }
+    dict *d = c->db->hash_slots[slot];
+    list *l = listCreate();
+    listSetFreeMethod(l, decrRefCountVoid);
+
+    long loops = count * 10;
+    do {
+        cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, l);
+        loops --;
+    } while (cursor != 0 && loops > 0 && listLength(l) < count);
+
+    addReplyMultiBulkLen(c, 2);
+    addReplyBulkLongLong(c, cursor);
+
+    addReplyMultiBulkLen(c, listLength(l));
+    while (1) {
+        listNode *head = listFirst(l);
+        if (head == NULL) {
+            break;
+        }
+        robj *key = listNodeValue(head);
+        addReplyBulk(c, key);
+        listDelNode(l, head);
+    }
+
+    listRelease(l);
 }

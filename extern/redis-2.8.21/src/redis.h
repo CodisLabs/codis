@@ -1434,6 +1434,7 @@ void pfmergeCommand(redisClient *c);
 void pfdebugCommand(redisClient *c);
 void latencyCommand(redisClient *c);
 void slotsinfoCommand(redisClient *c);
+void slotsscanCommand(redisClient *c);
 void slotsdelCommand(redisClient *c);
 void slotsmgrtslotCommand(redisClient *c);
 void slotsmgrtoneCommand(redisClient *c);
