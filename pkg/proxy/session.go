@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
@@ -253,7 +254,7 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 	case "SLOTSSCAN":
 		return s.handleRequestSlotsScan(r, d)
 	case "SLOTSMAPPING":
-		return s.handleSlotsMapping(r)
+		return s.handleRequestSlotsMapping(r, d)
 	default:
 		return d.dispatch(r)
 	}
@@ -300,19 +301,41 @@ func (s *Session) handleSelect(r *Request) error {
 }
 
 func (s *Session) handleRequestPing(r *Request, d *Router) error {
-	// TODO ping addr
-	if len(r.Multi) != 1 {
-		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'PING' command")
-	} else {
-		r.Resp = redis.NewString([]byte("PONG"))
+	var nblks = len(r.Multi) - 1
+	switch {
+	case nblks == 0:
+		slot := uint32(time.Now().Nanosecond()) % models.MaxSlotNum
+		return d.dispatchSlot(r, int(slot))
 	}
-	panic("todo")
+	var addr = string(r.Multi[1].Value)
+	for i := 1; i < nblks; i++ {
+		r.Multi[i] = r.Multi[i+1]
+	}
+	r.Multi = r.Multi[:nblks]
+	if !d.dispatchAddr(r, addr) {
+		r.Resp = redis.NewErrorf("ERR backend server '%s' not found", addr)
+		return nil
+	}
 	return nil
 }
 
 func (s *Session) handleRequestInfo(r *Request, d *Router) error {
-	// TODO info addr
-	panic("todo")
+	var nblks = len(r.Multi) - 1
+	switch {
+	case nblks == 0:
+		slot := uint32(time.Now().Nanosecond()) % models.MaxSlotNum
+		return d.dispatchSlot(r, int(slot))
+	}
+	var addr = string(r.Multi[1].Value)
+	for i := 1; i < nblks; i++ {
+		r.Multi[i] = r.Multi[i+1]
+	}
+	r.Multi = r.Multi[:nblks]
+	if !d.dispatchAddr(r, addr) {
+		r.Resp = redis.NewErrorf("ERR backend server '%s' not found", addr)
+		return nil
+	}
+	return nil
 }
 
 func (s *Session) handleRequestMGet(r *Request, d *Router) error {
@@ -440,18 +463,56 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 }
 
 func (s *Session) handleRequestSlotsInfo(r *Request, d *Router) error {
-	// TODO slotsinfo addr
-	panic("todo")
+	var nblks = len(r.Multi) - 1
+	switch {
+	case nblks != 1:
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'SLOTSINFO' command")
+		return nil
+	}
+	var addr = string(r.Multi[1].Value)
+	r.Multi = r.Multi[:nblks]
+	if !d.dispatchAddr(r, addr) {
+		r.Resp = redis.NewErrorf("ERR backend server '%s' not found", addr)
+		return nil
+	}
+	return nil
 }
 
 func (s *Session) handleRequestSlotsScan(r *Request, d *Router) error {
-	// TODO slotsscan slotsnum cursor xxx
-	panic("todo")
+	var nblks = len(r.Multi) - 1
+	switch {
+	case nblks <= 1:
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'SLOTSSCAN' command")
+		return nil
+	}
+	slot, err := redis.Btoi64(r.Multi[1].Value)
+	switch {
+	case err != nil:
+		r.Resp = redis.NewErrorf("ERR parse slotnum '%s' failed, %s", r.Multi[1].Value, err)
+		return nil
+	case slot < 0 || slot >= models.MaxSlotNum:
+		r.Resp = redis.NewErrorf("ERR parse slotnum '%s' failed, out of range", r.Multi[1].Value)
+		return nil
+	default:
+		return d.dispatchSlot(r, int(slot))
+	}
 }
 
-func (s *Session) handleSlotsMapping(r *Request) error {
-	// TODO slotsmapping
-	panic("todo")
+func (s *Session) handleRequestSlotsMapping(r *Request, d *Router) error {
+	if len(r.Multi) != 1 {
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'SLOTSMAPPING' command")
+		return nil
+	}
+	var array = make([]*redis.Resp, 0, models.MaxSlotNum)
+	for _, slot := range d.GetSlots() {
+		array = append(array, redis.NewArray([]*redis.Resp{
+			redis.NewString([]byte(strconv.Itoa(slot.Id))),
+			redis.NewString([]byte(slot.BackendAddr)),
+			redis.NewString([]byte(slot.MigrateFrom)),
+		}))
+	}
+	r.Resp = redis.NewArray(array)
+	return nil
 }
 
 func (s *Session) incrOpTotal() {
