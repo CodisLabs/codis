@@ -72,11 +72,8 @@ func (c *Conn) SetKeepAlivePeriod(d time.Duration) error {
 	return nil
 }
 
-func (c *Conn) FlushPolicy(maxBuffered int, maxInterval time.Duration) *FlushPolicy {
-	p := &FlushPolicy{Conn: c}
-	p.MaxBuffered = maxBuffered
-	p.MaxInterval = maxInterval
-	return p
+func (c *Conn) FlushEncoder() *FlushEncoder {
+	return &FlushEncoder{Conn: c}
 }
 
 type connReader struct {
@@ -154,16 +151,16 @@ func IsTimeout(err error) bool {
 	return false
 }
 
-type FlushPolicy struct {
+type FlushEncoder struct {
 	Conn *Conn
 
-	MaxBuffered int
 	MaxInterval time.Duration
+	MaxBuffered int
 
 	nbuffered int
 }
 
-func (p *FlushPolicy) NeedFlush() bool {
+func (p *FlushEncoder) NeedFlush() bool {
 	if p.nbuffered != 0 {
 		if p.MaxBuffered < p.nbuffered {
 			return true
@@ -175,7 +172,7 @@ func (p *FlushPolicy) NeedFlush() bool {
 	return false
 }
 
-func (p *FlushPolicy) Flush(force bool) error {
+func (p *FlushEncoder) Flush(force bool) error {
 	if force || p.NeedFlush() {
 		if err := p.Conn.Flush(); err != nil {
 			return err
@@ -185,7 +182,7 @@ func (p *FlushPolicy) Flush(force bool) error {
 	return nil
 }
 
-func (p *FlushPolicy) Encode(resp *Resp) error {
+func (p *FlushEncoder) Encode(resp *Resp) error {
 	if err := p.Conn.Encode(resp, false); err != nil {
 		return err
 	} else {
@@ -194,7 +191,7 @@ func (p *FlushPolicy) Encode(resp *Resp) error {
 	}
 }
 
-func (p *FlushPolicy) EncodeMultiBulk(multi []*Resp) error {
+func (p *FlushEncoder) EncodeMultiBulk(multi []*Resp) error {
 	if err := p.Conn.EncodeMultiBulk(multi, false); err != nil {
 		return err
 	} else {

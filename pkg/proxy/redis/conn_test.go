@@ -22,13 +22,9 @@ func newConnPair() (*Conn, *Conn) {
 	cc := make(chan *Conn, 1)
 	go func() {
 		defer close(cc)
-		for {
-			c, err := l.Accept()
-			if err != nil {
-				return
-			}
-			cc <- NewConn(c, bufsize, bufsize)
-		}
+		c, err := l.Accept()
+		assert.MustNoError(err)
+		cc <- NewConn(c, bufsize, bufsize)
 	}()
 
 	const timeout = time.Millisecond * 50

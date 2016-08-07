@@ -15,6 +15,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
@@ -166,7 +167,9 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 		s.flushOpStats()
 	}()
 
-	p := s.Conn.FlushPolicy(128, time.Millisecond)
+	p := s.Conn.FlushEncoder()
+	p.MaxInterval = time.Millisecond
+	p.MaxBuffered = math2.MinInt(128, cap(tasks))
 
 	for r := range tasks {
 		resp, err := s.handleResponse(r)

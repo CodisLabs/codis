@@ -11,6 +11,7 @@ import (
 
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 )
 
 type BackendConn struct {
@@ -115,7 +116,9 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 		}
 		defer close(tasks)
 
-		p := c.FlushPolicy(256, time.Millisecond)
+		p := c.FlushEncoder()
+		p.MaxInterval = time.Millisecond
+		p.MaxBuffered = math2.MinInt(256, cap(tasks))
 
 		for ok {
 			if err := p.EncodeMultiBulk(r.Multi); err != nil {

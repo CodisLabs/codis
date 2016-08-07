@@ -4,6 +4,7 @@
 package proxy
 
 import (
+	"log"
 	"net"
 	"strconv"
 	"sync"
@@ -14,36 +15,47 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/assert"
 )
 
-func TestBackend(t *testing.T) {
+func newConnPair(config *Config) (*redis.Conn, *BackendConn) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.MustNoError(err)
 	defer l.Close()
 
-	addr := l.Addr().String()
-	reqc := make(chan *Request, 16384)
-	go func() {
-		bc := NewBackendConn(addr, NewDefaultConfig())
-		defer bc.Close()
-		defer close(reqc)
-		var multi = []*redis.Resp{redis.NewBulkBytes(make([]byte, 4096))}
-		for i := 0; i < cap(reqc); i++ {
-			r := &Request{}
-			r.Multi = multi
-			r.Batch = &sync.WaitGroup{}
-			bc.PushBack(r)
-			reqc <- r
-		}
-	}()
+	const bufsize = 128 * 1024
 
-	const bufsize = 8192
-
+	cc := make(chan *redis.Conn, 1)
 	go func() {
+		defer close(cc)
 		c, err := l.Accept()
 		assert.MustNoError(err)
-		defer c.Close()
-		conn := redis.NewConn(c, bufsize, bufsize)
+		cc <- redis.NewConn(c, bufsize, bufsize)
+	}()
+
+	bc := NewBackendConn(l.Addr().String(), config)
+	bc.PushBack(&Request{})
+
+	conn := <-cc
+
+	assert.MustNoError(conn.EncodeMultiBulk(nil, true))
+	return conn, bc
+}
+
+func TestBackend(t *testing.T) {
+	config := NewDefaultConfig()
+	config.BackendMaxPipeline = 0
+	config.BackendSendTimeout.Set(time.Second)
+	config.BackendRecvTimeout.Set(time.Minute)
+
+	conn, bc := newConnPair(config)
+
+	var array = make([]*Request, 16384)
+	for i := 0; i < len(array); i++ {
+		array[i] = &Request{Batch: &sync.WaitGroup{}}
+	}
+
+	go func() {
+		defer conn.Close()
 		time.Sleep(time.Millisecond * 300)
-		for i := 0; i < cap(reqc); i++ {
+		for i, _ := range array {
 			_, err := conn.Decode()
 			assert.MustNoError(err)
 			resp := redis.NewString([]byte(strconv.Itoa(i)))
@@ -51,11 +63,25 @@ func TestBackend(t *testing.T) {
 		}
 	}()
 
-	var n int
-	for r := range reqc {
-		r.Batch.Wait()
-		assert.Must(string(r.Resp.Value) == strconv.Itoa(n))
-		n++
+	defer bc.Close()
+
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	go func() {
+		for i := 0; i < 10; i++ {
+			<-ticker.C
+		}
+		log.Panicf("timeout")
+	}()
+
+	for _, r := range array {
+		bc.PushBack(r)
 	}
-	assert.Must(n == cap(reqc))
+
+	for i, r := range array {
+		r.Batch.Wait()
+		assert.MustNoError(r.Err)
+		assert.Must(r.Resp != nil)
+		assert.Must(string(r.Resp.Value) == strconv.Itoa(i))
+	}
 }
