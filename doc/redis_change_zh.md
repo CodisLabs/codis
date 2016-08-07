@@ -1,7 +1,7 @@
 ### redis 修改部分（增加若干指令） ###
 --------------------------------
 
-#####slotsinfo [start] [count]#####
+#####SLOTSINFO [start] [count]#####
 
 + 命令说明：获取 redis 中 slot 的个数以及每个 slot 的大小
 
@@ -13,7 +13,7 @@
 
   - count - 查询的区间的大小，即查询范围为 [start, start + count)
 
-    缺省 = MAX_SLOT_NUM
+    缺省 = MAX\_SLOT\_NUM
 
 + 返回结果：返回结果是 slotinfo 的 array；slotinfo 本身也是一个 array。
 
@@ -26,13 +26,46 @@
 
 + 例如：
 
-        localhost:6379> slotinfo 0 128
+        localhost:6379> slotsinfo 0 128
             1) 1) (integer) 23
                2) (integer) 2
             2) 1) (integer) 29
                2) (integer) 1
 
-#####slotsdel slot1 [slot2 …]#####
+#####SLOTSSCAN slotnum cursor [COUNT count]
+
++ 命令说明：获取指定 slotnum 下的 key 列表
+
++ 命令参数：参数说明类似 SCAN 命令
+
+    - slotnum - 查询的 slot 序号，[0, MAX\_SLOT\_NUM）
+
+    - cursor - 说明参考 SCAN 命令，要求范围 [1, INT\_MAX]
+
+    - [COUNT count) - 说明参考 SCAN 命令
+
+        - 暂不支持 MATCH 查询
+
++ 返回结果：参考 SCAN 命令
+
+    - 返回更新后的 cursor 以及一组 key 列表
+
++ 例如:
+
+        localhost:6379> slotsscan 579 0 COUNT 10
+            1) "10752"
+            2)  1) "{a}7836"
+                2) "{a}2167"
+                3) "{a}5332"
+                4) "{a}6292"
+                5) "{a}600"
+                6) "{a}6094"
+                7) "{a}7754"
+                8) "{a}4929"
+                9) "{a}9211"
+               10) "{a}6596"
+
+#####SLOTSDEL slot1 [slot2 …]#####
 
 + 命令说明：删除 redis 中若干 slot 下的全部 key-value
 
@@ -53,24 +86,24 @@
 
 **以下4个命令是一族命令：**
 
-+ slotsmgrtslot - *O(1)*
++ SLOTSMGRTSLOT - *O(1)*
 
     随机在某个 slot 下迁移一个 key-value 到目标机器
 
-+ slotsmgrtone - *O(1)*
++ SLOTSMGRTONE - *O(1)*
 
     将指定的 key-value 迁移到目标机
 
-+ slotsmgrttagslot - *O(log(n))*
++ SLOTSMGRTTAGSLOT - *O(log(n))*
 
     随机在某个 slot 下选择一个 key，并将与之有相同 tag 的 key-value 对全部迁移到目标机
 
-+ slotsmgrttagone - *O(log(n))*
++ SLOTSMGRTTAGONE - *O(log(n))*
 
     将与指定 key 具有相同 tag 的所有 key-value 对迁移到目标机
 
 
-#####slotsmgrtslot host port timeout slot#####
+#####SLOTSMGRTSLOT host port timeout slot#####
 
 + 命令说明：随机选择 slot 下的 1 个 key-value 到迁移到目标机（同步 IO 操作）
 
@@ -128,7 +161,7 @@
             (integer) 0                      # 成功成功个数为 0；当前 slot 已经空了
 
 
-#####slotsmgrtone host port timeout key#####
+#####SLOTSMGRTONE host port timeout key#####
 
 + 命令说明：迁移 key 到目标机，与 slotsmgrtslot 相同
 
@@ -153,7 +186,7 @@
         localhost:6379> slotsmgrtone 127.0.0.1 6380 100 a
             (integer) 0                      # 放弃迁移，本地已经不存在了
 
-#####slotsmgrttagone host port timeout key#####
+#####SLOTSMGRTTAGONE host port timeout key#####
 
 + 命令说明：迁移与 key 有相同的 tag 的所有 key 到目标机
 
@@ -188,13 +221,13 @@
             2) 1) "a{tag}"
                2) "b{tag}"
 
-#####slotsmgrttagslot host port timeout slot#####
+#####SLOTSMGRTTAGSLOT host port timeout slot#####
 
 + 命令说明：与 slotsmgrtslot 对应的迁移指令
 
     - 其他说明参考 slotsmgrtslot 以及 slotsmgrttagone 的解释即可
 
-#####slotsrestore key1 ttl1 val1 [key2 ttl2 val2 …]#####
+#####SLOTSRESTORE key1 ttl1 val1 [key2 ttl2 val2 …]#####
 
 + 命令说明：该命令是对 redis-2.8 的 restore 命令的扩展
 
@@ -207,7 +240,7 @@
 ####调试相关####
 ---------------
 
-#####slotshashkey key1 [key2 …]#####
+#####SLOTSHASHKEY key1 [key2 …]#####
 
 + 命令说明：计算并返回给定 key 的 slot 序号
 
@@ -227,7 +260,7 @@
             2) (integer) 1017
             3) (integer) 879
 
-#####slotscheck#####
+#####SLOTSCHECK#####
 
 + 命令说明：对 redis 内的 slots 进行一致性检查，即满足如下两条
 
