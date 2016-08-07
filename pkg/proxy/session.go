@@ -179,6 +179,8 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 		}
 		if err := p.Flush(len(tasks) == 0); err != nil {
 			return s.incrOpFails(err)
+		} else {
+			r.Release()
 		}
 		if len(tasks) == 0 {
 			s.flushOpStats()

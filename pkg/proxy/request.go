@@ -24,6 +24,12 @@ type Request struct {
 	Coalesce func() error
 }
 
+func (r *Request) Release() {
+	r.Multi = nil
+	r.Resp = nil
+	r.Coalesce = nil
+}
+
 type RequestAlloc struct {
 	alloc struct {
 		buf []Request
