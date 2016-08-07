@@ -80,11 +80,10 @@ func (s *Router) FillSlot(id int, addr, from string, locked bool) error {
 	if s.closed {
 		return ErrClosedRouter
 	}
-	if id >= 0 && id < len(s.slots) {
-		return s.fillSlot(id, addr, from, locked)
-	} else {
+	if id < 0 || id >= len(s.slots) {
 		return ErrInvalidSlotId
 	}
+	return s.fillSlot(id, addr, from, locked)
 }
 
 func (s *Router) KeepAlive() error {
@@ -107,6 +106,14 @@ func (s *Router) dispatch(r *Request) error {
 	hkey := getHashKey(r.Multi, r.OpStr)
 	slot := &s.slots[hashSlot(hkey)]
 	return slot.forward(r, hkey)
+}
+
+func (s *Router) dispatchSlot(r *Request, id int) error {
+	if id < 0 || id >= len(s.slots) {
+		return ErrInvalidSlotId
+	}
+	slot := &s.slots[id]
+	return slot.forward(r, nil)
 }
 
 func (s *Router) getBackendConn(addr string) *SharedBackendConn {

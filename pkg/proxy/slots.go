@@ -79,7 +79,10 @@ func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 }
 
 func (s *Slot) slotsmgrt(r *Request, key []byte) error {
-	if len(key) == 0 || s.migrate == nil {
+	if s.migrate == nil {
+		return nil
+	}
+	if len(key) == 0 {
 		return nil
 	}
 
