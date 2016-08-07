@@ -30,7 +30,7 @@ const (
 	MaxArrayLen     = 1024 * 1024
 )
 
-func btoi(b []byte) (int64, error) {
+func Btoi64(b []byte) (int64, error) {
 	if len(b) != 0 && len(b) < 10 {
 		var neg, i = false, 0
 		switch b[0] {
@@ -157,7 +157,7 @@ func (d *Decoder) decodeInt() (int64, error) {
 	if n := len(b) - 2; n < 0 || b[n] != '\r' {
 		return 0, errors.Trace(ErrBadCRLFEnd)
 	} else {
-		return btoi(b[:n])
+		return Btoi64(b[:n])
 	}
 }
 

@@ -10,9 +10,9 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/assert"
 )
 
-func TestBtoi(t *testing.T) {
+func TestBtoi64(t *testing.T) {
 	for i, b := range tmap {
-		v, err := btoi(b)
+		v, err := Btoi64(b)
 		assert.MustNoError(err)
 		assert.Must(v == i)
 	}
