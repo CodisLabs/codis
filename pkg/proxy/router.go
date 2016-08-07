@@ -12,7 +12,7 @@ import (
 )
 
 type Router struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	pool map[string]*SharedBackendConn
 
@@ -54,8 +54,8 @@ func (s *Router) Close() {
 }
 
 func (s *Router) GetSlots() []*models.Slot {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	slots := make([]*models.Slot, 0, len(s.slots))
 	for i := 0; i < len(s.slots); i++ {
 		slot := &s.slots[i]
@@ -87,8 +87,8 @@ func (s *Router) FillSlot(id int, addr, from string, locked bool) error {
 }
 
 func (s *Router) KeepAlive() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if s.closed {
 		return ErrClosedRouter
 	}
@@ -116,13 +116,15 @@ func (s *Router) dispatchSlot(r *Request, id int) error {
 	return slot.forward(r, nil)
 }
 
-func (s *Router) getBackendConn(addr string) *SharedBackendConn {
+func (s *Router) getBackendConn(addr string, create bool) *SharedBackendConn {
 	if bc := s.pool[addr]; bc != nil {
 		return bc.Retain()
-	} else {
+	} else if create {
 		bc := NewSharedBackendConn(addr, s.config)
 		s.pool[addr] = bc
 		return bc
+	} else {
+		return nil
 	}
 }
 
@@ -152,10 +154,10 @@ func (s *Router) fillSlot(id int, addr, from string, locked bool) error {
 	slot.reset()
 
 	if len(addr) != 0 {
-		slot.backend = s.getBackendConn(addr)
+		slot.backend = s.getBackendConn(addr, true)
 	}
 	if len(from) != 0 {
-		slot.migrate = s.getBackendConn(from)
+		slot.migrate = s.getBackendConn(from, true)
 	}
 
 	if !locked {
