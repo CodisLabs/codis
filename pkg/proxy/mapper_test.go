@@ -158,8 +158,8 @@ func TestHashSlot(t *testing.T) {
 		"123{456}":        "456",
 	}
 	for k, v := range m {
-		i := hashSlot([]byte(k))
-		j := hashSlot([]byte(v))
+		i := Hash([]byte(k))
+		j := Hash([]byte(v))
 		assert.Must(i == j)
 	}
 }

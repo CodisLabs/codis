@@ -8,7 +8,6 @@ import (
 	"hash/crc32"
 	"strings"
 
-	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
@@ -258,7 +257,7 @@ func getOpInfo(multi []*redis.Resp) (string, OpFlag, error) {
 	return string(op), FlagMayWrite, nil
 }
 
-func hashSlot(key []byte) int {
+func Hash(key []byte) uint32 {
 	const (
 		TagBeg = '{'
 		TagEnd = '}'
@@ -268,7 +267,7 @@ func hashSlot(key []byte) int {
 			key = key[beg+1 : beg+1+end]
 		}
 	}
-	return int(crc32.ChecksumIEEE(key) % models.MaxSlotNum)
+	return crc32.ChecksumIEEE(key)
 }
 
 func getHashKey(multi []*redis.Resp, opstr string) []byte {

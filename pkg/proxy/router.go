@@ -104,7 +104,8 @@ func (s *Router) isOnline() bool {
 
 func (s *Router) dispatch(r *Request) error {
 	hkey := getHashKey(r.Multi, r.OpStr)
-	slot := &s.slots[hashSlot(hkey)]
+	var id = Hash(hkey) % uint32(len(s.slots))
+	slot := &s.slots[id]
 	return slot.forward(r, hkey)
 }
 
@@ -114,6 +115,19 @@ func (s *Router) dispatchSlot(r *Request, id int) error {
 	}
 	slot := &s.slots[id]
 	return slot.forward(r, nil)
+}
+
+func (s *Router) dispatchAddr(r *Request, addr string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	bc := s.getBackendConn(addr, false)
+	if bc == nil {
+		return false
+	} else {
+		bc.PushBack(r)
+		s.putBackendConn(bc)
+		return true
+	}
 }
 
 func (s *Router) getBackendConn(addr string, create bool) *SharedBackendConn {
