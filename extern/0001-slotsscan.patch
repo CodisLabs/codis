@@ -1,0 +1,108 @@
+diff --git a/extern/redis-2.8.21/src/redis.c b/extern/redis-2.8.21/src/redis.c
+index 21e75d0..33ba3a3 100644
+--- a/extern/redis-2.8.21/src/redis.c
++++ b/extern/redis-2.8.21/src/redis.c
+@@ -276,6 +276,7 @@ struct redisCommand redisCommandTable[] = {
+     {"pfdebug",pfdebugCommand,-3,"w",0,NULL,0,0,0,0,0},
+     {"latency",latencyCommand,-2,"arslt",0,NULL,0,0,0,0,0},
+     {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
++    {"slotsscan",slotsscanCommand,-3,"rR",0,NULL,0,0,0,0,0},
+     {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
+     {"slotsmgrtslot",slotsmgrtslotCommand,5,"aw",0,NULL,0,0,0,0,0},
+     {"slotsmgrtone",slotsmgrtoneCommand,5,"aw",0,NULL,0,0,0,0,0},
+diff --git a/extern/redis-2.8.21/src/redis.h b/extern/redis-2.8.21/src/redis.h
+index a15910a..8a0c13d 100644
+--- a/extern/redis-2.8.21/src/redis.h
++++ b/extern/redis-2.8.21/src/redis.h
+@@ -1434,6 +1434,7 @@ void pfmergeCommand(redisClient *c);
+ void pfdebugCommand(redisClient *c);
+ void latencyCommand(redisClient *c);
+ void slotsinfoCommand(redisClient *c);
++void slotsscanCommand(redisClient *c);
+ void slotsdelCommand(redisClient *c);
+ void slotsmgrtslotCommand(redisClient *c);
+ void slotsmgrtoneCommand(redisClient *c);
+diff --git a/extern/redis-2.8.21/src/slots.c b/extern/redis-2.8.21/src/slots.c
+index 24df9ae..daa7be2 100644
+--- a/extern/redis-2.8.21/src/slots.c
++++ b/extern/redis-2.8.21/src/slots.c
+@@ -47,8 +47,13 @@ parse_int(redisClient *c, robj *obj, int *p) {
+     if (getLongFromObjectOrReply(c, obj, &v, NULL) != REDIS_OK) {
+         return -1;
+     }
+-    *p = v;
+-    return 0;
++    if (v < INT_MIN || v > INT_MAX) {
++        addReplyError(c, "value is out of range");
++        return -1;
++    } else {
++        *p = v;
++        return 0;
++    }
+ }
+ 
+ static int
+@@ -815,3 +820,63 @@ slotsmgrttagoneCommand(redisClient *c) {
+     }
+     addReplyLongLong(c, succ);
+ }
++
++/* *
++ * slotsscan slotnum cursor [COUNT count]
++ * */
++void
++slotsscanCommand(redisClient *c) {
++    int slot;
++    if (parse_slot(c, c->argv[1], &slot) != 0) {
++        return;
++    }
++    unsigned long cursor;
++    if (parseScanCursorOrReply(c, c->argv[2], &cursor) == REDIS_ERR) {
++        return;
++    }
++    unsigned long count = 10;
++    if (c->argc != 3 && c->argc != 5) {
++        addReplyErrorFormat(c, "wrong number of arguments for 'slotsscan' command");
++        return;
++    }
++    if (c->argc == 5) {
++        if (strcasecmp(c->argv[3]->ptr, "count") != 0) {
++            addReply(c, shared.syntaxerr);
++            return;
++        }
++        int v;
++        if (parse_int(c, c->argv[4], &v) != 0) {
++            return;
++        }
++        if (v < 1) {
++            addReply(c, shared.syntaxerr);
++            return;
++        }
++        count = v;
++    }
++    dict *d = c->db->hash_slots[slot];
++    list *l = listCreate();
++    listSetFreeMethod(l, decrRefCountVoid);
++
++    long loops = count * 10;
++    do {
++        cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, l);
++        loops --;
++    } while (cursor != 0 && loops > 0 && listLength(l) < count);
++
++    addReplyMultiBulkLen(c, 2);
++    addReplyBulkLongLong(c, cursor);
++
++    addReplyMultiBulkLen(c, listLength(l));
++    while (1) {
++        listNode *head = listFirst(l);
++        if (head == NULL) {
++            break;
++        }
++        robj *key = listNodeValue(head);
++        addReplyBulk(c, key);
++        listDelNode(l, head);
++    }
++
++    listRelease(l);
++}
