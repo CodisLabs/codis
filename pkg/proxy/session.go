@@ -239,13 +239,21 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 	case "SELECT":
 		return s.handleSelect(r)
 	case "PING":
-		return s.handlePing(r)
+		return s.handleRequestPing(r, d)
+	case "INFO":
+		return s.handleRequestInfo(r, d)
 	case "MGET":
 		return s.handleRequestMGet(r, d)
 	case "MSET":
 		return s.handleRequestMSet(r, d)
 	case "DEL":
 		return s.handleRequestMDel(r, d)
+	case "SLOTSINFO":
+		return s.handleRequestSlotsInfo(r, d)
+	case "SLOTSSCAN":
+		return s.handleRequestSlotsScan(r, d)
+	case "SLOTSMAPPING":
+		return s.handleSlotsMapping(r)
 	default:
 		return d.dispatch(r)
 	}
@@ -291,13 +299,20 @@ func (s *Session) handleSelect(r *Request) error {
 	return nil
 }
 
-func (s *Session) handlePing(r *Request) error {
+func (s *Session) handleRequestPing(r *Request, d *Router) error {
+	// TODO ping addr
 	if len(r.Multi) != 1 {
 		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'PING' command")
 	} else {
 		r.Resp = redis.NewString([]byte("PONG"))
 	}
+	panic("todo")
 	return nil
+}
+
+func (s *Session) handleRequestInfo(r *Request, d *Router) error {
+	// TODO info addr
+	panic("todo")
 }
 
 func (s *Session) handleRequestMGet(r *Request, d *Router) error {
@@ -422,6 +437,21 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 		return nil
 	}
 	return nil
+}
+
+func (s *Session) handleRequestSlotsInfo(r *Request, d *Router) error {
+	// TODO slotsinfo addr
+	panic("todo")
+}
+
+func (s *Session) handleRequestSlotsScan(r *Request, d *Router) error {
+	// TODO slotsscan slotsnum cursor xxx
+	panic("todo")
+}
+
+func (s *Session) handleSlotsMapping(r *Request) error {
+	// TODO slotsmapping
+	panic("todo")
 }
 
 func (s *Session) incrOpTotal() {

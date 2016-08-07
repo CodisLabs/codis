@@ -172,7 +172,7 @@ func init() {
 		{"SLOTSCHECK", FlagNotAllow},
 		{"SLOTSDEL", FlagWrite | FlagNotAllow},
 		{"SLOTSHASHKEY", 0},
-		{"SLOTSINFO", FlagNotAllow},
+		{"SLOTSINFO", 0},
 		{"SLOTSMAPPING", 0},
 		{"SLOTSMGRTONE", FlagWrite | FlagNotAllow},
 		{"SLOTSMGRTSLOT", FlagWrite | FlagNotAllow},
