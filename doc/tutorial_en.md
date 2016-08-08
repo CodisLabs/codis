@@ -26,7 +26,7 @@ Codis support namespace, configs of products with different name  won’t be con
 * execute `go get -u -d github.com/CodisLabs/codis` to download codis
 * change directory to `$GOPATH/src/github.com/CodisLabs/codis` and execute `make` to compile, execute `make gotest` to run unit test
 
-Two executable file `codas-config` and `codis-proxy` should be generated in `codis/bin`(`bin/assets` is the resources for `codis-config` dashboard, should be placed at same directory with `codis-config`).
+Two executable file `codis-config` and `codis-proxy` should be generated in `codis/bin`(`bin/assets` is the resources for `codis-config` dashboard, should be placed at same directory with `codis-config`).
 
 ```
 cd sample
