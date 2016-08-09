@@ -304,17 +304,17 @@ func (s *Session) handleSelect(r *Request) error {
 }
 
 func (s *Session) handleRequestPing(r *Request, d *Router) error {
+	var addr string
 	var nblks = len(r.Multi) - 1
 	switch {
 	case nblks == 0:
 		slot := uint32(time.Now().Nanosecond()) % models.MaxSlotNum
 		return d.dispatchSlot(r, int(slot))
+	default:
+		addr = string(r.Multi[1].Value)
+		copy(r.Multi[1:], r.Multi[2:])
+		r.Multi = r.Multi[:nblks]
 	}
-	var addr = string(r.Multi[1].Value)
-	for i := 1; i < nblks; i++ {
-		r.Multi[i] = r.Multi[i+1]
-	}
-	r.Multi = r.Multi[:nblks]
 	if !d.dispatchAddr(r, addr) {
 		r.Resp = redis.NewErrorf("ERR backend server '%s' not found", addr)
 		return nil
@@ -323,17 +323,17 @@ func (s *Session) handleRequestPing(r *Request, d *Router) error {
 }
 
 func (s *Session) handleRequestInfo(r *Request, d *Router) error {
+	var addr string
 	var nblks = len(r.Multi) - 1
 	switch {
 	case nblks == 0:
 		slot := uint32(time.Now().Nanosecond()) % models.MaxSlotNum
 		return d.dispatchSlot(r, int(slot))
+	default:
+		addr = string(r.Multi[1].Value)
+		copy(r.Multi[1:], r.Multi[2:])
+		r.Multi = r.Multi[:nblks]
 	}
-	var addr = string(r.Multi[1].Value)
-	for i := 1; i < nblks; i++ {
-		r.Multi[i] = r.Multi[i+1]
-	}
-	r.Multi = r.Multi[:nblks]
 	if !d.dispatchAddr(r, addr) {
 		r.Resp = redis.NewErrorf("ERR backend server '%s' not found", addr)
 		return nil
@@ -466,14 +466,17 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 }
 
 func (s *Session) handleRequestSlotsInfo(r *Request, d *Router) error {
+	var addr string
 	var nblks = len(r.Multi) - 1
 	switch {
 	case nblks != 1:
 		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'SLOTSINFO' command")
 		return nil
+	default:
+		addr = string(r.Multi[1].Value)
+		copy(r.Multi[1:], r.Multi[2:])
+		r.Multi = r.Multi[:nblks]
 	}
-	var addr = string(r.Multi[1].Value)
-	r.Multi = r.Multi[:nblks]
 	if !d.dispatchAddr(r, addr) {
 		r.Resp = redis.NewErrorf("ERR backend server '%s' not found", addr)
 		return nil
@@ -488,8 +491,7 @@ func (s *Session) handleRequestSlotsScan(r *Request, d *Router) error {
 		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'SLOTSSCAN' command")
 		return nil
 	}
-	slot, err := redis.Btoi64(r.Multi[1].Value)
-	switch {
+	switch slot, err := redis.Btoi64(r.Multi[1].Value); {
 	case err != nil:
 		r.Resp = redis.NewErrorf("ERR parse slotnum '%s' failed, %s", r.Multi[1].Value, err)
 		return nil
@@ -502,20 +504,50 @@ func (s *Session) handleRequestSlotsScan(r *Request, d *Router) error {
 }
 
 func (s *Session) handleRequestSlotsMapping(r *Request, d *Router) error {
-	if len(r.Multi) != 1 {
+	var nblks = len(r.Multi) - 1
+	switch {
+	case nblks >= 2:
 		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'SLOTSMAPPING' command")
 		return nil
 	}
-	var array = make([]*redis.Resp, 0, models.MaxSlotNum)
-	for _, slot := range d.GetSlots() {
-		array = append(array, redis.NewArray([]*redis.Resp{
-			redis.NewString([]byte(strconv.Itoa(slot.Id))),
-			redis.NewString([]byte(slot.BackendAddr)),
-			redis.NewString([]byte(slot.MigrateFrom)),
-		}))
+	marshalToResp := func(m *models.Slot) *redis.Resp {
+		if m == nil {
+			return redis.NewArray(nil)
+		}
+		var replicaList []*redis.Resp
+		for i := range m.ReplicaList {
+			var list []*redis.Resp
+			for _, addr := range m.ReplicaList[i] {
+				list = append(list, redis.NewString([]byte(addr)))
+			}
+			replicaList = append(replicaList, redis.NewArray(list))
+		}
+		return redis.NewArray([]*redis.Resp{
+			redis.NewString([]byte(strconv.Itoa(m.Id))),
+			redis.NewString([]byte(m.BackendAddr)),
+			redis.NewString([]byte(m.MigrateFrom)),
+			redis.NewArray(replicaList),
+		})
 	}
-	r.Resp = redis.NewArray(array)
-	return nil
+	if nblks == 0 {
+		var array = make([]*redis.Resp, models.MaxSlotNum)
+		for i, m := range d.GetSlots() {
+			array[i] = marshalToResp(m)
+		}
+		r.Resp = redis.NewArray(array)
+		return nil
+	}
+	switch slot, err := redis.Btoi64(r.Multi[1].Value); {
+	case err != nil:
+		r.Resp = redis.NewErrorf("ERR parse slotnum '%s' failed, %s", r.Multi[1].Value, err)
+		return nil
+	case slot < 0 || slot >= models.MaxSlotNum:
+		r.Resp = redis.NewErrorf("ERR parse slotnum '%s' failed, out of range", r.Multi[1].Value)
+		return nil
+	default:
+		r.Resp = marshalToResp(d.GetSlot(int(slot)))
+		return nil
+	}
 }
 
 func (s *Session) incrOpTotal() {

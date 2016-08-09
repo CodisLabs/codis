@@ -63,6 +63,16 @@ func (s *Router) GetSlots() []*models.Slot {
 	return slots
 }
 
+func (s *Router) GetSlot(id int) *models.Slot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if id < 0 || id >= len(s.slots) {
+		return nil
+	}
+	slot := &s.slots[id]
+	return slot.model()
+}
+
 var (
 	ErrClosedRouter  = errors.New("use of closed router")
 	ErrInvalidSlotId = errors.New("use of invalid slot id")
