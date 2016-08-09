@@ -33,6 +33,7 @@ type Jodis struct {
 func NewJodis(c models.Client, p *models.Proxy, compatible bool) *Jodis {
 	var m = map[string]string{
 		"addr":  p.ProxyAddr,
+		"admin": p.AdminAddr,
 		"start": p.StartTime,
 		"token": p.Token,
 		"state": "online",
