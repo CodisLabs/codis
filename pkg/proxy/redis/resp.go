@@ -121,7 +121,10 @@ func (p *RespAlloc) NewResp() *Resp {
 }
 
 func (p *RespAlloc) MakeSlice(n int) []*Resp {
-	if n >= 32 {
+	switch {
+	case n == 0:
+		return []*Resp{}
+	case n >= 32:
 		return make([]*Resp, n)
 	}
 	var d = &p.slice
