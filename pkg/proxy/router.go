@@ -47,10 +47,11 @@ func (s *Router) Close() {
 	if s.closed {
 		return
 	}
+	s.closed = true
+
 	for i := range s.slots {
 		s.fillSlot(&models.Slot{Id: i})
 	}
-	s.closed = true
 }
 
 func (s *Router) GetSlots() []*models.Slot {
@@ -185,13 +186,14 @@ func (s *Router) fillSlot(m *models.Slot) error {
 	if !m.Locked {
 		slot.unblock()
 	}
-
-	if slot.migrate != nil {
-		log.Warnf("fill slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
-			id, slot.backend.Addr(), slot.migrate.Addr(), slot.lock.hold)
-	} else {
-		log.Warnf("fill slot %04d, backend.addr = %s, locked = %t",
-			id, slot.backend.Addr(), slot.lock.hold)
+	if !s.closed {
+		if slot.migrate != nil {
+			log.Warnf("fill slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
+				id, slot.backend.Addr(), slot.migrate.Addr(), slot.lock.hold)
+		} else {
+			log.Warnf("fill slot %04d, backend.addr = %s, locked = %t",
+				id, slot.backend.Addr(), slot.lock.hold)
+		}
 	}
 	return nil
 }
