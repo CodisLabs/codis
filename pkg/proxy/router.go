@@ -26,7 +26,7 @@ type Router struct {
 func NewRouter(config *Config) *Router {
 	s := &Router{config: config}
 	s.pool = make(map[string]*SharedBackendConn)
-	for i := 0; i < len(s.slots); i++ {
+	for i := range s.slots {
 		s.slots[i].id = uint32(i)
 	}
 	return s
@@ -47,7 +47,7 @@ func (s *Router) Close() {
 	if s.closed {
 		return
 	}
-	for i := 0; i < len(s.slots); i++ {
+	for i := range s.slots {
 		s.resetSlot(i)
 	}
 	s.closed = true
@@ -56,15 +56,15 @@ func (s *Router) Close() {
 func (s *Router) GetSlots() []*models.Slot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	slots := make([]*models.Slot, 0, len(s.slots))
-	for i := 0; i < len(s.slots); i++ {
-		slot := &s.slots[i]
-		slots = append(slots, &models.Slot{
+	slots := make([]*models.Slot, len(s.slots))
+	for i := range slots {
+		m := &s.slots[i]
+		slots[i] = &models.Slot{
 			Id:          i,
-			BackendAddr: slot.backend.Addr(),
-			MigrateFrom: slot.migrate.Addr(),
-			Locked:      slot.lock.hold,
-		})
+			BackendAddr: m.backend.Addr(),
+			MigrateFrom: m.migrate.Addr(),
+			Locked:      m.lock.hold,
+		}
 	}
 	return slots
 }

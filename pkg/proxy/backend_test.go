@@ -48,7 +48,7 @@ func TestBackend(t *testing.T) {
 	conn, bc := newConnPair(config)
 
 	var array = make([]*Request, 16384)
-	for i := 0; i < len(array); i++ {
+	for i := range array {
 		array[i] = &Request{Batch: &sync.WaitGroup{}}
 	}
 

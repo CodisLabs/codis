@@ -115,7 +115,7 @@ func (s *Store) Release() error {
 
 func (s *Store) SlotMappings() ([]*SlotMapping, error) {
 	slots := make([]*SlotMapping, MaxSlotNum)
-	for i := 0; i < len(slots); i++ {
+	for i := range slots {
 		m, err := s.LoadSlotMapping(i, false)
 		if err != nil {
 			return nil, err

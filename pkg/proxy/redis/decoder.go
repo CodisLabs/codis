@@ -198,7 +198,7 @@ func (d *Decoder) decodeArray() ([]*Resp, error) {
 		return nil, nil
 	}
 	array := d.alloc.MakeSlice(int(n))
-	for i := 0; i < len(array); i++ {
+	for i := range array {
 		r, err := d.decodeResp()
 		if err != nil {
 			return nil, err
@@ -250,7 +250,7 @@ func (d *Decoder) decodeMultiBulk() ([]*Resp, error) {
 		return nil, errors.Trace(ErrBadArrayLenTooLong)
 	}
 	multi := d.alloc.MakeSlice(int(n))
-	for i := 0; i < len(multi); i++ {
+	for i := range multi {
 		r, err := d.decodeResp()
 		if err != nil {
 			return nil, err

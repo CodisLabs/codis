@@ -24,7 +24,7 @@ var (
 
 func init() {
 	var b bytes.Buffer
-	for i := 0; i < len(itoaOffset); i++ {
+	for i := range itoaOffset {
 		itoaOffset[i] = uint32(b.Len())
 		b.WriteString(strconv.Itoa(i + minItoa))
 	}

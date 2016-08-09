@@ -15,7 +15,7 @@ import (
 var charmap [256]byte
 
 func init() {
-	for i := 0; i < len(charmap); i++ {
+	for i := range charmap {
 		c := byte(i)
 		switch {
 		case c >= 'A' && c <= 'Z':
@@ -243,7 +243,7 @@ func getOpInfo(multi []*redis.Resp) (string, OpFlag, error) {
 	if len(op) == 0 || len(op) > len(upper) {
 		return "", 0, errors.Trace(ErrBadOpStrLen)
 	}
-	for i := 0; i < len(op); i++ {
+	for i := range op {
 		if c := charmap[op[i]]; c != 0 {
 			upper[i] = c
 		} else {

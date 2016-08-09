@@ -351,7 +351,7 @@ func (s *Session) handleRequestMGet(r *Request, d *Router) error {
 		return d.dispatch(r)
 	}
 	var sub = make([]*Request, nkeys)
-	for i := 0; i < len(sub); i++ {
+	for i := range sub {
 		sub[i] = s.alloc.SubRequest(r)
 		sub[i].Multi = []*redis.Resp{
 			r.Multi[0],
@@ -392,7 +392,7 @@ func (s *Session) handleRequestMSet(r *Request, d *Router) error {
 		return d.dispatch(r)
 	}
 	var sub = make([]*Request, nblks/2)
-	for i := 0; i < len(sub); i++ {
+	for i := range sub {
 		sub[i] = s.alloc.SubRequest(r)
 		sub[i].Multi = []*redis.Resp{
 			r.Multi[0],
@@ -432,7 +432,7 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 		return d.dispatch(r)
 	}
 	var sub = make([]*Request, nkeys)
-	for i := 0; i < len(sub); i++ {
+	for i := range sub {
 		sub[i] = s.alloc.SubRequest(r)
 		sub[i].Multi = []*redis.Resp{
 			r.Multi[0],
