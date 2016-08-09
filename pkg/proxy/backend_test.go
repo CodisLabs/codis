@@ -31,12 +31,7 @@ func newConnPair(config *Config) (*redis.Conn, *BackendConn) {
 	}()
 
 	bc := NewBackendConn(l.Addr().String(), config)
-	bc.PushBack(&Request{})
-
-	conn := <-cc
-
-	assert.MustNoError(conn.EncodeMultiBulk(nil, true))
-	return conn, bc
+	return <-cc, bc
 }
 
 func TestBackend(t *testing.T) {

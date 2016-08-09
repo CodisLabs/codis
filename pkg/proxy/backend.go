@@ -12,6 +12,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
+	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
 type BackendConn struct {
@@ -20,7 +21,10 @@ type BackendConn struct {
 	port []byte
 	stop sync.Once
 
-	input  chan *Request
+	input chan *Request
+	ready atomic2.Bool
+
+	closed atomic2.Bool
 	config *Config
 }
 
@@ -34,8 +38,9 @@ func NewBackendConn(addr string, config *Config) *BackendConn {
 		host: []byte(host),
 		port: []byte(port),
 	}
-	bc.config = config
 	bc.input = make(chan *Request, 1024)
+
+	bc.config = config
 
 	go bc.Run()
 	return bc
@@ -43,12 +48,11 @@ func NewBackendConn(addr string, config *Config) *BackendConn {
 
 func (bc *BackendConn) Run() {
 	log.Warnf("backend conn [%p] to %s, start service", bc, bc.addr)
-	for k := 0; ; k++ {
+	for k := 0; !bc.closed.Get(); k++ {
 		log.Warnf("backend conn [%p] to %s, rounds-[%d]", bc, bc.addr, k)
-		if err := bc.loopWriter(k); err == nil {
-			break
+		if err := bc.loopWriter(k); err != nil {
+			time.Sleep(time.Millisecond * 250)
 		}
-		time.Sleep(time.Millisecond * 250)
 	}
 	log.Warnf("backend conn [%p] to %s, stop and exit", bc, bc.addr)
 }
@@ -61,6 +65,11 @@ func (bc *BackendConn) Close() {
 	bc.stop.Do(func() {
 		close(bc.input)
 	})
+	bc.closed.Set(true)
+}
+
+func (bc *BackendConn) IsConnected() bool {
+	return bc.ready.Get()
 }
 
 func (bc *BackendConn) PushBack(r *Request) {
@@ -102,34 +111,33 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 
 func (bc *BackendConn) loopWriter(round int) (err error) {
 	defer func() {
+		bc.ready.Set(false)
 		for i := len(bc.input); i != 0; i-- {
 			r := <-bc.input
 			bc.setResponse(r, nil, err)
 		}
 		log.WarnErrorf(err, "backend conn [%p] to %s, writer-[%d] exit", bc, bc.addr, round)
 	}()
-	r, ok := <-bc.input
-	if ok {
-		c, tasks, err := bc.newBackendReader(round, bc.config)
-		if err != nil {
+	c, tasks, err := bc.newBackendReader(round, bc.config)
+	if err != nil {
+		return err
+	}
+	defer close(tasks)
+
+	bc.ready.Set(true)
+
+	p := c.FlushEncoder()
+	p.MaxInterval = time.Millisecond
+	p.MaxBuffered = math2.MinInt(256, cap(tasks))
+
+	for r := range bc.input {
+		if err := p.EncodeMultiBulk(r.Multi); err != nil {
 			return bc.setResponse(r, nil, err)
 		}
-		defer close(tasks)
-
-		p := c.FlushEncoder()
-		p.MaxInterval = time.Millisecond
-		p.MaxBuffered = math2.MinInt(256, cap(tasks))
-
-		for ok {
-			if err := p.EncodeMultiBulk(r.Multi); err != nil {
-				return bc.setResponse(r, nil, err)
-			}
-			if err := p.Flush(len(bc.input) == 0); err != nil {
-				return bc.setResponse(r, nil, err)
-			} else {
-				tasks <- r
-			}
-			r, ok = <-bc.input
+		if err := p.Flush(len(bc.input) == 0); err != nil {
+			return bc.setResponse(r, nil, err)
+		} else {
+			tasks <- r
 		}
 	}
 	return nil
