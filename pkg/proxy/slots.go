@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
 type Slot struct {
-	id   uint32
+	id   int
 	lock struct {
 		hold bool
 		sync.RWMutex
@@ -22,6 +23,24 @@ type Slot struct {
 
 	backend *SharedBackendConn
 	migrate *SharedBackendConn
+	replica [][]*SharedBackendConn
+}
+
+func (s *Slot) model() *models.Slot {
+	var m = &models.Slot{
+		Id:          s.id,
+		BackendAddr: s.backend.Addr(),
+		MigrateFrom: s.migrate.Addr(),
+		Locked:      s.lock.hold,
+	}
+	for i := range s.replica {
+		var list []string
+		for _, bc := range s.replica[i] {
+			list = append(list, bc.Addr())
+		}
+		m.ReplicaList = append(m.ReplicaList, list)
+	}
+	return m
 }
 
 func (s *Slot) blockAndWait() {
@@ -38,11 +57,6 @@ func (s *Slot) unblock() {
 	}
 	s.lock.hold = false
 	s.lock.Unlock()
-}
-
-func (s *Slot) reset() {
-	s.backend = nil
-	s.migrate = nil
 }
 
 func (s *Slot) forward(r *Request, key []byte) error {

@@ -10,6 +10,8 @@ type Slot struct {
 	BackendAddr string `json:"backend_addr"`
 	MigrateFrom string `json:"migrate_from,omitempty"`
 	Locked      bool   `json:"locked,omitempty"`
+
+	ReplicaList [][]string `json:"replica_list,omitempty"`
 }
 
 type SlotMapping struct {

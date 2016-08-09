@@ -27,7 +27,7 @@ func NewRouter(config *Config) *Router {
 	s := &Router{config: config}
 	s.pool = make(map[string]*SharedBackendConn)
 	for i := range s.slots {
-		s.slots[i].id = uint32(i)
+		s.slots[i].id = i
 	}
 	return s
 }
@@ -48,7 +48,7 @@ func (s *Router) Close() {
 		return
 	}
 	for i := range s.slots {
-		s.resetSlot(i)
+		s.fillSlot(&models.Slot{Id: i})
 	}
 	s.closed = true
 }
@@ -57,14 +57,8 @@ func (s *Router) GetSlots() []*models.Slot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	slots := make([]*models.Slot, len(s.slots))
-	for i := range slots {
-		m := &s.slots[i]
-		slots[i] = &models.Slot{
-			Id:          i,
-			BackendAddr: m.backend.Addr(),
-			MigrateFrom: m.migrate.Addr(),
-			Locked:      m.lock.hold,
-		}
+	for i := range s.slots {
+		slots[i] = s.slots[i].model()
 	}
 	return slots
 }
@@ -74,16 +68,13 @@ var (
 	ErrInvalidSlotId = errors.New("use of invalid slot id")
 )
 
-func (s *Router) FillSlot(id int, addr, from string, locked bool) error {
+func (s *Router) FillSlot(m *models.Slot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return ErrClosedRouter
 	}
-	if id < 0 || id >= len(s.slots) {
-		return ErrInvalidSlotId
-	}
-	return s.fillSlot(id, addr, from, locked)
+	return s.fillSlot(m)
 }
 
 func (s *Router) KeepAlive() error {
@@ -148,42 +139,49 @@ func (s *Router) putBackendConn(bc *SharedBackendConn) {
 	}
 }
 
-func (s *Router) resetSlot(id int) {
+func (s *Router) fillSlot(m *models.Slot) error {
+	id := m.Id
+	if id < 0 || id >= len(s.slots) {
+		return ErrInvalidSlotId
+	}
 	slot := &s.slots[id]
 	slot.blockAndWait()
 
 	s.putBackendConn(slot.backend)
 	s.putBackendConn(slot.migrate)
-	slot.reset()
+	for i := range slot.replica {
+		for _, bc := range slot.replica[i] {
+			s.putBackendConn(bc)
+		}
+	}
+	slot.backend = nil
+	slot.migrate = nil
+	slot.replica = nil
 
-	slot.unblock()
-}
-
-func (s *Router) fillSlot(id int, addr, from string, locked bool) error {
-	slot := &s.slots[id]
-	slot.blockAndWait()
-
-	s.putBackendConn(slot.backend)
-	s.putBackendConn(slot.migrate)
-	slot.reset()
-
-	if len(addr) != 0 {
+	if addr := m.BackendAddr; len(addr) != 0 {
 		slot.backend = s.getBackendConn(addr, true)
 	}
-	if len(from) != 0 {
+	if from := m.MigrateFrom; len(from) != 0 {
 		slot.migrate = s.getBackendConn(from, true)
 	}
+	for i := range m.ReplicaList {
+		var list []*SharedBackendConn
+		for _, addr := range m.ReplicaList[i] {
+			list = append(list, s.getBackendConn(addr, true))
+		}
+		slot.replica = append(slot.replica, list)
+	}
 
-	if !locked {
+	if !m.Locked {
 		slot.unblock()
 	}
 
 	if slot.migrate != nil {
 		log.Warnf("fill slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
-			id, slot.backend.Addr(), slot.migrate.Addr(), locked)
+			id, slot.backend.Addr(), slot.migrate.Addr(), slot.lock.hold)
 	} else {
 		log.Warnf("fill slot %04d, backend.addr = %s, locked = %t",
-			id, slot.backend.Addr(), locked)
+			id, slot.backend.Addr(), slot.lock.hold)
 	}
 	return nil
 }
