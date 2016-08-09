@@ -13,14 +13,14 @@ import (
 type opStats struct {
 	opstr string
 	calls atomic2.Int64
-	usecs atomic2.Int64
+	nsecs atomic2.Int64
 }
 
 func (s *opStats) OpStats() *OpStats {
 	o := &OpStats{
 		OpStr: s.opstr,
 		Calls: s.calls.Get(),
-		Usecs: s.usecs.Get(),
+		Usecs: s.nsecs.Get() / 1e3,
 	}
 	if o.Calls != 0 {
 		o.UsecsPercall = o.Usecs / o.Calls
@@ -106,10 +106,10 @@ func incrOpFails() {
 	cmdstats.fails.Incr()
 }
 
-func incrOpStats(opstr string, calls int64, usecs int64) {
+func incrOpStats(opstr string, calls int64, nsecs int64) {
 	s := getOpStats(opstr, true)
 	s.calls.Add(calls)
-	s.usecs.Add(usecs)
+	s.nsecs.Add(nsecs)
 }
 
 var sessions struct {

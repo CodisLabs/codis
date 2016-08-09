@@ -12,7 +12,6 @@ import (
 
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
-	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
@@ -139,13 +138,13 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		}
 		s.incrOpTotal()
 
-		usnow := utils.Microseconds()
-		s.LastOpUnix = usnow / 1e6
+		start := time.Now()
+		s.LastOpUnix = start.Unix()
 		s.Ops++
 
 		r := s.alloc.NewRequest()
 		r.Multi = multi
-		r.Start = usnow
+		r.Start = start.UnixNano()
 		r.Batch = s.alloc.NewBatch()
 		if err := s.handleRequest(r, d); err != nil {
 			r.Resp = redis.NewErrorf("ERR dispatch failed, %s", err)
@@ -566,14 +565,14 @@ func (s *Session) incrOpStats(r *Request) {
 		s.stats.opmap[r.OpStr] = e
 	}
 	e.calls.Incr()
-	e.usecs.Add(utils.Microseconds() - r.Start)
+	e.nsecs.Add(time.Now().UnixNano() - r.Start)
 }
 
 func (s *Session) flushOpStats() {
 	incrOpTotal(s.stats.total.Swap(0))
 	for _, e := range s.stats.opmap {
 		if n := e.calls.Swap(0); n != 0 {
-			incrOpStats(e.opstr, n, e.usecs.Swap(0))
+			incrOpStats(e.opstr, n, e.nsecs.Swap(0))
 		}
 	}
 	s.stats.flush++
