@@ -11,7 +11,7 @@ type Slot struct {
 	MigrateFrom string `json:"migrate_from,omitempty"`
 	Locked      bool   `json:"locked,omitempty"`
 
-	ReplicaList [][]string `json:"replica_list,omitempty"`
+	ReplicaGroup [][]string `json:"replica_group,omitempty"`
 }
 
 type SlotMapping struct {

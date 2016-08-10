@@ -34,11 +34,11 @@ func (s *Slot) model() *models.Slot {
 		Locked:      s.lock.hold,
 	}
 	for i := range s.replica {
-		var list []string
+		var group []string
 		for _, bc := range s.replica[i] {
-			list = append(list, bc.Addr())
+			group = append(group, bc.Addr())
 		}
-		m.ReplicaList = append(m.ReplicaList, list)
+		m.ReplicaGroup = append(m.ReplicaGroup, group)
 	}
 	return m
 }

@@ -175,12 +175,12 @@ func (s *Router) fillSlot(m *models.Slot) error {
 	if from := m.MigrateFrom; len(from) != 0 {
 		slot.migrate = s.getBackendConn(from, true)
 	}
-	for i := range m.ReplicaList {
-		var list []*SharedBackendConn
-		for _, addr := range m.ReplicaList[i] {
-			list = append(list, s.getBackendConn(addr, true))
+	for i := range m.ReplicaGroup {
+		var group []*SharedBackendConn
+		for _, addr := range m.ReplicaGroup[i] {
+			group = append(group, s.getBackendConn(addr, true))
 		}
-		slot.replica = append(slot.replica, list)
+		slot.replica = append(slot.replica, group)
 	}
 
 	if !m.Locked {
