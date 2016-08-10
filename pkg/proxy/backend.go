@@ -44,21 +44,9 @@ func NewBackendConn(addr string, config *Config) *BackendConn {
 
 	bc.config = config
 
-	go bc.Run()
+	go bc.run()
+
 	return bc
-}
-
-var ErrBackendConnReset = errors.New("backend connection reset")
-
-func (bc *BackendConn) Run() {
-	log.Warnf("backend conn [%p] to %s, start service", bc, bc.addr)
-	for k := 0; !bc.closed.Get(); k++ {
-		log.Warnf("backend conn [%p] to %s, rounds-[%d]", bc, bc.addr, k)
-		if err := bc.loopWriter(k); err != nil {
-			bc.failWriter()
-		}
-	}
-	log.Warnf("backend conn [%p] to %s, stop and exit", bc, bc.addr)
 }
 
 func (bc *BackendConn) Addr() string {
@@ -93,75 +81,6 @@ func (bc *BackendConn) KeepAlive() bool {
 	}
 	bc.PushBack(m)
 	return true
-}
-
-func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round int) (err error) {
-	defer func() {
-		c.Close()
-		for r := range tasks {
-			bc.setResponse(r, nil, ErrBackendConnReset)
-		}
-		log.WarnErrorf(err, "backend conn [%p] to %s, reader-[%d] exit", bc, bc.addr, round)
-	}()
-	for r := range tasks {
-		resp, err := c.Decode()
-		if err != nil {
-			return bc.setResponse(r, nil, err)
-		}
-		bc.setResponse(r, resp, nil)
-	}
-	return nil
-}
-
-func (bc *BackendConn) failWriter() {
-	bc.ready.Set(false)
-	bc.delay = math2.MinMaxDuration(bc.delay*2, time.Second/4, time.Second*15)
-	timeout := time.After(bc.delay)
-	for {
-		select {
-		case <-timeout:
-			return
-		case r, ok := <-bc.input:
-			if !ok {
-				return
-			}
-			bc.setResponse(r, nil, ErrBackendConnReset)
-		}
-	}
-}
-
-func (bc *BackendConn) loopWriter(round int) (err error) {
-	defer func() {
-		for i := len(bc.input); i != 0; i-- {
-			r := <-bc.input
-			bc.setResponse(r, nil, ErrBackendConnReset)
-		}
-		log.WarnErrorf(err, "backend conn [%p] to %s, writer-[%d] exit", bc, bc.addr, round)
-	}()
-	c, tasks, err := bc.newBackendReader(round, bc.config)
-	if err != nil {
-		return err
-	}
-	defer close(tasks)
-
-	bc.ready.Set(true)
-	bc.delay = 0
-
-	p := c.FlushEncoder()
-	p.MaxInterval = time.Millisecond
-	p.MaxBuffered = math2.MinInt(256, cap(tasks))
-
-	for r := range bc.input {
-		if err := p.EncodeMultiBulk(r.Multi); err != nil {
-			return bc.setResponse(r, nil, err)
-		}
-		if err := p.Flush(len(bc.input) == 0); err != nil {
-			return bc.setResponse(r, nil, err)
-		} else {
-			tasks <- r
-		}
-	}
-	return nil
 }
 
 func (bc *BackendConn) newBackendReader(round int, config *Config) (*redis.Conn, chan<- *Request, error) {
@@ -224,6 +143,88 @@ func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) erro
 		r.Batch.Done()
 	}
 	return err
+}
+
+var ErrBackendConnReset = errors.New("backend conn reset")
+
+func (bc *BackendConn) run() {
+	log.Warnf("backend conn [%p] to %s, start service", bc, bc.addr)
+	for k := 0; !bc.closed.Get(); k++ {
+		log.Warnf("backend conn [%p] to %s, rounds-[%d]", bc, bc.addr, k)
+		if err := bc.loopWriter(k); err != nil {
+			bc.failWriter()
+		}
+	}
+	log.Warnf("backend conn [%p] to %s, stop and exit", bc, bc.addr)
+}
+
+func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round int) (err error) {
+	defer func() {
+		c.Close()
+		for r := range tasks {
+			bc.setResponse(r, nil, ErrBackendConnReset)
+		}
+		log.WarnErrorf(err, "backend conn [%p] to %s, reader-[%d] exit", bc, bc.addr, round)
+	}()
+	for r := range tasks {
+		resp, err := c.Decode()
+		if err != nil {
+			return bc.setResponse(r, nil, fmt.Errorf("backend conn failure, %s", err))
+		}
+		bc.setResponse(r, resp, nil)
+	}
+	return nil
+}
+
+func (bc *BackendConn) failWriter() {
+	bc.ready.Set(false)
+	bc.delay = math2.MinMaxDuration(bc.delay*2, time.Second/4, time.Second*15)
+	timeout := time.After(bc.delay)
+	for {
+		select {
+		case <-timeout:
+			return
+		case r, ok := <-bc.input:
+			if !ok {
+				return
+			}
+			bc.setResponse(r, nil, ErrBackendConnReset)
+		}
+	}
+}
+
+func (bc *BackendConn) loopWriter(round int) (err error) {
+	defer func() {
+		for i := len(bc.input); i != 0; i-- {
+			r := <-bc.input
+			bc.setResponse(r, nil, ErrBackendConnReset)
+		}
+		log.WarnErrorf(err, "backend conn [%p] to %s, writer-[%d] exit", bc, bc.addr, round)
+	}()
+	c, tasks, err := bc.newBackendReader(round, bc.config)
+	if err != nil {
+		return err
+	}
+	defer close(tasks)
+
+	bc.ready.Set(true)
+	bc.delay = 0
+
+	p := c.FlushEncoder()
+	p.MaxInterval = time.Millisecond
+	p.MaxBuffered = math2.MinInt(256, cap(tasks))
+
+	for r := range bc.input {
+		if err := p.EncodeMultiBulk(r.Multi); err != nil {
+			return bc.setResponse(r, nil, fmt.Errorf("backend conn failure, %s", err))
+		}
+		if err := p.Flush(len(bc.input) == 0); err != nil {
+			return bc.setResponse(r, nil, fmt.Errorf("backend conn failure, %s", err))
+		} else {
+			tasks <- r
+		}
+	}
+	return nil
 }
 
 type SharedBackendConn struct {
