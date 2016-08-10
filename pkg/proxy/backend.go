@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
@@ -22,6 +23,7 @@ type BackendConn struct {
 	stop sync.Once
 
 	input chan *Request
+	delay time.Duration
 	ready atomic2.Bool
 
 	closed atomic2.Bool
@@ -46,12 +48,14 @@ func NewBackendConn(addr string, config *Config) *BackendConn {
 	return bc
 }
 
+var ErrBackendConnReset = errors.New("backend connection reset")
+
 func (bc *BackendConn) Run() {
 	log.Warnf("backend conn [%p] to %s, start service", bc, bc.addr)
 	for k := 0; !bc.closed.Get(); k++ {
 		log.Warnf("backend conn [%p] to %s, rounds-[%d]", bc, bc.addr, k)
 		if err := bc.loopWriter(k); err != nil {
-			time.Sleep(time.Millisecond * 250)
+			bc.failWriter()
 		}
 	}
 	log.Warnf("backend conn [%p] to %s, stop and exit", bc, bc.addr)
@@ -95,7 +99,7 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 	defer func() {
 		c.Close()
 		for r := range tasks {
-			bc.setResponse(r, nil, err)
+			bc.setResponse(r, nil, ErrBackendConnReset)
 		}
 		log.WarnErrorf(err, "backend conn [%p] to %s, reader-[%d] exit", bc, bc.addr, round)
 	}()
@@ -109,12 +113,28 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 	return nil
 }
 
+func (bc *BackendConn) failWriter() {
+	bc.ready.Set(false)
+	bc.delay = math2.MinMaxDuration(bc.delay*2, time.Second/4, time.Second*15)
+	timeout := time.After(bc.delay)
+	for {
+		select {
+		case <-timeout:
+			return
+		case r, ok := <-bc.input:
+			if !ok {
+				return
+			}
+			bc.setResponse(r, nil, ErrBackendConnReset)
+		}
+	}
+}
+
 func (bc *BackendConn) loopWriter(round int) (err error) {
 	defer func() {
-		bc.ready.Set(false)
 		for i := len(bc.input); i != 0; i-- {
 			r := <-bc.input
-			bc.setResponse(r, nil, err)
+			bc.setResponse(r, nil, ErrBackendConnReset)
 		}
 		log.WarnErrorf(err, "backend conn [%p] to %s, writer-[%d] exit", bc, bc.addr, round)
 	}()
@@ -125,6 +145,7 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 	defer close(tasks)
 
 	bc.ready.Set(true)
+	bc.delay = 0
 
 	p := c.FlushEncoder()
 	p.MaxInterval = time.Millisecond
