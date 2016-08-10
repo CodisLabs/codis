@@ -14,7 +14,6 @@ import (
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
-	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
@@ -147,7 +146,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		r.Start = start.UnixNano()
 		r.Batch = s.alloc.NewBatch()
 		if err := s.handleRequest(r, d); err != nil {
-			r.Resp = redis.NewErrorf("ERR dispatch failed, %s", err)
+			r.Resp = redis.NewErrorf("ERR handle request, %s", err)
 			tasks <- r
 			return s.incrOpFails(err)
 		} else {
@@ -166,28 +165,25 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 		s.flushOpStats()
 	}()
 
-	p := s.Conn.FlushEncoder()
-	p.MaxInterval = time.Millisecond
-	p.MaxBuffered = math2.MinInt(128, cap(tasks))
-
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
 		if err != nil {
-			resp = redis.NewErrorf("ERR backend failure, %s", err)
-			p.Conn.Encode(resp, true)
+			resp = redis.NewErrorf("ERR handle response, %s", err)
+			s.Conn.Encode(resp, true)
 			return s.incrOpFails(err)
 		}
-		if err := p.Encode(resp); err != nil {
-			return s.incrOpFails(err)
-		}
-		if err := p.Flush(len(tasks) == 0); err != nil {
+		if err := s.Conn.Encode(resp, false); err != nil {
 			return s.incrOpFails(err)
 		} else {
 			r.Release()
 		}
-		if len(tasks) == 0 {
-			s.flushOpStats()
+		if len(tasks) != 0 {
+			continue
 		}
+		if err := s.Conn.Flush(); err != nil {
+			return s.incrOpFails(err)
+		}
+		s.flushOpStats()
 	}
 	return nil
 }
