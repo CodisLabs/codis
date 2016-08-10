@@ -58,6 +58,9 @@ backend_recv_timeout = "50s"
 backend_send_bufsize = "128kb"
 backend_send_timeout = "50s"
 
+# Set backend forward policy, default is false.
+backend_read_replica = false
+
 # Set backend pipeline buffer size.
 backend_max_pipeline = 1024
 
@@ -106,6 +109,7 @@ type Config struct {
 	BackendRecvTimeout     timesize.Duration `toml:"backend_recv_timeout" json:"backend_recv_timeout"`
 	BackendSendBufsize     bytesize.Int64    `toml:"backend_send_bufsize" json:"backend_send_bufsize"`
 	BackendSendTimeout     timesize.Duration `toml:"backend_send_timeout" json:"backend_send_timeout"`
+	BackendReadReplica     bool              `toml:"backend_read_replica" json:"backend_read_replica"`
 	BackendMaxPipeline     int               `toml:"backend_max_pipeline" json:"backend_max_pipeline"`
 	BackendKeepAlivePeriod timesize.Duration `toml:"backend_keepalive_period" json:"backend_keepalive_period"`
 

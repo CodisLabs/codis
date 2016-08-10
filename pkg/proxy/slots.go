@@ -59,9 +59,9 @@ func (s *Slot) unblock() {
 	s.lock.Unlock()
 }
 
-func (s *Slot) forward(r *Request, key []byte) error {
+func (s *Slot) forward(fn dispFunc, r *Request, key []byte) error {
 	s.lock.RLock()
-	bc, err := s.prepare(r, key)
+	bc, err := s.prepare(fn, r, key)
 	s.lock.RUnlock()
 	if err != nil {
 		return err
@@ -76,7 +76,7 @@ var (
 	ErrRespIsRequired = errors.New("resp is required")
 )
 
-func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
+func (s *Slot) prepare(fn dispFunc, r *Request, key []byte) (*SharedBackendConn, error) {
 	if s.backend == nil {
 		log.Warnf("slot-%04d is not ready: key = %s", s.id, key)
 		return nil, ErrSlotIsNotReady
@@ -88,6 +88,9 @@ func (s *Slot) prepare(r *Request, key []byte) (*SharedBackendConn, error) {
 	} else {
 		r.Group = &s.refs
 		r.Group.Add(1)
+		if fn != nil {
+			return fn(s, r), nil
+		}
 		return s.backend, nil
 	}
 }

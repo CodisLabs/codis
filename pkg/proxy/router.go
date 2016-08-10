@@ -18,6 +18,8 @@ type Router struct {
 
 	slots [models.MaxSlotNum]Slot
 
+	dispFunc
+
 	config *Config
 	online bool
 	closed bool
@@ -28,6 +30,9 @@ func NewRouter(config *Config) *Router {
 	s.pool = make(map[string]*SharedBackendConn)
 	for i := range s.slots {
 		s.slots[i].id = i
+	}
+	if config.BackendReadReplica {
+		s.dispFunc = dispReadReplica
 	}
 	return s
 }
@@ -108,7 +113,7 @@ func (s *Router) dispatch(r *Request) error {
 	hkey := getHashKey(r.Multi, r.OpStr)
 	var id = Hash(hkey) % uint32(len(s.slots))
 	slot := &s.slots[id]
-	return slot.forward(r, hkey)
+	return slot.forward(s.dispFunc, r, hkey)
 }
 
 func (s *Router) dispatchSlot(r *Request, id int) error {
@@ -116,7 +121,7 @@ func (s *Router) dispatchSlot(r *Request, id int) error {
 		return ErrInvalidSlotId
 	}
 	slot := &s.slots[id]
-	return slot.forward(r, nil)
+	return slot.forward(s.dispFunc, r, nil)
 }
 
 func (s *Router) dispatchAddr(r *Request, addr string) bool {
