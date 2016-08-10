@@ -17,7 +17,7 @@ func newReader(n int, input string) *Reader {
 func TestRead(t *testing.T) {
 	var b bytes.Buffer
 	for i := 0; i < 10; i++ {
-		b.WriteString(fmt.Sprintf("hello world %d", i))
+		fmt.Fprintf(&b, "hello world %d", i)
 	}
 	var input = b.String()
 	for n := 1; n < len(input); n++ {
@@ -49,7 +49,7 @@ func TestReadByte(t *testing.T) {
 func TestReadBytes(t *testing.T) {
 	var b bytes.Buffer
 	for i := 0; i < 10; i++ {
-		b.WriteString(fmt.Sprintf("hello world %d ", i))
+		fmt.Fprintf(&b, "hello world %d ", i)
 	}
 	var input = b.String()
 	for n := 1; n < len(input); n++ {
@@ -67,7 +67,7 @@ func TestReadBytes(t *testing.T) {
 func TestReadFull(t *testing.T) {
 	var b bytes.Buffer
 	for i := 0; i < 10; i++ {
-		b.WriteString(fmt.Sprintf("hello world %d ", i))
+		fmt.Fprintf(&b, "hello world %d ", i)
 	}
 	var input = b.String()
 	for n := 1; n < len(input); n++ {

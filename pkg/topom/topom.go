@@ -73,11 +73,13 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	if err := models.ValidateProduct(config.ProductName); err != nil {
 		return nil, errors.Trace(err)
 	}
-	s := &Topom{config: config, store: models.NewStore(client, config.ProductName)}
-	s.token = rpc.NewToken()
-	s.xauth = rpc.NewXAuth(config.ProductName)
+	s := &Topom{}
+	s.config = config
+	s.exit.C = make(chan struct{})
+	s.redisp = NewRedisPool(config.ProductAuth, time.Second*10)
+
 	s.model = &models.Topom{
-		Token: s.token, StartTime: time.Now().String(),
+		StartTime: time.Now().String(),
 	}
 	s.model.ProductName = config.ProductName
 	s.model.Pid = os.Getpid()
@@ -87,16 +89,13 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	} else {
 		s.model.Sys = strings.TrimSpace(string(b))
 	}
-
-	s.exit.C = make(chan struct{})
-	s.redisp = NewRedisPool(config.ProductAuth, time.Second*10)
+	s.store = models.NewStore(client, config.ProductName)
 
 	s.action.interval.Set(1000 * 10)
-
 	s.stats.servers = make(map[string]*RedisStats)
 	s.stats.proxies = make(map[string]*ProxyStats)
 
-	if err := s.setup(); err != nil {
+	if err := s.setup(config); err != nil {
 		s.Close()
 		return nil, err
 	}
@@ -108,8 +107,8 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	return s, nil
 }
 
-func (s *Topom) setup() error {
-	if l, err := net.Listen("tcp", s.config.AdminAddr); err != nil {
+func (s *Topom) setup(config *Config) error {
+	if l, err := net.Listen("tcp", config.AdminAddr); err != nil {
 		return errors.Trace(err)
 	} else {
 		s.ladmin = l
@@ -120,6 +119,13 @@ func (s *Topom) setup() error {
 		}
 		s.model.AdminAddr = x
 	}
+
+	s.model.Token = rpc.NewToken(
+		config.ProductName,
+		s.ladmin.Addr().String(),
+	)
+	s.xauth = rpc.NewXAuth(config.ProductName)
+
 	return nil
 }
 

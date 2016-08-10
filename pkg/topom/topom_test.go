@@ -42,7 +42,7 @@ func openProxy() (*models.Proxy, *proxy.ApiClient) {
 	assert.MustNoError(err)
 
 	c := proxy.NewApiClient(s.Model().AdminAddr)
-	c.SetXAuth(config.ProductName, config.ProductAuth, s.Token())
+	c.SetXAuth(config.ProductName, config.ProductAuth, s.Model().Token)
 
 	p, err := c.Model()
 	assert.MustNoError(err)

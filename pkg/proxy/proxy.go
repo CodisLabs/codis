@@ -53,11 +53,15 @@ func New(config *Config) (*Proxy, error) {
 	if err := models.ValidateProduct(config.ProductName); err != nil {
 		return nil, errors.Trace(err)
 	}
-	s := &Proxy{config: config}
-	s.token = rpc.NewToken()
-	s.xauth = rpc.NewXAuth(config.ProductName, config.ProductAuth, s.token)
+
+	s := &Proxy{}
+	s.config = config
+	s.exit.C = make(chan struct{})
+	s.router = NewRouter(config)
+	s.ignore = make([]byte, config.ProxyHeapPlaceholder.Int())
+
 	s.model = &models.Proxy{
-		Token: s.token, StartTime: time.Now().String(),
+		StartTime: time.Now().String(),
 	}
 	s.model.ProductName = config.ProductName
 	s.model.Pid = os.Getpid()
@@ -67,10 +71,6 @@ func New(config *Config) (*Proxy, error) {
 	} else {
 		s.model.Sys = strings.TrimSpace(string(b))
 	}
-	s.exit.C = make(chan struct{})
-
-	s.router = NewRouter(config)
-	s.ignore = make([]byte, config.ProxyHeapPlaceholder.Int())
 
 	if err := s.setup(config); err != nil {
 		s.Close()
@@ -114,6 +114,17 @@ func (s *Proxy) setup(config *Config) error {
 		}
 		s.model.AdminAddr = x
 	}
+
+	s.model.Token = rpc.NewToken(
+		config.ProductName,
+		s.lproxy.Addr().String(),
+		s.ladmin.Addr().String(),
+	)
+	s.xauth = rpc.NewXAuth(
+		config.ProductName,
+		config.ProductAuth,
+		s.model.Token,
+	)
 
 	if config.JodisName != "" {
 		c, err := models.NewClient(config.JodisName, config.JodisAddr, config.JodisTimeout.Get())
@@ -162,10 +173,6 @@ func (s *Proxy) Close() error {
 		s.router.Close()
 	}
 	return nil
-}
-
-func (s *Proxy) Token() string {
-	return s.token
 }
 
 func (s *Proxy) XAuth() string {
