@@ -32,7 +32,10 @@ type Session struct {
 	stats struct {
 		opmap map[string]*opStats
 		total atomic2.Int64
-		flush uint
+		flush struct {
+			n    uint
+			unix int64
+		}
 	}
 	start sync.Once
 
@@ -162,7 +165,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 		for _ = range tasks {
 			s.incrOpFails(nil)
 		}
-		s.flushOpStats()
+		s.flushOpStats(true)
 	}()
 
 	for r := range tasks {
@@ -183,7 +186,7 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 		if err := s.Conn.Flush(); err != nil {
 			return s.incrOpFails(err)
 		}
-		s.flushOpStats()
+		s.flushOpStats(false)
 	}
 	return nil
 }
@@ -564,16 +567,27 @@ func (s *Session) incrOpStats(r *Request) {
 	e.nsecs.Add(time.Now().UnixNano() - r.Start)
 }
 
-func (s *Session) flushOpStats() {
+func (s *Session) flushOpStats(force bool) {
+	var unix = time.Now().Unix()
+	if !force {
+		if s.stats.flush.unix == unix {
+			return
+		}
+	}
+	s.stats.flush.unix = unix
+
 	incrOpTotal(s.stats.total.Swap(0))
 	for _, e := range s.stats.opmap {
 		if n := e.calls.Swap(0); n != 0 {
 			incrOpStats(e.opstr, n, e.nsecs.Swap(0))
 		}
 	}
-	s.stats.flush++
-	if (s.stats.flush & 0x4000) != 0 {
+	s.stats.flush.n++
+
+	if len(s.stats.opmap) <= 32 {
 		return
 	}
-	s.stats.opmap = make(map[string]*opStats, 16)
+	if (s.stats.flush.n % 128) == 0 {
+		s.stats.opmap = make(map[string]*opStats, 32)
+	}
 }
