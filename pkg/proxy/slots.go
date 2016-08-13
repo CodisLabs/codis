@@ -89,7 +89,7 @@ func (s *Slot) prepare(fn dispFunc, r *Request, hkey []byte) (*SharedBackendConn
 		r.Group = &s.refs
 		r.Group.Add(1)
 		if fn != nil {
-			return fn(s, r), nil
+			return fn(s, r)
 		}
 		return s.backend, nil
 	}
@@ -134,20 +134,25 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 	}
 }
 
-type dispFunc func(s *Slot, r *Request) *SharedBackendConn
+type dispFunc func(s *Slot, r *Request) (*SharedBackendConn, error)
 
-func dispReadReplica(s *Slot, r *Request) *SharedBackendConn {
-	if r.Dirty || s.migrate != nil {
-		return s.backend
+func dispReadReplica(s *Slot, r *Request) (*SharedBackendConn, error) {
+	if s.migrate != nil {
+		return s.backend, nil
 	}
-	seed := uint(r.Start) % 1024
-	for _, group := range s.replica {
-		for i := range group {
-			k := (int(seed) + i) % len(group)
-			if bc := group[k]; bc != nil && bc.IsConnected() {
-				return bc
+	if r.IsReadOnly() {
+		seed := uint(r.Start)
+		for _, group := range s.replica {
+			for _ = range group {
+				index := seed % uint(len(group))
+				if bc := group[index]; bc != nil {
+					if bc.IsConnected() {
+						return bc, nil
+					}
+				}
+				seed += 1
 			}
 		}
 	}
-	return s.backend
+	return s.backend, nil
 }

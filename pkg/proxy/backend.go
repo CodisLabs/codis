@@ -145,7 +145,10 @@ func (bc *BackendConn) setResponse(r *Request, resp *redis.Resp, err error) erro
 	return err
 }
 
-var ErrBackendConnReset = errors.New("backend conn reset")
+var (
+	ErrBackendConnReset = errors.New("backend conn reset")
+	ErrRequestIsBroken  = errors.New("request is broken")
+)
 
 func (bc *BackendConn) run() {
 	log.Warnf("backend conn [%p] to %s, start service", bc, bc.addr)
@@ -215,6 +218,10 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 	p.MaxBuffered = math2.MinInt(256, cap(tasks))
 
 	for r := range bc.input {
+		if r.IsReadOnly() && r.IsBroken() {
+			bc.setResponse(r, nil, ErrRequestIsBroken)
+			continue
+		}
 		if err := p.EncodeMultiBulk(r.Multi); err != nil {
 			return bc.setResponse(r, nil, fmt.Errorf("backend conn failure, %s", err))
 		}

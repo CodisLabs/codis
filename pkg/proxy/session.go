@@ -39,6 +39,7 @@ type Session struct {
 	}
 	start sync.Once
 
+	broken     atomic2.Bool
 	authorized bool
 
 	alloc RequestAlloc
@@ -80,6 +81,7 @@ func (s *Session) CloseWithError(err error, half bool) {
 		s.Conn.CloseReader()
 	} else {
 		s.Conn.Close()
+		s.broken.Set(true)
 	}
 }
 
@@ -216,9 +218,10 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 		return err
 	}
 	r.OpStr = opstr
-	r.Dirty = !flag.IsReadOnly()
+	r.OpFlag = flag
+	r.Broken = &s.broken
 
-	if flag.IsNotAllow() {
+	if flag.IsNotAllowed() {
 		return fmt.Errorf("command '%s' is not allowed", opstr)
 	}
 

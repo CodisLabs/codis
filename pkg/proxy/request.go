@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
+	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
 type Request struct {
@@ -16,12 +17,17 @@ type Request struct {
 	Group *sync.WaitGroup
 
 	OpStr string
-	Dirty bool
+	OpFlag
+	Broken *atomic2.Bool
 
 	*redis.Resp
 	Err error
 
 	Coalesce func() error
+}
+
+func (r *Request) IsBroken() bool {
+	return r.Broken != nil && r.Broken.Get()
 }
 
 func (r *Request) Release() {
@@ -44,7 +50,7 @@ type RequestAlloc struct {
 func (p *RequestAlloc) NewRequest() *Request {
 	var d = &p.alloc
 	if len(d.buf) == d.off {
-		d.buf = make([]Request, 64)
+		d.buf = make([]Request, 48)
 		d.off = 0
 	}
 	r := &d.buf[d.off]
@@ -57,7 +63,8 @@ func (p *RequestAlloc) SubRequest(r *Request) *Request {
 	x.Start = r.Start
 	x.Batch = r.Batch
 	x.OpStr = r.OpStr
-	x.Dirty = r.Dirty
+	x.OpFlag = r.OpFlag
+	x.Broken = r.Broken
 	return x
 }
 

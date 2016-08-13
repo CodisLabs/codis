@@ -28,7 +28,7 @@ func init() {
 
 type OpFlag uint32
 
-func (f OpFlag) IsNotAllow() bool {
+func (f OpFlag) IsNotAllowed() bool {
 	return (f & FlagNotAllow) != 0
 }
 
