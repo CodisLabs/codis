@@ -34,7 +34,7 @@ type Session struct {
 		total atomic2.Int64
 		flush struct {
 			n    uint
-			unix int64
+			tick int64
 		}
 	}
 	start sync.Once
@@ -571,13 +571,13 @@ func (s *Session) incrOpStats(r *Request) {
 }
 
 func (s *Session) flushOpStats(force bool) {
-	var unix = time.Now().Unix()
+	var tick = time.Now().UnixNano() / (int64(time.Millisecond) * 100)
 	if !force {
-		if s.stats.flush.unix == unix {
+		if s.stats.flush.tick == tick {
 			return
 		}
 	}
-	s.stats.flush.unix = unix
+	s.stats.flush.tick = tick
 
 	incrOpTotal(s.stats.total.Swap(0))
 	for _, e := range s.stats.opmap {
@@ -590,7 +590,7 @@ func (s *Session) flushOpStats(force bool) {
 	if len(s.stats.opmap) <= 32 {
 		return
 	}
-	if (s.stats.flush.n % 128) == 0 {
+	if (s.stats.flush.n % 16384) == 0 {
 		s.stats.opmap = make(map[string]*opStats, 32)
 	}
 }
