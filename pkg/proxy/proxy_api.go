@@ -74,6 +74,8 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Get("/stats/:xauth", api.Stats)
 		r.Get("/slots/:xauth", api.Slots)
 		r.Put("/start/:xauth", api.Start)
+		r.Put("/stats/:xauth/clear", api.ClearStats)
+		r.Put("/forcegc/:xauth", api.ForceGC)
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Put("/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
@@ -256,6 +258,24 @@ func (s *apiServer) Start(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) ClearStats(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		ClearOpStats()
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) ForceGC(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		runtime.GC()
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
 func (s *apiServer) LogLevel(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -349,6 +369,16 @@ func (c *ApiClient) Slots() ([]*models.Slot, error) {
 		return nil, err
 	}
 	return slots, nil
+}
+
+func (c *ApiClient) ClearStats() error {
+	url := c.encodeURL("/api/proxy/stats/%s/clear", c.xauth)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) ForceGC() error {
+	url := c.encodeURL("/api/proxy/forcegc/%s", c.xauth)
+	return rpc.ApiPutJson(url, nil, nil)
 }
 
 func (c *ApiClient) Start() error {

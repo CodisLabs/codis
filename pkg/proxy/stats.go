@@ -4,6 +4,7 @@
 package proxy
 
 import (
+	"sort"
 	"sync"
 	"time"
 
@@ -47,13 +48,15 @@ var cmdstats struct {
 }
 
 func init() {
-	cmdstats.opmap = make(map[string]*opStats)
+	cmdstats.opmap = make(map[string]*opStats, 128)
 	go func() {
 		for {
-			lastn := cmdstats.total.Get()
+			start := time.Now()
+			count := cmdstats.total.Get()
 			time.Sleep(time.Second)
-			delta := cmdstats.total.Get() - lastn
-			cmdstats.qps.Set(delta)
+			delta := cmdstats.total.Get() - count
+			ratio := float64(time.Second) / float64(time.Since(start))
+			cmdstats.qps.Set(int64(float64(delta) * ratio))
 		}
 	}()
 }
@@ -89,6 +92,20 @@ func getOpStats(opstr string, create bool) *opStats {
 	return s
 }
 
+type sliceOpStats []*OpStats
+
+func (s sliceOpStats) Len() int {
+	return len(s)
+}
+
+func (s sliceOpStats) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s sliceOpStats) Less(i, j int) bool {
+	return s[i].OpStr < s[j].OpStr
+}
+
 func GetOpStatsAll() []*OpStats {
 	var all = make([]*OpStats, 0, 128)
 	cmdstats.RLock()
@@ -96,7 +113,14 @@ func GetOpStatsAll() []*OpStats {
 		all = append(all, s.OpStats())
 	}
 	cmdstats.RUnlock()
+	sort.Sort(sliceOpStats(all))
 	return all
+}
+
+func ClearOpStats() {
+	cmdstats.Lock()
+	cmdstats.opmap = make(map[string]*opStats, 128)
+	cmdstats.Unlock()
 }
 
 func incrOpTotal(n int64) {
