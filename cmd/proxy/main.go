@@ -155,10 +155,11 @@ func AutoGOMAXPROCS(min, max int) {
 				time.Sleep(time.Second * 30)
 				continue
 			}
+			u /= float64(ncpu)
 			switch {
-			case u < 0.55 && ncpu > min:
+			case u < 30 && ncpu > min:
 				less++
-			case u > 0.85 && ncpu < max:
+			case u > 70 && ncpu < max:
 				more++
 			}
 			usage[i] = u
@@ -177,7 +178,7 @@ func AutoGOMAXPROCS(min, max int) {
 				if i != 0 {
 					fmt.Fprintf(&b, ", ")
 				}
-				fmt.Fprintf(&b, "%.3f", u)
+				fmt.Fprintf(&b, "%3.1f", u)
 			}
 			log.Warnf("ncpu = %d -> %d, usage = [%s]", ncpu, nn, b.Bytes())
 		}

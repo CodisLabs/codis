@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
@@ -132,4 +133,42 @@ func SessionsTotal() int64 {
 
 func SessionsAlive() int64 {
 	return sessions.alive.Get()
+}
+
+var sysUsage struct {
+	mem int64
+	cpu float64
+}
+
+func init() {
+	updateSysUsage := func() error {
+		mem, err := utils.MemTotal()
+		if err != nil {
+			return err
+		}
+		cpu, err := utils.CPUUsage(time.Second)
+		if err != nil {
+			return err
+		}
+		sysUsage.mem = mem
+		sysUsage.cpu = cpu
+		return nil
+	}
+	go func() {
+		for {
+			if err := updateSysUsage(); err != nil {
+				sysUsage.mem = 0
+				sysUsage.cpu = 0
+				time.Sleep(time.Second)
+			}
+		}
+	}()
+}
+
+func GetSysMemTotal() int64 {
+	return sysUsage.mem
+}
+
+func GetSysCPUUsage() float64 {
+	return sysUsage.cpu
 }

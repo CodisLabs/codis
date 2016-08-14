@@ -110,6 +110,11 @@ type Stats struct {
 		Cmd   []*OpStats `json:"cmd,omitempty"`
 	} `json:"ops"`
 
+	Sys struct {
+		Mem int64   `json:"mem"`
+		CPU float64 `json:"cpu"`
+	} `json:"sys"`
+
 	Sessions struct {
 		Total int64 `json:"total"`
 		Alive int64 `json:"alive"`
@@ -136,6 +141,9 @@ func (s *apiServer) NewStats() *Stats {
 	stats.Ops.Fails = OpFails()
 	stats.Ops.Qps = OpQps()
 	stats.Ops.Cmd = GetOpStatsAll()
+
+	stats.Sys.Mem = GetSysMemTotal()
+	stats.Sys.CPU = GetSysCPUUsage()
 
 	stats.Sessions.Total = SessionsTotal()
 	stats.Sessions.Alive = SessionsAlive()
