@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"time"
 
 	_ "net/http/pprof"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
+	"github.com/CodisLabs/codis/pkg/utils/unsafe2"
 )
 
 type apiServer struct {
@@ -127,24 +129,32 @@ type Stats struct {
 	} `json:"rusage"`
 
 	Runtime struct {
-		Alloc          uint64  `json:"alloc"`
-		TotalAlloc     uint64  `json:"total_alloc"`
-		Sys            uint64  `json:"sys"`
-		Lookups        uint64  `json:"lookups"`
-		Mallocs        uint64  `json:"mallocs"`
-		Frees          uint64  `json:"frees"`
-		HeapAlloc      uint64  `json:"heap_alloc"`
-		HeapSys        uint64  `json:"heap_sys"`
-		HeapIdle       uint64  `json:"heap_idle"`
-		HeapInuse      uint64  `json:"heap_inuse"`
-		HeapReleased   uint64  `json:"heap_released"`
-		HeapObjects    uint64  `json:"heap_objects"`
-		NumGC          uint32  `json:"num_gc"`
-		NumProcs       int     `json:"num_procs"`
-		NumGoroutines  int     `json:"num_goroutines"`
-		NumCgoCall     int64   `json:"num_cgo_call"`
-		GCCPUFraction  float64 `json:"gc_cpu_fraction"`
-		GCPauseTotalNs uint64  `json:"gc_pause_total_nanoseconds"`
+		General struct {
+			Alloc   uint64 `json:"alloc"`
+			Sys     uint64 `json:"sys"`
+			Lookups uint64 `json:"lookups"`
+			Mallocs uint64 `json:"mallocs"`
+			Frees   uint64 `json:"frees"`
+		} `json:"general"`
+
+		Heap struct {
+			Alloc   uint64 `json:"alloc"`
+			Sys     uint64 `json:"sys"`
+			Idle    uint64 `json:"idle"`
+			Inuse   uint64 `json:"inuse"`
+			Objects uint64 `json:"objects"`
+		} `json:"heap"`
+
+		GC struct {
+			Num          uint32  `json:"num"`
+			CPUFraction  float64 `json:"cpu_fraction"`
+			TotalPauseMs uint64  `json:"total_pausems"`
+		} `json:"gc"`
+
+		NumProcs      int   `json:"num_procs"`
+		NumGoroutines int   `json:"num_goroutines"`
+		NumCgoCall    int64 `json:"num_cgo_call"`
+		MemOffheap    int   `json:"mem_offheap"`
 	} `json:"runtime"`
 }
 
@@ -178,24 +188,23 @@ func (s *apiServer) NewStats() *Stats {
 	var r runtime.MemStats
 	runtime.ReadMemStats(&r)
 
-	stats.Runtime.Alloc = r.Alloc
-	stats.Runtime.TotalAlloc = r.TotalAlloc
-	stats.Runtime.Sys = r.Sys
-	stats.Runtime.Lookups = r.Lookups
-	stats.Runtime.Mallocs = r.Mallocs
-	stats.Runtime.Frees = r.Frees
-	stats.Runtime.HeapAlloc = r.HeapAlloc
-	stats.Runtime.HeapSys = r.HeapSys
-	stats.Runtime.HeapIdle = r.HeapIdle
-	stats.Runtime.HeapInuse = r.HeapInuse
-	stats.Runtime.HeapReleased = r.HeapReleased
-	stats.Runtime.HeapObjects = r.HeapObjects
-	stats.Runtime.NumGC = r.NumGC
+	stats.Runtime.General.Alloc = r.Alloc
+	stats.Runtime.General.Sys = r.Sys
+	stats.Runtime.General.Lookups = r.Lookups
+	stats.Runtime.General.Mallocs = r.Mallocs
+	stats.Runtime.General.Frees = r.Frees
+	stats.Runtime.Heap.Alloc = r.HeapAlloc
+	stats.Runtime.Heap.Sys = r.HeapSys
+	stats.Runtime.Heap.Idle = r.HeapIdle
+	stats.Runtime.Heap.Inuse = r.HeapInuse
+	stats.Runtime.Heap.Objects = r.HeapObjects
+	stats.Runtime.GC.Num = r.NumGC
+	stats.Runtime.GC.CPUFraction = r.GCCPUFraction
+	stats.Runtime.GC.TotalPauseMs = r.PauseTotalNs / uint64(time.Millisecond)
 	stats.Runtime.NumProcs = runtime.GOMAXPROCS(0)
 	stats.Runtime.NumGoroutines = runtime.NumGoroutine()
 	stats.Runtime.NumCgoCall = runtime.NumCgoCall()
-	stats.Runtime.GCCPUFraction = r.GCCPUFraction
-	stats.Runtime.GCPauseTotalNs = r.PauseTotalNs
+	stats.Runtime.MemOffheap = unsafe2.OffheapBytes()
 
 	return stats
 }
