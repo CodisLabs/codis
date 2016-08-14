@@ -55,11 +55,16 @@ func newApiServer(p *Proxy) http.Handler {
 	r.Get("/", func(r render.Render) {
 		r.Redirect("/proxy")
 	})
-	r.Get("/proxy", api.Overview)
 	r.Any("/debug/**", func(w http.ResponseWriter, req *http.Request) {
 		http.DefaultServeMux.ServeHTTP(w, req)
 	})
 
+	r.Group("/proxy", func(r martini.Router) {
+		r.Get("", api.Overview)
+		r.Get("/model", api.Model)
+		r.Get("/stats", api.StatsNoXAuth)
+		r.Get("/slots", api.SlotsNoXAuth)
+	})
 	r.Group("/api/proxy", func(r martini.Router) {
 		r.Get("/model", api.Model)
 		r.Get("/xping/:xauth", api.XPing)
@@ -95,8 +100,8 @@ type Overview struct {
 	Compile string         `json:"compile"`
 	Config  *Config        `json:"config,omitempty"`
 	Model   *models.Proxy  `json:"model,omitempty"`
-	Slots   []*models.Slot `json:"slots,omitempty"`
 	Stats   *Stats         `json:"stats,omitempty"`
+	Slots   []*models.Slot `json:"slots,omitempty"`
 }
 
 type Stats struct {
@@ -154,12 +159,12 @@ func (s *apiServer) Model() (int, string) {
 	return rpc.ApiResponseJson(s.proxy.Model())
 }
 
-func (s *apiServer) Stats(params martini.Params) (int, string) {
-	if err := s.verifyXAuth(params); err != nil {
-		return rpc.ApiResponseError(err)
-	} else {
-		return rpc.ApiResponseJson(s.NewStats())
-	}
+func (s *apiServer) StatsNoXAuth() (int, string) {
+	return rpc.ApiResponseJson(s.NewStats())
+}
+
+func (s *apiServer) SlotsNoXAuth() (int, string) {
+	return rpc.ApiResponseJson(s.proxy.Slots())
 }
 
 func (s *apiServer) XPing(params martini.Params) (int, string) {
@@ -170,11 +175,19 @@ func (s *apiServer) XPing(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) Stats(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return s.StatsNoXAuth()
+	}
+}
+
 func (s *apiServer) Slots(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		return rpc.ApiResponseJson(s.proxy.Slots())
+		return s.SlotsNoXAuth()
 	}
 }
 

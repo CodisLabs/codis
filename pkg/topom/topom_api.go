@@ -59,11 +59,16 @@ func newApiServer(t *Topom) http.Handler {
 	r.Get("/", func(r render.Render) {
 		r.Redirect("/topom")
 	})
-	r.Get("/topom", api.Overview)
 	r.Any("/debug/**", func(w http.ResponseWriter, req *http.Request) {
 		http.DefaultServeMux.ServeHTTP(w, req)
 	})
 
+	r.Group("/topom", func(r martini.Router) {
+		r.Get("", api.Overview)
+		r.Get("/model", api.Model)
+		r.Get("/stats", api.StatsNoXAuth)
+		r.Get("/slots", api.SlotsNoXAuth)
+	})
 	r.Group("/api/topom", func(r martini.Router) {
 		r.Get("/model", api.Model)
 		r.Get("/xping/:xauth", api.XPing)
@@ -145,6 +150,22 @@ func (s *apiServer) Model() (int, string) {
 	return rpc.ApiResponseJson(s.topom.Model())
 }
 
+func (s *apiServer) StatsNoXAuth() (int, string) {
+	if stats, err := s.topom.Stats(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson(stats)
+	}
+}
+
+func (s *apiServer) SlotsNoXAuth() (int, string) {
+	if slots, err := s.topom.Slots(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson(slots)
+	}
+}
+
 func (s *apiServer) XPing(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -156,22 +177,16 @@ func (s *apiServer) XPing(params martini.Params) (int, string) {
 func (s *apiServer) Stats(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
-	}
-	if stats, err := s.topom.Stats(); err != nil {
-		return rpc.ApiResponseError(err)
 	} else {
-		return rpc.ApiResponseJson(stats)
+		return s.StatsNoXAuth()
 	}
 }
 
 func (s *apiServer) Slots(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
-	}
-	if slots, err := s.topom.Slots(); err != nil {
-		return rpc.ApiResponseError(err)
 	} else {
-		return rpc.ApiResponseJson(slots)
+		return s.SlotsNoXAuth()
 	}
 }
 
