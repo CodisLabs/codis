@@ -5,6 +5,7 @@ package proxy
 
 import (
 	"net/http"
+	"runtime"
 	"strings"
 
 	_ "net/http/pprof"
@@ -115,15 +116,36 @@ type Stats struct {
 		Cmd   []*OpStats `json:"cmd,omitempty"`
 	} `json:"ops"`
 
-	Sys struct {
-		Mem int64   `json:"mem"`
-		CPU float64 `json:"cpu"`
-	} `json:"sys"`
-
 	Sessions struct {
 		Total int64 `json:"total"`
 		Alive int64 `json:"alive"`
 	} `json:"sessions"`
+
+	Rusage struct {
+		Mem int64   `json:"mem"`
+		CPU float64 `json:"cpu"`
+	} `json:"rusage"`
+
+	Runtime struct {
+		Alloc          uint64  `json:"alloc"`
+		TotalAlloc     uint64  `json:"total_alloc"`
+		Sys            uint64  `json:"sys"`
+		Lookups        uint64  `json:"lookups"`
+		Mallocs        uint64  `json:"mallocs"`
+		Frees          uint64  `json:"frees"`
+		HeapAlloc      uint64  `json:"heap_alloc"`
+		HeapSys        uint64  `json:"heap_sys"`
+		HeapIdle       uint64  `json:"heap_idle"`
+		HeapInuse      uint64  `json:"heap_inuse"`
+		HeapReleased   uint64  `json:"heap_released"`
+		HeapObjects    uint64  `json:"heap_objects"`
+		NumGC          uint32  `json:"num_gc"`
+		NumProcs       int     `json:"num_procs"`
+		NumGoroutines  int     `json:"num_goroutines"`
+		NumCgoCall     int64   `json:"num_cgo_call"`
+		GCCPUFraction  float64 `json:"gc_cpu_fraction"`
+		GCPauseTotalNs uint64  `json:"gc_pause_total_nanoseconds"`
+	} `json:"runtime"`
 }
 
 func (s *apiServer) Overview() (int, string) {
@@ -147,11 +169,34 @@ func (s *apiServer) NewStats() *Stats {
 	stats.Ops.Qps = OpQps()
 	stats.Ops.Cmd = GetOpStatsAll()
 
-	stats.Sys.Mem = GetSysMemTotal()
-	stats.Sys.CPU = GetSysCPUUsage()
-
 	stats.Sessions.Total = SessionsTotal()
 	stats.Sessions.Alive = SessionsAlive()
+
+	stats.Rusage.Mem = GetSysMemTotal()
+	stats.Rusage.CPU = GetSysCPUUsage()
+
+	var r runtime.MemStats
+	runtime.ReadMemStats(&r)
+
+	stats.Runtime.Alloc = r.Alloc
+	stats.Runtime.TotalAlloc = r.TotalAlloc
+	stats.Runtime.Sys = r.Sys
+	stats.Runtime.Lookups = r.Lookups
+	stats.Runtime.Mallocs = r.Mallocs
+	stats.Runtime.Frees = r.Frees
+	stats.Runtime.HeapAlloc = r.HeapAlloc
+	stats.Runtime.HeapSys = r.HeapSys
+	stats.Runtime.HeapIdle = r.HeapIdle
+	stats.Runtime.HeapInuse = r.HeapInuse
+	stats.Runtime.HeapReleased = r.HeapReleased
+	stats.Runtime.HeapObjects = r.HeapObjects
+	stats.Runtime.NumGC = r.NumGC
+	stats.Runtime.NumProcs = runtime.GOMAXPROCS(0)
+	stats.Runtime.NumGoroutines = runtime.NumGoroutine()
+	stats.Runtime.NumCgoCall = runtime.NumCgoCall()
+	stats.Runtime.GCCPUFraction = r.GCCPUFraction
+	stats.Runtime.GCPauseTotalNs = r.PauseTotalNs
+
 	return stats
 }
 
