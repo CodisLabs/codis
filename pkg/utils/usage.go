@@ -43,5 +43,5 @@ func CPUUsage(d time.Duration) (float64, error) {
 		return 0, err
 	}
 	usage := e - b
-	return float64(usage) / float64(time.Since(now)) * 100, nil
+	return float64(usage) / float64(time.Since(now)), nil
 }

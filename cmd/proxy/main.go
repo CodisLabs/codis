@@ -157,9 +157,9 @@ func AutoGOMAXPROCS(min, max int) {
 			}
 			u /= float64(ncpu)
 			switch {
-			case u < 30 && ncpu > min:
+			case u < 0.30 && ncpu > min:
 				less++
-			case u > 70 && ncpu < max:
+			case u > 0.70 && ncpu < max:
 				more++
 			}
 			usage[i] = u
