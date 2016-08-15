@@ -18,7 +18,6 @@ import (
 	"github.com/martini-contrib/render"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
@@ -124,25 +123,12 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	return nil
 }
 
-type Overview struct {
-	Version string        `json:"version"`
-	Compile string        `json:"compile"`
-	Config  *Config       `json:"config,omitempty"`
-	Model   *models.Topom `json:"model,omitempty"`
-	Stats   *Stats        `json:"stats,omitempty"`
-}
-
 func (s *apiServer) Overview() (int, string) {
-	if stats, err := s.topom.Stats(); err != nil {
+	o, err := s.topom.Overview()
+	if err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		return rpc.ApiResponseJson(&Overview{
-			Version: utils.Version,
-			Compile: utils.Compile,
-			Config:  s.topom.Config(),
-			Model:   s.topom.Model(),
-			Stats:   stats,
-		})
+		return rpc.ApiResponseJson(o)
 	}
 }
 

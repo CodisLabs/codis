@@ -379,3 +379,25 @@ func (s *Topom) serveAdmin() {
 		log.ErrorErrorf(err, "admin exit on error")
 	}
 }
+
+type Overview struct {
+	Version string        `json:"version"`
+	Compile string        `json:"compile"`
+	Config  *Config       `json:"config,omitempty"`
+	Model   *models.Topom `json:"model,omitempty"`
+	Stats   *Stats        `json:"stats,omitempty"`
+}
+
+func (s *Topom) Overview() (*Overview, error) {
+	if stats, err := s.Stats(); err != nil {
+		return nil, err
+	} else {
+		return &Overview{
+			Version: utils.Version,
+			Compile: utils.Compile,
+			Config:  s.Config(),
+			Model:   s.Model(),
+			Stats:   stats,
+		}, nil
+	}
+}

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
-	"time"
 
 	_ "net/http/pprof"
 
@@ -17,11 +16,9 @@ import (
 	"github.com/martini-contrib/render"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
-	"github.com/CodisLabs/codis/pkg/utils/unsafe2"
 )
 
 type apiServer struct {
@@ -100,115 +97,8 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	return nil
 }
 
-type Overview struct {
-	Version string         `json:"version"`
-	Compile string         `json:"compile"`
-	Config  *Config        `json:"config,omitempty"`
-	Model   *models.Proxy  `json:"model,omitempty"`
-	Stats   *Stats         `json:"stats,omitempty"`
-	Slots   []*models.Slot `json:"slots,omitempty"`
-}
-
-type Stats struct {
-	Online bool `json:"online"`
-	Closed bool `json:"closed"`
-
-	Ops struct {
-		Total int64      `json:"total"`
-		Fails int64      `json:"fails"`
-		Qps   int64      `json:"qps"`
-		Cmd   []*OpStats `json:"cmd,omitempty"`
-	} `json:"ops"`
-
-	Sessions struct {
-		Total int64 `json:"total"`
-		Alive int64 `json:"alive"`
-	} `json:"sessions"`
-
-	Rusage struct {
-		Mem int64   `json:"mem"`
-		CPU float64 `json:"cpu"`
-	} `json:"rusage"`
-
-	Runtime struct {
-		General struct {
-			Alloc   uint64 `json:"alloc"`
-			Sys     uint64 `json:"sys"`
-			Lookups uint64 `json:"lookups"`
-			Mallocs uint64 `json:"mallocs"`
-			Frees   uint64 `json:"frees"`
-		} `json:"general"`
-
-		Heap struct {
-			Alloc   uint64 `json:"alloc"`
-			Sys     uint64 `json:"sys"`
-			Idle    uint64 `json:"idle"`
-			Inuse   uint64 `json:"inuse"`
-			Objects uint64 `json:"objects"`
-		} `json:"heap"`
-
-		GC struct {
-			Num          uint32  `json:"num"`
-			CPUFraction  float64 `json:"cpu_fraction"`
-			TotalPauseMs uint64  `json:"total_pausems"`
-		} `json:"gc"`
-
-		NumProcs      int   `json:"num_procs"`
-		NumGoroutines int   `json:"num_goroutines"`
-		NumCgoCall    int64 `json:"num_cgo_call"`
-		MemOffheap    int   `json:"mem_offheap"`
-	} `json:"runtime"`
-}
-
 func (s *apiServer) Overview() (int, string) {
-	return rpc.ApiResponseJson(&Overview{
-		Version: utils.Version,
-		Compile: utils.Compile,
-		Config:  s.proxy.Config(),
-		Model:   s.proxy.Model(),
-		Slots:   s.proxy.Slots(),
-		Stats:   s.NewStats(),
-	})
-}
-
-func (s *apiServer) NewStats() *Stats {
-	stats := &Stats{}
-	stats.Online = s.proxy.IsOnline()
-	stats.Closed = s.proxy.IsClosed()
-
-	stats.Ops.Total = OpTotal()
-	stats.Ops.Fails = OpFails()
-	stats.Ops.Qps = OpQps()
-	stats.Ops.Cmd = GetOpStatsAll()
-
-	stats.Sessions.Total = SessionsTotal()
-	stats.Sessions.Alive = SessionsAlive()
-
-	stats.Rusage.Mem = GetSysMemTotal()
-	stats.Rusage.CPU = GetSysCPUUsage()
-
-	var r runtime.MemStats
-	runtime.ReadMemStats(&r)
-
-	stats.Runtime.General.Alloc = r.Alloc
-	stats.Runtime.General.Sys = r.Sys
-	stats.Runtime.General.Lookups = r.Lookups
-	stats.Runtime.General.Mallocs = r.Mallocs
-	stats.Runtime.General.Frees = r.Frees
-	stats.Runtime.Heap.Alloc = r.HeapAlloc
-	stats.Runtime.Heap.Sys = r.HeapSys
-	stats.Runtime.Heap.Idle = r.HeapIdle
-	stats.Runtime.Heap.Inuse = r.HeapInuse
-	stats.Runtime.Heap.Objects = r.HeapObjects
-	stats.Runtime.GC.Num = r.NumGC
-	stats.Runtime.GC.CPUFraction = r.GCCPUFraction
-	stats.Runtime.GC.TotalPauseMs = r.PauseTotalNs / uint64(time.Millisecond)
-	stats.Runtime.NumProcs = runtime.GOMAXPROCS(0)
-	stats.Runtime.NumGoroutines = runtime.NumGoroutine()
-	stats.Runtime.NumCgoCall = runtime.NumCgoCall()
-	stats.Runtime.MemOffheap = unsafe2.OffheapBytes()
-
-	return stats
+	return rpc.ApiResponseJson(s.proxy.Overview(false))
 }
 
 func (s *apiServer) Model() (int, string) {
@@ -216,7 +106,7 @@ func (s *apiServer) Model() (int, string) {
 }
 
 func (s *apiServer) StatsNoXAuth() (int, string) {
-	return rpc.ApiResponseJson(s.NewStats())
+	return rpc.ApiResponseJson(s.proxy.Stats(false))
 }
 
 func (s *apiServer) SlotsNoXAuth() (int, string) {
