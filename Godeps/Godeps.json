@@ -62,6 +62,21 @@
 			"Rev": "c257c412d547ac70fcaf5596c1a50a7cb832c1fc"
 		},
 		{
+			"ImportPath": "github.com/influxdata/influxdb/client/v2",
+			"Comment": "v0.13.0",
+			"Rev": "e57fb88a051ee40fd9277094345fbd47bb4783ce"
+		},
+		{
+			"ImportPath": "github.com/influxdata/influxdb/models",
+			"Comment": "v0.13.0",
+			"Rev": "e57fb88a051ee40fd9277094345fbd47bb4783ce"
+		},
+		{
+			"ImportPath": "github.com/influxdata/influxdb/pkg/escape",
+			"Comment": "v0.13.0",
+			"Rev": "e57fb88a051ee40fd9277094345fbd47bb4783ce"
+		},
+		{
 			"ImportPath": "github.com/martini-contrib/binding",
 			"Rev": "05d3e151b6cf34dacac6306226a33db68459a3b5"
 		},
