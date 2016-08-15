@@ -71,6 +71,7 @@ func New(config *Config) (*Proxy, error) {
 	} else {
 		s.model.Sys = strings.TrimSpace(string(b))
 	}
+	s.model.Hostname, _ = os.Hostname()
 
 	if err := s.setup(config); err != nil {
 		s.Close()

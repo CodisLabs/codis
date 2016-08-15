@@ -17,6 +17,8 @@ type Proxy struct {
 	Pid int    `json:"pid"`
 	Pwd string `json:"pwd"`
 	Sys string `json:"sys"`
+
+	Hostname string `json:"hostname"`
 }
 
 func (p *Proxy) Encode() []byte {
