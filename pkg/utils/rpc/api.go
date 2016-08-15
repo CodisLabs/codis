@@ -22,8 +22,9 @@ import (
 )
 
 const (
-	MethodGet = "GET"
-	MethodPut = "PUT"
+	MethodGet  = "GET"
+	MethodPut  = "PUT"
+	MethodPost = "POST"
 )
 
 var client *http.Client
@@ -170,6 +171,10 @@ func ApiGetJson(url string, reply interface{}) error {
 
 func ApiPutJson(url string, args, reply interface{}) error {
 	return apiRequestJson(MethodPut, url, args, reply)
+}
+
+func ApiPostJson(url string, args interface{}) error {
+	return apiRequestJson(MethodPost, url, args, nil)
 }
 
 func ApiResponseError(err error) (int, string) {

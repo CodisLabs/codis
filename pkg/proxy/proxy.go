@@ -86,6 +86,9 @@ func New(config *Config) (*Proxy, error) {
 	go s.serveAdmin()
 	go s.serveProxy()
 
+	s.startMetricsJson()
+	s.startMetricsInfluxdb()
+
 	return s, nil
 }
 
@@ -392,14 +395,17 @@ type Stats struct {
 }
 
 func (s *Proxy) Overview(simple bool) *Overview {
-	return &Overview{
+	o := &Overview{
 		Version: utils.Version,
 		Compile: utils.Compile,
 		Config:  s.Config(),
 		Model:   s.Model(),
-		Slots:   s.Slots(),
 		Stats:   s.Stats(simple),
 	}
+	if !simple {
+		o.Slots = s.Slots()
+	}
+	return o
 }
 
 func (s *Proxy) Stats(simple bool) *Stats {

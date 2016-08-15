@@ -82,6 +82,17 @@ session_max_pipeline = 512
 
 # Set session tcp keepalive period. (0 to disable)
 session_keepalive_period = "75s"
+
+# Set metrics server (such as http://localhost:28000), proxy will report json formatted metrics to specified server in a predefined period.
+metrics_report_server = ""
+metrics_report_period = "1s"
+
+# Set influxdb server (such as http://localhost:8086), proxy will report metrics to influxdb.
+metrics_report_influxdb_server = ""
+metrics_report_influxdb_period = "1s"
+metrics_report_influxdb_username = ""
+metrics_report_influxdb_password = ""
+metrics_report_influxdb_database = ""
 `
 
 type Config struct {
@@ -119,6 +130,14 @@ type Config struct {
 	SessionSendTimeout     timesize.Duration `toml:"session_send_timeout" json:"session_send_timeout"`
 	SessionMaxPipeline     int               `toml:"session_max_pipeline" json:"session_max_pipeline"`
 	SessionKeepAlivePeriod timesize.Duration `toml:"session_keepalive_period" json:"session_keepalive_period"`
+
+	MetricsReportServer           string            `toml:"metrics_report_server" json:"metrics_report_server"`
+	MetricsReportPeriod           timesize.Duration `toml:"metrics_report_period" json:"metrics_report_period"`
+	MetricsReportInfluxdbServer   string            `toml:"metrics_report_influxdb_server" json:"metrics_report_influxdb_server"`
+	MetricsReportInfluxdbPeriod   timesize.Duration `toml:"metrics_report_influxdb_period" json:"metrics_report_influxdb_period"`
+	MetricsReportInfluxdbUsername string            `toml:"metrics_report_influxdb_username" json:"metrics_report_influxdb_username"`
+	MetricsReportInfluxdbPassword string            `toml:"metrics_report_influxdb_password" json:"-"`
+	MetricsReportInfluxdbDatabase string            `toml:"metrics_report_influxdb_database" json:"metrics_report_influxdb_database"`
 }
 
 func NewDefaultConfig() *Config {
@@ -221,6 +240,13 @@ func (c *Config) Validate() error {
 	}
 	if c.SessionKeepAlivePeriod < 0 {
 		return errors.New("invalid session_keepalive_period")
+	}
+
+	if c.MetricsReportPeriod < 0 {
+		return errors.New("invalid metrics_report_period")
+	}
+	if c.MetricsReportInfluxdbPeriod < 0 {
+		return errors.New("invalid metrics_report_influxdb_period")
 	}
 	return nil
 }
