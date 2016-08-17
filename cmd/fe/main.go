@@ -54,7 +54,7 @@ func init() {
 func main() {
 	const usage = `
 Usage:
-	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] --dashboard-list=LIST --listen=ADDR
+	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] --dashboard-list=LIST --listen=ADDR
 	codis-fe  --version
 
 Options:
@@ -104,6 +104,26 @@ Options:
 	config := utils.ArgumentMust(d, "--dashboard-list")
 	log.Warnf("set config = %s", config)
 
+	var assets string
+	if s, ok := utils.Argument(d, "--assets-dir"); ok {
+		assets = s
+	} else {
+		binpath, err := filepath.Abs(filepath.Dir(os.Args[0]))
+		if err != nil {
+			log.PanicErrorf(err, "get path of binary failed")
+		}
+		assets = filepath.Join(binpath, "assets")
+	}
+	log.Warnf("set assets = %s", assets)
+
+	fi, err := os.Stat(assets)
+	if err != nil {
+		log.PanicErrorf(err, "get stat of %s failed", assets)
+	}
+	if !fi.IsDir() {
+		log.Panicf("%s is not a directory", assets)
+	}
+
 	loader := &ConfigLoader{}
 	router := &ReverseProxy{}
 
@@ -126,21 +146,6 @@ Options:
 	m := martini.New()
 	m.Use(martini.Recovery())
 	m.Use(render.Renderer())
-
-	binpath, err := filepath.Abs(filepath.Dir(os.Args[0]))
-	if err != nil {
-		log.PanicErrorf(err, "get path of binary failed")
-	}
-	assets := filepath.Join(binpath, "assets")
-
-	fi, err := os.Stat(assets)
-	if err != nil {
-		log.PanicErrorf(err, "get stat of %s failed", assets)
-	}
-	if !fi.IsDir() {
-		log.Panicf("%s is not a directory", assets)
-	}
-
 	m.Use(martini.Static(assets, martini.StaticOptions{SkipLogging: true}))
 
 	r := martini.NewRouter()
