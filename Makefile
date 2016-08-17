@@ -1,5 +1,7 @@
 all: build
 
+export GO15VENDOREXPERIMENT=1
+
 build: build-version build-proxy build-config build-server
 
 build-version:
