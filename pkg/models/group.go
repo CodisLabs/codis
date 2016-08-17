@@ -16,7 +16,8 @@ type Group struct {
 }
 
 type GroupServer struct {
-	Addr string `json:"server"`
+	Addr       string `json:"server"`
+	DataCenter string `json:"datacenter"`
 
 	Action struct {
 		Index int    `json:"index,omitempty"`
