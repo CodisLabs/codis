@@ -1,8 +1,5 @@
 language: go
 
-env:
-    - GO15VENDOREXPERIMENT=1
-
 os:
     - linux
     - osx
