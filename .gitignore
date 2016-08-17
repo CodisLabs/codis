@@ -6,11 +6,11 @@
 *.log.*
 
 martini_log
-_workspace
 .htaccess
 
 /bin
 /pkg/utils/version.go
-/deploy.tar
 
 makefile
+
+.DS_Store

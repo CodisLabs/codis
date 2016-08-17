@@ -1,19 +1,15 @@
 all: build
 
-build: build-version godep build-proxy build-config build-server
-
-godep:
-	@go get -u github.com/tools/godep
-	GO15VENDOREXPERIMENT=0 GOPATH=`godep path` godep restore
+build: build-version build-proxy build-config build-server
 
 build-version:
 	@bash genver.sh
 
 build-proxy:
-	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-proxy ./cmd/proxy
+	go build -i -o bin/codis-proxy ./cmd/proxy
 
 build-config:
-	GOPATH=`godep path`:$$GOPATH go build -o bin/codis-config ./cmd/cconfig
+	go build -i -o bin/codis-config ./cmd/cconfig
 	@rm -rf bin/assets && cp -r cmd/cconfig/assets bin/
 
 build-server:
@@ -33,4 +29,4 @@ distclean: clean
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
 
 gotest:
-	GOPATH=`godep path`:$$GOPATH go test ./pkg/... ./cmd/...
+	go test ./pkg/... ./cmd/...

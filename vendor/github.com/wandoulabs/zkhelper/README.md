@@ -1,0 +1,1 @@
+This project is only used to support etcd for codis, we are strongly recommended not use it in any other project.

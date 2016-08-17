@@ -1,11 +1,12 @@
 language: go
 
 env:
-    - GO15VENDOREXPERIMENT=0
+    - GO15VENDOREXPERIMENT=1
 
 go:
     - 1.5.4
-    - 1.6.2
+    - 1.6.3
+    - tip
 
 install:
     - make

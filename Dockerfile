@@ -1,5 +1,4 @@
-FROM golang:1.4
-MAINTAINER goroutine@126.com
+FROM golang:1.6
 
 RUN apt-get update -y
 
