@@ -1,6 +1,7 @@
 {
 	"ImportPath": "github.com/CodisLabs/codis",
-	"GoVersion": "go1.5.3",
+	"GoVersion": "go1.7",
+	"GodepVersion": "v74",
 	"Packages": [
 		"./..."
 	],
@@ -14,6 +15,16 @@
 			"ImportPath": "github.com/codegangsta/inject",
 			"Comment": "v1.0-rc1-10-g33e0aa1",
 			"Rev": "33e0aa1cb7c019ccc3fbe049a8262a6403d30504"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
+			"Comment": "v2.2.2-1-g09b81ba",
+			"Rev": "09b81bad15e96e05dafd0494a8c165a13718c350"
+		},
+		{
+			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context",
+			"Comment": "v2.2.2-1-g09b81ba",
+			"Rev": "09b81bad15e96e05dafd0494a8c165a13718c350"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
@@ -67,10 +78,6 @@
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
 			"Rev": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f"
-		},
-		{
-			"ImportPath": "github.com/ugorji/go/codec",
-			"Rev": "357a44b2b13e2711a45e30016508134101477610"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",

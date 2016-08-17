@@ -1,4 +1,4 @@
-FROM golang:1.4
+FROM golang:1.6
 
 RUN apt-get update
 RUN apt-get install -y vim bash golang
