@@ -178,7 +178,7 @@ func AutoGOMAXPROCS(min, max int) {
 				if i != 0 {
 					fmt.Fprintf(&b, ", ")
 				}
-				fmt.Fprintf(&b, "%3.1f", u)
+				fmt.Fprintf(&b, "%.3f", u)
 			}
 			log.Warnf("ncpu = %d -> %d, usage = [%s]", ncpu, nn, b.Bytes())
 		}
