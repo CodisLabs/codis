@@ -18,28 +18,28 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
-			"Comment": "v2.3.7-5-g97dd451",
-			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
+			"Comment": "v2.3.7",
+			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context",
-			"Comment": "v2.3.7-5-g97dd451",
-			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
+			"Comment": "v2.3.7",
+			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
-			"Comment": "v2.3.7-5-g97dd451",
-			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
+			"Comment": "v2.3.7",
+			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
-			"Comment": "v2.3.7-5-g97dd451",
-			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
+			"Comment": "v2.3.7",
+			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v2.3.7-5-g97dd451",
-			"Rev": "97dd45122b34e189cec02580c5927ac6dfcd8ff9"
+			"Comment": "v2.3.7",
+			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
 		},
 		{
 			"ImportPath": "github.com/docopt/docopt-go",
