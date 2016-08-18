@@ -448,18 +448,47 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             var proxy_stats = processProxyStats(codis_stats);
             var group_stats = processGroupStats(codis_stats);
 
+            var merge = function(obj1, obj2) {
+                if (obj1 === null || obj2 === null) {
+                    return obj2;
+                }
+                if (Array.isArray(obj1)) {
+                    if (obj1.length != obj2.length) {
+                        return obj2;
+                    }
+                    for (var i = 0; i < obj1.length; i ++) {
+                        obj1[i] = merge(obj1[i], obj2[i]);
+                    }
+                    return obj1;
+                }
+                if (typeof obj1 === "object") {
+                    for (var k in obj1) {
+                        if (obj2[k] === undefined) {
+                            delete obj1[k];
+                        }
+                    }
+                    for (var k in obj2) {
+                        obj1[k] = merge(obj1[k], obj2[k]);
+                    }
+                    return obj1;
+                }
+                return obj2;
+            }
+
             $scope.codis_qps = proxy_stats.qps;
             $scope.codis_sessions = proxy_stats.sessions;
             $scope.redis_mem = humanSize(group_stats.memory);
             $scope.redis_keys = group_stats.keys.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-            $scope.slots_array = codis_stats.slots;
-            $scope.proxy_array = proxy_stats.proxy_array;
-            $scope.group_array = group_stats.group_array;
+            $scope.slots_array = merge($scope.slots_array, codis_stats.slots);
+            $scope.proxy_array = merge($scope.proxy_array, proxy_stats.proxy_array);
+            $scope.group_array = merge($scope.group_array, group_stats.group_array);
             $scope.slots_actions = [];
             $scope.slots_action_interval = codis_stats.slot_action.interval;
             $scope.slots_action_disabled = codis_stats.slot_action.disabled;
             $scope.slots_action_failed = codis_stats.slot_action.progress.failed;
             $scope.slots_action_remain = codis_stats.slot_action.progress.remain;
+
+            console.debug($scope.group_array);
 
             for (var i = 0; i < $scope.slots_array.length; i++) {
                 var slot = $scope.slots_array[i];

@@ -69,7 +69,7 @@ cat > codis.json <<EOF
 ]
 EOF
 
-nohup codis-fe -d codis.json --listen 0.0.0.0:8080 --assets-dir ../../bin/assets &> fe.log &
+nohup codis-fe -d codis.json --listen 0.0.0.0:8080 --assets-dir ../../cmd/fe/assets &> fe.log &
 lastpid=$!
 pidlist="$pidlist $lastpid"
 echo "fe.pid=$lastpid"

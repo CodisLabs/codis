@@ -210,18 +210,26 @@
                             <col width="60%">
                             <tbody>
                             <tr>
-                                <td>Action Disabled</td>
+                                <td ng-switch="slots_action_disabled">
+                                    <span ng-switch-when="true">
+                                        Action : Disabled
+                                    </span>
+                                    <span ng-switch-when="false">
+                                        Action : Enabled
+                                    </span>
+                                </td>
+
                                 <td ng-switch="slots_action_disabled">
                                     <span ng-switch-when="true">
                                         <button class="btn btn-success btn-xs" style="width: 120px;"
                                                 ng-click="updateSlotActionDisabled(0)">
-                                            Enable Migration
+                                            Enable
                                         </button>
                                     </span>
                                     <span ng-switch-when="false">
                                         <button class="btn btn-danger btn-xs" style="width: 120px;"
                                                 ng-click="updateSlotActionDisabled(1)">
-                                            Disable Migration
+                                            Disable
                                         </button>
                                     </span>
                                 </td>
