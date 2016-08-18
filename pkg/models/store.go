@@ -56,6 +56,18 @@ func JodisPath(product string, token string) string {
 	return filepath.Join(CodisDir, product, "jodis", fmt.Sprintf("proxy-%s", token))
 }
 
+func LoadTopom(client Client, product string, must bool) (*Topom, error) {
+	b, err := client.Read(LockPath(product), must)
+	if err != nil || b == nil {
+		return nil, err
+	}
+	t := &Topom{}
+	if err := jsonDecode(t, b); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
 type Store struct {
 	client  Client
 	product string
@@ -111,6 +123,10 @@ func (s *Store) Acquire(topom *Topom) error {
 
 func (s *Store) Release() error {
 	return s.client.Delete(s.LockPath())
+}
+
+func (s *Store) LoadTopom(must bool) (*Topom, error) {
+	return LoadTopom(s.client, s.product, must)
 }
 
 func (s *Store) SlotMappings() ([]*SlotMapping, error) {
