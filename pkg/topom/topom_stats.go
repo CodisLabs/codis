@@ -8,6 +8,7 @@ import (
 
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/proxy"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
 	"github.com/CodisLabs/codis/pkg/utils/sync2"
 )
@@ -116,6 +117,15 @@ func (s *Topom) RefreshProxyStats(timeout time.Duration) (*sync2.Future, error) 
 			stats := s.newProxyStats(p, timeout)
 			stats.UnixTime = time.Now().Unix()
 			fut.Done(p.Token, stats)
+
+			switch x := stats.Stats; {
+			case x == nil:
+			case x.Closed || x.Online:
+			default:
+				if err := s.ReinitProxy(p.Token); err != nil {
+					log.WarnErrorf(err, "auto reinit proxy-[%s] failed", p.Token)
+				}
+			}
 		}(p)
 	}
 	go func() {
