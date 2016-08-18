@@ -77,6 +77,7 @@ func newApiServer(t *Topom) http.Handler {
 		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Group("/proxy", func(r martini.Router) {
 			r.Put("/create/:xauth/:addr", api.CreateProxy)
+			r.Put("/online/:xauth/:addr", api.OnlineProxy)
 			r.Put("/reinit/:xauth/:token", api.ReinitProxy)
 			r.Put("/remove/:xauth/:token/:force", api.RemoveProxy)
 		})
@@ -213,6 +214,21 @@ func (s *apiServer) CreateProxy(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.topom.CreateProxy(addr); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) OnlineProxy(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	addr, err := s.parseAddr(params)
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.OnlineProxy(addr); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -589,6 +605,11 @@ func (c *ApiClient) Shutdown() error {
 
 func (c *ApiClient) CreateProxy(addr string) error {
 	url := c.encodeURL("/api/topom/proxy/create/%s/%s", c.xauth, addr)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) OnlineProxy(addr string) error {
+	url := c.encodeURL("/api/topom/proxy/online/%s/%s", c.xauth, addr)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

@@ -18,6 +18,7 @@ import (
 	"github.com/docopt/docopt-go"
 
 	"github.com/CodisLabs/codis/pkg/proxy"
+	"github.com/CodisLabs/codis/pkg/topom"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 )
@@ -25,7 +26,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--ulimit=NLIMIT]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR] [--ulimit=NLIMIT]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -114,6 +115,12 @@ Options:
 		log.Warnf("option --host-proxy = %s", s)
 	}
 
+	var dashboard string
+	if s, ok := utils.Argument(d, "--dashboard"); ok {
+		dashboard = s
+		log.Warnf("option --dashboard = %s", s)
+	}
+
 	s, err := proxy.New(config)
 	if err != nil {
 		log.PanicErrorf(err, "create proxy with config file failed\n%s", config)
@@ -129,6 +136,22 @@ Options:
 
 		sig := <-c
 		log.Warnf("[%p] proxy receive signal = '%v'", s, sig)
+	}()
+
+	go func() {
+		if dashboard == "" {
+			return
+		}
+		for i := 0; i < 10; i++ {
+			switch {
+			case s.IsClosed() || s.IsOnline():
+				return
+			case AutoOnline(s, dashboard):
+				return
+			}
+			time.Sleep(time.Second * 3)
+		}
+		log.Panicf("register proxy failed")
 	}()
 
 	for !s.IsClosed() && !s.IsOnline() {
@@ -182,5 +205,26 @@ func AutoGOMAXPROCS(min, max int) {
 			}
 			log.Warnf("ncpu = %d -> %d, usage = [%s]", ncpu, nn, b.Bytes())
 		}
+	}
+}
+
+func AutoOnline(p *proxy.Proxy, addr string) bool {
+	client := topom.NewApiClient(addr)
+	t, err := client.Model()
+	if err != nil {
+		log.WarnErrorf(err, "rpc fetch model failed")
+		return false
+	}
+	if t.ProductName != p.Config().ProductName {
+		log.Panicf("unexcepted product name, got model =\n%s", t.Encode())
+	}
+	client.SetXAuth(p.Config().ProductName)
+
+	if err := client.OnlineProxy(p.Model().AdminAddr); err != nil {
+		log.WarnErrorf(err, "rpc online proxy failed")
+		return false
+	} else {
+		log.Warnf("rpc online proxy seems OK")
+		return true
 	}
 }
