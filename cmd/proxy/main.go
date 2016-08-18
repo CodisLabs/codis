@@ -17,6 +17,7 @@ import (
 
 	"github.com/docopt/docopt-go"
 
+	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/proxy"
 	"github.com/CodisLabs/codis/pkg/topom"
 	"github.com/CodisLabs/codis/pkg/utils"
@@ -26,7 +27,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR] [--ulimit=NLIMIT]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR] [--ulimit=NLIMIT]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -121,6 +122,21 @@ Options:
 		log.Warnf("option --dashboard = %s", s)
 	}
 
+	var coordinator struct {
+		name string
+		addr string
+	}
+	if s, ok := utils.Argument(d, "--zookeeper"); ok {
+		coordinator.name = "zookeeper"
+		coordinator.addr = s
+		log.Warnf("option --zookeeper = %s", s)
+	}
+	if s, ok := utils.Argument(d, "--etcd"); ok {
+		coordinator.name = "etcd"
+		coordinator.addr = s
+		log.Warnf("option --etcd = %s", s)
+	}
+
 	s, err := proxy.New(config)
 	if err != nil {
 		log.PanicErrorf(err, "create proxy with config file failed\n%s", config)
@@ -138,21 +154,12 @@ Options:
 		log.Warnf("[%p] proxy receive signal = '%v'", s, sig)
 	}()
 
-	go func() {
-		if dashboard == "" {
-			return
-		}
-		for i := 0; i < 10; i++ {
-			switch {
-			case s.IsClosed() || s.IsOnline():
-				return
-			case AutoOnline(s, dashboard):
-				return
-			}
-			time.Sleep(time.Second * 3)
-		}
-		log.Panicf("register proxy failed")
-	}()
+	switch {
+	case dashboard != "":
+		go AutoOnlineWithDashboard(s, dashboard)
+	case coordinator.name != "":
+		go AutoOnlineWithCoordinator(s, coordinator.name, coordinator.addr)
+	}
 
 	for !s.IsClosed() && !s.IsOnline() {
 		log.Warnf("[%p] proxy waiting online ...", s)
@@ -208,8 +215,42 @@ func AutoGOMAXPROCS(min, max int) {
 	}
 }
 
-func AutoOnline(p *proxy.Proxy, addr string) bool {
-	client := topom.NewApiClient(addr)
+func AutoOnlineWithDashboard(p *proxy.Proxy, dashboard string) {
+	for i := 0; i < 10; i++ {
+		if p.IsClosed() || p.IsOnline() {
+			return
+		}
+		if OnlineProxy(p, dashboard) {
+			return
+		}
+		time.Sleep(time.Second * 3)
+	}
+	log.Panicf("online proxy failed")
+}
+
+func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr string) {
+	client, err := models.NewClient(name, addr, time.Second*10)
+	if err != nil {
+		log.PanicErrorf(err, "can't open connection with %s", addr)
+	}
+	defer client.Close()
+	for i := 0; i < 10; i++ {
+		if p.IsClosed() || p.IsOnline() {
+			return
+		}
+		t, err := models.LoadTopom(client, p.Config().ProductName, false)
+		if err != nil {
+			log.WarnErrorf(err, "load & decode topom failed")
+		} else if t != nil && OnlineProxy(p, t.AdminAddr) {
+			return
+		}
+		time.Sleep(time.Second * 3)
+	}
+	log.Panicf("online proxy failed")
+}
+
+func OnlineProxy(p *proxy.Proxy, dashboard string) bool {
+	client := topom.NewApiClient(dashboard)
 	t, err := client.Model()
 	if err != nil {
 		log.WarnErrorf(err, "rpc fetch model failed")
