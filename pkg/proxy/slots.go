@@ -28,7 +28,7 @@ type Slot struct {
 	replicaGroups [][]*SharedBackendConn
 }
 
-func (s *Slot) model() *models.Slot {
+func (s *Slot) snapshot(full bool) *models.Slot {
 	var m = &models.Slot{
 		Id:     s.id,
 		Locked: s.lock.hold,
@@ -37,6 +37,9 @@ func (s *Slot) model() *models.Slot {
 		BackendAddrId: s.backend.id,
 		MigrateFrom:   s.migrate.bc.Addr(),
 		MigrateFromId: s.migrate.id,
+	}
+	if !full {
+		return m
 	}
 	for i := range s.replicaGroups {
 		var group []string

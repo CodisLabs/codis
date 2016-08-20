@@ -56,6 +56,10 @@ func JodisPath(product string, token string) string {
 	return filepath.Join(CodisDir, product, "jodis", fmt.Sprintf("proxy-%s", token))
 }
 
+func SentinelPath(product string) string {
+	return filepath.Join(CodisDir, product, "sentinel")
+}
+
 func LoadTopom(client Client, product string, must bool) (*Topom, error) {
 	b, err := client.Read(LockPath(product), must)
 	if err != nil || b == nil {
@@ -115,6 +119,10 @@ func (s *Store) ProxyPath(token string) string {
 
 func (s *Store) JodisPath(token string) string {
 	return JodisPath(s.product, token)
+}
+
+func (s *Store) SentinelPath() string {
+	return SentinelPath(s.product)
 }
 
 func (s *Store) Acquire(topom *Topom) error {
@@ -239,6 +247,22 @@ func (s *Store) UpdateProxy(p *Proxy) error {
 
 func (s *Store) DeleteProxy(token string) error {
 	return s.client.Delete(s.ProxyPath(token))
+}
+
+func (s *Store) LoadSentinel(must bool) (*Sentinel, error) {
+	b, err := s.client.Read(s.SentinelPath(), must)
+	if err != nil || b == nil {
+		return nil, err
+	}
+	p := &Sentinel{}
+	if err := jsonDecode(p, b); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+func (s *Store) UpdateSentinel(p *Sentinel) error {
+	return s.client.Update(s.SentinelPath(), p.Encode())
 }
 
 func ValidateProduct(name string) error {

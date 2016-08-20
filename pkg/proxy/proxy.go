@@ -233,6 +233,19 @@ func (s *Proxy) FillSlots(slots []*models.Slot) error {
 	return nil
 }
 
+func (s *Proxy) SetSentinels(servers []*models.SentinelServer) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
+	}
+	var addrs []string
+	for _, s := range servers {
+		addrs = append(addrs, s.Addr)
+	}
+	return s.router.SetSentinels(addrs)
+}
+
 func (s *Proxy) serveAdmin() {
 	if s.IsClosed() {
 		return

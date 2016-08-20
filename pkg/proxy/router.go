@@ -64,7 +64,7 @@ func (s *Router) GetSlots() []*models.Slot {
 	defer s.mu.RUnlock()
 	slots := make([]*models.Slot, len(s.slots))
 	for i := range s.slots {
-		slots[i] = s.slots[i].model()
+		slots[i] = s.slots[i].snapshot(true)
 	}
 	return slots
 }
@@ -76,7 +76,7 @@ func (s *Router) GetSlot(id int) *models.Slot {
 		return nil
 	}
 	slot := &s.slots[id]
-	return slot.model()
+	return slot.snapshot(true)
 }
 
 var (
@@ -207,4 +207,81 @@ func (s *Router) fillSlot(m *models.Slot) error {
 		}
 	}
 	return nil
+}
+
+func (s *Router) GroupIds() map[int]bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var groupIds = make(map[int]bool)
+	for i := range s.slots {
+		if id := s.slots[i].backend.id; id != 0 {
+			groupIds[id] = true
+		}
+		if id := s.slots[i].migrate.id; id != 0 {
+			groupIds[id] = true
+		}
+	}
+	return groupIds
+}
+
+func (s *Router) SwitchMasters(masters map[int]string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedRouter
+	}
+
+	for i := range s.slots {
+		s.switchMasters(i, masters)
+	}
+	return nil
+}
+
+func (s *Router) switchMasters(id int, masters map[int]string) error {
+	slot := &s.slots[id]
+
+	var backendAddr string
+	if slot.backend.id != 0 {
+		backendAddr = masters[slot.backend.id]
+	}
+	var migrateFrom string
+	if slot.migrate.id != 0 {
+		migrateFrom = masters[slot.migrate.id]
+	}
+
+	var changed bool
+
+	if backendAddr != "" {
+		if slot.backend.bc.Addr() != backendAddr {
+			changed = true
+		}
+	}
+	if migrateFrom != "" {
+		if slot.migrate.bc.Addr() != migrateFrom {
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	log.Warnf("slot %04d will switch master", id)
+
+	var m = slot.snapshot(false)
+
+	if backendAddr != "" {
+		m.BackendAddr = backendAddr
+	}
+	if migrateFrom != "" {
+		m.MigrateFrom = migrateFrom
+	}
+	return s.fillSlot(m)
+}
+
+func (s *Router) SetSentinels(addrs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
+	}
+	panic("todo")
 }
