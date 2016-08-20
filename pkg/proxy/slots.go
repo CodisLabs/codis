@@ -21,24 +21,29 @@ type Slot struct {
 	}
 	refs sync.WaitGroup
 
-	backend *SharedBackendConn
-	migrate *SharedBackendConn
-	replica [][]*SharedBackendConn
+	backend, migrate struct {
+		id int
+		bc *SharedBackendConn
+	}
+	replicaGroups [][]*SharedBackendConn
 }
 
 func (s *Slot) model() *models.Slot {
 	var m = &models.Slot{
-		Id:          s.id,
-		BackendAddr: s.backend.Addr(),
-		MigrateFrom: s.migrate.Addr(),
-		Locked:      s.lock.hold,
+		Id:     s.id,
+		Locked: s.lock.hold,
+
+		BackendAddr:   s.backend.bc.Addr(),
+		BackendAddrId: s.backend.id,
+		MigrateFrom:   s.migrate.bc.Addr(),
+		MigrateFromId: s.migrate.id,
 	}
-	for i := range s.replica {
+	for i := range s.replicaGroups {
 		var group []string
-		for _, bc := range s.replica[i] {
+		for _, bc := range s.replicaGroups[i] {
 			group = append(group, bc.Addr())
 		}
-		m.ReplicaGroup = append(m.ReplicaGroup, group)
+		m.ReplicaGroups = append(m.ReplicaGroups, group)
 	}
 	return m
 }
@@ -77,13 +82,13 @@ var (
 )
 
 func (s *Slot) prepare(fn dispFunc, r *Request, hkey []byte) (*SharedBackendConn, error) {
-	if s.backend == nil {
+	if s.backend.bc == nil {
 		log.Warnf("slot-%04d is not ready: hkey = %s", s.id, hkey)
 		return nil, ErrSlotIsNotReady
 	}
 	if err := s.slotsmgrt(r, hkey); err != nil {
 		log.Warnf("slot-%04d migrate from = %s to %s failed: hkey = %s, error = %s",
-			s.id, s.migrate.Addr(), s.backend.Addr(), hkey, err)
+			s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, err)
 		return nil, err
 	} else {
 		r.Group = &s.refs
@@ -91,29 +96,26 @@ func (s *Slot) prepare(fn dispFunc, r *Request, hkey []byte) (*SharedBackendConn
 		if fn != nil {
 			return fn(s, r)
 		}
-		return s.backend, nil
+		return s.backend.bc, nil
 	}
 }
 
 func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
-	if s.migrate == nil {
-		return nil
-	}
-	if len(hkey) == 0 {
+	if s.migrate.bc == nil || len(hkey) == 0 {
 		return nil
 	}
 
 	m := &Request{}
 	m.Multi = []*redis.Resp{
 		redis.NewBulkBytes([]byte("SLOTSMGRTTAGONE")),
-		redis.NewBulkBytes(s.backend.host),
-		redis.NewBulkBytes(s.backend.port),
+		redis.NewBulkBytes(s.backend.bc.host),
+		redis.NewBulkBytes(s.backend.bc.port),
 		redis.NewBulkBytes([]byte("3000")),
 		redis.NewBulkBytes(hkey),
 	}
 	m.Batch = &sync.WaitGroup{}
 
-	s.migrate.PushBack(m)
+	s.migrate.bc.PushBack(m)
 
 	m.Batch.Wait()
 
@@ -127,7 +129,7 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 		return fmt.Errorf("error resp: %s", resp.Value)
 	case resp.IsInt():
 		log.Debugf("slot-%04d migrate from %s to %s: hkey = %s, resp = %s",
-			s.id, s.migrate.Addr(), s.backend.Addr(), hkey, resp.Value)
+			s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, resp.Value)
 		return nil
 	default:
 		return fmt.Errorf("error resp: should be integer, but got %s", resp.Type)
@@ -137,22 +139,21 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 type dispFunc func(s *Slot, r *Request) (*SharedBackendConn, error)
 
 func dispReadReplica(s *Slot, r *Request) (*SharedBackendConn, error) {
-	if s.migrate != nil {
-		return s.backend, nil
+	if s.migrate.bc != nil {
+		return s.backend.bc, nil
 	}
 	if r.IsReadOnly() {
 		seed := uint(r.Start)
-		for _, group := range s.replica {
-			for _ = range group {
-				index := seed % uint(len(group))
+		for _, group := range s.replicaGroups {
+			for i := 0; i < len(group); i++ {
+				index := (seed + uint(i)) % uint(len(group))
 				if bc := group[index]; bc != nil {
 					if bc.IsConnected() {
 						return bc, nil
 					}
 				}
-				seed += 1
 			}
 		}
 	}
-	return s.backend, nil
+	return s.backend.bc, nil
 }

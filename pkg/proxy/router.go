@@ -163,30 +163,34 @@ func (s *Router) fillSlot(m *models.Slot) error {
 	slot := &s.slots[id]
 	slot.blockAndWait()
 
-	s.putBackendConn(slot.backend)
-	s.putBackendConn(slot.migrate)
-	for i := range slot.replica {
-		for _, bc := range slot.replica[i] {
+	s.putBackendConn(slot.backend.bc)
+	slot.backend.bc = nil
+	slot.backend.id = 0
+	s.putBackendConn(slot.migrate.bc)
+	slot.migrate.bc = nil
+	slot.migrate.id = 0
+	for i := range slot.replicaGroups {
+		for _, bc := range slot.replicaGroups[i] {
 			s.putBackendConn(bc)
 		}
 	}
-	slot.backend = nil
-	slot.migrate = nil
-	slot.replica = nil
+	slot.replicaGroups = nil
 
 	if addr := m.BackendAddr; len(addr) != 0 {
-		slot.backend = s.getBackendConn(addr, true)
+		slot.backend.bc = s.getBackendConn(addr, true)
+		slot.backend.id = m.BackendAddrId
 	}
 	if from := m.MigrateFrom; len(from) != 0 {
-		slot.migrate = s.getBackendConn(from, true)
+		slot.migrate.bc = s.getBackendConn(from, true)
+		slot.migrate.id = m.MigrateFromId
 	}
 	if s.dispFunc != nil {
-		for i := range m.ReplicaGroup {
+		for i := range m.ReplicaGroups {
 			var group []*SharedBackendConn
-			for _, addr := range m.ReplicaGroup[i] {
+			for _, addr := range m.ReplicaGroups[i] {
 				group = append(group, s.getBackendConn(addr, true))
 			}
-			slot.replica = append(slot.replica, group)
+			slot.replicaGroups = append(slot.replicaGroups, group)
 		}
 	}
 
@@ -194,12 +198,12 @@ func (s *Router) fillSlot(m *models.Slot) error {
 		slot.unblock()
 	}
 	if !s.closed {
-		if slot.migrate != nil {
+		if slot.migrate.bc != nil {
 			log.Warnf("fill slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
-				id, slot.backend.Addr(), slot.migrate.Addr(), slot.lock.hold)
+				id, slot.backend.bc.Addr(), slot.migrate.bc.Addr(), slot.lock.hold)
 		} else {
 			log.Warnf("fill slot %04d, backend.addr = %s, locked = %t",
-				id, slot.backend.Addr(), slot.lock.hold)
+				id, slot.backend.bc.Addr(), slot.lock.hold)
 		}
 	}
 	return nil

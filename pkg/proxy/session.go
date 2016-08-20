@@ -515,19 +515,19 @@ func (s *Session) handleRequestSlotsMapping(r *Request, d *Router) error {
 		if m == nil {
 			return redis.NewArray(nil)
 		}
-		var replicaGroup []*redis.Resp
-		for i := range m.ReplicaGroup {
+		var replicaGroups []*redis.Resp
+		for i := range m.ReplicaGroups {
 			var group []*redis.Resp
-			for _, addr := range m.ReplicaGroup[i] {
+			for _, addr := range m.ReplicaGroups[i] {
 				group = append(group, redis.NewString([]byte(addr)))
 			}
-			replicaGroup = append(replicaGroup, redis.NewArray(group))
+			replicaGroups = append(replicaGroups, redis.NewArray(group))
 		}
 		return redis.NewArray([]*redis.Resp{
 			redis.NewString([]byte(strconv.Itoa(m.Id))),
 			redis.NewString([]byte(m.BackendAddr)),
 			redis.NewString([]byte(m.MigrateFrom)),
-			redis.NewArray(replicaGroup),
+			redis.NewArray(replicaGroups),
 		})
 	}
 	if nblks == 0 {
