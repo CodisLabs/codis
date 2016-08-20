@@ -59,6 +59,21 @@ func (s *Router) Close() {
 	}
 }
 
+func (s *Router) GetGroupIds() map[int]bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var groupIds = make(map[int]bool)
+	for i := range s.slots {
+		if gid := s.slots[i].backend.id; gid != 0 {
+			groupIds[gid] = true
+		}
+		if gid := s.slots[i].migrate.id; gid != 0 {
+			groupIds[gid] = true
+		}
+	}
+	return groupIds
+}
+
 func (s *Router) GetSlots() []*models.Slot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -209,21 +224,6 @@ func (s *Router) fillSlot(m *models.Slot) error {
 	return nil
 }
 
-func (s *Router) GroupIds() map[int]bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var groupIds = make(map[int]bool)
-	for i := range s.slots {
-		if id := s.slots[i].backend.id; id != 0 {
-			groupIds[id] = true
-		}
-		if id := s.slots[i].migrate.id; id != 0 {
-			groupIds[id] = true
-		}
-	}
-	return groupIds
-}
-
 func (s *Router) SwitchMasters(masters map[int]string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -277,7 +277,7 @@ func (s *Router) switchMasters(id int, masters map[int]string) error {
 	return s.fillSlot(m)
 }
 
-func (s *Router) SetSentinels(addrs []string) error {
+func (s *Router) SetSentinels(servers []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
