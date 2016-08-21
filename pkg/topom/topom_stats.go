@@ -122,8 +122,8 @@ func (s *Topom) RefreshProxyStats(timeout time.Duration) (*sync2.Future, error) 
 			case x == nil:
 			case x.Closed || x.Online:
 			default:
-				if err := s.ReinitProxy(p.Token); err != nil {
-					log.WarnErrorf(err, "auto reinit proxy-[%s] failed", p.Token)
+				if err := s.OnlineProxy(p.AdminAddr); err != nil {
+					log.WarnErrorf(err, "auto online proxy-[%s] failed", p.Token)
 				}
 			}
 		}(p)
