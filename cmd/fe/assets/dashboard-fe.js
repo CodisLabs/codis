@@ -249,8 +249,13 @@ function processProxyStats(codis_stats) {
             } else {
                 p.status = "PENDING";
             }
+            if (p.admin_addr) {
+                p.proxy_link = p.admin_addr + "/proxy"
+                p.stats_link = p.admin_addr + "/proxy/stats"
+            }
             qps += s.stats.ops.qps;
             sessions += s.stats.sessions.alive;
+            console.debug(p)
         }
     }
     return {proxy_array: proxy_array, qps: qps, sessions: sessions};
@@ -487,8 +492,6 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             $scope.slots_action_disabled = codis_stats.slot_action.disabled;
             $scope.slots_action_failed = codis_stats.slot_action.progress.failed;
             $scope.slots_action_remain = codis_stats.slot_action.progress.remain;
-
-            console.debug($scope.group_array);
 
             for (var i = 0; i < $scope.slots_array.length; i++) {
                 var slot = $scope.slots_array[i];

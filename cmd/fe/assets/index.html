@@ -41,7 +41,7 @@
 <div id="main">
     <div class="container-full">
         <div class="row">
-            <div class="col-md-4" style="min-width:375px;">
+            <div class="col-md-4" style="min-width:380px;">
                 <h4 style="padding-left:20px;"><b>Overview</b></h4>
                 <table class="table table-bordered" style="font-weight: bold;">
                     <col width="35%">
@@ -102,21 +102,26 @@
 
         <div class="row">
             <div class="col-md-12"
-                 style="margin-bottom: 14px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
+                 style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
                 <form class="form-inline">
-                    <h4 style="padding-left:20px; padding-right:20px; display: inline;">Proxy</h4>
-                    <span ng-if="codis_addr != 'NA'" style="float: right;">
-                    <input style="width: 250px; " type="text" class="form-control" placeholder="Proxy Admin Address"
-                           ng-model="new_proxy">
-                    <button class="btn btn-warning" style="width: 120px;"
+                    <h4 style="padding-left:30px; padding-right:20px; display: inline;">Proxy</h4>
+                </form>
+            </div>
+            <div class="col-md-12"
+                 style="padding-bottom: 10px;">
+                <form class="form-inline">
+                    <span ng-if="codis_addr != 'NA'">
+                    <button class="btn btn-warning btn-sm" style="width: 120px; font-size: 14px; padding: 2px;"
                             ng-click="createProxy(new_proxy)"
-                            ng-disabled="!new_proxy">Add Proxy
+                            ng-disabled="!new_proxy">New Proxy
                     </button>
+                    <input style="height: 28px; width: 250px; " type="text" class="form-control" placeholder="Proxy Admin Address"
+                           ng-model="new_proxy">
                     </span>
                 </form>
             </div>
             <div class="col-md-12" ng-if="proxy_array.length != 0">
-                <table class="table table-bordered table-striped table-hover table-condensed">
+                <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
                     <thead>
                     <tr>
                         <th style="width: 1px;">ID</th>
@@ -124,6 +129,7 @@
                         <th style="width: 35px;"/>
                         <th style="min-width: 180px;">Proxy</th>
                         <th style="min-width: 180px;">Admin</th>
+                        <th style="min-width: 40px;">DC</th>
                         <th style="min-width: 180px;">Sessions</th>
                         <th style="min-width: 200px;">Commands</th>
                         <th style="width: 35px;"></th>
@@ -143,8 +149,9 @@
                             </span>
                         </td>
                         <td>[[proxy.proxy_addr]]</td>
-                        <td>[[proxy.admin_addr]]</td>
-                        <td>[[proxy.sessions]]</td>
+                        <td>[<a ng-href="http://[[proxy.proxy_link]]" target="_blank">F</a>]  [[proxy.admin_addr]]</td>
+                        <td>[[proxy.datacenter]]</td>
+                        <td>[<a ng-href="http://[[proxy.stats_link]]" target="_blank">S</a>]  [[proxy.sessions]]</td>
                         <td ng-switch="proxy.status">
                             <span ng-switch-when="ERROR" class="status_label_error">[[proxy.status]]</span>
                             <span ng-switch-when="TIMEOUT" class="status_label_warning">[[proxy.status]]</span>
@@ -164,41 +171,37 @@
 
         <div class="row">
             <div class="col-md-12"
-                 style="margin-bottom: 14px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
+                 style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
                 <form class="form-inline">
-                    <h4 style="padding-left:20px; padding-right:20px; display: inline;">Slots</h4>
+                    <h4 style="padding-left:30px; padding-right:20px; display: inline;">Slots</h4>
+                </form>
+            </div>
+            <div class="col-md-12"
+                 style="padding-bottom: 10px;">
+                <form class="form-inline">
                     <span ng-if="codis_addr != 'NA'">
-                        <input style="width: 140px; " type="text"
-                               class="form-control" placeholder="Slot ID [0,1023]"
-                               ng-model="migrate_slot_id">
-                        <input style="width: 140px; "
-                               pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
-                               class="form-control" placeholder="Group ID [1,9999]"
-                               ng-model="migrate_to_group_id">
-                        <button class="btn btn-success" style="width: 120px;"
-                                ng-click="createSlotAction(migrate_slot_id, migrate_to_group_id)"
-                                ng-disabled="!migrate_slot_id || !migrate_to_group_id">Migrate
-                        </button>
-                    </span>
-                    <span ng-if="codis_addr != 'NA'" style="float: right;">
-                        <input style="width: 80px; margin-left: 100px; " type="text"
-                               class="form-control" placeholder="Begin"
-                               ng-model="migrate_slot_id_beg">
-                        <input style="width: 80px; " type="text"
-                               class="form-control" placeholder="End"
-                               ng-model="migrate_slot_id_end">
-                        <input style="width: 120px; "
-                               pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
-                               class="form-control" placeholder="Target Group"
-                               ng-model="migrate_range_to_group_id">
-                        <button class="btn btn-warning" style="width: 120px;"
+                        <button class="btn btn-warning btn-sm" style="width: 120px; font-size: 14px; padding: 2px;"
                                 ng-click="createSlotActionRange(migrate_slot_id_beg, migrate_slot_id_end, migrate_range_to_group_id)"
                                 ng-disabled="!migrate_slot_id_beg || !migrate_slot_id_end || !migrate_range_to_group_id">
-                            Migrate Range
+                            Migrate Slots
                         </button>
+                        [
+                        <input style="height: 28px; width: 110px; " type="text"
+                               class="form-control" placeholder="Slot [0,1023]"
+                               ng-model="migrate_slot_id_beg">
+                        ~
+                        <input style="height: 28px; width: 110px; " type="text"
+                               class="form-control" placeholder="Slot [0,1023]"
+                               ng-model="migrate_slot_id_end">
+                        ] to
+                        <input style="height: 28px; width: 140px;"
+                               pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
+                               class="form-control" placeholder="Group [1,9999]"
+                               ng-model="migrate_range_to_group_id">
                     </span>
                 </form>
             </div>
+
             <div class="col-md-12">
                 <div id="slots_charts" style="min-width: 400px; height: 180px; margin: 0 auto"></div>
             </div>
@@ -273,13 +276,13 @@
                         </table>
                     </div>
                     <div class="col-md-6" ng-if="show_slots_actions">
-                        <table class="table table-bordered table-striped table-hover table-condensed">
+                        <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
                             <thead>
                             <tr>
-                                <th style="width: 1px">Slot</th>
-                                <th style="width: 1px">Group</th>
-                                <th style="width: 1px">Target</th>
-                                <th style="width: 1px">Index</th>
+                                <th style="width: 35px">Slot</th>
+                                <th style="width: 35px">Group</th>
+                                <th style="width: 35px">Target</th>
+                                <th style="width: 35px">Index</th>
                                 <th style="min-width: 120px;">Status</th>
                                 <th style="width: 35px;"></th>
                             </tr>
@@ -314,32 +317,43 @@
 
         <div class="row">
             <div class="col-md-12"
-                 style="margin-bottom: 14px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
+                 style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
                 <form class="form-inline">
-                    <h4 style="padding-left:20px; padding-right:20px; display: inline;">Group</h4>
+                    <h4 style="padding-left:30px; padding-right:20px; display: inline;">Group</h4>
+                </form>
+            </div>
+            <div class="col-md-12"
+                 style="padding-bottom: 10px;">
+                <form class="form-inline" style="padding-bottom:5px">
                     <span ng-if="codis_addr != 'NA'">
-                        <input style="width: 140px; " pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
-                               class="form-control" placeholder="Group ID [1,9999]"
-                               ng-model="new_group">
-                        <button class="btn btn-success" style="width: 120px;"
+                        <button class="btn btn-success btn-sm" style="width: 120px; font-size: 14px; padding: 2px;"
                                 ng-click="createGroup(new_group)"
                                 ng-disabled="!new_group">New Group
                         </button>
+                        <input style="height: 28px; width: 140px;"
+                               pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
+                               class="form-control" placeholder="Group [1,9999]"
+                               ng-model="new_group">
                         </span>
-                    <span ng-if="codis_addr != 'NA'" style="float: right;">
-                        <input style="width: 140px; " pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
-                               class="form-control" placeholder="Group ID [1,9999]"
-                               ng-model="new_server_group">
-                        <input style="width: 250px; " type="text" class="form-control"
-                               placeholder="Codis Server Address"
-                               ng-model="new_server_addr">
-                        <button class="btn btn-warning" style="width: 120px;"
+                </form>
+                <form class="form-inline">
+                    <span ng-if="codis_addr != 'NA'">
+                        <button class="btn btn-warning btn-sm" style="width: 120px; font-size: 14px; padding: 2px;"
                                 ng-click="addGroupServer(new_server_group, new_server_addr)"
                                 ng-disabled="!new_server_group || !new_server_addr">Add Server
                         </button>
+                        <input style="height: 28px; width: 140px;"
+                               pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
+                               class="form-control" placeholder="Group [1,9999]"
+                               ng-model="new_server_group">
+                        <input style="height: 28px; width: 250px; " type="text" class="form-control"
+                               placeholder="Codis Server Address"
+                               ng-model="new_server_addr">
                     </span>
                 </form>
             </div>
+
+
             <div class="col-md-12" ng-repeat="group in group_array">
                 <table class="table table-bordered table-striped table-hover table-condensed">
                     <thead>

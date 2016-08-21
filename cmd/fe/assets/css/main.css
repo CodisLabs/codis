@@ -8,7 +8,7 @@ body {
 }
 
 #main {
-    margin-left: 200px;
+    margin-left: 140px;
     margin-top: 0px;
     position: relative;
     height: 100%;
@@ -51,7 +51,7 @@ body {
     left: 0;
     bottom: 0;
     top: 0px;
-    width: 200px;
+    width: 160px;
     z-index: 8;
     background-color: #fff;
     -webkit-box-shadow: 0 0 10px 0 rgba(0, 0, 0, .2);
