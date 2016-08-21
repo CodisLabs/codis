@@ -21,6 +21,8 @@ func newProxyConfig() *Config {
 	config := NewDefaultConfig()
 	config.ProxyAddr = "0.0.0.0:0"
 	config.AdminAddr = "0.0.0.0:0"
+	config.ProxyHeapPlaceholder = 0
+	config.ProxyMaxOffheapBytes = 0
 	return config
 }
 

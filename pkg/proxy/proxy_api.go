@@ -76,7 +76,7 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Put("/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
-		r.Put("/sentinels/:xauth", binding.Json([]string{}), api.SetSentinels)
+		r.Put("/sentinels/:xauth", binding.Json([]*models.SentinelServer{}), api.SetSentinels)
 	})
 
 	m.MapTo(r, (*martini.Routes)(nil))
@@ -204,9 +204,13 @@ func (s *apiServer) FillSlots(slots []*models.Slot, params martini.Params) (int,
 	return rpc.ApiResponseJson("OK")
 }
 
-func (s *apiServer) SetSentinels(servers []string, params martini.Params) (int, string) {
+func (s *apiServer) SetSentinels(sentinels []*models.SentinelServer, params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
+	}
+	var servers []string
+	for i := range sentinels {
+		servers = append(servers, sentinels[i].Addr)
 	}
 	if err := s.proxy.SetSentinels(servers); err != nil {
 		return rpc.ApiResponseError(err)
@@ -302,7 +306,7 @@ func (c *ApiClient) FillSlots(slots ...*models.Slot) error {
 	return rpc.ApiPutJson(url, slots, nil)
 }
 
-func (c *ApiClient) SetSentinels(servers []string) error {
+func (c *ApiClient) SetSentinels(sentinels []*models.SentinelServer) error {
 	url := c.encodeURL("/api/proxy/sentinels/%s", c.xauth)
-	return rpc.ApiPutJson(url, servers, nil)
+	return rpc.ApiPutJson(url, sentinels, nil)
 }
