@@ -16,20 +16,20 @@ import (
 	redigo "github.com/garyburd/redigo/redis"
 )
 
-var ErrFailedClient = errors.New("use of failed redis client")
-
 type Client struct {
 	conn redigo.Conn
 	addr string
 	auth string
 
-	LastErr error
 	LastUse time.Time
 	Timeout time.Duration
 }
 
 func NewClient(addr string, auth string, timeout time.Duration) (*Client, error) {
-	c, err := redigo.DialTimeout("tcp", addr, time.Second, timeout, timeout)
+	c, err := redigo.Dial("tcp", addr, []redigo.DialOption{
+		redigo.DialConnectTimeout(time.Second * 5),
+		redigo.DialReadTimeout(timeout), redigo.DialWriteTimeout(time.Second * 10),
+	}...)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -50,22 +50,37 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Client) command(cmd string, args ...interface{}) (interface{}, error) {
-	if c.LastErr != nil {
-		return nil, ErrFailedClient
+func (c *Client) Do(cmd string, args ...interface{}) (interface{}, error) {
+	r, err := c.conn.Do(cmd, args...)
+	if err != nil {
+		return nil, errors.Trace(err)
 	}
-	if reply, err := c.conn.Do(cmd, args...); err != nil {
-		c.LastErr = errors.Trace(err)
-		return nil, c.LastErr
-	} else {
-		c.LastUse = time.Now()
-		return reply, nil
+	c.LastUse = time.Now()
+	return r, nil
+}
+
+func (c *Client) Flush(cmd string, args ...interface{}) error {
+	if err := c.conn.Send(cmd, args...); err != nil {
+		return errors.Trace(err)
 	}
+	if err := c.conn.Flush(); err != nil {
+		return errors.Trace(err)
+	}
+	c.LastUse = time.Now()
+	return nil
+}
+
+func (c *Client) Receive() (interface{}, error) {
+	r, err := c.conn.Receive()
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	return r, nil
 }
 
 func (c *Client) Info() (map[string]string, error) {
 	var info map[string]string
-	if reply, err := c.command("INFO"); err != nil {
+	if reply, err := c.Do("INFO"); err != nil {
 		return nil, err
 	} else {
 		text, err := redigo.String(reply, nil)
@@ -88,7 +103,7 @@ func (c *Client) Info() (map[string]string, error) {
 			info["master_addr"] = net.JoinHostPort(host, port)
 		}
 	}
-	if reply, err := c.command("CONFIG", "GET", "maxmemory"); err != nil {
+	if reply, err := c.Do("CONFIG", "get", "maxmemory"); err != nil {
 		return nil, err
 	} else {
 		p, err := redigo.Values(reply, nil)
@@ -106,7 +121,7 @@ func (c *Client) Info() (map[string]string, error) {
 
 func (c *Client) SetMaster(master string) error {
 	if master == "" || strings.ToUpper(master) == "NO:ONE" {
-		if _, err := c.command("SLAVEOF", "NO", "ONE"); err != nil {
+		if _, err := c.Do("SLAVEOF", "NO", "ONE"); err != nil {
 			return err
 		}
 	} else {
@@ -114,10 +129,10 @@ func (c *Client) SetMaster(master string) error {
 		if err != nil {
 			return errors.Trace(err)
 		}
-		if _, err := c.command("CONFIG", "SET", "masterauth", c.auth); err != nil {
+		if _, err := c.Do("CONFIG", "set", "masterauth", c.auth); err != nil {
 			return err
 		}
-		if _, err := c.command("SLAVEOF", host, port); err != nil {
+		if _, err := c.Do("SLAVEOF", host, port); err != nil {
 			return err
 		}
 	}
@@ -130,7 +145,7 @@ func (c *Client) MigrateSlot(slot int, target string) (int, error) {
 		return 0, errors.Trace(err)
 	}
 	mseconds := int(c.Timeout / time.Millisecond)
-	if reply, err := c.command("SLOTSMGRTTAGSLOT", host, port, mseconds, slot); err != nil {
+	if reply, err := c.Do("SLOTSMGRTTAGSLOT", host, port, mseconds, slot); err != nil {
 		return 0, err
 	} else {
 		p, err := redigo.Ints(redigo.Values(reply, nil))
@@ -142,7 +157,7 @@ func (c *Client) MigrateSlot(slot int, target string) (int, error) {
 }
 
 func (c *Client) SlotsInfo() (map[int]int, error) {
-	if reply, err := c.command("SLOTSINFO"); err != nil {
+	if reply, err := c.Do("SLOTSINFO"); err != nil {
 		return nil, err
 	} else {
 		infos, err := redigo.Values(reply, nil)
@@ -158,6 +173,25 @@ func (c *Client) SlotsInfo() (map[int]int, error) {
 			slots[p[0]] = p[1]
 		}
 		return slots, nil
+	}
+}
+
+func (c *Client) Role() (string, error) {
+	if reply, err := c.Do("ROLE"); err != nil {
+		return "", err
+	} else {
+		values, err := redigo.Values(reply, nil)
+		if err != nil {
+			return "", errors.Trace(err)
+		}
+		if len(values) == 0 {
+			return "", errors.Errorf("invalid response = %v", reply)
+		}
+		role, err := redigo.String(values[0], nil)
+		if err != nil {
+			return "", errors.Errorf("invalid response[0] = %v", values[0])
+		}
+		return strings.ToUpper(role), nil
 	}
 }
 
@@ -203,7 +237,7 @@ func NewPool(auth string, timeout time.Duration) *Pool {
 }
 
 func (p *Pool) isRecyclable(c *Client) bool {
-	if c.LastErr != nil {
+	if c.conn.Err() != nil {
 		return false
 	}
 	return p.timeout == 0 || time.Since(c.LastUse) < p.timeout

@@ -5,10 +5,13 @@ package proxy
 
 import (
 	"sync"
+	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
+	"github.com/CodisLabs/codis/pkg/utils/redis"
 )
 
 type Router struct {
@@ -19,6 +22,7 @@ type Router struct {
 	slots [models.MaxSlotNum]Slot
 
 	dispFunc
+	sentinel *redis.Sentinel
 
 	config *Config
 	online bool
@@ -54,6 +58,9 @@ func (s *Router) Close() {
 	}
 	s.closed = true
 
+	if s.sentinel != nil {
+		s.sentinel.Cancel()
+	}
 	for i := range s.slots {
 		s.fillSlot(&models.Slot{Id: i})
 	}
@@ -283,5 +290,31 @@ func (s *Router) SetSentinels(servers []string) error {
 	if s.closed {
 		return ErrClosedProxy
 	}
-	panic("todo")
+	if s.sentinel != nil {
+		s.sentinel.Cancel()
+		s.sentinel = nil
+	}
+	if len(servers) != 0 {
+		s.sentinel = redis.NewSentinel(s.config.ProductName)
+		go func(t *redis.Sentinel) {
+			var delay int
+			for !t.IsCancelled() {
+				time.Sleep(time.Millisecond * 250)
+				masters := t.MastersMulti(t.Context, servers, s.GetGroupIds())
+				if masters == nil {
+					return
+				}
+				if len(masters) != 0 {
+					s.SwitchMasters(masters)
+				}
+				if t.SubscribeMulti(t.Context, servers) {
+					delay = 0
+				} else {
+					delay = math2.MinMaxInt(delay*2, 1, 30)
+					t.AfterSeconds(delay)
+				}
+			}
+		}(s.sentinel)
+	}
+	return nil
 }
