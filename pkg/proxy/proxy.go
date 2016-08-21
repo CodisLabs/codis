@@ -65,6 +65,7 @@ func New(config *Config) (*Proxy, error) {
 		StartTime: time.Now().String(),
 	}
 	s.model.ProductName = config.ProductName
+	s.model.DataCenter = config.ProxyDataCenter
 	s.model.Pid = os.Getpid()
 	s.model.Pwd, _ = os.Getwd()
 	if b, err := exec.Command("uname", "-a").Output(); err != nil {

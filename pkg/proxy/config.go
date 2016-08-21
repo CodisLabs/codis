@@ -38,6 +38,9 @@ jodis_addr = ""
 jodis_timeout = "20s"
 jodis_compatible = false
 
+# Set datacenter of proxy.
+proxy_datacenter = ""
+
 # Set max number of alive sessions.
 proxy_max_clients = 1000
 
@@ -111,6 +114,7 @@ type Config struct {
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
 
+	ProxyDataCenter      string         `toml:"proxy_datacenter" json:"proxy_datacenter"`
 	ProxyMaxClients      int            `toml:"proxy_max_clients" json:"proxy_max_clients"`
 	ProxyMaxOffheapBytes bytesize.Int64 `toml:"proxy_max_offheap_size" json:"proxy_max_offheap_size"`
 	ProxyHeapPlaceholder bytesize.Int64 `toml:"proxy_heap_placeholder" json:"proxy_heap_placeholder"`
