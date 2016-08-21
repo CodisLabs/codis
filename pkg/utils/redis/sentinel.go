@@ -74,12 +74,28 @@ func (s *Sentinel) SubscribeOne(ctx context.Context, sentinel string) (bool, err
 			return err
 		}
 		for {
-			switch r, err := redigo.Strings(c.Receive()); {
-			case err != nil:
+			reply, err := redigo.Values(c.Receive())
+			if err != nil {
 				return errors.Trace(err)
-			case len(r) != 3:
-				return errors.Errorf("invalid response = %v", r)
-			case strings.HasPrefix(r[2], s.product):
+			}
+			if msg, err := redigo.String(reply[0], nil); err != nil {
+				return errors.Trace(err)
+			} else if msg != "message" {
+				continue
+			}
+			if evt, err := redigo.String(reply[1], nil); err != nil {
+				return errors.Trace(err)
+			} else if evt != "+switch-master" {
+				continue
+			}
+			if len(reply) != 3 {
+				return errors.Errorf("invalid response = %v", reply)
+			}
+			name, err := redigo.String(reply[2], nil)
+			if err != nil {
+				return errors.Trace(err)
+			}
+			if strings.HasPrefix(name, s.product) {
 				return nil
 			}
 		}
@@ -155,18 +171,25 @@ func (s *Sentinel) MastersOne(ctx context.Context, sentinel string, groupIds map
 			ech <- err
 		}()
 		for gid := range groupIds {
-			switch r, err := redigo.Strings(c.Do("SENTINEL", "get-master-addr-by-name", s.MasterName(gid))); {
-			case err != nil:
+			reply, err := c.Do("SENTINEL", "get-master-addr-by-name", s.MasterName(gid))
+			if err != nil {
 				return errors.Trace(err)
-			case len(r) == 2:
-				var addr = fmt.Sprintf("%s:%s", r[0], r[1])
-				if role, err := s.getServerRole(addr); err != nil {
-					log.WarnErrorf(err, "sentinel get role of %s failed", addr)
-				} else if role == "MASTER" {
-					gmp[gid] = addr
-				}
-			case len(r) != 0:
+			}
+			if reply == nil {
+				continue
+			}
+			r, err := redigo.Strings(reply, nil)
+			if err != nil {
+				return errors.Trace(err)
+			}
+			if len(r) != 2 {
 				return errors.Errorf("invalid response = %v", r)
+			}
+			var addr = fmt.Sprintf("%s:%s", r[0], r[1])
+			if role, err := s.getServerRole(addr); err != nil {
+				log.WarnErrorf(err, "sentinel get role of %s failed", addr)
+			} else if role == "MASTER" {
+				gmp[gid] = addr
 			}
 		}
 		return nil
