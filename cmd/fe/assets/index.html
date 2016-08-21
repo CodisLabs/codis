@@ -124,26 +124,28 @@
                 <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
                     <thead>
                     <tr>
-                        <th style="min-width: 1px;">ID</th>
-                        <th style="min-width: 1px; padding-right: 20px;">Token</th>
+                        <th style="min-width: 30px;"/>ID</th>
+                        <th style="width: 50px;">Stats</th>
+                        <th style="min-width: 160px;">Proxy</th>
+                        <th style="min-width: 160px;">Admin</th>
                         <th style="width: 35px;"/>
-                        <th style="min-width: 180px;">Proxy</th>
-                        <th style="min-width: 180px;">Admin</th>
-                        <th style="width: 50px;">Link</th>
                         <th style="min-width: 100px;">DC</th>
                         <th style="width: 35px;"/>
-                        <th style="min-width: 180px;">Sessions</th>
-                        <th style="min-width: 200px;">Commands</th>
+                        <th style="min-width: 160px;">Sessions</th>
+                        <th style="min-width: 180px;">Commands</th>
                         <th style="width: 35px;"></th>
                     </tr>
                     </thead>
                     <tr ng-repeat="proxy in proxy_array">
                         <td class="text-center">[[proxy.id]]</td>
-                        <td style="font-family: Courier, monospace; font-size: small; vertical-align: middle;">
-                            [[proxy.token]]
+                        <td>
+                            <a ng-href="http://[[proxy.proxy_link]]" target="_blank" class="btn btn-primary btn-xs active" role="button">F</a>
+                            <a ng-href="http://[[proxy.stats_link]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
                         </td>
+                        <td>[[proxy.proxy_addr]]</td>
+                        <td>[[proxy.admin_addr]]</td>
                         <td ng-switch="proxy.status">
-                            <span ng-switch-when="HEALTHY" class="btn btn-success btn-xs"
+                            <span ng-switch-when="HEALTHY" class="btn btn-primary btn-xs"
                                 data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS to [[proxy.proxy_addr]]"
                                 ng-click="reinitProxy(proxy)">
                                 <span class="glyphicon glyphicon-send"></span>
@@ -153,12 +155,6 @@
                                 ng-click="reinitProxy(proxy)">
                                 <span class="glyphicon glyphicon-send"></span>
                             </span>
-                        </td>
-                        <td>[[proxy.proxy_addr]]</td>
-                        <td>[[proxy.admin_addr]]</td>
-                        <td>
-                            <a ng-href="http://[[proxy.proxy_link]]" target="_blank" class="btn btn-primary btn-xs active" role="button">F</a>
-                            <a ng-href="http://[[proxy.stats_link]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
                         </td>
                         <td>[[proxy.datacenter]]</td>
                         <td class="button_tight_column">
@@ -394,7 +390,7 @@
                         </th>
                         <th style="width: 35px;">
                             <span ng-if="group.servers.length != 0">
-                                <button class="btn btn-warning btn-xs"
+                                <button class="btn btn-primary btn-xs"
                                         data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of GROUP-[[group.id]]"
                                         ng-click="resyncGroup(group)">
                                     <span class="glyphicon glyphicon-send"></span>
