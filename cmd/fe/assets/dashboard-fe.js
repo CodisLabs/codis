@@ -255,7 +255,6 @@ function processProxyStats(codis_stats) {
             }
             qps += s.stats.ops.qps;
             sessions += s.stats.sessions.alive;
-            console.debug(p)
         }
     }
     return {proxy_array: proxy_array, qps: qps, sessions: sessions};
@@ -594,11 +593,16 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.addGroupServer = function (group_id, server_addr) {
+        $scope.addGroupServer = function (group_id, datacenter, server_addr) {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name) && isValidInput(group_id) && isValidInput(server_addr)) {
                 var xauth = genXAuth(codis_name);
-                var url = concatUrl("/api/topom/group/add/" + xauth + "/" + group_id + "/" + server_addr, codis_name);
+                datacenter = datacenter.trim();
+                var suffix = "";
+                if (datacenter != "") {
+                    suffix = "/" + datacenter;
+                }
+                var url = concatUrl("/api/topom/group/add/" + xauth + "/" + group_id + "/" + server_addr + suffix, codis_name);
                 $http.put(url).then(function () {
                     $scope.refreshStats();
                 }, function (failedResp) {

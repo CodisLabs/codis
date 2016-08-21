@@ -32,7 +32,7 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --list-group
 	codis-admin [-v] --dashboard=ADDR            --create-group   --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --remove-group   --gid=ID
-	codis-admin [-v] --dashboard=ADDR            --group-add      --gid=ID --addr=ADDR
+	codis-admin [-v] --dashboard=ADDR            --group-add      --gid=ID --addr=ADDR [--datacenter=DATACENTER]
 	codis-admin [-v] --dashboard=ADDR            --group-del      --gid=ID --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --group-status
 	codis-admin [-v] --dashboard=ADDR            --promote-server --gid=ID --addr=ADDR

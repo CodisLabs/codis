@@ -51,7 +51,7 @@ func TestApiSlots(x *testing.T) {
 	c := newApiClient(t)
 
 	assert.MustNoError(c.CreateGroup(gid))
-	assert.MustNoError(c.GroupAddServer(gid, s.Addr))
+	assert.MustNoError(c.GroupAddServer(gid, "", s.Addr))
 	assert.MustNoError(c.SlotCreateAction(sid, gid))
 	assert.MustNoError(c.SlotRemoveAction(sid))
 	assert.MustNoError(c.SlotCreateActionRange(0, models.MaxSlotNum-1, gid))
@@ -83,8 +83,8 @@ func TestApiGroup(x *testing.T) {
 	c := newApiClient(t)
 
 	assert.MustNoError(c.CreateGroup(gid))
-	assert.MustNoError(c.GroupAddServer(gid, s1.Addr))
-	assert.MustNoError(c.GroupAddServer(gid, s2.Addr))
+	assert.MustNoError(c.GroupAddServer(gid, "", s1.Addr))
+	assert.MustNoError(c.GroupAddServer(gid, "", s2.Addr))
 	assert.MustNoError(c.SyncCreateAction(s1.Addr))
 	assert.MustNoError(c.SyncRemoveAction(s1.Addr))
 	assert.MustNoError(c.GroupPromoteServer(gid, s2.Addr))

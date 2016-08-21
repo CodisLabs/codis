@@ -68,18 +68,18 @@ func TestGroupAddServer(x *testing.T) {
 	const server2 = "server2:port"
 
 	assert.MustNoError(t.CreateGroup(gid1))
-	assert.MustNoError(t.GroupAddServer(gid1, server1))
-	assert.Must(t.GroupAddServer(gid1, server1) != nil)
+	assert.MustNoError(t.GroupAddServer(gid1, "", server1))
+	assert.Must(t.GroupAddServer(gid1, "", server1) != nil)
 
 	assert.MustNoError(t.CreateGroup(gid2))
-	assert.MustNoError(t.GroupAddServer(gid2, server2))
-	assert.Must(t.GroupAddServer(gid2, server1) != nil)
+	assert.MustNoError(t.GroupAddServer(gid2, "", server2))
+	assert.Must(t.GroupAddServer(gid2, "", server1) != nil)
 
 	g1 := getGroup(t, gid1)
 	g1.Servers = nil
 	contextUpdateGroup(t, g1)
 
-	assert.MustNoError(t.GroupAddServer(gid2, server1))
+	assert.MustNoError(t.GroupAddServer(gid2, "", server1))
 
 	g2 := getGroup(t, gid2)
 	assert.Must(len(g2.Servers) == 2)

@@ -40,6 +40,7 @@ product_auth = ""
 proto_type = "tcp4"
 admin_addr = "0.0.0.0:${p1}"
 proxy_addr = "0.0.0.0:${p2}"
+proxy_datacenter = "localhost"
 EOF
     nohup codis-proxy -c ${p1}.toml &>${p1}.log &
     lastpid=$!
@@ -100,7 +101,7 @@ done
 for ((i=0;i<8;i++)); do
     let p="16379+i"
     let g="i/2+1"
-    codis_admin --group-add --gid $g -x 127.0.0.1:${p}
+    codis_admin --group-add --gid $g -x 127.0.0.1:${p} --datacenter "localhost"
 done
 
 for ((i=0;i<4;i++)); do

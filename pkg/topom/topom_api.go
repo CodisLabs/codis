@@ -86,6 +86,7 @@ func newApiServer(t *Topom) http.Handler {
 			r.Put("/create/:xauth/:gid", api.CreateGroup)
 			r.Put("/remove/:xauth/:gid", api.RemoveGroup)
 			r.Put("/add/:xauth/:gid/:addr", api.GroupAddServer)
+			r.Put("/add/:xauth/:gid/:addr/:datacenter", api.GroupAddServer)
 			r.Put("/del/:xauth/:gid/:addr", api.GroupDelServer)
 			r.Put("/promote/:xauth/:gid/:addr", api.GroupPromoteServer)
 			r.Put("/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
@@ -312,6 +313,7 @@ func (s *apiServer) GroupAddServer(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
+	dc := params["datacenter"]
 	c, err := redis.NewClient(addr, s.topom.Config().ProductAuth, time.Second)
 	if err != nil {
 		log.WarnErrorf(err, "create redis client to %s failed", addr)
@@ -322,7 +324,7 @@ func (s *apiServer) GroupAddServer(params martini.Params) (int, string) {
 		log.WarnErrorf(err, "redis %s check slots-info failed", addr)
 		return rpc.ApiResponseError(err)
 	}
-	if err := s.topom.GroupAddServer(gid, addr); err != nil {
+	if err := s.topom.GroupAddServer(gid, dc, addr); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -638,8 +640,13 @@ func (c *ApiClient) RemoveGroup(gid int) error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) GroupAddServer(gid int, addr string) error {
-	url := c.encodeURL("/api/topom/group/add/%s/%d/%s", c.xauth, gid, addr)
+func (c *ApiClient) GroupAddServer(gid int, dc, addr string) error {
+	var url string
+	if dc != "" {
+		url = c.encodeURL("/api/topom/group/add/%s/%d/%s/%s", c.xauth, gid, addr, dc)
+	} else {
+		url = c.encodeURL("/api/topom/group/add/%s/%d/%s", c.xauth, gid, addr)
+	}
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

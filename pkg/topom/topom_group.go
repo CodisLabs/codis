@@ -57,7 +57,7 @@ func (s *Topom) RemoveGroup(gid int) error {
 	return s.storeRemoveGroup(g)
 }
 
-func (s *Topom) GroupAddServer(gid int, addr string) error {
+func (s *Topom) GroupAddServer(gid int, dc, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -87,7 +87,7 @@ func (s *Topom) GroupAddServer(gid int, addr string) error {
 
 	s.dirtyGroupCache(g.Id)
 
-	g.Servers = append(g.Servers, &models.GroupServer{Addr: addr})
+	g.Servers = append(g.Servers, &models.GroupServer{Addr: addr, DataCenter: dc})
 	return s.storeUpdateGroup(g)
 }
 

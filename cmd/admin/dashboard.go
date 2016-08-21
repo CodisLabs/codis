@@ -437,9 +437,10 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 	case d["--group-add"].(bool):
 
 		gid, addr := utils.ArgumentIntegerMust(d, "--gid"), utils.ArgumentMust(d, "--addr")
+		dc, _ := utils.Argument(d, "--datacenter")
 
 		log.Debugf("call rpc group-add-server to dashboard %s", t.addr)
-		if err := c.GroupAddServer(gid, addr); err != nil {
+		if err := c.GroupAddServer(gid, dc, addr); err != nil {
 			log.PanicErrorf(err, "call rpc group-add-server to dashboard %s failed", t.addr)
 		}
 		log.Debugf("call rpc group-add-server OK")
