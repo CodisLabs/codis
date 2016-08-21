@@ -18,6 +18,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
+	"github.com/CodisLabs/codis/pkg/utils/redis"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
@@ -45,7 +46,7 @@ type Topom struct {
 	closed bool
 
 	ladmin net.Listener
-	redisp *RedisPool
+	redisp *redis.Pool
 
 	action struct {
 		interval atomic2.Int64
@@ -76,7 +77,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	s := &Topom{}
 	s.config = config
 	s.exit.C = make(chan struct{})
-	s.redisp = NewRedisPool(config.ProductAuth, time.Second*10)
+	s.redisp = redis.NewPool(config.ProductAuth, time.Second*10)
 
 	s.model = &models.Topom{
 		StartTime: time.Now().String(),

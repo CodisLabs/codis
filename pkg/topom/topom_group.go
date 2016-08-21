@@ -9,6 +9,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/redis"
 )
 
 func (s *Topom) CreateGroup(gid int) error {
@@ -225,7 +226,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		}
 
 		var master = slice[0].Addr
-		if c, err := NewRedisClient(master, s.config.ProductAuth, time.Second); err != nil {
+		if c, err := redis.NewClient(master, s.config.ProductAuth, time.Second); err != nil {
 			log.WarnErrorf(err, "create redis client to %s failed", master)
 		} else {
 			defer c.Close()
@@ -405,7 +406,7 @@ func (s *Topom) newSyncActionExecutor(addr string) (func() error, error) {
 		master = g.Servers[0].Addr
 	}
 	return func() error {
-		c, err := NewRedisClient(addr, s.config.ProductAuth, time.Minute*30)
+		c, err := redis.NewClient(addr, s.config.ProductAuth, time.Minute*30)
 		if err != nil {
 			log.WarnErrorf(err, "create redis client to %s failed", addr)
 			return err

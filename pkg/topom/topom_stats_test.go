@@ -15,30 +15,6 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
-func TestFakeServer(x *testing.T) {
-	s := newFakeServer()
-	defer s.Close()
-
-	p := NewRedisPool("foobar", time.Second)
-	defer p.Close()
-
-	c, err := p.GetClient(s.Addr)
-	assert.MustNoError(err)
-	defer p.PutClient(c)
-
-	assert.MustNoError(c.SetMaster(""))
-	assert.MustNoError(c.SetMaster("NO:ONE"))
-
-	_, err = c.Info()
-	assert.MustNoError(err)
-
-	_, err = c.SlotsInfo()
-	assert.MustNoError(err)
-
-	_, err = c.MigrateSlot(0, s.Addr)
-	assert.MustNoError(err)
-}
-
 func TestProxyStats(x *testing.T) {
 	t := openTopom()
 	defer t.Close()

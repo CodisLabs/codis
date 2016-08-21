@@ -20,6 +20,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/redis"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
 )
 
@@ -311,7 +312,7 @@ func (s *apiServer) GroupAddServer(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	c, err := NewRedisClient(addr, s.topom.Config().ProductAuth, time.Second)
+	c, err := redis.NewClient(addr, s.topom.Config().ProductAuth, time.Second)
 	if err != nil {
 		log.WarnErrorf(err, "create redis client to %s failed", addr)
 		return rpc.ApiResponseError(err)

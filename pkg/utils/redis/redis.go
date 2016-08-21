@@ -1,7 +1,7 @@
 // Copyright 2016 CodisLabs. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package topom
+package redis
 
 import (
 	"container/list"
@@ -11,15 +11,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/garyburd/redigo/redis"
-
 	"github.com/CodisLabs/codis/pkg/utils/errors"
+
+	redigo "github.com/garyburd/redigo/redis"
 )
 
-var ErrFailedRedisClient = errors.New("use of failed redis client")
+var ErrFailedClient = errors.New("use of failed redis client")
 
-type RedisClient struct {
-	conn redis.Conn
+type Client struct {
+	conn redigo.Conn
 	addr string
 	auth string
 
@@ -28,8 +28,8 @@ type RedisClient struct {
 	Timeout time.Duration
 }
 
-func NewRedisClient(addr string, auth string, timeout time.Duration) (*RedisClient, error) {
-	c, err := redis.DialTimeout("tcp", addr, time.Second, timeout, timeout)
+func NewClient(addr string, auth string, timeout time.Duration) (*Client, error) {
+	c, err := redigo.DialTimeout("tcp", addr, time.Second, timeout, timeout)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -40,19 +40,19 @@ func NewRedisClient(addr string, auth string, timeout time.Duration) (*RedisClie
 			return nil, errors.Trace(err)
 		}
 	}
-	return &RedisClient{
+	return &Client{
 		conn: c, addr: addr, auth: auth,
 		LastUse: time.Now(), Timeout: timeout,
 	}, nil
 }
 
-func (c *RedisClient) Close() error {
+func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
-func (c *RedisClient) command(cmd string, args ...interface{}) (interface{}, error) {
+func (c *Client) command(cmd string, args ...interface{}) (interface{}, error) {
 	if c.LastErr != nil {
-		return nil, ErrFailedRedisClient
+		return nil, ErrFailedClient
 	}
 	if reply, err := c.conn.Do(cmd, args...); err != nil {
 		c.LastErr = errors.Trace(err)
@@ -63,12 +63,12 @@ func (c *RedisClient) command(cmd string, args ...interface{}) (interface{}, err
 	}
 }
 
-func (c *RedisClient) Info() (map[string]string, error) {
+func (c *Client) Info() (map[string]string, error) {
 	var info map[string]string
 	if reply, err := c.command("INFO"); err != nil {
 		return nil, err
 	} else {
-		text, err := redis.String(reply, nil)
+		text, err := redigo.String(reply, nil)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -91,11 +91,11 @@ func (c *RedisClient) Info() (map[string]string, error) {
 	if reply, err := c.command("CONFIG", "GET", "maxmemory"); err != nil {
 		return nil, err
 	} else {
-		p, err := redis.Values(reply, nil)
+		p, err := redigo.Values(reply, nil)
 		if err != nil || len(p) != 2 {
 			return nil, errors.Errorf("invalid response = %v", reply)
 		}
-		v, err := redis.Int(p[1], nil)
+		v, err := redigo.Int(p[1], nil)
 		if err != nil {
 			return nil, errors.Errorf("invalid response = %v", reply)
 		}
@@ -104,7 +104,7 @@ func (c *RedisClient) Info() (map[string]string, error) {
 	return info, nil
 }
 
-func (c *RedisClient) SetMaster(master string) error {
+func (c *Client) SetMaster(master string) error {
 	if master == "" || strings.ToUpper(master) == "NO:ONE" {
 		if _, err := c.command("SLAVEOF", "NO", "ONE"); err != nil {
 			return err
@@ -124,7 +124,7 @@ func (c *RedisClient) SetMaster(master string) error {
 	return nil
 }
 
-func (c *RedisClient) MigrateSlot(slot int, target string) (int, error) {
+func (c *Client) MigrateSlot(slot int, target string) (int, error) {
 	host, port, err := net.SplitHostPort(target)
 	if err != nil {
 		return 0, errors.Trace(err)
@@ -133,7 +133,7 @@ func (c *RedisClient) MigrateSlot(slot int, target string) (int, error) {
 	if reply, err := c.command("SLOTSMGRTTAGSLOT", host, port, mseconds, slot); err != nil {
 		return 0, err
 	} else {
-		p, err := redis.Ints(redis.Values(reply, nil))
+		p, err := redigo.Ints(redigo.Values(reply, nil))
 		if err != nil || len(p) != 2 {
 			return 0, errors.Errorf("invalid response = %v", reply)
 		}
@@ -141,17 +141,17 @@ func (c *RedisClient) MigrateSlot(slot int, target string) (int, error) {
 	}
 }
 
-func (c *RedisClient) SlotsInfo() (map[int]int, error) {
+func (c *Client) SlotsInfo() (map[int]int, error) {
 	if reply, err := c.command("SLOTSINFO"); err != nil {
 		return nil, err
 	} else {
-		infos, err := redis.Values(reply, nil)
+		infos, err := redigo.Values(reply, nil)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
 		slots := make(map[int]int)
 		for i, info := range infos {
-			p, err := redis.Ints(info, nil)
+			p, err := redigo.Ints(info, nil)
 			if err != nil || len(p) != 2 {
 				return nil, errors.Errorf("invalid response[%d] = %v", i, info)
 			}
@@ -161,9 +161,9 @@ func (c *RedisClient) SlotsInfo() (map[int]int, error) {
 	}
 }
 
-var ErrClosedRedisPool = errors.New("use of closed redis pool")
+var ErrClosedPool = errors.New("use of closed redis pool")
 
-type RedisPool struct {
+type Pool struct {
 	mu sync.Mutex
 
 	auth    string
@@ -177,8 +177,8 @@ type RedisPool struct {
 	closed bool
 }
 
-func NewRedisPool(auth string, timeout time.Duration) *RedisPool {
-	p := &RedisPool{
+func NewPool(auth string, timeout time.Duration) *Pool {
+	p := &Pool{
 		auth: auth, timeout: timeout,
 		pool: make(map[string]*list.List),
 	}
@@ -202,14 +202,14 @@ func NewRedisPool(auth string, timeout time.Duration) *RedisPool {
 	return p
 }
 
-func (p *RedisPool) isRecyclable(c *RedisClient) bool {
+func (p *Pool) isRecyclable(c *Client) bool {
 	if c.LastErr != nil {
 		return false
 	}
 	return p.timeout == 0 || time.Since(c.LastUse) < p.timeout
 }
 
-func (p *RedisPool) Close() error {
+func (p *Pool) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
@@ -220,7 +220,7 @@ func (p *RedisPool) Close() error {
 
 	for addr, list := range p.pool {
 		for i := list.Len(); i != 0; i-- {
-			c := list.Remove(list.Front()).(*RedisClient)
+			c := list.Remove(list.Front()).(*Client)
 			c.Close()
 		}
 		delete(p.pool, addr)
@@ -228,16 +228,16 @@ func (p *RedisPool) Close() error {
 	return nil
 }
 
-func (p *RedisPool) Cleanup() error {
+func (p *Pool) Cleanup() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
-		return ErrClosedRedisPool
+		return ErrClosedPool
 	}
 
 	for addr, list := range p.pool {
 		for i := list.Len(); i != 0; i-- {
-			c := list.Remove(list.Front()).(*RedisClient)
+			c := list.Remove(list.Front()).(*Client)
 			if p.isRecyclable(c) {
 				list.PushBack(c)
 			} else {
@@ -251,16 +251,16 @@ func (p *RedisPool) Cleanup() error {
 	return nil
 }
 
-func (p *RedisPool) GetClient(addr string) (*RedisClient, error) {
+func (p *Pool) GetClient(addr string) (*Client, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
-		return nil, ErrClosedRedisPool
+		return nil, ErrClosedPool
 	}
 
 	if list := p.pool[addr]; list != nil {
 		for i := list.Len(); i != 0; i-- {
-			c := list.Remove(list.Front()).(*RedisClient)
+			c := list.Remove(list.Front()).(*Client)
 			if p.isRecyclable(c) {
 				return c, nil
 			} else {
@@ -268,10 +268,10 @@ func (p *RedisPool) GetClient(addr string) (*RedisClient, error) {
 			}
 		}
 	}
-	return NewRedisClient(addr, p.auth, p.timeout)
+	return NewClient(addr, p.auth, p.timeout)
 }
 
-func (p *RedisPool) PutClient(c *RedisClient) {
+func (p *Pool) PutClient(c *Client) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed || !p.isRecyclable(c) {
@@ -286,7 +286,7 @@ func (p *RedisPool) PutClient(c *RedisClient) {
 	}
 }
 
-func (p *RedisPool) Info(addr string) (map[string]string, error) {
+func (p *Pool) Info(addr string) (map[string]string, error) {
 	c, err := p.GetClient(addr)
 	if err != nil {
 		return nil, err
@@ -295,7 +295,7 @@ func (p *RedisPool) Info(addr string) (map[string]string, error) {
 	return c.Info()
 }
 
-func (p *RedisPool) MigrateSlot(slot int, from, dest string) (int, error) {
+func (p *Pool) MigrateSlot(slot int, from, dest string) (int, error) {
 	c, err := p.GetClient(from)
 	if err != nil {
 		return 0, err
