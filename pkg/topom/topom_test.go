@@ -37,6 +37,8 @@ func openProxy() (*models.Proxy, *proxy.ApiClient) {
 	config.ProxyAddr = "0.0.0.0:0"
 	config.ProductName = "topom_test"
 	config.ProductAuth = "topom_auth"
+	config.ProxyHeapPlaceholder = 0
+	config.ProxyMaxOffheapBytes = 0
 
 	s, err := proxy.New(config)
 	assert.MustNoError(err)

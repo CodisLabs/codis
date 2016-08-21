@@ -6,6 +6,7 @@ package topom
 import (
 	"container/list"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,7 +171,7 @@ func (s *fakeServer) Serve(c net.Conn) {
 			resp = redis.NewBulkBytes([]byte("#Fake Codis Server"))
 		case "CONFIG":
 			assert.Must(len(r.Array) >= 3)
-			sub := string(r.Array[1].Value)
+			sub := strings.ToUpper(string(r.Array[1].Value))
 			key := string(r.Array[2].Value)
 			switch {
 			case sub == "GET" && key == "maxmemory":
