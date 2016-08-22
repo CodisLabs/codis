@@ -22,10 +22,10 @@ type Sentinel struct {
 }
 
 func NewSentinel(product string) *Sentinel {
-	return NewSentinelWithAuth(product, "")
+	return NewSentinelAuth(product, "")
 }
 
-func NewSentinelWithAuth(product, auth string) *Sentinel {
+func NewSentinelAuth(product, auth string) *Sentinel {
 	s := &Sentinel{product: product, auth: auth}
 	s.Context, s.Cancel = context.WithCancel(context.Background())
 	return s
@@ -40,35 +40,33 @@ func (s *Sentinel) IsCancelled() bool {
 	}
 }
 
-func (s *Sentinel) AfterSeconds(n int) {
-	if n == 0 {
-		return
-	}
-	select {
-	case <-s.Context.Done():
-	case <-time.After(time.Second * time.Duration(n)):
-	}
+func (s *Sentinel) WatchNode(gid int) string {
+	return fmt.Sprintf("%s-%d", s.product, gid)
 }
 
-func (s *Sentinel) MasterName(gid int) string {
-	return fmt.Sprintf("%s-%d", s.product, gid)
+func (s *Sentinel) hasSameProduct(node string) bool {
+	if strings.LastIndexByte(node, '-') != len(s.product) {
+		return false
+	}
+	return strings.HasPrefix(node, s.product)
 }
 
 func (s *Sentinel) newSentinelClient(sentinel string, timeout time.Duration) (*Client, error) {
 	return NewClient(sentinel, "", timeout)
 }
 
-func (s *Sentinel) SubscribeOne(ctx context.Context, sentinel string) (bool, error) {
-	c, err := s.newSentinelClient(sentinel, time.Minute*30)
+func (s *Sentinel) subscribe(ctx context.Context, sentinel string, timeout time.Duration) (bool, error) {
+	c, err := s.newSentinelClient(sentinel, timeout)
 	if err != nil {
 		return false, err
 	}
 	defer c.Close()
 
-	var ech = make(chan error, 1)
+	var exit = make(chan error, 1)
+
 	go func() (err error) {
 		defer func() {
-			ech <- err
+			exit <- err
 		}()
 		if err := c.Flush("SUBSCRIBE", "+switch-master"); err != nil {
 			return err
@@ -91,11 +89,10 @@ func (s *Sentinel) SubscribeOne(ctx context.Context, sentinel string) (bool, err
 			if len(reply) != 3 {
 				return errors.Errorf("invalid response = %v", reply)
 			}
-			name, err := redigo.String(reply[2], nil)
-			if err != nil {
+			switch node, err := redigo.String(reply[2], nil); {
+			case err != nil:
 				return errors.Trace(err)
-			}
-			if strings.HasPrefix(name, s.product) {
+			case s.hasSameProduct(node):
 				return nil
 			}
 		}
@@ -104,25 +101,27 @@ func (s *Sentinel) SubscribeOne(ctx context.Context, sentinel string) (bool, err
 	select {
 	case <-ctx.Done():
 		return false, nil
-	case err := <-ech:
+	case err := <-exit:
 		if err != nil {
+			e, ok := errors.Cause(err).(*net.OpError)
+			if ok && e.Timeout() {
+				return false, nil
+			}
 			return false, err
 		}
 		return true, nil
 	}
 }
 
-func (s *Sentinel) SubscribeMulti(ctx context.Context, sentinels []string) bool {
-	if len(sentinels) == 0 {
-		return false
-	}
-	nctx, cancel := context.WithCancel(ctx)
+func (s *Sentinel) Subscribe(timeout time.Duration, sentinels ...string) bool {
+	nctx, cancel := context.WithCancel(s.Context)
 	defer cancel()
 
 	var results = make(chan bool, len(sentinels))
+
 	for i := range sentinels {
 		go func(sentinel string) {
-			notified, err := s.SubscribeOne(nctx, sentinel)
+			notified, err := s.subscribe(nctx, sentinel, timeout)
 			if err != nil {
 				log.WarnErrorf(err, "sentinel %s subscribe failed", sentinel)
 			}
@@ -137,7 +136,7 @@ func (s *Sentinel) SubscribeMulti(ctx context.Context, sentinels []string) bool 
 
 	for i := 0; i < majority; i++ {
 		select {
-		case <-ctx.Done():
+		case <-s.Context.Done():
 			return false
 		case notified := <-results:
 			if notified {
@@ -148,48 +147,53 @@ func (s *Sentinel) SubscribeMulti(ctx context.Context, sentinels []string) bool 
 	return false
 }
 
-func (s *Sentinel) getServerRole(addr string) (string, error) {
+func (s *Sentinel) isMasterRole(addr string) (bool, error) {
 	c, err := NewClient(addr, s.auth, time.Second*5)
 	if err != nil {
-		return "", err
+		return false, err
 	}
 	defer c.Close()
-	return c.Role()
+	role, err := c.Role()
+	if err != nil {
+		return false, err
+	}
+	return role == "MASTER", nil
 }
 
-func (s *Sentinel) MastersOne(ctx context.Context, sentinel string, groupIds map[int]bool) (map[int]string, error) {
-	c, err := s.newSentinelClient(sentinel, time.Second*10)
+func (s *Sentinel) masters(ctx context.Context, sentinel string, timeout time.Duration, groups map[int]bool) (map[int]string, error) {
+	c, err := s.newSentinelClient(sentinel, timeout)
 	if err != nil {
 		return nil, err
 	}
 	defer c.Close()
 
-	var gmp = make(map[int]string)
-	var ech = make(chan error, 1)
+	masters := make(map[int]string)
+
+	var exit = make(chan error, 1)
+
 	go func() (err error) {
 		defer func() {
-			ech <- err
+			exit <- err
 		}()
-		for gid := range groupIds {
-			reply, err := c.Do("SENTINEL", "get-master-addr-by-name", s.MasterName(gid))
-			if err != nil {
-				return errors.Trace(err)
-			}
-			if reply == nil {
-				continue
-			}
-			r, err := redigo.Strings(reply, nil)
-			if err != nil {
-				return errors.Trace(err)
-			}
-			if len(r) != 2 {
-				return errors.Errorf("invalid response = %v", r)
-			}
-			var addr = fmt.Sprintf("%s:%s", r[0], r[1])
-			if role, err := s.getServerRole(addr); err != nil {
-				log.WarnErrorf(err, "sentinel get role of %s failed", addr)
-			} else if role == "MASTER" {
-				gmp[gid] = addr
+		for gid := range groups {
+			switch reply, err := c.Do("SENTINEL", "get-master-addr-by-name", s.WatchNode(gid)); {
+			case err != nil:
+				return err
+			case reply != nil:
+				r, err := redigo.Strings(reply, nil)
+				if err != nil {
+					return errors.Trace(err)
+				}
+				if len(r) != 2 {
+					return errors.Errorf("invalid response = %v", r)
+				}
+				addr := fmt.Sprintf("%s:%s", r[0], r[1])
+				switch yes, err := s.isMasterRole(addr); {
+				case err != nil:
+					log.WarnErrorf(err, "sentinel get role of %s failed", addr)
+				case yes:
+					masters[gid] = addr
+				}
 			}
 		}
 		return nil
@@ -198,38 +202,37 @@ func (s *Sentinel) MastersOne(ctx context.Context, sentinel string, groupIds map
 	select {
 	case <-ctx.Done():
 		return nil, nil
-	case err := <-ech:
+	case err := <-exit:
 		if err != nil {
 			return nil, err
 		}
-		return gmp, nil
+		return masters, nil
 	}
 }
 
-func (s *Sentinel) MastersMulti(ctx context.Context, sentinels []string, groupIds map[int]bool) map[int]string {
-	if len(sentinels) == 0 || len(groupIds) == 0 {
-		return map[int]string{}
-	}
-	nctx, cancel := context.WithCancel(ctx)
+func (s *Sentinel) Masters(groups map[int]bool, timeout time.Duration, sentinels ...string) map[int]string {
+	nctx, cancel := context.WithCancel(s.Context)
 	defer cancel()
 
 	var results = make(chan map[int]string, len(sentinels))
+
 	for i := range sentinels {
 		go func(sentinel string) {
-			m, err := s.MastersOne(nctx, sentinel, groupIds)
+			masters, err := s.masters(nctx, sentinel, timeout, groups)
 			if err != nil {
 				log.WarnErrorf(err, "sentinel %s masters failed", sentinel)
 			}
-			results <- m
+			results <- masters
 		}(sentinels[i])
 	}
 
-	var masters = make(map[int]string)
-	var counter = make(map[int]int)
-	for i := 0; i < len(sentinels); i++ {
+	masters := make(map[int]string)
+	counter := make(map[int]int)
+
+	for _ = range sentinels {
 		select {
-		case <-ctx.Done():
-			return nil
+		case <-s.Context.Done():
+			return masters
 		case m := <-results:
 			if m != nil {
 				for gid, addr := range m {
@@ -254,46 +257,64 @@ func (s *Sentinel) MastersMulti(ctx context.Context, sentinels []string, groupId
 	return masters
 }
 
-func (s *Sentinel) MonitorOne(sentinel string, masters map[int]string, quorum int, overwrite bool) error {
-	c, err := s.newSentinelClient(sentinel, time.Second*10)
+func (s *Sentinel) monitor(ctx context.Context, sentinel string, timeout time.Duration, masters map[int]string, quorum int) error {
+	c, err := s.newSentinelClient(sentinel, timeout)
 	if err != nil {
 		return err
 	}
 	defer c.Close()
-	for gid, master := range masters {
-		host, port, err := net.SplitHostPort(master)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		name := s.MasterName(gid)
-		if overwrite {
-			_, err := c.Do("SENTINEL", "remove", name)
+
+	var exit = make(chan error, 1)
+
+	go func() (err error) {
+		defer func() {
+			exit <- err
+		}()
+		for gid, addr := range masters {
+			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
+				return errors.Trace(err)
+			}
+			node := s.WatchNode(gid)
+			switch reply, err := c.Do("SENTINEL", "get-master-addr-by-name", node); {
+			case err != nil:
 				return err
+			case reply != nil:
+				_, err := c.Do("SENTINEL", "remove", node)
+				if err != nil {
+					return err
+				}
+			}
+			switch _, err := c.Do("SENTINEL", "monitor", node, host, port, quorum); {
+			case err != nil:
+				return err
+			case s.auth != "":
+				_, err := c.Do("SENTINEL", "set", node, "auth-pass", s.auth)
+				if err != nil {
+					return err
+				}
 			}
 		}
-		if _, err := redigo.String(c.Do("SENTINEL", "monitor", name, host, port, quorum)); err != nil {
-			return errors.Trace(err)
-		}
-		if s.auth == "" {
-			continue
-		}
-		if _, err := redigo.String(c.Do("SENTINEL", "set", name, "auth-pass", s.auth)); err != nil {
-			return errors.Trace(err)
-		}
+		return nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-exit:
+		return err
 	}
-	return nil
 }
 
-func (s *Sentinel) Monitor(sentinels []string, masters map[int]string, quorum int, overwrite bool) error {
-	if len(sentinels) == 0 {
-		return nil
-	}
+func (s *Sentinel) Monitor(masters map[int]string, quorum int, timeout time.Duration, sentinels ...string) error {
+	nctx, cancel := context.WithCancel(s.Context)
+	defer cancel()
 
 	var results = make(chan error, len(sentinels))
+
 	for i := range sentinels {
 		go func(sentinel string) {
-			err := s.MonitorOne(sentinel, masters, quorum, overwrite)
+			err := s.monitor(nctx, sentinel, timeout, masters, quorum)
 			if err != nil {
 				log.WarnErrorf(err, "sentinel %s monitor failed", sentinel)
 			}
@@ -301,24 +322,79 @@ func (s *Sentinel) Monitor(sentinels []string, masters map[int]string, quorum in
 		}(sentinels[i])
 	}
 
-	for i := 0; i < len(sentinels); i++ {
-		if err := <-results; err != nil {
-			return err
+	for _ = range sentinels {
+		select {
+		case <-s.Context.Done():
+			return nil
+		case err := <-results:
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func (s *Sentinel) RemoveMonitor(sentinel string, groups ...int) error {
-	c, err := s.newSentinelClient(sentinel, time.Second*10)
+func (s *Sentinel) unmonitor(ctx context.Context, sentinel string, timeout time.Duration, groups map[int]bool) error {
+	c, err := s.newSentinelClient(sentinel, time.Second*5)
 	if err != nil {
 		return err
 	}
 	defer c.Close()
-	for gid := range groups {
-		_, err := c.Do("SENTINEL", "remove", s.MasterName(gid))
-		if err != nil {
-			return err
+
+	var exit = make(chan error, 1)
+
+	go func() (err error) {
+		defer func() {
+			exit <- err
+		}()
+		for gid := range groups {
+			node := s.WatchNode(gid)
+			switch reply, err := c.Do("SENTINEL", "get-master-addr-by-name", node); {
+			case err != nil:
+				return err
+			case reply != nil:
+				_, err := c.Do("SENTINEL", "remove", node)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		return nil
+	case err := <-exit:
+		return err
+	}
+}
+
+func (s *Sentinel) Unmonitor(groups map[int]bool, timeout time.Duration, sentinels ...string) error {
+	nctx, cancel := context.WithCancel(s.Context)
+	defer cancel()
+
+	var results = make(chan error, len(sentinels))
+
+	for i := range sentinels {
+		go func(sentinel string) {
+			err := s.unmonitor(nctx, sentinel, timeout, groups)
+			if err != nil {
+				log.WarnErrorf(err, "sentinel %s unmonitor failed", sentinel)
+			}
+			results <- err
+		}(sentinels[i])
+	}
+
+	for _ = range sentinels {
+		select {
+		case <-s.Context.Done():
+			return nil
+		case err := <-results:
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

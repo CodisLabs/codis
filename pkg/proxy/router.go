@@ -10,7 +10,6 @@ import (
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
-	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/redis"
 )
 
@@ -65,16 +64,16 @@ func (s *Router) Close() {
 func (s *Router) GetGroupIds() map[int]bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var groupIds = make(map[int]bool)
+	var groups = make(map[int]bool)
 	for i := range s.slots {
 		if gid := s.slots[i].backend.id; gid != 0 {
-			groupIds[gid] = true
+			groups[gid] = true
 		}
 		if gid := s.slots[i].migrate.id; gid != 0 {
-			groupIds[gid] = true
+			groups[gid] = true
 		}
 	}
-	return groupIds
+	return groups
 }
 
 func (s *Router) GetSlots() []*models.Slot {
@@ -288,24 +287,27 @@ func (s *Router) SetSentinels(servers []string) error {
 		s.sentinel.Cancel()
 		s.sentinel = nil
 	}
+	log.Warnf("set sentinels = %v", servers)
+
 	if len(servers) != 0 {
 		s.sentinel = redis.NewSentinel(s.config.ProductName)
-		go func(t *redis.Sentinel) {
-			var delay int
-			for !t.IsCancelled() {
-				time.Sleep(time.Millisecond * 250)
-				masters := t.MastersMulti(t.Context, servers, s.GetGroupIds())
-				if masters == nil {
-					return
-				}
+		go func(p *redis.Sentinel) {
+			for {
+				timeout := time.Second * 5
+				masters := p.Masters(s.GetGroupIds(), timeout, servers...)
 				if len(masters) != 0 {
 					s.SwitchMasters(masters)
 				}
-				if t.SubscribeMulti(t.Context, servers) {
-					delay = 0
+				start := time.Now()
+				if !p.Subscribe(time.Hour, servers...) {
+					for time.Now().Sub(start) < time.Minute {
+						if p.IsCancelled() {
+							return
+						}
+						time.Sleep(time.Second)
+					}
 				} else {
-					delay = math2.MinMaxInt(delay*2, 1, 30)
-					t.AfterSeconds(delay)
+					time.Sleep(time.Millisecond * 250)
 				}
 			}
 		}(s.sentinel)
