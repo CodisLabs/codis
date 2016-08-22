@@ -131,6 +131,7 @@
                         <th style="min-width: 180px;">Admin</th>
                         <th style="width: 50px;">Link</th>
                         <th style="min-width: 100px;">DC</th>
+                        <th style="width: 35px;"/>
                         <th style="min-width: 180px;">Sessions</th>
                         <th style="min-width: 200px;">Commands</th>
                         <th style="width: 35px;"></th>
@@ -143,12 +144,12 @@
                         </td>
                         <td ng-switch="proxy.status">
                             <span ng-switch-when="HEALTHY" class="btn btn-success btn-xs"
-                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of [[proxy.proxy_addr]]"
+                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS to [[proxy.proxy_addr]]"
                                 ng-click="reinitProxy(proxy)">
                                 <span class="glyphicon glyphicon-send"></span>
                             </span>
                             <span ng-switch-when="PENDING" class="btn btn-danger btn-xs"
-                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of [[proxy.proxy_addr]]"
+                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS to [[proxy.proxy_addr]]"
                                 ng-click="reinitProxy(proxy)">
                                 <span class="glyphicon glyphicon-send"></span>
                             </span>
@@ -160,6 +161,13 @@
                             <a ng-href="http://[[proxy.stats_link]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
                         </td>
                         <td>[[proxy.datacenter]]</td>
+                        <td class="button_tight_column">
+                            <button class="btn btn-danger btn-xs" ng-if="proxy.status == ERROR"
+                                data-toggle="tooltip" data-placement="right" title="FORCE REMOVE PROXY [[proxy.proxy_addr]]"
+                                ng-click="removeProxy(proxy, true)">
+                                <span class="glyphicon glyphicon-remove"></span>
+                            </button>
+                        </td>
                         <td>[[proxy.sessions]]</td>
                         <td ng-switch="proxy.status">
                             <span ng-switch-when="ERROR" class="status_label_error">[[proxy.status]]</span>
@@ -170,7 +178,7 @@
                         <td class="button_tight_column">
                             <button class="btn btn-danger btn-xs"
                                 data-toggle="tooltip" data-placement="right" title="REMOVE PROXY [[proxy.proxy_addr]]"
-                                ng-click="removeProxy(proxy)">
+                                ng-click="removeProxy(proxy, false)">
                                 <span class="glyphicon glyphicon-minus"></span>
                             </button>
                         </td>
@@ -371,10 +379,7 @@
             <div class="col-md-12" ng-repeat="group in group_array">
                 <table class="table table-bordered table-striped table-hover table-condensed">
                     <thead>
-                    <tr>
-                        <th style="width: 45px; text-align: center" ng-switch="group.ispromoting">
-                            <span ng-switch-when="true" class="status_label_error">
-                                [[group.id]]
+                    <tr> <th style="width: 45px; text-align: center" ng-switch="group.ispromoting"> <span ng-switch-when="true" class="status_label_error"> [[group.id]]
                             </span>
                             <snap ng-switch-default>
                                 [[group.id]]
@@ -390,8 +395,8 @@
                         <th style="width: 35px;">
                             <span ng-if="group.servers.length != 0">
                                 <button class="btn btn-warning btn-xs"
-                                        data-toggle="tooltip" data-placement="right" title="RESYNC GROUP-[[group.id]]"
-                                        ng-click="resyncGroup(group.id)">
+                                        data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of GROUP-[[group.id]]"
+                                        ng-click="resyncGroup(group)">
                                     <span class="glyphicon glyphicon-send"></span>
                                 </button>
                             </span>

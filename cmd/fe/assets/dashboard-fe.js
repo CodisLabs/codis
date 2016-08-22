@@ -545,12 +545,16 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.removeProxy = function (proxy) {
+        $scope.removeProxy = function (proxy, force) {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
                 alertAction("Remove and Shutdown proxy: " + toJsonHtml(proxy), function () {
                     var xauth = genXAuth(codis_name);
-                    var url = concatUrl("/api/topom/proxy/remove/" + xauth + "/" + proxy.token + "/0", codis_name);
+                    var value = 0;
+                    if (force) {
+                        value = 1;
+                    }
+                    var url = concatUrl("/api/topom/proxy/remove/" + xauth + "/" + proxy.token + "/" + value, codis_name);
                     $http.put(url).then(function () {
                         $scope.refreshStats();
                     }, function (failedResp) {
@@ -601,15 +605,24 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.resyncGroup = function (group_id) {
+        $scope.resyncGroup = function (group) {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
-                var xauth = genXAuth(codis_name);
-                var url = concatUrl("/api/topom/group/resync/" + xauth + "/" + group_id, codis_name);
-                $http.put(url).then(function () {
-                    $scope.refreshStats();
-                }, function (failedResp) {
-                    alertErrorResp(failedResp);
+                var o = {};
+                o.id = group.id;
+                o.replica_groups = group.replica_groups;
+                o.servers = [];
+                for (var j = 0; j < group.servers.length; j++) {
+                    o.servers.push(group.servers[j].server);
+                }
+                alertAction("Resync Group-[" + group.id + "]: " + toJsonHtml(o), function () {
+                    var xauth = genXAuth(codis_name);
+                    var url = concatUrl("/api/topom/group/resync/" + xauth + "/" + group.id, codis_name);
+                    $http.put(url).then(function () {
+                        $scope.refreshStats();
+                    }, function (failedResp) {
+                        alertErrorResp(failedResp);
+                    });
                 });
             }
         }
@@ -618,7 +631,11 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name) && isValidInput(group_id) && isValidInput(server_addr)) {
                 var xauth = genXAuth(codis_name);
-                datacenter = datacenter.trim();
+                if (datacenter == undefined) {
+                    datacenter = "";
+                } else {
+                    datacenter = datacenter.trim();
+                }
                 var suffix = "";
                 if (datacenter != "") {
                     suffix = "/" + datacenter;
@@ -683,7 +700,6 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 if (replica_groups) {
                     value = 1;
                 }
-                console.debug(replica_groups)
                 var url = concatUrl("/api/topom/group/replica-groups/" + xauth + "/" + group_id + "/" + value, codis_name);
                 $http.put(url).then(function () {
                     $scope.refreshStats();
