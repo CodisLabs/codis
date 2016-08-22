@@ -601,6 +601,19 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
+        $scope.resyncGroup = function (group_id) {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name)) {
+                var xauth = genXAuth(codis_name);
+                var url = concatUrl("/api/topom/group/resync/" + xauth + "/" + group_id, codis_name);
+                $http.put(url).then(function () {
+                    $scope.refreshStats();
+                }, function (failedResp) {
+                    alertErrorResp(failedResp);
+                });
+            }
+        }
+
         $scope.addGroupServer = function (group_id, datacenter, server_addr) {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name) && isValidInput(group_id) && isValidInput(server_addr)) {

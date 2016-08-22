@@ -145,12 +145,12 @@
                             <span ng-switch-when="HEALTHY" class="btn btn-success btn-xs"
                                 data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of [[proxy.proxy_addr]]"
                                 ng-click="reinitProxy(proxy)">
-                                <span class="glyphicon glyphicon-arrow-right"></span>
+                                <span class="glyphicon glyphicon-send"></span>
                             </span>
                             <span ng-switch-when="PENDING" class="btn btn-danger btn-xs"
                                 data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of [[proxy.proxy_addr]]"
                                 ng-click="reinitProxy(proxy)">
-                                <span class="glyphicon glyphicon-arrow-right"></span>
+                                <span class="glyphicon glyphicon-send"></span>
                             </span>
                         </td>
                         <td>[[proxy.proxy_addr]]</td>
@@ -387,7 +387,15 @@
                                 data-toggle="tooltip" data-placement="right" title="CAN READ SLAVES = [[group.replica_groups]]"
                                 ng-model="group.replica_groups" ng-click="enableReplicaGroups(group.id, group.replica_groups)">
                         </th>
-                        <th style="width: 35px;"/>
+                        <th style="width: 35px;">
+                            <span ng-if="group.servers.length != 0">
+                                <button class="btn btn-warning btn-xs"
+                                        data-toggle="tooltip" data-placement="right" title="RESYNC GROUP-[[group.id]]"
+                                        ng-click="resyncGroup(group.id)">
+                                    <span class="glyphicon glyphicon-send"></span>
+                                </button>
+                            </span>
+                        </th>
                         <th style="min-width: 100px;"/>
                         <th style="min-width: 260px;">Memory</th>
                         <th style="min-width: 260px;">Keys</th>
@@ -396,7 +404,7 @@
                                 <button class="btn btn-danger btn-xs"
                                         data-toggle="tooltip" data-placement="right" title="PROMOTE-COMMIT GROUP-[[group.id]]"
                                         ng-click="promoteCommit(group.id)">
-                                    <span class="glyphicon glyphicon-repeat"></span>
+                                    <span class="glyphicon glyphicon-wrench"></span>
                                 </button>
                             </span>
                             <span ng-switch-default ng-if="group.canremove">
