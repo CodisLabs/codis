@@ -57,6 +57,31 @@ func (s *Topom) RemoveGroup(gid int) error {
 	return s.storeRemoveGroup(g)
 }
 
+func (s *Topom) ResyncGroup(gid int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+
+	g, err := ctx.getGroup(gid)
+	if err != nil {
+		return err
+	}
+
+	slots := ctx.getSlotMappingByGroupId(gid)
+	if len(slots) == 0 {
+		return nil
+	}
+
+	if err := s.resyncSlots(ctx, slots...); err != nil {
+		log.Warnf("group-[%d] resync-group failed", g.Id)
+		return err
+	}
+	return nil
+}
+
 func (s *Topom) GroupAddServer(gid int, dc, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

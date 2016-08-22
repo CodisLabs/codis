@@ -32,6 +32,7 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --list-group
 	codis-admin [-v] --dashboard=ADDR            --create-group   --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --remove-group   --gid=ID
+	codis-admin [-v] --dashboard=ADDR            --resync-group   --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --group-add      --gid=ID --addr=ADDR [--datacenter=DATACENTER]
 	codis-admin [-v] --dashboard=ADDR            --group-del      --gid=ID --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --group-status
@@ -56,6 +57,7 @@ Options:
 	-a AUTH, --auth=AUTH
 	-x ADDR, --addr=ADDR
 	-t TOKEN, --token=TOKEN
+	-g ID, --gid=ID
 `
 
 	d, err := docopt.Parse(usage, nil, true, "", false)

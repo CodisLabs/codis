@@ -85,6 +85,7 @@ func newApiServer(t *Topom) http.Handler {
 		r.Group("/group", func(r martini.Router) {
 			r.Put("/create/:xauth/:gid", api.CreateGroup)
 			r.Put("/remove/:xauth/:gid", api.RemoveGroup)
+			r.Put("/resync/:xauth/:gid", api.ResyncGroup)
 			r.Put("/add/:xauth/:gid/:addr", api.GroupAddServer)
 			r.Put("/add/:xauth/:gid/:addr/:datacenter", api.GroupAddServer)
 			r.Put("/del/:xauth/:gid/:addr", api.GroupDelServer)
@@ -296,6 +297,21 @@ func (s *apiServer) RemoveGroup(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.topom.RemoveGroup(gid); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) ResyncGroup(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	gid, err := s.parseInteger(params, "gid")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.ResyncGroup(gid); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -657,6 +673,11 @@ func (c *ApiClient) CreateGroup(gid int) error {
 
 func (c *ApiClient) RemoveGroup(gid int) error {
 	url := c.encodeURL("/api/topom/group/remove/%s/%d", c.xauth, gid)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) ResyncGroup(gid int) error {
+	url := c.encodeURL("/api/topom/group/resync/%s/%d", c.xauth, gid)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

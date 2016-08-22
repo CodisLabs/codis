@@ -52,6 +52,8 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 		fallthrough
 	case d["--remove-group"].(bool):
 		fallthrough
+	case d["--resync-group"].(bool):
+		fallthrough
 	case d["--group-add"].(bool):
 		fallthrough
 	case d["--group-del"].(bool):
@@ -435,6 +437,16 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 			log.PanicErrorf(err, "call rpc remove-group to dashboard %s failed", t.addr)
 		}
 		log.Debugf("call rpc remove-group OK")
+
+	case d["--resync-group"].(bool):
+
+		gid := utils.ArgumentIntegerMust(d, "--gid")
+
+		log.Debugf("call rpc resync-group to dashboard %s", t.addr)
+		if err := c.ResyncGroup(gid); err != nil {
+			log.PanicErrorf(err, "call rpc resync-group to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc resync-group OK")
 
 	case d["--group-add"].(bool):
 
