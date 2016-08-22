@@ -307,6 +307,9 @@ function processGroupStats(codis_stats) {
             g.ispromoting = false;
         }
         g.canremove = (g.servers.length == 0);
+        if (g.replica_groups == undefined) {
+            g.replica_groups = false;
+        }
         for (var j = 0; j < g.servers.length; j++) {
             var x = g.servers[j];
             var s = group_stats[x.server];
@@ -314,6 +317,11 @@ function processGroupStats(codis_stats) {
             x.memory = "NA";
             x.maxmem = "NA";
             x.master = "NA";
+            if (j == 0) {
+                x.master_expect = "NO:ONE";
+            } else {
+                x.master_expect = g.servers[0].server;
+            }
             if (!s) {
                 x.status = "PENDING";
             } else if (s.timeout) {
@@ -646,6 +654,24 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             if (isValidInput(codis_name) && isValidInput(group_id)) {
                 var xauth = genXAuth(codis_name);
                 var url = concatUrl("/api/topom/group/promote-commit/" + xauth + "/" + group_id, codis_name);
+                $http.put(url).then(function () {
+                    $scope.refreshStats();
+                }, function (failedResp) {
+                    alertErrorResp(failedResp);
+                });
+            }
+        }
+
+        $scope.enableReplicaGroups = function (group_id, replica_groups) {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name) && isValidInput(group_id)) {
+                var xauth = genXAuth(codis_name);
+                var value = 0;
+                if (replica_groups) {
+                    value = 1;
+                }
+                console.debug(replica_groups)
+                var url = concatUrl("/api/topom/group/replica-groups/" + xauth + "/" + group_id + "/" + value, codis_name);
                 $http.put(url).then(function () {
                     $scope.refreshStats();
                 }, function (failedResp) {

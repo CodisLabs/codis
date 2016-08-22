@@ -115,7 +115,7 @@
                             ng-click="createProxy(new_proxy)"
                             ng-disabled="!new_proxy">New Proxy
                     </button>
-                    <input style="height: 28px; width: 250px; " type="text" class="form-control" placeholder="Proxy Admin Address"
+                    <input style="height: 28px; width: 250px;" type="text" class="form-control" placeholder="Proxy Admin Address"
                            ng-model="new_proxy">
                     </span>
                 </form>
@@ -124,11 +124,12 @@
                 <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
                     <thead>
                     <tr>
-                        <th style="width: 1px;">ID</th>
-                        <th style="width: 1px; padding-right: 20px;">Token</th>
+                        <th style="min-width: 1px;">ID</th>
+                        <th style="min-width: 1px; padding-right: 20px;">Token</th>
                         <th style="width: 35px;"/>
                         <th style="min-width: 180px;">Proxy</th>
                         <th style="min-width: 180px;">Admin</th>
+                        <th style="width: 50px;">Link</th>
                         <th style="min-width: 100px;">DC</th>
                         <th style="min-width: 180px;">Sessions</th>
                         <th style="min-width: 200px;">Commands</th>
@@ -141,17 +142,25 @@
                             [[proxy.token]]
                         </td>
                         <td ng-switch="proxy.status">
-                            <span ng-switch-when="HEALTHY" class="btn btn-success btn-xs" ng-click="reinitProxy(proxy)">
-                                <span class="glyphicon glyphicon-repeat"></span>
+                            <span ng-switch-when="HEALTHY" class="btn btn-success btn-xs"
+                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of [[proxy.proxy_addr]]"
+                                ng-click="reinitProxy(proxy)">
+                                <span class="glyphicon glyphicon-arrow-right"></span>
                             </span>
-                            <span ng-switch-when="PENDING" class="btn btn-danger btn-xs" ng-click="reinitProxy(proxy)">
-                                <span class="glyphicon glyphicon-repeat"></span>
+                            <span ng-switch-when="PENDING" class="btn btn-danger btn-xs"
+                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of [[proxy.proxy_addr]]"
+                                ng-click="reinitProxy(proxy)">
+                                <span class="glyphicon glyphicon-arrow-right"></span>
                             </span>
                         </td>
                         <td>[[proxy.proxy_addr]]</td>
-                        <td>[<a ng-href="http://[[proxy.proxy_link]]" target="_blank">F</a>]  [[proxy.admin_addr]]</td>
+                        <td>[[proxy.admin_addr]]</td>
+                        <td>
+                            <a ng-href="http://[[proxy.proxy_link]]" target="_blank" class="btn btn-primary btn-xs active" role="button">F</a>
+                            <a ng-href="http://[[proxy.stats_link]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
+                        </td>
                         <td>[[proxy.datacenter]]</td>
-                        <td>[<a ng-href="http://[[proxy.stats_link]]" target="_blank">S</a>]  [[proxy.sessions]]</td>
+                        <td>[[proxy.sessions]]</td>
                         <td ng-switch="proxy.status">
                             <span ng-switch-when="ERROR" class="status_label_error">[[proxy.status]]</span>
                             <span ng-switch-when="TIMEOUT" class="status_label_warning">[[proxy.status]]</span>
@@ -159,7 +168,9 @@
                             <span ng-switch-default>[[proxy.commands]]</span>
                         </td>
                         <td class="button_tight_column">
-                            <button class="btn btn-danger btn-xs" ng-click="removeProxy(proxy)">
+                            <button class="btn btn-danger btn-xs"
+                                data-toggle="tooltip" data-placement="right" title="REMOVE PROXY [[proxy.proxy_addr]]"
+                                ng-click="removeProxy(proxy)">
                                 <span class="glyphicon glyphicon-minus"></span>
                             </button>
                         </td>
@@ -279,10 +290,10 @@
                         <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
                             <thead>
                             <tr>
-                                <th style="width: 35px">Slot</th>
-                                <th style="width: 35px">Group</th>
-                                <th style="width: 35px">Target</th>
-                                <th style="width: 35px">Index</th>
+                                <th style="min-width: 35px">Slot</th>
+                                <th style="min-width: 35px">Group</th>
+                                <th style="min-width: 35px">Target</th>
+                                <th style="min-width: 35px">Index</th>
                                 <th style="min-width: 120px;">Status</th>
                                 <th style="width: 35px;"></th>
                             </tr>
@@ -315,7 +326,7 @@
             </div>
         </div>
 
-        <div class="row" style="min-width:1200px">
+        <div class="row" style="min-width: 1200px">
             <div class="col-md-12"
                  style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
                 <form class="form-inline">
@@ -357,36 +368,40 @@
                 </form>
             </div>
 
-
             <div class="col-md-12" ng-repeat="group in group_array">
                 <table class="table table-bordered table-striped table-hover table-condensed">
                     <thead>
                     <tr>
-                        <th style="width: 70px; text-align: center" ng-switch="group.ispromoting">
+                        <th style="width: 45px; text-align: center" ng-switch="group.ispromoting">
                             <span ng-switch-when="true" class="status_label_error">
-                                G-[[group.id]]
+                                [[group.id]]
                             </span>
                             <snap ng-switch-default>
-                                G-[[group.id]]
+                                [[group.id]]
                             </snap>
                         </th>
-                        <th style="width: 250px;">Server</th>
+                        <th style="min-width: 180px;">Server</th>
                         <th style="min-width: 100px;">DC</th>
-                        <th style="min-width: 180px;">Master</th>
+                        <th style="min-width: 180px;">Master
+                            <input style="float: right; margin-right: 8px" type="checkbox"
+                                data-toggle="tooltip" data-placement="right" title="CAN READ SLAVES = [[group.replica_groups]]"
+                                ng-model="group.replica_groups" ng-click="enableReplicaGroups(group.id, group.replica_groups)">
+                        </th>
                         <th style="width: 35px;"/>
-                        <th style="width: 140px;"/>
+                        <th style="min-width: 100px;"/>
                         <th style="min-width: 260px;">Memory</th>
-                        <th style="min-width: 320px;">Keys</th>
+                        <th style="min-width: 260px;">Keys</th>
                         <th style="width: 35px;" ng-switch="group.ispromoting">
                             <span ng-switch-when="true">
                                 <button class="btn btn-danger btn-xs"
+                                        data-toggle="tooltip" data-placement="right" title="PROMOTE-COMMIT GROUP-[[group.id]]"
                                         ng-click="promoteCommit(group.id)">
                                     <span class="glyphicon glyphicon-repeat"></span>
                                 </button>
-
                             </span>
                             <span ng-switch-default ng-if="group.canremove">
                                 <button class="btn btn-primary btn-xs"
+                                        data-toggle="tooltip" data-placement="right" title="REMOVE GROUP-[[group.id]]"
                                         ng-click="removeGroup(group.id)">
                                     <span class="glyphicon glyphicon-trash"></span>
                                 </button>
@@ -398,6 +413,7 @@
                         <td class="button_tight_column" ng-switch="server.canpromote" style="text-align: center">
                             <span ng-switch-when="true">
                                 <button class="btn btn-warning btn-xs"
+                                        data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
                                         ng-click="promoteServer(group.id, server.server)">
                                     <span class="glyphicon glyphicon-upload"></span>
                                 </button>
@@ -412,12 +428,14 @@
                         <td class="button_tight_column" ng-switch="server.canslaveof">
                             <span ng-switch-when="create">
                                 <button class="btn btn-success btn-xs"
+                                        data-toggle="tooltip" data-placement="right" title="SLAVEOF [[server.master_expect]]"
                                         ng-click="createSyncAction(server.server)">
                                     <span class="glyphicon glyphicon-wrench"></span>
                                 </button>
                             </span>
                             <span ng-switch-when="remove">
                                 <button class="btn btn-danger btn-xs"
+                                        data-toggle="tooltip" data-placement="right" title="CANCEL ACTION"
                                         ng-click="removeSyncAction(server.server)">
                                     <span class="glyphicon glyphicon-minus"></span>
                                 </button>
@@ -434,6 +452,7 @@
                         <td class="button_tight_column" ng-switch="server.canremove">
                             <span ng-switch-when="true">
                                 <button class="btn btn-danger btn-xs"
+                                        data-toggle="tooltip" data-placement="right" title="REMOVE SERVER [[server.server]]"
                                         ng-click="delGroupServer(group.id, server.server)">
                                     <span class="glyphicon glyphicon-minus"></span>
                                 </button>
