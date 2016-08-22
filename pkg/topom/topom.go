@@ -31,10 +31,12 @@ type Topom struct {
 	model *models.Topom
 	store *models.Store
 	cache struct {
+		hooks list.List
 		slots []*models.SlotMapping
 		group map[int]*models.Group
 		proxy map[string]*models.Proxy
-		hooks list.List
+
+		sentinel *models.Sentinel
 	}
 
 	exit struct {
@@ -62,6 +64,11 @@ type Topom struct {
 	stats struct {
 		servers map[string]*RedisStats
 		proxies map[string]*ProxyStats
+	}
+
+	ha struct {
+		monitor *redis.Sentinel
+		masters map[int]string
 	}
 }
 
@@ -248,6 +255,7 @@ func (s *Topom) newContext() (*context, error) {
 			ctx.slots = s.cache.slots
 			ctx.group = s.cache.group
 			ctx.proxy = s.cache.proxy
+			ctx.sentinel = s.cache.sentinel
 			return ctx, nil
 		}
 	} else {

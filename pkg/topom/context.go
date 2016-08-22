@@ -14,6 +14,8 @@ type context struct {
 	slots []*models.SlotMapping
 	group map[int]*models.Group
 	proxy map[string]*models.Proxy
+
+	sentinel *models.Sentinel
 }
 
 func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {
@@ -167,6 +169,24 @@ func (ctx *context) getGroupMaster(gid int) string {
 		return g.Servers[0].Addr
 	}
 	return ""
+}
+
+func (ctx *context) getGroupMasters() map[int]string {
+	var masters = make(map[int]string)
+	for _, g := range ctx.group {
+		if len(g.Servers) != 0 {
+			masters[g.Id] = g.Servers[0].Addr
+		}
+	}
+	return masters
+}
+
+func (ctx *context) getGroupIds() map[int]bool {
+	var groups = make(map[int]bool)
+	for _, g := range ctx.group {
+		groups[g.Id] = true
+	}
+	return groups
 }
 
 func (ctx *context) isGroupInUse(gid int) bool {

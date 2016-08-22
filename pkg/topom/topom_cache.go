@@ -33,11 +33,18 @@ func (s *Topom) dirtyProxyCache(token string) {
 	})
 }
 
+func (s *Topom) dirtySentinelCache() {
+	s.cache.hooks.PushBack(func() {
+		s.cache.sentinel = nil
+	})
+}
+
 func (s *Topom) dirtyCacheAll() {
 	s.cache.hooks.PushBack(func() {
 		s.cache.slots = nil
 		s.cache.group = nil
 		s.cache.proxy = nil
+		s.cache.sentinel = nil
 	})
 }
 
@@ -63,6 +70,12 @@ func (s *Topom) refillCache() error {
 		return errors.Errorf("store: load proxy failed")
 	} else {
 		s.cache.proxy = proxy
+	}
+	if sentinel, err := s.refillSentinel(); err != nil {
+		log.ErrorErrorf(err, "store: load sentinel failed")
+		return errors.Errorf("store: load sentinel failed")
+	} else {
+		s.cache.sentinel = sentinel
 	}
 	return nil
 }
@@ -130,6 +143,17 @@ func (s *Topom) refillCacheProxy(proxy map[string]*models.Proxy) (map[string]*mo
 	return proxy, nil
 }
 
+func (s *Topom) refillSentinel() (*models.Sentinel, error) {
+	p, err := s.store.LoadSentinel(false)
+	if err != nil {
+		return nil, err
+	}
+	if p != nil {
+		return p, nil
+	}
+	return &models.Sentinel{}, nil
+}
+
 func (s *Topom) storeUpdateSlotMapping(m *models.SlotMapping) error {
 	log.Warnf("update slot-[%d]:\n%s", m.Id, m.Encode())
 	if err := s.store.UpdateSlotMapping(m); err != nil {
@@ -189,6 +213,15 @@ func (s *Topom) storeRemoveProxy(p *models.Proxy) error {
 	if err := s.store.DeleteProxy(p.Token); err != nil {
 		log.ErrorErrorf(err, "store: remove proxy-[%s] failed", p.Token)
 		return errors.Errorf("store: remove proxy-[%s] failed", p.Token)
+	}
+	return nil
+}
+
+func (s *Topom) storeUpdateSentinel(p *models.Sentinel) error {
+	log.Warnf("update sentinel:\n%s", p.Encode())
+	if err := s.store.UpdateSentinel(p); err != nil {
+		log.ErrorErrorf(err, "store: update sentinel failed")
+		return errors.Errorf("store: update sentinel failed")
 	}
 	return nil
 }

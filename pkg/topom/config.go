@@ -29,6 +29,9 @@ product_auth = ""
 
 # Set bind address for admin(rpc), tcp only.
 admin_addr = "0.0.0.0:18080"
+
+# Set quorum value for sentinel, default is 2.
+sentinel_quorum = 2
 `
 
 type Config struct {
@@ -41,6 +44,8 @@ type Config struct {
 
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
+
+	SentinelQuorum int `toml:"sentinel_quorum" json:"sentinel_quorum"`
 }
 
 func NewDefaultConfig() *Config {
