@@ -67,9 +67,9 @@ func (s *Slot) unblock() {
 	s.lock.Unlock()
 }
 
-func (s *Slot) forward(fn dispFunc, r *Request, hkey []byte) error {
+func (s *Slot) forward(r *Request, hkey []byte) error {
 	s.lock.RLock()
-	bc, err := s.prepare(fn, r, hkey)
+	bc, err := s.prepare(r, hkey)
 	s.lock.RUnlock()
 	if err != nil {
 		return err
@@ -84,7 +84,7 @@ var (
 	ErrRespIsRequired = errors.New("resp is required")
 )
 
-func (s *Slot) prepare(fn dispFunc, r *Request, hkey []byte) (*SharedBackendConn, error) {
+func (s *Slot) prepare(r *Request, hkey []byte) (*SharedBackendConn, error) {
 	if s.backend.bc == nil {
 		log.Warnf("slot-%04d is not ready: hkey = %s", s.id, hkey)
 		return nil, ErrSlotIsNotReady
@@ -96,10 +96,7 @@ func (s *Slot) prepare(fn dispFunc, r *Request, hkey []byte) (*SharedBackendConn
 	} else {
 		r.Group = &s.refs
 		r.Group.Add(1)
-		if fn != nil {
-			return fn(s, r)
-		}
-		return s.backend.bc, nil
+		return s.forward2(r)
 	}
 }
 
@@ -139,21 +136,17 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 	}
 }
 
-type dispFunc func(s *Slot, r *Request) (*SharedBackendConn, error)
-
-func dispReadReplica(s *Slot, r *Request) (*SharedBackendConn, error) {
-	if s.migrate.bc != nil {
+func (s *Slot) forward2(r *Request) (*SharedBackendConn, error) {
+	if s.migrate.bc != nil || !r.IsReadOnly() {
 		return s.backend.bc, nil
 	}
-	if r.IsReadOnly() {
-		seed := uint(r.Start)
-		for _, group := range s.replicaGroups {
-			for i := 0; i < len(group); i++ {
-				index := (seed + uint(i)) % uint(len(group))
-				if bc := group[index]; bc != nil {
-					if bc.IsConnected() {
-						return bc, nil
-					}
+	seed := uint(r.Start)
+	for _, group := range s.replicaGroups {
+		for i := 0; i < len(group); i++ {
+			index := (seed + uint(i)) % uint(len(group))
+			if bc := group[index]; bc != nil {
+				if bc.IsConnected() {
+					return bc, nil
 				}
 			}
 		}

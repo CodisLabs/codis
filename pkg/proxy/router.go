@@ -21,12 +21,11 @@ type Router struct {
 
 	slots [models.MaxSlotNum]Slot
 
-	dispFunc
-	sentinel *redis.Sentinel
-
 	config *Config
 	online bool
 	closed bool
+
+	sentinel *redis.Sentinel
 }
 
 func NewRouter(config *Config) *Router {
@@ -34,9 +33,6 @@ func NewRouter(config *Config) *Router {
 	s.pool = make(map[string]*SharedBackendConn)
 	for i := range s.slots {
 		s.slots[i].id = i
-	}
-	if config.BackendReadReplica {
-		s.dispFunc = dispReadReplica
 	}
 	return s
 }
@@ -135,7 +131,7 @@ func (s *Router) dispatch(r *Request) error {
 	hkey := getHashKey(r.Multi, r.OpStr)
 	var id = Hash(hkey) % uint32(len(s.slots))
 	slot := &s.slots[id]
-	return slot.forward(s.dispFunc, r, hkey)
+	return slot.forward(r, hkey)
 }
 
 func (s *Router) dispatchSlot(r *Request, id int) error {
@@ -143,7 +139,7 @@ func (s *Router) dispatchSlot(r *Request, id int) error {
 		return ErrInvalidSlotId
 	}
 	slot := &s.slots[id]
-	return slot.forward(s.dispFunc, r, nil)
+	return slot.forward(r, nil)
 }
 
 func (s *Router) dispatchAddr(r *Request, addr string) bool {
@@ -206,14 +202,12 @@ func (s *Router) fillSlot(m *models.Slot) error {
 		slot.migrate.bc = s.getBackendConn(from, true)
 		slot.migrate.id = m.MigrateFromId
 	}
-	if s.dispFunc != nil {
-		for i := range m.ReplicaGroups {
-			var group []*SharedBackendConn
-			for _, addr := range m.ReplicaGroups[i] {
-				group = append(group, s.getBackendConn(addr, true))
-			}
-			slot.replicaGroups = append(slot.replicaGroups, group)
+	for i := range m.ReplicaGroups {
+		var group []*SharedBackendConn
+		for _, addr := range m.ReplicaGroups[i] {
+			group = append(group, s.getBackendConn(addr, true))
 		}
+		slot.replicaGroups = append(slot.replicaGroups, group)
 	}
 
 	if !m.Locked {
