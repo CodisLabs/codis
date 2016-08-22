@@ -58,6 +58,8 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 		fallthrough
 	case d["--group-status"].(bool):
 		fallthrough
+	case d["--replica-groups"].(bool):
+		fallthrough
 	case d["--promote-server"].(bool):
 		fallthrough
 	case d["--promote-commit"].(bool):
@@ -454,6 +456,17 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 			log.PanicErrorf(err, "call rpc group-del-server to dashboard %s failed", t.addr)
 		}
 		log.Debugf("call rpc group-del-server OK")
+
+	case d["--replica-groups"].(bool):
+
+		gid := utils.ArgumentIntegerMust(d, "--gid")
+		value := d["--enable"].(bool)
+
+		log.Debugf("call rpc replica-groups to dashboard %s", t.addr)
+		if err := c.EnableReplicaGroups(gid, value); err != nil {
+			log.PanicErrorf(err, "call rpc replica-groups to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc replica-groups to dashboard OK")
 
 	case d["--promote-server"].(bool):
 

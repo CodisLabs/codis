@@ -263,6 +263,24 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 	}
 }
 
+func (s *Topom) EnableReplicaGroups(gid int, value bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+
+	g, err := ctx.getGroup(gid)
+	if err != nil {
+		return err
+	}
+	s.dirtyGroupCache(g.Id)
+
+	g.ReplicaGroups = value
+	return s.storeUpdateGroup(g)
+}
+
 func (s *Topom) SyncCreateAction(addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -90,10 +90,10 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	}
 	xauth := params["xauth"]
 	if xauth == "" {
-		return errors.New("missing xauth")
+		return errors.New("missing xauth, please check product name & auth")
 	}
 	if xauth != s.proxy.XAuth() {
-		return errors.New("invalid xauth")
+		return errors.New("invalid xauth, please check product name & auth")
 	}
 	return nil
 }

@@ -90,6 +90,7 @@ func newApiServer(t *Topom) http.Handler {
 			r.Put("/del/:xauth/:gid/:addr", api.GroupDelServer)
 			r.Put("/promote/:xauth/:gid/:addr", api.GroupPromoteServer)
 			r.Put("/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
+			r.Put("/replica-groups/:xauth/:gid/:value", api.EnableReplicaGroups)
 			r.Group("/action", func(r martini.Router) {
 				r.Put("/create/:xauth/:addr", api.SyncCreateAction)
 				r.Put("/remove/:xauth/:addr", api.SyncRemoveAction)
@@ -118,10 +119,10 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 	}
 	xauth := params["xauth"]
 	if xauth == "" {
-		return errors.New("missing xauth")
+		return errors.New("missing xauth, please check product name & auth")
 	}
 	if xauth != s.topom.XAuth() {
-		return errors.New("invalid xauth")
+		return errors.New("invalid xauth, please check product name & auth")
 	}
 	return nil
 }
@@ -378,6 +379,25 @@ func (s *apiServer) GroupPromoteCommit(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.topom.GroupPromoteCommit(gid); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) EnableReplicaGroups(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	gid, err := s.parseInteger(params, "gid")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	n, err := s.parseInteger(params, "value")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.EnableReplicaGroups(gid, n != 0); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -662,6 +682,15 @@ func (c *ApiClient) GroupPromoteServer(gid int, addr string) error {
 
 func (c *ApiClient) GroupPromoteCommit(gid int) error {
 	url := c.encodeURL("/api/topom/group/promote-commit/%s/%d", c.xauth, gid)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) EnableReplicaGroups(gid int, value bool) error {
+	var n int
+	if value {
+		n = 1
+	}
+	url := c.encodeURL("/api/topom/group/replica-groups/%s/%d/%d", c.xauth, gid, n)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

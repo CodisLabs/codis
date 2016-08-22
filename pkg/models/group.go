@@ -13,6 +13,8 @@ type Group struct {
 		Index int    `json:"index,omitempty"`
 		State string `json:"state,omitempty"`
 	} `json:"promoting"`
+
+	ReplicaGroups bool `json:"replica_groups,omitempty"`
 }
 
 type GroupServer struct {
