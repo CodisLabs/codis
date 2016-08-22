@@ -25,7 +25,7 @@ func ProductDir(product string) string {
 }
 
 func LockPath(product string) string {
-	return filepath.Join(CodisDir, product, "topom-lock")
+	return filepath.Join(CodisDir, product, "topom")
 }
 
 func SlotPath(product string, sid int) string {

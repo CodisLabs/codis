@@ -61,16 +61,7 @@ lastpid=$!
 pidlist="$pidlist $lastpid"
 echo "dashboard.pid=$lastpid"
 
-cat > codis.json <<EOF
-[
-    {
-        "name": "codis-test",
-        "dashboard": "127.0.0.1:18080"
-    }
-]
-EOF
-
-nohup codis-fe -d codis.json --listen 0.0.0.0:8080 --assets-dir ../../cmd/fe/assets &> fe.log &
+nohup codis-fe --etcd 127.0.0.1:2379 --listen 0.0.0.0:8080 --assets-dir ../../cmd/fe/assets &> fe.log &
 lastpid=$!
 pidlist="$pidlist $lastpid"
 echo "fe.pid=$lastpid"

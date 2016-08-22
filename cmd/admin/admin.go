@@ -405,7 +405,7 @@ func (t *cmdAdmin) handleDashboardList(d map[string]interface{}) {
 	client := t.newTopomClient(d)
 	defer client.Close()
 
-	list, err := client.List("/codis3", false)
+	list, err := client.List(models.CodisDir, false)
 	if err != nil {
 		log.PanicErrorf(err, "list products failed")
 	}
@@ -418,7 +418,7 @@ func (t *cmdAdmin) handleDashboardList(d map[string]interface{}) {
 			Dashboard string `json:"dashboard"`
 		}{filepath.Base(path), ""}
 
-		if b, err := client.Read(filepath.Join(path, "topom"), false); err != nil {
+		if b, err := client.Read(models.LockPath(elem.Name), false); err != nil {
 			log.PanicErrorf(err, "read topom of product %s failed", elem.Name)
 		} else if b != nil {
 			var t = &models.Topom{}
