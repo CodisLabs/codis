@@ -117,7 +117,7 @@ func GetOpStatsAll() []*OpStats {
 	return all
 }
 
-func ClearOpStats() {
+func ResetOpStats() {
 	cmdstats.Lock()
 	cmdstats.opmap = make(map[string]*opStats, 128)
 	cmdstats.Unlock()

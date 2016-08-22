@@ -71,7 +71,7 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Get("/stats/:xauth", api.Stats)
 		r.Get("/slots/:xauth", api.Slots)
 		r.Put("/start/:xauth", api.Start)
-		r.Put("/stats/:xauth/clear", api.ClearStats)
+		r.Put("/stats/:xauth/reset", api.ResetStats)
 		r.Put("/forcegc/:xauth", api.ForceGC)
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/loglevel/:xauth/:value", api.LogLevel)
@@ -149,11 +149,11 @@ func (s *apiServer) Start(params martini.Params) (int, string) {
 	}
 }
 
-func (s *apiServer) ClearStats(params martini.Params) (int, string) {
+func (s *apiServer) ResetStats(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		ClearOpStats()
+		ResetOpStats()
 		return rpc.ApiResponseJson("OK")
 	}
 }
@@ -276,8 +276,8 @@ func (c *ApiClient) Slots() ([]*models.Slot, error) {
 	return slots, nil
 }
 
-func (c *ApiClient) ClearStats() error {
-	url := c.encodeURL("/api/proxy/stats/%s/clear", c.xauth)
+func (c *ApiClient) ResetStats() error {
+	url := c.encodeURL("/api/proxy/stats/%s/reset", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

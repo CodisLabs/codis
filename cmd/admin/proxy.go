@@ -34,8 +34,8 @@ func (t *cmdProxy) Main(d map[string]interface{}) {
 		t.handleLogLevel(d)
 	case d["--fillslots"] != nil:
 		t.handleFillSlots(d)
-	case d["--clear-stats"].(bool):
-		t.handleClearStats(d)
+	case d["--reset-stats"].(bool):
+		t.handleResetStats(d)
 	case d["--forcegc"].(bool):
 		t.handleForceGC(d)
 	}
@@ -163,14 +163,14 @@ func (t *cmdProxy) handleFillSlots(d map[string]interface{}) {
 	log.Debugf("call rpc fillslots OK")
 }
 
-func (t *cmdProxy) handleClearStats(d map[string]interface{}) {
+func (t *cmdProxy) handleResetStats(d map[string]interface{}) {
 	c := t.newProxyClient(true)
 
-	log.Debugf("call rpc clearstats to proxy %s", t.addr)
-	if err := c.ClearStats(); err != nil {
-		log.PanicErrorf(err, "call rpc clearstats to proxy %s failed", t.addr)
+	log.Debugf("call rpc resetstats to proxy %s", t.addr)
+	if err := c.ResetStats(); err != nil {
+		log.PanicErrorf(err, "call rpc resetstats to proxy %s failed", t.addr)
 	}
-	log.Debugf("call rpc clearstats OK")
+	log.Debugf("call rpc resetstats OK")
 }
 
 func (t *cmdProxy) handleForceGC(d map[string]interface{}) {

@@ -17,7 +17,7 @@ Usage:
 	codis-admin [-v] --proxy=ADDR [--auth=AUTH]  --shutdown
 	codis-admin [-v] --proxy=ADDR [--auth=AUTH]  --log-level=LEVEL
 	codis-admin [-v] --proxy=ADDR [--auth=AUTH]  --fillslots=FILE [--locked]
-	codis-admin [-v] --proxy=ADDR [--auth=AUTH]  --clear-stats
+	codis-admin [-v] --proxy=ADDR [--auth=AUTH]  --reset-stats
 	codis-admin [-v] --proxy=ADDR [--auth=AUTH]  --forcegc
 	codis-admin [-v] --dashboard=ADDR           [config|model|stats|slots|group|proxy]
 	codis-admin [-v] --dashboard=ADDR            --shutdown
