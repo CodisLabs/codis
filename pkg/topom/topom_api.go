@@ -105,7 +105,7 @@ func newApiServer(t *Topom) http.Handler {
 				r.Put("/interval/:xauth/:value", api.SetSlotActionInterval)
 				r.Put("/disabled/:xauth/:value", api.SetSlotActionDisabled)
 			})
-			r.Put("/remap/:xauth", binding.Json([]*models.SlotMapping{}), api.SlotsRemapGroup)
+			r.Put("/assign/:xauth", binding.Json([]*models.SlotMapping{}), api.SlotsAssignGroup)
 		})
 	})
 
@@ -564,11 +564,11 @@ func (s *apiServer) SetSlotActionDisabled(params martini.Params) (int, string) {
 	}
 }
 
-func (s *apiServer) SlotsRemapGroup(slots []*models.SlotMapping, params martini.Params) (int, string) {
+func (s *apiServer) SlotsAssignGroup(slots []*models.SlotMapping, params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	if err := s.topom.SlotsRemapGroup(slots); err != nil {
+	if err := s.topom.SlotsAssignGroup(slots); err != nil {
 		return rpc.ApiResponseError(err)
 	}
 	return rpc.ApiResponseJson("OK")
@@ -754,7 +754,7 @@ func (c *ApiClient) SetSlotActionDisabled(disabled bool) error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) SlotsRemapGroup(slots []*models.SlotMapping) error {
-	url := c.encodeURL("/api/topom/slots/remap/%s", c.xauth)
+func (c *ApiClient) SlotsAssignGroup(slots []*models.SlotMapping) error {
+	url := c.encodeURL("/api/topom/slots/assign/%s", c.xauth)
 	return rpc.ApiPutJson(url, slots, nil)
 }

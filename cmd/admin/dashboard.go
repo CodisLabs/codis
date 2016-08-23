@@ -34,7 +34,7 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 	case d["--log-level"] != nil:
 		t.handleLogLevel(d)
 
-	case d["--slots-remap"] != nil:
+	case d["--slots-assign"] != nil:
 		fallthrough
 	case d["--slots-status"].(bool):
 		t.handleSlotsCommand(d)
@@ -203,9 +203,9 @@ func (t *cmdDashboard) handleSlotsCommand(d map[string]interface{}) {
 		}
 		fmt.Println(string(b))
 
-	case d["--slots-remap"] != nil:
+	case d["--slots-assign"] != nil:
 
-		file := utils.ArgumentMust(d, "--slots-remap")
+		file := utils.ArgumentMust(d, "--slots-assign")
 		b, err := ioutil.ReadFile(file)
 		if err != nil {
 			log.PanicErrorf(err, "read file '%s' failed", file)
@@ -225,11 +225,11 @@ func (t *cmdDashboard) handleSlotsCommand(d map[string]interface{}) {
 			return
 		}
 
-		log.Debugf("call rpc slots-remap to dashboard %s", t.addr)
-		if err := c.SlotsRemapGroup(slots); err != nil {
-			log.PanicErrorf(err, "call rpc slots-remap to dashboard %s failed", t.addr)
+		log.Debugf("call rpc slots-assign to dashboard %s", t.addr)
+		if err := c.SlotsAssignGroup(slots); err != nil {
+			log.PanicErrorf(err, "call rpc slots-assign to dashboard %s failed", t.addr)
 		}
-		log.Debugf("call rpc slots-remap OK")
+		log.Debugf("call rpc slots-assign OK")
 
 	}
 }

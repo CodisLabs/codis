@@ -58,7 +58,7 @@ func TestApiSlots(x *testing.T) {
 	assert.MustNoError(c.SetSlotActionInterval(2000))
 	assert.MustNoError(c.SetSlotActionDisabled(true))
 
-	assert.MustNoError(c.SlotsRemapGroup([]*models.SlotMapping{
+	assert.MustNoError(c.SlotsAssignGroup([]*models.SlotMapping{
 		&models.SlotMapping{Id: sid, GroupId: gid},
 	}))
 

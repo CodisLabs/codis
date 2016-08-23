@@ -424,21 +424,21 @@ func TestSlotActionFinished(x *testing.T) {
 	assert.Must(s.BackendAddr == server2 && s.MigrateFrom == "")
 }
 
-func TestSlotsRemapGroup(x *testing.T) {
+func TestSlotsAssignGroup(x *testing.T) {
 	t := openTopom()
 	defer t.Close()
 
 	m := &models.SlotMapping{Id: 100, GroupId: 200}
 	m.Action.State = models.ActionPending
 
-	assert.Must(t.SlotsRemapGroup([]*models.SlotMapping{m}) != nil)
+	assert.Must(t.SlotsAssignGroup([]*models.SlotMapping{m}) != nil)
 
 	g := &models.Group{Id: 200, Servers: []*models.GroupServer{
 		&models.GroupServer{Addr: "server"},
 	}}
 	contextCreateGroup(t, g)
-	assert.Must(t.SlotsRemapGroup([]*models.SlotMapping{m}) != nil)
+	assert.Must(t.SlotsAssignGroup([]*models.SlotMapping{m}) != nil)
 
 	m.Action.State = models.ActionNothing
-	assert.MustNoError(t.SlotsRemapGroup([]*models.SlotMapping{m}))
+	assert.MustNoError(t.SlotsAssignGroup([]*models.SlotMapping{m}))
 }

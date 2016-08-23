@@ -260,7 +260,7 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 	}
 }
 
-func (s *Topom) SlotsRemapGroup(slots []*models.SlotMapping) error {
+func (s *Topom) SlotsAssignGroup(slots []*models.SlotMapping) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
