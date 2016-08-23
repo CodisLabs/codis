@@ -46,6 +46,8 @@ type Proxy struct {
 
 	ha struct {
 		monitor *redis.Sentinel
+		masters map[int]string
+		servers []string
 	}
 }
 
@@ -247,10 +249,21 @@ func (s *Proxy) SwitchMasters(masters map[int]string) error {
 	if s.closed {
 		return ErrClosedProxy
 	}
+	s.ha.masters = masters
+
 	if len(masters) != 0 {
 		s.router.SwitchMasters(masters)
 	}
 	return nil
+}
+
+func (s *Proxy) GetSentinels() ([]string, map[int]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, nil
+	}
+	return s.ha.servers, s.ha.masters
 }
 
 func (s *Proxy) SetSentinels(servers []string) error {
@@ -263,8 +276,12 @@ func (s *Proxy) SetSentinels(servers []string) error {
 		s.ha.monitor.Cancel()
 		s.ha.monitor = nil
 	}
+	s.ha.masters = nil
+	s.ha.servers = nil
+
 	if len(servers) != 0 {
 		s.ha.monitor = redis.NewSentinel(s.config.ProductName)
+		s.ha.servers = servers
 		go func(p *redis.Sentinel) {
 			for {
 				timeout := time.Second * 5
@@ -395,6 +412,11 @@ type Stats struct {
 	Online bool `json:"online"`
 	Closed bool `json:"closed"`
 
+	Sentinels struct {
+		Servers []string       `json:"servers,omitempty"`
+		Masters map[int]string `json:"masters,omitempty"`
+	} `json:"sentinels"`
+
 	Ops struct {
 		Total int64      `json:"total"`
 		Fails int64      `json:"fails"`
@@ -460,6 +482,10 @@ func (s *Proxy) Stats(simple bool) *Stats {
 	stats := &Stats{}
 	stats.Online = s.IsOnline()
 	stats.Closed = s.IsClosed()
+
+	servers, masters := s.GetSentinels()
+	stats.Sentinels.Servers = servers
+	stats.Sentinels.Masters = masters
 
 	stats.Ops.Total = OpTotal()
 	stats.Ops.Fails = OpFails()
