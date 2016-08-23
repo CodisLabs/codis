@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
+	"github.com/CodisLabs/codis/pkg/utils/redis"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
 	"github.com/CodisLabs/codis/pkg/utils/unsafe2"
 )
@@ -43,6 +43,10 @@ type Proxy struct {
 	lproxy net.Listener
 	ladmin net.Listener
 	xjodis *Jodis
+
+	ha struct {
+		monitor *redis.Sentinel
+	}
 }
 
 var ErrClosedProxy = errors.New("use of closed proxy")
@@ -178,6 +182,9 @@ func (s *Proxy) Close() error {
 	if s.router != nil {
 		s.router.Close()
 	}
+	if s.ha.monitor != nil {
+		s.ha.monitor.Cancel()
+	}
 	return nil
 }
 
@@ -234,13 +241,55 @@ func (s *Proxy) FillSlots(slots []*models.Slot) error {
 	return nil
 }
 
+func (s *Proxy) SwitchMasters(masters map[int]string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
+	}
+	if len(masters) != 0 {
+		s.router.SwitchMasters(masters)
+	}
+	return nil
+}
+
 func (s *Proxy) SetSentinels(servers []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
 		return ErrClosedProxy
 	}
-	return s.router.SetSentinels(servers)
+	if s.ha.monitor != nil {
+		s.ha.monitor.Cancel()
+		s.ha.monitor = nil
+	}
+	if len(servers) != 0 {
+		s.ha.monitor = redis.NewSentinel(s.config.ProductName)
+		go func(p *redis.Sentinel) {
+			for {
+				timeout := time.Second * 5
+				masters := p.Masters(s.router.GetGroupIds(), timeout, servers...)
+				if p.IsCancelled() {
+					return
+				}
+				s.SwitchMasters(masters)
+
+				expires := time.Minute * 5
+				retryAt := time.Now().Add(time.Minute)
+				if !p.Subscribe(expires, servers...) {
+					for time.Now().Before(retryAt) {
+						if p.IsCancelled() {
+							return
+						}
+						time.Sleep(time.Second)
+					}
+				}
+				time.Sleep(time.Millisecond * 250)
+			}
+		}(s.ha.monitor)
+	}
+	log.Warnf("[%p] set sentinels = %v", s, servers)
+	return nil
 }
 
 func (s *Proxy) serveAdmin() {
@@ -285,7 +334,7 @@ func (s *Proxy) serveProxy() {
 			if err != nil {
 				return err
 			}
-			s.newSession(c, s.config).Start(s.router, s.config)
+			NewSessionConn(c, s.config).Start(s.router, s.config)
 		}
 	}(s.lproxy)
 
@@ -315,17 +364,6 @@ func (s *Proxy) keepAlive(d time.Duration) {
 			s.router.KeepAlive()
 		}
 	}
-}
-
-func (s *Proxy) newSession(sock net.Conn, config *Config) *Session {
-	c := redis.NewConn(sock,
-		config.SessionRecvBufsize.Int(),
-		config.SessionSendBufsize.Int(),
-	)
-	c.ReaderTimeout = config.SessionRecvTimeout.Get()
-	c.WriterTimeout = config.SessionSendTimeout.Get()
-	c.SetKeepAlivePeriod(config.SessionKeepAlivePeriod.Get())
-	return NewSession(c, config.ProductAuth)
 }
 
 func (s *Proxy) acceptConn(l net.Listener) (net.Conn, error) {

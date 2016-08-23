@@ -5,12 +5,10 @@ package proxy
 
 import (
 	"sync"
-	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
-	"github.com/CodisLabs/codis/pkg/utils/redis"
 )
 
 type Router struct {
@@ -23,11 +21,6 @@ type Router struct {
 	config *Config
 	online bool
 	closed bool
-
-	ha struct {
-		monitor *redis.Sentinel
-		masters map[int]string
-	}
 }
 
 func NewRouter(config *Config) *Router {
@@ -56,10 +49,6 @@ func (s *Router) Close() {
 	}
 	s.closed = true
 
-	if s.ha.monitor != nil {
-		s.ha.monitor.Cancel()
-		s.ha.monitor = nil
-	}
 	for i := range s.slots {
 		s.fillSlot(&models.Slot{Id: i})
 	}
@@ -233,29 +222,23 @@ func (s *Router) SwitchMasters(masters map[int]string) error {
 	if s.closed {
 		return ErrClosedRouter
 	}
-	s.ha.masters = masters
-
 	for i := range s.slots {
-		s.trySwitchMaster(i)
+		s.trySwitchMaster(i, masters)
 	}
 	return nil
 }
 
-func (s *Router) trySwitchMaster(id int) {
-	if len(s.ha.masters) == 0 {
-		return
-	}
-	m := s.slots[id].snapshot(false)
-
+func (s *Router) trySwitchMaster(id int, masters map[int]string) {
 	var refill = false
+	var m = s.slots[id].snapshot(false)
 
-	if addr := s.ha.masters[m.BackendAddrId]; len(addr) != 0 {
+	if addr := masters[m.BackendAddrId]; len(addr) != 0 {
 		if addr != m.BackendAddr {
 			m.BackendAddr = addr
 			refill = true
 		}
 	}
-	if from := s.ha.masters[m.MigrateFromId]; len(from) != 0 {
+	if from := masters[m.MigrateFromId]; len(from) != 0 {
 		if from != m.MigrateFrom {
 			m.MigrateFrom = from
 			refill = true
@@ -264,48 +247,7 @@ func (s *Router) trySwitchMaster(id int) {
 	if !refill {
 		return
 	}
-	log.Warnf("HA: fill slot %04d +switch-master", id)
+	log.Warnf("refill slot %04d +switch-master", id)
+
 	s.fillSlot(m)
-}
-
-func (s *Router) SetSentinels(servers []string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosedProxy
-	}
-	if s.ha.monitor != nil {
-		s.ha.monitor.Cancel()
-		s.ha.monitor = nil
-	}
-	log.Warnf("set sentinels = %v", servers)
-
-	if len(servers) == 0 {
-		s.ha.masters = nil
-	} else {
-		s.ha.monitor = redis.NewSentinel(s.config.ProductName)
-		go func(p *redis.Sentinel) {
-			for {
-				timeout := time.Second * 5
-				masters := p.Masters(s.GetGroupIds(), timeout, servers...)
-				if p.IsCancelled() {
-					return
-				}
-				s.SwitchMasters(masters)
-
-				expires := time.Minute * 5
-				retryAt := time.Now().Add(time.Minute)
-				if !p.Subscribe(expires, servers...) {
-					for time.Now().Before(retryAt) {
-						if p.IsCancelled() {
-							return
-						}
-						time.Sleep(time.Second)
-					}
-				}
-				time.Sleep(time.Millisecond * 250)
-			}
-		}(s.ha.monitor)
-	}
-	return nil
 }

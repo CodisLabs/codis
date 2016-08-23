@@ -6,6 +6,7 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -67,6 +68,17 @@ func NewSession(conn *redis.Conn, auth string) *Session {
 	s.stats.opmap = make(map[string]*opStats, 16)
 	log.Infof("session [%p] create: %s", s, s)
 	return s
+}
+
+func NewSessionConn(sock net.Conn, config *Config) *Session {
+	c := redis.NewConn(sock,
+		config.SessionRecvBufsize.Int(),
+		config.SessionSendBufsize.Int(),
+	)
+	c.ReaderTimeout = config.SessionRecvTimeout.Get()
+	c.WriterTimeout = config.SessionSendTimeout.Get()
+	c.SetKeepAlivePeriod(config.SessionKeepAlivePeriod.Get())
+	return NewSession(c, config.ProductAuth)
 }
 
 func (s *Session) CloseWithError(err error, half bool) {
