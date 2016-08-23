@@ -162,7 +162,6 @@ func (s *Topom) ResyncSentinel() error {
 	if err != nil {
 		return err
 	}
-
 	var fut sync2.Future
 	for _, p := range ctx.proxy {
 		fut.Add()

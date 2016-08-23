@@ -136,6 +136,10 @@ func (s *Topom) reinitProxy(ctx *context, p *models.Proxy, c *proxy.ApiClient) e
 		log.ErrorErrorf(err, "proxy-[%s] start failed", p.Token)
 		return errors.Errorf("proxy-[%s] start failed", p.Token)
 	}
+	if err := c.SetSentinels(ctx.sentinel); err != nil {
+		log.ErrorErrorf(err, "proxy-[%s] set sentinels failed", p.Token)
+		return errors.Errorf("proxy-[%s] set sentinels failed", p.Token)
+	}
 	return nil
 }
 
