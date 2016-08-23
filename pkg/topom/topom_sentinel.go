@@ -36,7 +36,7 @@ func (s *Topom) AddSentinel(addr string) error {
 		return err
 	}
 
-	s.setSentinels(p.Servers)
+	s.updateSentinels(p.Servers)
 
 	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
 	return sentinel.Monitor(ctx.getGroupMasters(), s.config.SentinelQuorum, time.Second*5, addr)
@@ -64,6 +64,7 @@ func (s *Topom) DelSentinel(addr string) error {
 	if len(slice) == len(p.Servers) {
 		return errors.Errorf("sentinel-[%s] not found", addr)
 	}
+
 	s.dirtySentinelCache()
 
 	p.Servers = slice
@@ -71,7 +72,7 @@ func (s *Topom) DelSentinel(addr string) error {
 		return err
 	}
 
-	s.setSentinels(p.Servers)
+	s.updateSentinels(p.Servers)
 
 	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
 	return sentinel.Unmonitor(ctx.getGroupIds(), time.Second*5, addr)
@@ -100,7 +101,7 @@ func (s *Topom) ReinitSentinel(addr string) error {
 	return sentinel.Monitor(ctx.getGroupMasters(), s.config.SentinelQuorum, time.Second*5, addr)
 }
 
-func (s *Topom) SetHAMasters(masters map[int]string) error {
+func (s *Topom) SwitchMasters(masters map[int]string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -110,12 +111,7 @@ func (s *Topom) SetHAMasters(masters map[int]string) error {
 	return nil
 }
 
-func (s *Topom) setSentinels(servers []string) {
-	if s.ha.monitor != nil {
-		s.ha.monitor.Cancel()
-		s.ha.monitor = nil
-	}
-
+func (s *Topom) updateSentinels(servers []string) {
 	getGroupIds := func() map[int]bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -124,6 +120,11 @@ func (s *Topom) setSentinels(servers []string) {
 			return nil
 		}
 		return ctx.getGroupIds()
+	}
+
+	if s.ha.monitor != nil {
+		s.ha.monitor.Cancel()
+		s.ha.monitor = nil
 	}
 
 	if len(servers) == 0 {
@@ -137,10 +138,11 @@ func (s *Topom) setSentinels(servers []string) {
 				if p.IsCancelled() {
 					return
 				}
-				s.SetHAMasters(masters)
+				s.SwitchMasters(masters)
 
+				expires := time.Minute * 5
 				retryAt := time.Now().Add(time.Minute)
-				if !p.Subscribe(time.Hour, servers...) {
+				if !p.Subscribe(expires, servers...) {
 					for time.Now().Before(retryAt) {
 						if p.IsCancelled() {
 							return
