@@ -297,5 +297,5 @@ func (s *Topom) SlotsAssignGroup(slots []*models.SlotMapping) error {
 			return err
 		}
 	}
-	return nil
+	return s.resyncSlots(ctx, slots...)
 }
