@@ -293,8 +293,9 @@ func (s *Router) SetSentinels(servers []string) error {
 				}
 				s.SwitchMasters(masters)
 
+				expires := time.Minute * 5
 				retryAt := time.Now().Add(time.Minute)
-				if !p.Subscribe(time.Hour, servers...) {
+				if !p.Subscribe(expires, servers...) {
 					for time.Now().Before(retryAt) {
 						if p.IsCancelled() {
 							return
