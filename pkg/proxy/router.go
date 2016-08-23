@@ -24,7 +24,10 @@ type Router struct {
 	online bool
 	closed bool
 
-	sentinel *redis.Sentinel
+	ha struct {
+		monitor *redis.Sentinel
+		masters map[int]string
+	}
 }
 
 func NewRouter(config *Config) *Router {
@@ -53,8 +56,9 @@ func (s *Router) Close() {
 	}
 	s.closed = true
 
-	if s.sentinel != nil {
-		s.sentinel.Cancel()
+	if s.ha.monitor != nil {
+		s.ha.monitor.Cancel()
+		s.ha.monitor = nil
 	}
 	for i := range s.slots {
 		s.fillSlot(&models.Slot{Id: i})
@@ -107,7 +111,12 @@ func (s *Router) FillSlot(m *models.Slot) error {
 	if s.closed {
 		return ErrClosedRouter
 	}
-	return s.fillSlot(m)
+	if m.Id < 0 || m.Id >= len(s.slots) {
+		return ErrInvalidSlotId
+	}
+	s.fillSlot(m)
+	s.trySwitchMaster(m.Id)
+	return nil
 }
 
 func (s *Router) KeepAlive() error {
@@ -172,12 +181,8 @@ func (s *Router) putBackendConn(bc *SharedBackendConn) {
 	}
 }
 
-func (s *Router) fillSlot(m *models.Slot) error {
-	id := m.Id
-	if id < 0 || id >= len(s.slots) {
-		return ErrInvalidSlotId
-	}
-	slot := &s.slots[id]
+func (s *Router) fillSlot(m *models.Slot) {
+	slot := &s.slots[m.Id]
 	slot.blockAndWait()
 
 	s.putBackendConn(slot.backend.bc)
@@ -215,13 +220,12 @@ func (s *Router) fillSlot(m *models.Slot) error {
 	if !s.closed {
 		if slot.migrate.bc != nil {
 			log.Warnf("fill slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
-				id, slot.backend.bc.Addr(), slot.migrate.bc.Addr(), slot.lock.hold)
+				slot.id, slot.backend.bc.Addr(), slot.migrate.bc.Addr(), slot.lock.hold)
 		} else {
 			log.Warnf("fill slot %04d, backend.addr = %s, locked = %t",
-				id, slot.backend.bc.Addr(), slot.lock.hold)
+				slot.id, slot.backend.bc.Addr(), slot.lock.hold)
 		}
 	}
-	return nil
 }
 
 func (s *Router) SwitchMasters(masters map[int]string) error {
@@ -230,51 +234,39 @@ func (s *Router) SwitchMasters(masters map[int]string) error {
 	if s.closed {
 		return ErrClosedRouter
 	}
+	s.ha.masters = masters
 
 	for i := range s.slots {
-		s.switchMasters(i, masters)
+		s.trySwitchMaster(i)
 	}
 	return nil
 }
 
-func (s *Router) switchMasters(id int, masters map[int]string) error {
-	slot := &s.slots[id]
-
-	var backendAddr string
-	if slot.backend.id != 0 {
-		backendAddr = masters[slot.backend.id]
+func (s *Router) trySwitchMaster(id int) {
+	if len(s.ha.masters) == 0 {
+		return
 	}
-	var migrateFrom string
-	if slot.migrate.id != 0 {
-		migrateFrom = masters[slot.migrate.id]
-	}
+	m := s.slots[id].snapshot(false)
 
-	var changed bool
+	var refill = false
 
-	if backendAddr != "" {
-		if slot.backend.bc.Addr() != backendAddr {
-			changed = true
+	if addr := s.ha.masters[m.BackendAddrId]; len(addr) != 0 {
+		if addr != m.BackendAddr {
+			m.BackendAddr = addr
+			refill = true
 		}
 	}
-	if migrateFrom != "" {
-		if slot.migrate.bc.Addr() != migrateFrom {
-			changed = true
+	if from := s.ha.masters[m.MigrateFromId]; len(from) != 0 {
+		if from != m.MigrateFrom {
+			m.MigrateFrom = from
+			refill = true
 		}
 	}
-	if !changed {
-		return nil
+	if !refill {
+		return
 	}
-	log.Warnf("slot %04d will switch master", id)
-
-	var m = slot.snapshot(false)
-
-	if backendAddr != "" {
-		m.BackendAddr = backendAddr
-	}
-	if migrateFrom != "" {
-		m.MigrateFrom = migrateFrom
-	}
-	return s.fillSlot(m)
+	log.Warnf("HA: fill slot %04d +switch-master", id)
+	s.fillSlot(m)
 }
 
 func (s *Router) SetSentinels(servers []string) error {
@@ -283,34 +275,37 @@ func (s *Router) SetSentinels(servers []string) error {
 	if s.closed {
 		return ErrClosedProxy
 	}
-	if s.sentinel != nil {
-		s.sentinel.Cancel()
-		s.sentinel = nil
+	if s.ha.monitor != nil {
+		s.ha.monitor.Cancel()
+		s.ha.monitor = nil
 	}
 	log.Warnf("set sentinels = %v", servers)
 
-	if len(servers) != 0 {
-		s.sentinel = redis.NewSentinel(s.config.ProductName)
+	if len(servers) == 0 {
+		s.ha.masters = nil
+	} else {
+		s.ha.monitor = redis.NewSentinel(s.config.ProductName)
 		go func(p *redis.Sentinel) {
 			for {
 				timeout := time.Second * 5
 				masters := p.Masters(s.GetGroupIds(), timeout, servers...)
-				if len(masters) != 0 {
-					s.SwitchMasters(masters)
+				if p.IsCancelled() {
+					return
 				}
-				start := time.Now()
+				s.SwitchMasters(masters)
+
+				retryAt := time.Now().Add(time.Minute)
 				if !p.Subscribe(time.Hour, servers...) {
-					for time.Now().Sub(start) < time.Minute {
+					for time.Now().Before(retryAt) {
 						if p.IsCancelled() {
 							return
 						}
 						time.Sleep(time.Second)
 					}
-				} else {
-					time.Sleep(time.Millisecond * 250)
 				}
+				time.Sleep(time.Millisecond * 250)
 			}
-		}(s.sentinel)
+		}(s.ha.monitor)
 	}
 	return nil
 }

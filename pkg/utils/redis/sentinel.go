@@ -147,7 +147,7 @@ func (s *Sentinel) Subscribe(timeout time.Duration, sentinels ...string) bool {
 	return false
 }
 
-func (s *Sentinel) isMasterRole(addr string) (bool, error) {
+func (s *Sentinel) isRoleMaster(addr string) (bool, error) {
 	c, err := NewClient(addr, s.auth, time.Second*5)
 	if err != nil {
 		return false, err
@@ -188,7 +188,7 @@ func (s *Sentinel) masters(ctx context.Context, sentinel string, timeout time.Du
 					return errors.Errorf("invalid response = %v", r)
 				}
 				addr := fmt.Sprintf("%s:%s", r[0], r[1])
-				switch yes, err := s.isMasterRole(addr); {
+				switch yes, err := s.isRoleMaster(addr); {
 				case err != nil:
 					log.WarnErrorf(err, "sentinel get role of %s failed", addr)
 				case yes:
