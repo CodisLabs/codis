@@ -115,7 +115,6 @@ func (s *Router) FillSlot(m *models.Slot) error {
 		return ErrInvalidSlotId
 	}
 	s.fillSlot(m)
-	s.trySwitchMaster(m.Id)
 	return nil
 }
 
@@ -294,8 +293,9 @@ func (s *Router) SetSentinels(servers []string) error {
 				}
 				s.SwitchMasters(masters)
 
+				expires := time.Minute * 10
 				retryAt := time.Now().Add(time.Minute)
-				if !p.Subscribe(time.Hour, servers...) {
+				if !p.Subscribe(expires, servers...) {
 					for time.Now().Before(retryAt) {
 						if p.IsCancelled() {
 							return
