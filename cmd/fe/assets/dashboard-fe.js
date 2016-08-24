@@ -260,6 +260,28 @@ function processProxyStats(codis_stats) {
     return {proxy_array: proxy_array, qps: qps, sessions: sessions};
 }
 
+function processSentinels(codis_stats) {
+    var ha = codis_stats.sentinels;
+    var out_of_resync = false;
+    var masters = {};
+    var servers = [];
+    masters = ha.masters;
+    if (masters == undefined) {
+        masters = {};
+    }
+    if (ha.sentinel != undefined) {
+        servers = ha.sentinel.servers;
+        out_of_resync = ha.sentinel.out_of_resync;
+    }
+    if (servers == undefined) {
+        servers = {};
+    }
+    if (out_of_resync == undefined) {
+        out_of_resync = false;
+    }
+    return {servers:servers, masters:masters, out_of_resync: out_of_resync}
+}
+
 function alertAction(text, callback) {
     BootstrapDialog.show({
         title: "Warning !!",
@@ -434,6 +456,8 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             $scope.slots_action_disabled = "NA";
             $scope.slots_action_failed = false;
             $scope.slots_action_remain = 0;
+            $scope.sentinel_servers = [];
+            $scope.sentinel_out_of_resync = false;
         }
         $scope.resetOverview();
 
@@ -462,6 +486,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.updateStats = function (codis_stats) {
             var proxy_stats = processProxyStats(codis_stats);
             var group_stats = processGroupStats(codis_stats);
+            var sentinel = processSentinels(codis_stats);
 
             var merge = function(obj1, obj2) {
                 if (obj1 === null || obj2 === null) {
@@ -502,11 +527,40 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             $scope.slots_action_disabled = codis_stats.slot_action.disabled;
             $scope.slots_action_failed = codis_stats.slot_action.progress.failed;
             $scope.slots_action_remain = codis_stats.slot_action.progress.remain;
+            $scope.sentinel_servers = merge($scope.sentinel_servers, sentinel.servers);
+            $scope.sentinel_out_of_resync = sentinel.out_of_resync;
 
             for (var i = 0; i < $scope.slots_array.length; i++) {
                 var slot = $scope.slots_array[i];
                 if (slot.action.state) {
                     $scope.slots_actions.push(slot);
+                }
+            }
+
+            if ($scope.sentinel_servers.length != 0) {
+                for (var i = 0; i < $scope.group_array.length; i ++) {
+                    var g = $scope.group_array[i];
+                    var ha_master = sentinel.masters[g.id];
+                    for (var j = 0; j < g.servers.length; j ++) {
+                        var x = g.servers[j];
+                        if (ha_master == undefined) {
+                            continue;
+                        }
+                        if (j == 0) {
+                            if (x.server == ha_master) {
+                                x.ha_status = "ha_master";
+                            } else {
+                                x.ha_status = "ha_not_master";
+                            }
+                        } else {
+                            if (x.server == ha_master) {
+                                x.ha_status = "ha_real_master";
+                            } else {
+                                x.ha_status = "ha_slave";
+                            }
+                        }
+                        console.debug(x.ha_status);
+                    }
                 }
             }
 
@@ -626,6 +680,47 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                     }, function (failedResp) {
                         alertErrorResp(failedResp);
                     });
+                });
+            }
+        }
+
+        $scope.resyncSentinels = function () {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name)) {
+                alertAction("Resync All Sentinels", function () {
+                    var xauth = genXAuth(codis_name);
+                    var url = concatUrl("/api/topom/sentinels/resync-all/" + xauth, codis_name);
+                    $http.put(url).then(function () {
+                        $scope.refreshStats();
+                    }, function (failedResp) {
+                        alertErrorResp(failedResp);
+                    });
+                });
+            }
+        }
+
+        $scope.addSentinel = function (server_addr) {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name) && isValidInput(server_addr)) {
+                var xauth = genXAuth(codis_name);
+                var url = concatUrl("/api/topom/sentinels/add/" + xauth + "/" + server_addr, codis_name);
+                $http.put(url).then(function () {
+                    $scope.refreshStats();
+                }, function (failedResp) {
+                    alertErrorResp(failedResp);
+                });
+            }
+        }
+
+        $scope.delSentinel = function (server_addr) {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name) && isValidInput(server_addr)) {
+                var xauth = genXAuth(codis_name);
+                var url = concatUrl("/api/topom/sentinels/del/" + xauth + "/" + server_addr, codis_name);
+                $http.put(url).then(function () {
+                    $scope.refreshStats();
+                }, function (failedResp) {
+                    alertErrorResp(failedResp);
                 });
             }
         }

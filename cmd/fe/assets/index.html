@@ -446,7 +446,28 @@
                                 </span>
                             </span>
                         </td>
-                        <td>[[server.server]]</td>
+                        <td ng-switch="server.ha_status">
+                            <span ng-switch-when="ha_master" style="color: darkgreen"
+                                data-toggle="tooltip" data-placement="right" title="HA: MASTER">
+                                [[server.server]]
+                            </span>
+                            <span ng-switch-when="ha_real_master" style="color: white; background-color: darkgreen"
+                                data-toggle="tooltip" data-placement="right" title="HA: REAL MASTER">
+                                [[server.server]]
+                            </span>
+                            <span ng-switch-when="ha_not_master" style="color: white; background-color: red"
+                                data-toggle="tooltip" data-placement="right" title="HA: NOT MASTER">
+                                [[server.server]]
+                            </span>
+                            <span ng-switch-when="ha_slave"
+                                data-toggle="tooltip" data-placement="right" title="HA: SLAVE">
+                                [[server.server]]
+                            </span>
+                            <span ng-switch-default style="color: white; background-color: darkgray"
+                                data-toggle="tooltip" data-placement="right" title="HA: UNDEFINED">
+                                [[server.server]]
+                            </span>
+                        </td>
                         <td>[[server.datacenter]]</td>
                         <td ng-switch="server.master_status">
                             <span ng-switch-when="false" class="status_label_error">[[server.master]]</span>
@@ -489,6 +510,71 @@
                     </tbody>
                 </table>
             </div>
+
+            <div class="row" style="min-width: 1200px">
+            <div class="col-md-12"
+                 style="margin-bottom: 10px; margin-top: 30px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
+                <form class="form-inline">
+                    <h4 style="padding-left:30px; padding-right:20px; display: inline;">Sentinels</h4>
+                </form>
+            </div>
+            <div class="col-md-12"
+                 style="padding-bottom: 10px; padding-left: 30px">
+                <form class="form-inline">
+                    <span ng-if="codis_addr != 'NA'">
+                        <button class="btn btn-warning btn-sm" style="width: 120px; font-size: 14px; padding: 2px;"
+                                ng-click="addSentinel(new_sentinel_addr)"
+                                ng-disabled="!new_sentinel_addr">Add Sentinel
+                        </button>
+                        <input style="height: 28px; width: 250px; " type="text" class="form-control"
+                               placeholder="Redis Sentinel Address"
+                               ng-model="new_sentinel_addr">
+                    </span>
+                </form>
+            </div>
+            <div class="col-md-4"
+                 style="padding-bottom: 10px; padding-left: 30px">
+                <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
+                    <thead>
+                    <tr>
+                        <th style="width: 35px;">
+                            <span ng-switch="sentinel_out_of_resync">
+                                <span ng-switch-when="true">
+                                    <button class="btn btn-danger btn-xs"
+                                            data-toggle="tooltip" data-placement="right" title="RESYNC ALL SENTINELS & PROXIES"
+                                            ng-click="resyncSentinels()">
+                                        <span class="glyphicon glyphicon-send"></span>
+                                    </button>
+                                </span>
+                                <span ng-switch-default>
+                                    <button class="btn btn-primary btn-xs"
+                                            data-toggle="tooltip" data-placement="right" title="RESYNC ALL SENTINELS & PROXIES"
+                                            ng-click="resyncSentinels()">
+                                        <span class="glyphicon glyphicon-send"></span>
+                                    </button>
+                                </span>
+                            </span>
+                        </th>
+                        <th style="min-width: 180px;">Server</th>
+                        <th style="width: 35px;"/>
+                    </tr>
+                    </thead>
+                    <tr ng-repeat="sentinel in sentinel_servers">
+                        <td/>
+                        <td>[[sentinel]]</td>
+                        <td class="button_tight_column">
+                            <button class="btn btn-danger btn-xs"
+                                data-toggle="tooltip" data-placement="right" title="REMOVE SENTINEL [[sentinel]]"
+                                ng-click="delSentinel(sentinel)">
+                                <span class="glyphicon glyphicon-minus"></span>
+                            </button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         </div>
     </div>
 </div>
