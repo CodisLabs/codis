@@ -143,7 +143,11 @@ func (s *Topom) reinitProxy(ctx *context, p *models.Proxy, c *proxy.ApiClient) e
 	return nil
 }
 
-func (s *Topom) resyncSlots(ctx *context, slots ...*models.SlotMapping) error {
+func (s *Topom) resyncSlotMappingsByGroupId(ctx *context, gid int) error {
+	return s.resyncSlotMappings(ctx, ctx.getSlotMappingsByGroupId(gid)...)
+}
+
+func (s *Topom) resyncSlotMappings(ctx *context, slots ...*models.SlotMapping) error {
 	if len(slots) == 0 {
 		return nil
 	}

@@ -70,16 +70,15 @@ func (s *Topom) ResyncGroup(gid int) error {
 		return err
 	}
 
-	slots := ctx.getSlotMappingByGroupId(gid)
-	if len(slots) == 0 {
-		return nil
-	}
-
-	if err := s.resyncSlots(ctx, slots...); err != nil {
+	if err := s.resyncSlotMappingsByGroupId(ctx, gid); err != nil {
 		log.Warnf("group-[%d] resync-group failed", g.Id)
 		return err
 	}
-	return nil
+
+	s.dirtyGroupCache(gid)
+
+	g.OutOfResync = false
+	return s.storeUpdateGroup(g)
 }
 
 func (s *Topom) GroupAddServer(gid int, dc, addr string) error {
@@ -112,6 +111,9 @@ func (s *Topom) GroupAddServer(gid int, dc, addr string) error {
 
 	s.dirtyGroupCache(g.Id)
 
+	if g.ReplicaGroups && ctx.isGroupInUse(g.Id) {
+		g.OutOfResync = true
+	}
 	g.Servers = append(g.Servers, &models.GroupServer{Addr: addr, DataCenter: dc})
 	return s.storeUpdateGroup(g)
 }
@@ -152,6 +154,9 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 
 	s.dirtyGroupCache(g.Id)
 
+	if g.ReplicaGroups && ctx.isGroupInUse(g.Id) {
+		g.OutOfResync = true
+	}
 	g.Servers = slice
 	return s.storeUpdateGroup(g)
 }
@@ -212,15 +217,15 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 		log.Warnf("group-[%d] resync to prepared", g.Id)
 
-		slots := ctx.getSlotMappingByGroupId(g.Id)
+		slots := ctx.getSlotMappingsByGroupId(g.Id)
 
 		s.dirtyGroupCache(g.Id)
 
 		g.Promoting.State = models.ActionPrepared
-		if err := s.resyncSlots(ctx, slots...); err != nil {
+		if err := s.resyncSlotMappings(ctx, slots...); err != nil {
 			log.Warnf("group-[%d] resync-rollback to preparing", g.Id)
 			g.Promoting.State = models.ActionPreparing
-			s.resyncSlots(ctx, slots...)
+			s.resyncSlotMappings(ctx, slots...)
 			log.Warnf("group-[%d] resync-rollback to preparing, done", g.Id)
 			return err
 		}
@@ -266,9 +271,9 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 		log.Warnf("group-[%d] resync to finished", g.Id)
 
-		slots := ctx.getSlotMappingByGroupId(g.Id)
+		slots := ctx.getSlotMappingsByGroupId(g.Id)
 
-		if err := s.resyncSlots(ctx, slots...); err != nil {
+		if err := s.resyncSlotMappings(ctx, slots...); err != nil {
 			log.Warnf("group-[%d] resync to finished failed", g.Id)
 			return err
 		}
@@ -303,6 +308,7 @@ func (s *Topom) EnableReplicaGroups(gid int, value bool) error {
 	s.dirtyGroupCache(g.Id)
 
 	g.ReplicaGroups = value
+	g.OutOfResync = true
 	return s.storeUpdateGroup(g)
 }
 

@@ -15,6 +15,8 @@ type Group struct {
 	} `json:"promoting"`
 
 	ReplicaGroups bool `json:"replica_groups,omitempty"`
+
+	OutOfResync bool `json:"out_of_resync,omitempty"`
 }
 
 type GroupServer struct {

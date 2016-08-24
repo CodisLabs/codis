@@ -25,7 +25,7 @@ func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {
 	return nil, errors.Errorf("slot-[%d] doesn't exist", sid)
 }
 
-func (ctx *context) getSlotMappingByGroupId(gid int) []*models.SlotMapping {
+func (ctx *context) getSlotMappingsByGroupId(gid int) []*models.SlotMapping {
 	var slots = []*models.SlotMapping{}
 	for _, m := range ctx.slots {
 		if m.GroupId == gid || m.Action.TargetId == gid {
