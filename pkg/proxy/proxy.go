@@ -272,16 +272,33 @@ func (s *Proxy) SetSentinels(servers []string) error {
 	if s.closed {
 		return ErrClosedProxy
 	}
+	s.ha.servers = servers
+	log.Warnf("[%p] set sentinels = %v", s, s.ha.servers)
+
+	s.rewatchSentinels(s.ha.servers)
+	return nil
+}
+
+func (s *Proxy) RewatchSentinels() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
+	}
+	log.Warnf("[%p] rewatch sentinels = %v", s, s.ha.servers)
+
+	s.rewatchSentinels(s.ha.servers)
+	return nil
+}
+
+func (s *Proxy) rewatchSentinels(servers []string) {
 	if s.ha.monitor != nil {
 		s.ha.monitor.Cancel()
 		s.ha.monitor = nil
+		s.ha.masters = nil
 	}
-	s.ha.masters = nil
-	s.ha.servers = nil
-
 	if len(servers) != 0 {
 		s.ha.monitor = redis.NewSentinel(s.config.ProductName)
-		s.ha.servers = servers
 		go func(p *redis.Sentinel) {
 			for {
 				timeout := time.Second * 5
@@ -305,8 +322,6 @@ func (s *Proxy) SetSentinels(servers []string) error {
 			}
 		}(s.ha.monitor)
 	}
-	log.Warnf("[%p] set sentinels = %v", s, servers)
-	return nil
 }
 
 func (s *Proxy) serveAdmin() {
