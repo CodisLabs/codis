@@ -73,7 +73,7 @@ func (ctx *context) isSlotLocked(m *models.SlotMapping) bool {
 	return false
 }
 
-func (ctx *context) toSlot(m *models.SlotMapping) *models.Slot {
+func (ctx *context) toSlot(m *models.SlotMapping, dc string) *models.Slot {
 	slot := &models.Slot{
 		Id:     m.Id,
 		Locked: ctx.isSlotLocked(m),
@@ -82,6 +82,7 @@ func (ctx *context) toSlot(m *models.SlotMapping) *models.Slot {
 	case models.ActionNothing, models.ActionPending:
 		slot.BackendAddr = ctx.getGroupMaster(m.GroupId)
 		slot.BackendAddrId = m.GroupId
+		slot.ReplicaGroups = ctx.toReplicaGroups(m.GroupId, dc)
 	case models.ActionPreparing:
 		slot.BackendAddr = ctx.getGroupMaster(m.GroupId)
 		slot.BackendAddrId = m.GroupId
@@ -101,10 +102,37 @@ func (ctx *context) toSlot(m *models.SlotMapping) *models.Slot {
 	return slot
 }
 
-func (ctx *context) toSlotSlice(slots []*models.SlotMapping) []*models.Slot {
+func (ctx *context) toReplicaGroups(gid int, dc string) [][]string {
+	g := ctx.group[gid]
+	switch {
+	case g == nil || !g.ReplicaGroups:
+		return nil
+	case g.Promoting.State != models.ActionNothing:
+		return nil
+	case len(g.Servers) <= 1:
+		return nil
+	}
+	var groups [2][]string
+	for _, s := range g.Servers {
+		if s.DataCenter == dc {
+			groups[0] = append(groups[0], s.Addr)
+		} else {
+			groups[1] = append(groups[1], s.Addr)
+		}
+	}
+	var replicas [][]string
+	for _, l := range groups {
+		if len(l) != 0 {
+			replicas = append(replicas, l)
+		}
+	}
+	return replicas
+}
+
+func (ctx *context) toSlotSlice(slots []*models.SlotMapping, dc string) []*models.Slot {
 	var slice = make([]*models.Slot, len(slots))
 	for i, m := range slots {
-		slice[i] = ctx.toSlot(m)
+		slice[i] = ctx.toSlot(m, dc)
 	}
 	return slice
 }

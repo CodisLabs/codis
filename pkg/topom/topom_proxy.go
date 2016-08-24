@@ -128,7 +128,7 @@ func (s *Topom) newProxyClient(p *models.Proxy) *proxy.ApiClient {
 
 func (s *Topom) reinitProxy(ctx *context, p *models.Proxy, c *proxy.ApiClient) error {
 	log.Warnf("proxy-[%s] reinit:\n%s", p.Token, p.Encode())
-	if err := c.FillSlots(ctx.toSlotSlice(ctx.slots)...); err != nil {
+	if err := c.FillSlots(ctx.toSlotSlice(ctx.slots, p.DataCenter)...); err != nil {
 		log.ErrorErrorf(err, "proxy-[%s] fillslots failed", p.Token)
 		return errors.Errorf("proxy-[%s] fillslots failed", p.Token)
 	}
@@ -152,11 +152,10 @@ func (s *Topom) resyncSlotMappings(ctx *context, slots ...*models.SlotMapping) e
 		return nil
 	}
 	var fut sync2.Future
-	var slice = ctx.toSlotSlice(slots)
 	for _, p := range ctx.proxy {
 		fut.Add()
 		go func(p *models.Proxy) {
-			err := s.newProxyClient(p).FillSlots(slice...)
+			err := s.newProxyClient(p).FillSlots(ctx.toSlotSlice(slots, p.DataCenter)...)
 			if err != nil {
 				log.ErrorErrorf(err, "proxy-[%s] resync slots failed", p.Token)
 			}

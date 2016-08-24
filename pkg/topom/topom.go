@@ -370,7 +370,7 @@ func (s *Topom) Slots() ([]*models.Slot, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ctx.toSlotSlice(ctx.slots), nil
+	return ctx.toSlotSlice(ctx.slots, ""), nil
 }
 
 func (s *Topom) serveAdmin() {

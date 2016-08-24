@@ -24,7 +24,7 @@ func checkSlots(t *Topom, c *proxy.ApiClient) {
 	ctx, err := t.newContext()
 	assert.MustNoError(err)
 
-	slots1 := ctx.toSlotSlice(ctx.slots)
+	slots1 := ctx.toSlotSlice(ctx.slots, "")
 	assert.Must(len(slots1) == models.MaxSlotNum)
 
 	slots2, err := c.Slots()
