@@ -31,6 +31,15 @@ for ((i=0;i<8;i++)); do
     echo "codis-server-${p}.pid=$lastpid"
 done
 
+for ((i=0;i<5;i++)); do
+    let p="26379+i"
+    > sentinel-${p}.conf
+    nohup codis-server sentinel-${p}.conf --port ${p} --sentinel &>sentinel-${p}.log &
+    lastpid=$!
+    pidlist="$pidlist $lastpid"
+    echo "sentinel-${p}.pid=$lastpid"
+done
+
 for ((i=0;i<4;i++)); do
     let p1="11080+i"
     let p2="19000+i"
@@ -102,8 +111,14 @@ for ((i=0;i<4;i++)); do
     codis_admin --create-proxy -x 127.0.0.1:${p1}
 done
 
+for ((i=0;i<5;i++)); do
+    let p1="26379+i"
+    codis_admin --sentinel-add -x 127.0.0.1:${p1}
+done
+
 codis_admin --slot-action --interval=100
 codis_admin --rebalance --confirm
+codis_admin --sentinel-resync
 
 echo done
 
