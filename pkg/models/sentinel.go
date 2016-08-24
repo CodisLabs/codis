@@ -1,7 +1,7 @@
 package models
 
 type Sentinel struct {
-	Servers []string `json:"servers"`
+	Servers []string `json:"servers,omitempty"`
 
 	OutOfResync bool `json:"out_of_resync,omitempty"`
 }

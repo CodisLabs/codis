@@ -310,6 +310,9 @@ function processGroupStats(codis_stats) {
         if (g.replica_groups == undefined) {
             g.replica_groups = false;
         }
+        if (g.out_of_resync == undefined) {
+            g.out_of_resync = false;
+        }
         for (var j = 0; j < g.servers.length; j++) {
             var x = g.servers[j];
             var s = group_stats[x.server];

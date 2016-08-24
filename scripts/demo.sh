@@ -41,6 +41,8 @@ proto_type = "tcp4"
 admin_addr = "0.0.0.0:${p1}"
 proxy_addr = "0.0.0.0:${p2}"
 proxy_datacenter = "localhost"
+proxy_heap_placeholder = "0"
+proxy_max_offheap_size = "0"
 EOF
     nohup codis-proxy -c ${p1}.toml &>${p1}.log &
     lastpid=$!
