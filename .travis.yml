@@ -12,7 +12,3 @@ go:
 script:
     - make
     - make gotest
-
-before_install:
-    - mkdir -p ../../CodisLabs
-    - ln -s `pwd` ../../CodisLabs/codis
