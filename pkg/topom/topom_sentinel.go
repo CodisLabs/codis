@@ -29,6 +29,11 @@ func (s *Topom) AddSentinel(addr string) error {
 		}
 	}
 
+	sentinel := redis.NewSentinel(s.config.ProductName)
+	if err := sentinel.FlushConfig(addr); err != nil {
+		return err
+	}
+
 	s.dirtySentinelCache()
 
 	p.Servers = append(p.Servers, addr)

@@ -107,6 +107,11 @@ func newApiServer(t *Topom) http.Handler {
 			})
 			r.Put("/assign/:xauth", binding.Json([]*models.SlotMapping{}), api.SlotsAssignGroup)
 		})
+		r.Group("/sentinels", func(r martini.Router) {
+			r.Put("/add/:xauth/:addr", api.AddSentinel)
+			r.Put("/del/:xauth/:addr", api.DelSentinel)
+			r.Put("/resync-all/:xauth", api.ResyncSentinels)
+		})
 	})
 
 	m.MapTo(r, (*martini.Routes)(nil))
@@ -420,6 +425,47 @@ func (s *apiServer) EnableReplicaGroups(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) AddSentinel(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	addr, err := s.parseAddr(params)
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.AddSentinel(addr); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) DelSentinel(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	addr, err := s.parseAddr(params)
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.DelSentinel(addr); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) ResyncSentinels(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.ResyncSentinels(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
 func (s *apiServer) SyncCreateAction(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -712,6 +758,21 @@ func (c *ApiClient) EnableReplicaGroups(gid int, value bool) error {
 		n = 1
 	}
 	url := c.encodeURL("/api/topom/group/replica-groups/%s/%d/%d", c.xauth, gid, n)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) AddSentinel(addr string) error {
+	url := c.encodeURL("/api/topom/sentinels/add/%s/%s", c.xauth, addr)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) DelSentinel(addr string) error {
+	url := c.encodeURL("/api/topom/sentinels/del/%s/%s", c.xauth, addr)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) ResyncSentinels() error {
+	url := c.encodeURL("/api/topom/sentinels/resync-all/%s", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

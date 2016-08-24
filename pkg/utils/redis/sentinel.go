@@ -210,6 +210,18 @@ func (s *Sentinel) masters(ctx context.Context, sentinel string, timeout time.Du
 	}
 }
 
+func (s *Sentinel) FlushConfig(sentinel string) error {
+	c, err := NewClient(sentinel, "", time.Second*5)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	if _, err := c.Do("SENTINEL", "flushconfig"); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *Sentinel) Masters(groups map[int]bool, timeout time.Duration, sentinels ...string) map[int]string {
 	nctx, cancel := context.WithCancel(s.Context)
 	defer cancel()
