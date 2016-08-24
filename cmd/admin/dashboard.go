@@ -67,6 +67,13 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 	case d["--promote-commit"].(bool):
 		t.handleGroupCommand(d)
 
+	case d["--sentinel-add"].(bool):
+		fallthrough
+	case d["--sentinel-del"].(bool):
+		fallthrough
+	case d["--sentinel-resync"].(bool):
+		t.handleSentinelCommand(d)
+
 	case d["--sync-action"].(bool):
 		t.handleSyncActionCommand(d)
 
@@ -562,6 +569,42 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 				fmt.Println()
 			}
 		}
+	}
+}
+
+func (t *cmdDashboard) handleSentinelCommand(d map[string]interface{}) {
+	c := t.newTopomClient()
+
+	switch {
+
+	case d["--sentinel-add"].(bool):
+
+		addr := utils.ArgumentMust(d, "--addr")
+
+		log.Debugf("call rpc add-sentinel to dashboard %s", t.addr)
+		if err := c.AddSentinel(addr); err != nil {
+			log.PanicErrorf(err, "call rpc add-sentinel to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc add-sentinel OK")
+
+	case d["--sentinel-del"].(bool):
+
+		addr := utils.ArgumentMust(d, "--addr")
+
+		log.Debugf("call rpc del-sentinel to dashboard %s", t.addr)
+		if err := c.DelSentinel(addr); err != nil {
+			log.PanicErrorf(err, "call rpc del-sentinel to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc del-sentinel OK")
+
+	case d["--sentinel-resync"].(bool):
+
+		log.Debugf("call rpc resync-sentinels to dashboard %s", t.addr)
+		if err := c.ResyncSentinels(); err != nil {
+			log.PanicErrorf(err, "call rpc resync-sentinels to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc resync-sentinels OK")
+
 	}
 }
 

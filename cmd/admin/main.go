@@ -47,6 +47,9 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --interval=VALUE
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --disabled=VALUE
 	codis-admin [-v] --dashboard=ADDR            --rebalance     [--confirm]
+	codis-admin [-v] --dashboard=ADDR            --sentinel-add   --addr=ADDR
+	codis-admin [-v] --dashboard=ADDR            --sentinel-del   --addr=ADDR
+	codis-admin [-v] --dashboard=ADDR            --sentinel-resync
 	codis-admin [-v] --remove-lock               --product=NAME (--zookeeper=ADDR|--etcd=ADDR)
 	codis-admin [-v] --config-dump               --product=NAME (--zookeeper=ADDR|--etcd=ADDR) [-1]
 	codis-admin [-v] --config-convert=FILE
