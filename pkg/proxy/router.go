@@ -207,10 +207,10 @@ func (s *Router) fillSlot(m *models.Slot) {
 	}
 	if !s.closed {
 		if slot.migrate.bc != nil {
-			log.Warnf("fill slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
+			log.Warnf("fill   slot %04d, backend.addr = %s, migrate.from = %s, locked = %t",
 				slot.id, slot.backend.bc.Addr(), slot.migrate.bc.Addr(), slot.lock.hold)
 		} else {
-			log.Warnf("fill slot %04d, backend.addr = %s, locked = %t",
+			log.Warnf("fill   slot %04d, backend.addr = %s, locked = %t",
 				slot.id, slot.backend.bc.Addr(), slot.lock.hold)
 		}
 	}
