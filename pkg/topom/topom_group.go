@@ -109,6 +109,14 @@ func (s *Topom) GroupAddServer(gid int, dc, addr string) error {
 		return errors.Errorf("group-[%d] is promoting", g.Id)
 	}
 
+	if p := ctx.sentinel; len(p.Servers) != 0 {
+		s.dirtySentinelCache()
+		p.OutOfResync = true
+		if err := s.storeUpdateSentinel(p); err != nil {
+			return err
+		}
+	}
+
 	s.dirtyGroupCache(g.Id)
 
 	if g.ReplicaGroups && ctx.isGroupInUse(g.Id) {
@@ -149,6 +157,14 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 	for i, x := range g.Servers {
 		if i != index {
 			slice = append(slice, x)
+		}
+	}
+
+	if p := ctx.sentinel; len(p.Servers) != 0 {
+		s.dirtySentinelCache()
+		p.OutOfResync = true
+		if err := s.storeUpdateSentinel(p); err != nil {
+			return err
 		}
 	}
 
@@ -271,6 +287,14 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 	case models.ActionFinished:
 
 		log.Warnf("group-[%d] resync to finished", g.Id)
+
+		if p := ctx.sentinel; len(p.Servers) != 0 {
+			s.dirtySentinelCache()
+			p.OutOfResync = true
+			if err := s.storeUpdateSentinel(p); err != nil {
+				return err
+			}
+		}
 
 		slots := ctx.getSlotMappingsByGroupId(g.Id)
 

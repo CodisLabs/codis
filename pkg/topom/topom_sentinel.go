@@ -32,14 +32,8 @@ func (s *Topom) AddSentinel(addr string) error {
 	s.dirtySentinelCache()
 
 	p.Servers = append(p.Servers, addr)
-	if err := s.storeUpdateSentinel(p); err != nil {
-		return err
-	}
-
-	s.updateSentinels(p.Servers)
-
-	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
-	return sentinel.Monitor(ctx.getGroupMasters(), s.config.SentinelQuorum, time.Second*5, addr)
+	p.OutOfResync = true
+	return s.storeUpdateSentinel(p)
 }
 
 func (s *Topom) DelSentinel(addr string) error {
@@ -67,38 +61,19 @@ func (s *Topom) DelSentinel(addr string) error {
 
 	s.dirtySentinelCache()
 
-	p.Servers = slice
+	p.OutOfResync = true
 	if err := s.storeUpdateSentinel(p); err != nil {
 		return err
 	}
 
-	s.updateSentinels(p.Servers)
-
 	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
-	return sentinel.Unmonitor(ctx.getGroupIds(), time.Second*5, addr)
-}
-
-func (s *Topom) ReinitSentinel(addr string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	ctx, err := s.newContext()
-	if err != nil {
+	if err := sentinel.Unmonitor(ctx.getGroupIds(), time.Second*5, addr); err != nil {
+		log.WarnErrorf(err, "remove sentinel %s failed", addr)
 		return err
 	}
 
-	if addr == "" {
-		return errors.Errorf("invalid sentinel address")
-	}
-	p := ctx.sentinel
-
-	for _, x := range p.Servers {
-		if x == addr {
-			return errors.Errorf("sentinel-[%s] already exists", addr)
-		}
-	}
-
-	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
-	return sentinel.Monitor(ctx.getGroupMasters(), s.config.SentinelQuorum, time.Second*5, addr)
+	p.Servers = slice
+	return s.storeUpdateSentinel(p)
 }
 
 func (s *Topom) SwitchMasters(masters map[int]string) error {
@@ -111,7 +86,7 @@ func (s *Topom) SwitchMasters(masters map[int]string) error {
 	return nil
 }
 
-func (s *Topom) updateSentinels(servers []string) {
+func (s *Topom) rewatchSentinels(servers []string) {
 	getGroupIds := func() map[int]bool {
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -154,16 +129,32 @@ func (s *Topom) updateSentinels(servers []string) {
 			}
 		}(s.ha.monitor)
 	}
-	log.Warnf("set sentinels = %v", servers)
+	log.Warnf("rewatch sentinels = %v", servers)
 }
 
-func (s *Topom) ResyncSentinel() error {
+func (s *Topom) ResyncSentinels() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return err
 	}
+
+	s.dirtySentinelCache()
+
+	p := ctx.sentinel
+	p.OutOfResync = true
+	if err := s.storeUpdateSentinel(p); err != nil {
+		return err
+	}
+
+	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
+	if err := sentinel.Monitor(ctx.getGroupMasters(), s.config.SentinelQuorum, time.Second*5, p.Servers...); err != nil {
+		log.WarnErrorf(err, "resync sentinels failed")
+		return err
+	}
+	s.rewatchSentinels(p.Servers)
+
 	var fut sync2.Future
 	for _, p := range ctx.proxy {
 		fut.Add()
@@ -183,5 +174,7 @@ func (s *Topom) ResyncSentinel() error {
 			}
 		}
 	}
-	return nil
+
+	p.OutOfResync = false
+	return s.storeUpdateSentinel(p)
 }
