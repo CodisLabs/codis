@@ -169,8 +169,9 @@ func TestGroupPromote(x *testing.T) {
 	assert.MustNoError(t.GroupPromoteCommit(gid))
 	g2 := getGroup(t, gid)
 	assert.Must(g2.Promoting.State == models.ActionNothing)
-	assert.Must(len(g2.Servers) == 1)
+	assert.Must(len(g2.Servers) == 2)
 	assert.Must(g2.Servers[0].Addr == server2)
+	assert.Must(g2.Servers[1].Addr == server1)
 
 	reset()
 
@@ -194,6 +195,7 @@ func TestGroupPromote(x *testing.T) {
 	assert.MustNoError(t.GroupPromoteCommit(gid))
 	g4 := getGroup(t, gid)
 	assert.Must(g4.Promoting.State == models.ActionNothing)
-	assert.Must(len(g4.Servers) == 1)
+	assert.Must(len(g4.Servers) == 2)
 	assert.Must(g4.Servers[0].Addr == server2)
+	assert.Must(g4.Servers[1].Addr == server1)
 }
