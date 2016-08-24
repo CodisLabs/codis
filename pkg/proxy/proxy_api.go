@@ -71,7 +71,7 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Get("/stats/:xauth", api.Stats)
 		r.Get("/slots/:xauth", api.Slots)
 		r.Put("/start/:xauth", api.Start)
-		r.Put("/stats/:xauth/reset", api.ResetStats)
+		r.Put("/stats/reset/:xauth", api.ResetStats)
 		r.Put("/forcegc/:xauth", api.ForceGC)
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/loglevel/:xauth/:value", api.LogLevel)
@@ -273,7 +273,7 @@ func (c *ApiClient) Slots() ([]*models.Slot, error) {
 }
 
 func (c *ApiClient) ResetStats() error {
-	url := c.encodeURL("/api/proxy/stats/%s/reset", c.xauth)
+	url := c.encodeURL("/api/proxy/stats/reset/%s", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
