@@ -288,6 +288,9 @@ func (s *Topom) Stats() (*Stats, error) {
 	stats.SlotAction.Progress.Failed = s.action.progress.failed.Get()
 	stats.SlotAction.Executor = s.action.executor.Get()
 
+	stats.HA.Sentinel = ctx.sentinel
+	stats.HA.Masters = s.ha.masters
+
 	return stats, nil
 }
 
@@ -318,6 +321,11 @@ type Stats struct {
 
 		Executor int64 `json:"executor"`
 	} `json:"slot_action"`
+
+	HA struct {
+		Sentinel *models.Sentinel `json:"sentinel,omitempty"`
+		Masters  map[int]string   `json:"masters,omitempty"`
+	} `json:"sentinels"`
 }
 
 func (s *Topom) Config() *Config {
