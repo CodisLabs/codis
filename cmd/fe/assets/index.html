@@ -158,7 +158,7 @@
                         </td>
                         <td>[[proxy.datacenter]]</td>
                         <td class="button_tight_column">
-                            <button class="btn btn-danger btn-xs" ng-if="proxy.status == ERROR"
+                            <button class="btn btn-danger btn-xs" ng-if="proxy.status == 'ERROR'"
                                 data-toggle="tooltip" data-placement="right" title="FORCE REMOVE PROXY [[proxy.proxy_addr]]"
                                 ng-click="removeProxy(proxy, true)">
                                 <span class="glyphicon glyphicon-remove"></span>
