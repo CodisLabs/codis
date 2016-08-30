@@ -5,7 +5,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -27,7 +29,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR] [--ulimit=NLIMIT]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--fillslots=FILE] [--ulimit=NLIMIT]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -137,6 +139,17 @@ Options:
 		log.Warnf("option --etcd = %s", s)
 	}
 
+	var slots []*models.Slot
+	if s, ok := utils.Argument(d, "--fillslots"); ok {
+		b, err := ioutil.ReadFile(s)
+		if err != nil {
+			log.PanicErrorf(err, "load slots from file failed")
+		}
+		if err := json.Unmarshal(b, &slots); err != nil {
+			log.PanicErrorf(err, "decode slots from json failed")
+		}
+	}
+
 	s, err := proxy.New(config)
 	if err != nil {
 		log.PanicErrorf(err, "create proxy with config file failed\n%s", config)
@@ -159,6 +172,8 @@ Options:
 		go AutoOnlineWithDashboard(s, dashboard)
 	case coordinator.name != "":
 		go AutoOnlineWithCoordinator(s, coordinator.name, coordinator.addr)
+	case slots != nil:
+		go AutoOnlineWithFillSlots(s, slots)
 	}
 
 	for !s.IsClosed() && !s.IsOnline() {
@@ -247,6 +262,15 @@ func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr string) {
 		time.Sleep(time.Second * 3)
 	}
 	log.Panicf("online proxy failed")
+}
+
+func AutoOnlineWithFillSlots(p *proxy.Proxy, slots []*models.Slot) {
+	if err := p.FillSlots(slots); err != nil {
+		log.PanicErrorf(err, "fill slots failed")
+	}
+	if err := p.Start(); err != nil {
+		log.PanicErrorf(err, "start proxy failed")
+	}
 }
 
 func OnlineProxy(p *proxy.Proxy, dashboard string) bool {
