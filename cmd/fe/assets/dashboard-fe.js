@@ -716,7 +716,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name) && isValidInput(server_addr)) {
                 var xauth = genXAuth(codis_name);
-                var url = concatUrl("/api/topom/sentinels/del/" + xauth + "/" + server_addr, codis_name);
+                var url = concatUrl("/api/topom/sentinels/del/" + xauth + "/" + server_addr + "/0", codis_name);
                 $http.put(url).then(function () {
                     $scope.refreshStats();
                 }, function (failedResp) {

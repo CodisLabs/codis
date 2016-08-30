@@ -109,7 +109,7 @@ func newApiServer(t *Topom) http.Handler {
 		})
 		r.Group("/sentinels", func(r martini.Router) {
 			r.Put("/add/:xauth/:addr", api.AddSentinel)
-			r.Put("/del/:xauth/:addr", api.DelSentinel)
+			r.Put("/del/:xauth/:addr/:force", api.DelSentinel)
 			r.Put("/resync-all/:xauth", api.ResyncSentinels)
 		})
 	})
@@ -448,7 +448,11 @@ func (s *apiServer) DelSentinel(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	if err := s.topom.DelSentinel(addr); err != nil {
+	force, err := s.parseInteger(params, "force")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.DelSentinel(addr, force != 0); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -766,8 +770,12 @@ func (c *ApiClient) AddSentinel(addr string) error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) DelSentinel(addr string) error {
-	url := c.encodeURL("/api/topom/sentinels/del/%s/%s", c.xauth, addr)
+func (c *ApiClient) DelSentinel(addr string, force bool) error {
+	var value int
+	if force {
+		value = 1
+	}
+	url := c.encodeURL("/api/topom/sentinels/del/%s/%s/%d", c.xauth, addr, value)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

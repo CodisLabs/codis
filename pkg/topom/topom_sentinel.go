@@ -41,7 +41,7 @@ func (s *Topom) AddSentinel(addr string) error {
 	return s.storeUpdateSentinel(p)
 }
 
-func (s *Topom) DelSentinel(addr string) error {
+func (s *Topom) DelSentinel(addr string, force bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -74,7 +74,9 @@ func (s *Topom) DelSentinel(addr string) error {
 	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
 	if err := sentinel.Unmonitor(ctx.getGroupIds(), time.Second*5, addr); err != nil {
 		log.WarnErrorf(err, "remove sentinel %s failed", addr)
-		return err
+		if !force {
+			return errors.Errorf("remove sentinel %s failed", addr)
+		}
 	}
 
 	p.Servers = slice

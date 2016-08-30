@@ -591,8 +591,10 @@ func (t *cmdDashboard) handleSentinelCommand(d map[string]interface{}) {
 
 		addr := utils.ArgumentMust(d, "--addr")
 
+		force := d["--force"].(bool)
+
 		log.Debugf("call rpc del-sentinel to dashboard %s", t.addr)
-		if err := c.DelSentinel(addr); err != nil {
+		if err := c.DelSentinel(addr, force); err != nil {
 			log.PanicErrorf(err, "call rpc del-sentinel to dashboard %s failed", t.addr)
 		}
 		log.Debugf("call rpc del-sentinel OK")

@@ -88,5 +88,8 @@ func (c *Config) Validate() error {
 	if c.ProductName == "" {
 		return errors.New("invalid product_name")
 	}
+	if c.SentinelQuorum <= 0 {
+		return errors.New("invalid sentinel_quorum")
+	}
 	return nil
 }
