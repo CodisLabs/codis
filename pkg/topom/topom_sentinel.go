@@ -114,26 +114,41 @@ func (s *Topom) rewatchSentinels(servers []string) {
 	} else {
 		s.ha.monitor = redis.NewSentinel(s.config.ProductName)
 		go func(p *redis.Sentinel) {
-			for {
-				timeout := time.Second * 5
-				masters := p.Masters(getGroupIds(), timeout, servers...)
-				if p.IsCancelled() {
-					return
-				}
-				s.SwitchMasters(masters)
-
-				expires := time.Minute * 5
-				retryAt := time.Now().Add(time.Minute)
-				if !p.Subscribe(expires, servers...) {
-					for time.Now().Before(retryAt) {
-						if p.IsCancelled() {
-							return
+			refetch := make(chan time.Duration)
+			go func() {
+				defer func() {
+					close(refetch)
+				}()
+				for !p.IsCancelled() {
+					refetch <- time.Second * 10
+					timeout := time.Minute * 5
+					retryAt := time.Now().Add(time.Second * 30)
+					if !p.Subscribe(timeout, servers...) {
+						for time.Now().Before(retryAt) && !p.IsCancelled() {
+							time.Sleep(time.Second)
 						}
-						time.Sleep(time.Second)
+					} else {
+						refetch <- 0
 					}
 				}
-				time.Sleep(time.Millisecond * 250)
-			}
+			}()
+			go func() {
+				defer func() {
+					for _ = range refetch {
+					}
+				}()
+				for d := range refetch {
+					if d != 0 {
+						time.Sleep(d)
+					}
+					timeout := time.Second * 10
+					masters := p.Masters(getGroupIds(), timeout, servers...)
+					if p.IsCancelled() {
+						return
+					}
+					s.SwitchMasters(masters)
+				}
+			}()
 		}(s.ha.monitor)
 	}
 	log.Warnf("rewatch sentinels = %v", servers)
