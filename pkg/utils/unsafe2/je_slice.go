@@ -1,3 +1,6 @@
+// Copyright 2016 CodisLabs. All Rights Reserved.
+// Licensed under the MIT (MIT-LICENSE.txt) license.
+
 package unsafe2
 
 // #cgo         CPPFLAGS: -I ../../../vendor/github.com/spinlock/jemalloc-go/jemalloc/include
