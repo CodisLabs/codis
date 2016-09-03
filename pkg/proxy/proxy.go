@@ -306,6 +306,7 @@ func (s *Proxy) rewatchSentinels(servers []string) {
 					close(refetch)
 				}()
 				for !p.IsCancelled() {
+					refetch <- 0
 					refetch <- time.Second * 10
 					timeout := time.Minute * 5
 					retryAt := time.Now().Add(time.Second * 30)
@@ -313,8 +314,6 @@ func (s *Proxy) rewatchSentinels(servers []string) {
 						for time.Now().Before(retryAt) && !p.IsCancelled() {
 							time.Sleep(time.Second)
 						}
-					} else {
-						refetch <- 0
 					}
 				}
 			}()
