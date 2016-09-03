@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"strconv"
 
 	"github.com/CodisLabs/codis/pkg/models"
@@ -34,7 +33,7 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 	case d["--log-level"] != nil:
 		t.handleLogLevel(d)
 
-	case d["--slots-assign"] != nil:
+	case d["--slots-assign"].(bool):
 		fallthrough
 	case d["--slots-status"].(bool):
 		t.handleSlotsCommand(d)
@@ -210,17 +209,17 @@ func (t *cmdDashboard) handleSlotsCommand(d map[string]interface{}) {
 		}
 		fmt.Println(string(b))
 
-	case d["--slots-assign"] != nil:
+	case d["--slots-assign"].(bool):
 
-		file := utils.ArgumentMust(d, "--slots-assign")
-		b, err := ioutil.ReadFile(file)
-		if err != nil {
-			log.PanicErrorf(err, "read file '%s' failed", file)
-		}
+		beg := utils.ArgumentIntegerMust(d, "--beg")
+		end := utils.ArgumentIntegerMust(d, "--end")
+		gid := utils.ArgumentIntegerMust(d, "--gid")
 
 		slots := []*models.SlotMapping{}
-		if err := json.Unmarshal(b, &slots); err != nil {
-			log.PanicErrorf(err, "json unmarshal failed")
+		for i := beg; i <= end; i++ {
+			slots = append(slots, &models.SlotMapping{
+				Id: i, GroupId: gid,
+			})
 		}
 
 		if !d["--confirm"].(bool) {
