@@ -234,9 +234,12 @@ if __name__ == "__main__":
     print("add sentinels, done")
 
     codis_admin_dashboard(d.admin_port, "--slot-action --interval=100")
-    codis_admin_dashboard(d.admin_port, "--rebalance --confirm")
     codis_admin_dashboard(d.admin_port, "--sentinel-resync")
+    for i in range(0, 4):
+        gid = i + 1
+        beg, end = i * 256, (i + 1) * 256 - 1
+        codis_admin_dashboard(d.admin_port, "--slots-assign --beg={} --end={} --gid={} --confirm".format(beg, end, gid))
 
     while True:
         print(datetime.datetime.now())
-        checkall(5)
+        time.sleep(5)
