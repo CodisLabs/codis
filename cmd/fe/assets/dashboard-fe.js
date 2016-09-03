@@ -544,6 +544,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                     for (var j = 0; j < g.servers.length; j ++) {
                         var x = g.servers[j];
                         if (ha_master == undefined) {
+                            x.ha_status = "ha_undefined";
                             continue;
                         }
                         if (j == 0) {
@@ -559,7 +560,6 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                                 x.ha_status = "ha_slave";
                             }
                         }
-                        console.debug(x.ha_status);
                     }
                 }
             }

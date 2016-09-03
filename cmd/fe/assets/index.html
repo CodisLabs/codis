@@ -463,8 +463,11 @@
                                 data-toggle="tooltip" data-placement="right" title="HA: SLAVE">
                                 [[server.server]]
                             </span>
-                            <span ng-switch-default style="color: white; background-color: darkgray"
+                            <span ng-switch-when="ha_defined" style="color: white; background-color: darkgray"
                                 data-toggle="tooltip" data-placement="right" title="HA: UNDEFINED">
+                                [[server.server]]
+                            </span>
+                            <span ng-switch-default>
                                 [[server.server]]
                             </span>
                         </td>
