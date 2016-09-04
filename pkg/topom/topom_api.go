@@ -535,7 +535,7 @@ func (s *apiServer) SlotCreateActionRange(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	if !(beg >= 0 && beg <= end && end < models.MaxSlotNum) {
+	if !(beg >= 0 && beg <= end && end < MaxSlotNum) {
 		return rpc.ApiResponseError(fmt.Errorf("invalid slot range [%d,%d]", beg, end))
 	}
 	for sid := beg; sid <= end; sid++ {

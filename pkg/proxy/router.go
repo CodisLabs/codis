@@ -11,12 +11,14 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
+const MaxSlotNum = models.MaxSlotNum
+
 type Router struct {
 	mu sync.RWMutex
 
 	pool map[string]*SharedBackendConn
 
-	slots [models.MaxSlotNum]Slot
+	slots [MaxSlotNum]Slot
 
 	config *Config
 	online bool
@@ -72,7 +74,7 @@ func (s *Router) GetGroupIds() map[int]bool {
 func (s *Router) GetSlots() []*models.Slot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	slots := make([]*models.Slot, len(s.slots))
+	slots := make([]*models.Slot, MaxSlotNum)
 	for i := range s.slots {
 		slots[i] = s.slots[i].snapshot(true)
 	}
@@ -82,7 +84,7 @@ func (s *Router) GetSlots() []*models.Slot {
 func (s *Router) GetSlot(id int) *models.Slot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if id < 0 || id >= len(s.slots) {
+	if id < 0 || id >= MaxSlotNum {
 		return nil
 	}
 	slot := &s.slots[id]
@@ -100,7 +102,7 @@ func (s *Router) FillSlot(m *models.Slot) error {
 	if s.closed {
 		return ErrClosedRouter
 	}
-	if m.Id < 0 || m.Id >= len(s.slots) {
+	if m.Id < 0 || m.Id >= MaxSlotNum {
 		return ErrInvalidSlotId
 	}
 	s.fillSlot(m)
@@ -125,13 +127,13 @@ func (s *Router) isOnline() bool {
 
 func (s *Router) dispatch(r *Request) error {
 	hkey := getHashKey(r.Multi, r.OpStr)
-	var id = Hash(hkey) % uint32(len(s.slots))
+	var id = Hash(hkey) % MaxSlotNum
 	slot := &s.slots[id]
 	return slot.forward(r, hkey)
 }
 
 func (s *Router) dispatchSlot(r *Request, id int) error {
-	if id < 0 || id >= len(s.slots) {
+	if id < 0 || id >= MaxSlotNum {
 		return ErrInvalidSlotId
 	}
 	slot := &s.slots[id]

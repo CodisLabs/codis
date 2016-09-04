@@ -10,6 +10,8 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/math2"
 )
 
+const MaxSlotNum = models.MaxSlotNum
+
 type context struct {
 	slots []*models.SlotMapping
 	group map[int]*models.Group
@@ -19,7 +21,7 @@ type context struct {
 }
 
 func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {
-	if sid >= 0 && sid < len(ctx.slots) {
+	if sid >= 0 && sid < MaxSlotNum {
 		return ctx.slots[sid], nil
 	}
 	return nil, errors.Errorf("slot-[%d] doesn't exist", sid)

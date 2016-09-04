@@ -25,11 +25,11 @@ func checkSlots(t *Topom, c *proxy.ApiClient) {
 	assert.MustNoError(err)
 
 	slots1 := ctx.toSlotSlice(ctx.slots, "")
-	assert.Must(len(slots1) == models.MaxSlotNum)
+	assert.Must(len(slots1) == MaxSlotNum)
 
 	slots2, err := c.Slots()
 	assert.MustNoError(err)
-	assert.Must(len(slots2) == models.MaxSlotNum)
+	assert.Must(len(slots2) == MaxSlotNum)
 
 	for i := 0; i < len(slots1); i++ {
 		a := slots1[i]
@@ -279,7 +279,7 @@ func TestSlotActionPrepared(x *testing.T) {
 
 	slots, err := c2.Slots()
 	assert.MustNoError(err)
-	assert.Must(len(slots) == models.MaxSlotNum)
+	assert.Must(len(slots) == MaxSlotNum)
 
 	s := slots[sid]
 	assert.Must(s.Locked == false)
@@ -348,7 +348,7 @@ func TestSlotActionMigrating(x *testing.T) {
 
 	slots, err := c2.Slots()
 	assert.MustNoError(err)
-	assert.Must(len(slots) == models.MaxSlotNum)
+	assert.Must(len(slots) == MaxSlotNum)
 
 	s := slots[sid]
 	assert.Must(s.Locked == false)
@@ -417,7 +417,7 @@ func TestSlotActionFinished(x *testing.T) {
 
 	slots, err := c2.Slots()
 	assert.MustNoError(err)
-	assert.Must(len(slots) == models.MaxSlotNum)
+	assert.Must(len(slots) == MaxSlotNum)
 
 	s := slots[sid]
 	assert.Must(s.Locked == false)
