@@ -659,10 +659,16 @@ int incrementallyRehash(int dbid) {
     /* Keys dictionary */
     if (dictIsRehashing(server.db[dbid].dict)) {
         dictRehashMilliseconds(server.db[dbid].dict,1);
+
+        long long start = timeInMilliseconds();
         for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
-            dict *d = server.db[dbid].hash_slots[i];
+            int idx = ((i + start) & HASH_SLOTS_MASK);
+            dict *d = server.db[dbid].hash_slots[idx];
             if (dictIsRehashing(d)) {
                 dictRehashMilliseconds(d, 1);
+                if (timeInMilliseconds() != start) {
+                    break;
+                }
             }
         }
         return 1; /* already used our millisecond for this loop... */

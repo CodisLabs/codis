@@ -424,6 +424,8 @@ typedef struct redisObject {
 void crc32_init();
 uint32_t crc32_checksum(const char *buf, int len);
 
+long long timeInMilliseconds(void);
+
 #define HASH_SLOTS_MASK 0x000003ff
 #define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
 
