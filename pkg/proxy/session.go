@@ -35,7 +35,7 @@ type Session struct {
 		total atomic2.Int64
 		flush struct {
 			n    uint
-			tick int64
+			nano int64
 		}
 	}
 	start sync.Once
@@ -182,6 +182,10 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 		s.flushOpStats(true)
 	}()
 
+	p := s.Conn.FlushEncoder()
+	p.MaxInterval = time.Millisecond
+	p.MaxBuffered = 256
+
 	for r := range tasks {
 		resp, err := s.handleResponse(r)
 		if err != nil {
@@ -189,18 +193,17 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 			s.Conn.Encode(resp, true)
 			return s.incrOpFails(err)
 		}
-		if err := s.Conn.Encode(resp, false); err != nil {
+		if err := p.Encode(resp); err != nil {
 			return s.incrOpFails(err)
 		} else {
 			r.Release()
 		}
-		if len(tasks) != 0 {
-			continue
-		}
-		if err := s.Conn.Flush(); err != nil {
+		if err := p.Flush(len(tasks) == 0); err != nil {
 			return s.incrOpFails(err)
 		}
-		s.flushOpStats(false)
+		if len(tasks) == 0 {
+			s.flushOpStats(false)
+		}
 	}
 	return nil
 }
@@ -583,13 +586,14 @@ func (s *Session) incrOpStats(r *Request) {
 }
 
 func (s *Session) flushOpStats(force bool) {
-	var tick = time.Now().UnixNano() / (int64(time.Millisecond) * 100)
+	var nano = time.Now().UnixNano()
 	if !force {
-		if s.stats.flush.tick == tick {
+		const period = int64(time.Millisecond) * 100
+		if d := nano - s.stats.flush.nano; d < period {
 			return
 		}
 	}
-	s.stats.flush.tick = tick
+	s.stats.flush.nano = nano
 
 	incrOpTotal(s.stats.total.Swap(0))
 	for _, e := range s.stats.opmap {
