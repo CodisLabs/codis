@@ -40,6 +40,8 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 
 	case d["--create-proxy"].(bool):
 		fallthrough
+	case d["--online-proxy"].(bool):
+		fallthrough
 	case d["--remove-proxy"].(bool):
 		fallthrough
 	case d["--reinit-proxy"].(bool):
@@ -330,6 +332,16 @@ func (t *cmdDashboard) handleProxyCommand(d map[string]interface{}) {
 			log.PanicErrorf(err, "call rpc create-proxy to dashboard %s failed", t.addr)
 		}
 		log.Debugf("call rpc create-proxy OK")
+
+	case d["--online-proxy"].(bool):
+
+		addr := utils.ArgumentMust(d, "--addr")
+
+		log.Debugf("call rpc online-proxy to dashboard %s", t.addr)
+		if err := c.OnlineProxy(addr); err != nil {
+			log.PanicErrorf(err, "call rpc online-proxy to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc online-proxy OK")
 
 	case d["--remove-proxy"].(bool):
 

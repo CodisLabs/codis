@@ -26,6 +26,7 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --slots-status
 	codis-admin [-v] --dashboard=ADDR            --list-proxy
 	codis-admin [-v] --dashboard=ADDR            --create-proxy   --addr=ADDR
+	codis-admin [-v] --dashboard=ADDR            --online-proxy   --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --remove-proxy  (--addr=ADDR|--token=TOKEN|--pid=ID)       [--force]
 	codis-admin [-v] --dashboard=ADDR            --reinit-proxy  (--addr=ADDR|--token=TOKEN|--pid=ID|--all) [--force]
 	codis-admin [-v] --dashboard=ADDR            --proxy-status
