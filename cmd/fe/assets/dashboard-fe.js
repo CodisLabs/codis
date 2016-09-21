@@ -276,9 +276,6 @@ function processSentinels(codis_stats) {
     if (servers == undefined) {
         servers = {};
     }
-    if (out_of_resync == undefined) {
-        out_of_resync = false;
-    }
     return {servers:servers, masters:masters, out_of_resync: out_of_resync}
 }
 
@@ -329,12 +326,6 @@ function processGroupStats(codis_stats) {
             g.ispromoting = false;
         }
         g.canremove = (g.servers.length == 0);
-        if (g.replica_groups == undefined) {
-            g.replica_groups = false;
-        }
-        if (g.out_of_resync == undefined) {
-            g.out_of_resync = false;
-        }
         for (var j = 0; j < g.servers.length; j++) {
             var x = g.servers[j];
             var s = group_stats[x.server];
@@ -478,7 +469,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 }
                 var overview = resp.data;
                 $scope.codis_addr = overview.model.admin_addr;
-                $scope.codis_coord = "[" + overview.config.coordinator_name + "] " + overview.config.coordinator_addr;
+                $scope.codis_coord = "[" + overview.config.coordinator_name + "] " + overview.config.coordinator_addr.replace(',', ' ');
                 $scope.updateStats(overview.stats);
             });
         }
@@ -667,7 +658,6 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             if (isValidInput(codis_name)) {
                 var o = {};
                 o.id = group.id;
-                o.replica_groups = group.replica_groups;
                 o.servers = [];
                 for (var j = 0; j < group.servers.length; j++) {
                     o.servers.push(group.servers[j].server);
@@ -790,15 +780,15 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.enableReplicaGroups = function (group_id, replica_groups) {
+        $scope.enableReplicaGroups = function (group_id, server_addr, replica_group) {
             var codis_name = $scope.codis_name;
-            if (isValidInput(codis_name) && isValidInput(group_id)) {
+            if (isValidInput(codis_name) && isValidInput(group_id) && isValidInput(server_addr)) {
                 var xauth = genXAuth(codis_name);
                 var value = 0;
-                if (replica_groups) {
+                if (replica_group) {
                     value = 1;
                 }
-                var url = concatUrl("/api/topom/group/replica-groups/" + xauth + "/" + group_id + "/" + value, codis_name);
+                var url = concatUrl("/api/topom/group/replica-groups/" + xauth + "/" + group_id + "/" + server_addr + "/" + value, codis_name);
                 $http.put(url).then(function () {
                     $scope.refreshStats();
                 }, function (failedResp) {

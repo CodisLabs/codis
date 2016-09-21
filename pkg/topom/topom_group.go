@@ -119,9 +119,6 @@ func (s *Topom) GroupAddServer(gid int, dc, addr string) error {
 
 	s.dirtyGroupCache(g.Id)
 
-	if g.ReplicaGroups && ctx.isGroupInUse(g.Id) {
-		g.OutOfResync = true
-	}
 	g.Servers = append(g.Servers, &models.GroupServer{Addr: addr, DataCenter: dc})
 	return s.storeUpdateGroup(g)
 }
@@ -153,13 +150,6 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 		}
 	}
 
-	var slice = make([]*models.GroupServer, 0, len(g.Servers))
-	for i, x := range g.Servers {
-		if i != index {
-			slice = append(slice, x)
-		}
-	}
-
 	if p := ctx.sentinel; len(p.Servers) != 0 {
 		s.dirtySentinelCache()
 		p.OutOfResync = true
@@ -170,10 +160,18 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 
 	s.dirtyGroupCache(g.Id)
 
-	if g.ReplicaGroups && ctx.isGroupInUse(g.Id) {
+	var slice = make([]*models.GroupServer, 0, len(g.Servers))
+	for i, x := range g.Servers {
+		if i != index {
+			slice = append(slice, x)
+		}
+	}
+
+	if g.Servers[index].ReplicaGroup {
 		g.OutOfResync = true
 	}
 	g.Servers = slice
+
 	return s.storeUpdateGroup(g)
 }
 
@@ -265,6 +263,10 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 		s.dirtyGroupCache(g.Id)
 
+		for _, x := range slice {
+			x.ReplicaGroup = false
+		}
+
 		g.Servers = slice
 		g.Promoting.Index = 0
 		g.Promoting.State = models.ActionFinished
@@ -318,7 +320,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 	}
 }
 
-func (s *Topom) EnableReplicaGroups(gid int, value bool) error {
+func (s *Topom) EnableReplicaGroups(gid int, addr string, value bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -330,10 +332,22 @@ func (s *Topom) EnableReplicaGroups(gid int, value bool) error {
 	if err != nil {
 		return err
 	}
+	index, err := ctx.getGroupIndex(g, addr)
+	if err != nil {
+		return err
+	}
+
+	if g.Promoting.State != models.ActionNothing {
+		return errors.Errorf("group-[%d] is promoting", g.Id)
+	}
+
 	s.dirtyGroupCache(g.Id)
 
-	g.ReplicaGroups = value
-	g.OutOfResync = true
+	if len(g.Servers) != 1 && ctx.isGroupInUse(g.Id) {
+		g.OutOfResync = true
+	}
+	g.Servers[index].ReplicaGroup = value
+
 	return s.storeUpdateGroup(g)
 }
 

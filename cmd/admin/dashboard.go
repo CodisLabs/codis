@@ -489,11 +489,11 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 
 	case d["--replica-groups"].(bool):
 
-		gid := utils.ArgumentIntegerMust(d, "--gid")
+		gid, addr := utils.ArgumentIntegerMust(d, "--gid"), utils.ArgumentMust(d, "--addr")
 		value := d["--enable"].(bool)
 
 		log.Debugf("call rpc replica-groups to dashboard %s", t.addr)
-		if err := c.EnableReplicaGroups(gid, value); err != nil {
+		if err := c.EnableReplicaGroups(gid, addr, value); err != nil {
 			log.PanicErrorf(err, "call rpc replica-groups to dashboard %s failed", t.addr)
 		}
 		log.Debugf("call rpc replica-groups to dashboard OK")

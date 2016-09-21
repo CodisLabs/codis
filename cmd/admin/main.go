@@ -37,7 +37,7 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --group-add      --gid=ID --addr=ADDR [--datacenter=DATACENTER]
 	codis-admin [-v] --dashboard=ADDR            --group-del      --gid=ID --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --group-status
-	codis-admin [-v] --dashboard=ADDR            --replica-groups --gid=ID (--enable|--disable)
+	codis-admin [-v] --dashboard=ADDR            --replica-groups --gid=ID --addr=ADDR (--enable|--disable)
 	codis-admin [-v] --dashboard=ADDR            --promote-server --gid=ID --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --promote-commit --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --sync-action    --create --addr=ADDR

@@ -394,10 +394,8 @@
                                     Master
                                 </span>
                             </span>
-                            <input style="float: right; margin-right: 8px" type="checkbox"
-                                data-toggle="tooltip" data-placement="right" title="CAN READ SLAVES = [[group.replica_groups]]"
-                                ng-model="group.replica_groups" ng-click="enableReplicaGroups(group.id, group.replica_groups)">
                         </th>
+                        <th style="width: 35px;"/>
                         <th style="width: 35px;"/>
                         <th style="min-width: 100px;"/>
                         <th style="min-width: 260px;">Memory</th>
@@ -475,6 +473,11 @@
                         <td ng-switch="server.master_status">
                             <span ng-switch-when="false" class="status_label_error">[[server.master]]</span>
                             <span ng-switch-default>[[server.master]]</span>
+                        </td>
+                        <td>
+                            <input style="float: right; margin-right: 8px" type="checkbox"
+                                data-toggle="tooltip" data-placement="right" title="REPLICA_GROUP = [[server.replica_group]]"
+                                ng-model="server.replica_group" ng-click="enableReplicaGroups(group.id, server.server, server.replica_group)">
                         </td>
                         <td class="button_tight_column" ng-switch="server.canslaveof">
                             <span ng-switch-when="create">

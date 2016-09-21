@@ -107,7 +107,7 @@ func (ctx *context) toSlot(m *models.SlotMapping, dc string) *models.Slot {
 func (ctx *context) toReplicaGroups(gid int, dc string) [][]string {
 	g := ctx.group[gid]
 	switch {
-	case g == nil || !g.ReplicaGroups:
+	case g == nil:
 		return nil
 	case g.Promoting.State != models.ActionNothing:
 		return nil
@@ -116,10 +116,12 @@ func (ctx *context) toReplicaGroups(gid int, dc string) [][]string {
 	}
 	var groups [2][]string
 	for _, s := range g.Servers {
-		if s.DataCenter == dc {
-			groups[0] = append(groups[0], s.Addr)
-		} else {
-			groups[1] = append(groups[1], s.Addr)
+		if s.ReplicaGroup {
+			if s.DataCenter == dc {
+				groups[0] = append(groups[0], s.Addr)
+			} else {
+				groups[1] = append(groups[1], s.Addr)
+			}
 		}
 	}
 	var replicas [][]string

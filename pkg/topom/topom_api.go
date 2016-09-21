@@ -91,7 +91,7 @@ func newApiServer(t *Topom) http.Handler {
 			r.Put("/del/:xauth/:gid/:addr", api.GroupDelServer)
 			r.Put("/promote/:xauth/:gid/:addr", api.GroupPromoteServer)
 			r.Put("/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
-			r.Put("/replica-groups/:xauth/:gid/:value", api.EnableReplicaGroups)
+			r.Put("/replica-groups/:xauth/:gid/:addr/:value", api.EnableReplicaGroups)
 			r.Group("/action", func(r martini.Router) {
 				r.Put("/create/:xauth/:addr", api.SyncCreateAction)
 				r.Put("/remove/:xauth/:addr", api.SyncRemoveAction)
@@ -414,11 +414,15 @@ func (s *apiServer) EnableReplicaGroups(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
+	addr, err := s.parseAddr(params)
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
 	n, err := s.parseInteger(params, "value")
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	if err := s.topom.EnableReplicaGroups(gid, n != 0); err != nil {
+	if err := s.topom.EnableReplicaGroups(gid, addr, n != 0); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -756,12 +760,12 @@ func (c *ApiClient) GroupPromoteCommit(gid int) error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
-func (c *ApiClient) EnableReplicaGroups(gid int, value bool) error {
+func (c *ApiClient) EnableReplicaGroups(gid int, addr string, value bool) error {
 	var n int
 	if value {
 		n = 1
 	}
-	url := c.encodeURL("/api/topom/group/replica-groups/%s/%d/%d", c.xauth, gid, n)
+	url := c.encodeURL("/api/topom/group/replica-groups/%s/%d/%s/%d", c.xauth, gid, addr, n)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
