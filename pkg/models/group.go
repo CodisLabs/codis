@@ -14,9 +14,7 @@ type Group struct {
 		State string `json:"state,omitempty"`
 	} `json:"promoting"`
 
-	ReplicaGroups bool `json:"replica_groups,omitempty"`
-
-	OutOfResync bool `json:"out_of_resync,omitempty"`
+	OutOfResync bool `json:"out_of_resync"`
 }
 
 type GroupServer struct {
@@ -27,6 +25,8 @@ type GroupServer struct {
 		Index int    `json:"index,omitempty"`
 		State string `json:"state,omitempty"`
 	} `json:"action"`
+
+	ReplicaGroup bool `json:"replica_group"`
 }
 
 func (g *Group) Encode() []byte {
