@@ -40,7 +40,7 @@ func (s *Topom) AddSentinel(addr string) error {
 	s.dirtySentinelCache()
 
 	p.Servers = append(p.Servers, addr)
-	p.OutOfResync = true
+	p.OutOfSync = true
 	return s.storeUpdateSentinel(p)
 }
 
@@ -69,7 +69,7 @@ func (s *Topom) DelSentinel(addr string, force bool) error {
 
 	s.dirtySentinelCache()
 
-	p.OutOfResync = true
+	p.OutOfSync = true
 	if err := s.storeUpdateSentinel(p); err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (s *Topom) ResyncSentinels() error {
 	s.dirtySentinelCache()
 
 	p := ctx.sentinel
-	p.OutOfResync = true
+	p.OutOfSync = true
 	if err := s.storeUpdateSentinel(p); err != nil {
 		return err
 	}
@@ -199,6 +199,6 @@ func (s *Topom) ResyncSentinels() error {
 		}
 	}
 
-	p.OutOfResync = false
+	p.OutOfSync = false
 	return s.storeUpdateSentinel(p)
 }

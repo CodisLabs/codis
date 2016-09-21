@@ -14,7 +14,7 @@ type Group struct {
 		State string `json:"state,omitempty"`
 	} `json:"promoting"`
 
-	OutOfResync bool `json:"out_of_resync"`
+	OutOfSync bool `json:"out_of_sync"`
 }
 
 type GroupServer struct {

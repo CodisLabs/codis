@@ -386,7 +386,7 @@
                         <th style="min-width: 180px;">Server</th>
                         <th style="min-width: 100px;">DC</th>
                         <th style="min-width: 180px;">
-                            <span ng-switch="group.out_of_resync">
+                            <span ng-switch="group.out_of_sync">
                                 <span ng-switch-when="true" class="status_label_warning">
                                     (NEED RESYNC)
                                 </span>
@@ -427,7 +427,7 @@
                                     <span class="glyphicon glyphicon-upload"></span>
                                 </button>
                             </span>
-                            <span ng-switch-default ng-switch="group.out_of_resync">
+                            <span ng-switch-default ng-switch="group.out_of_sync">
                                 <span ng-switch-when="true">
                                     <button class="btn btn-danger btn-xs"
                                             data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of GROUP-[[group.id]]"
@@ -544,7 +544,7 @@
                     <thead>
                     <tr>
                         <th style="width: 35px;">
-                            <span ng-switch="sentinel_out_of_resync">
+                            <span ng-switch="sentinel_out_of_sync">
                                 <span ng-switch-when="true">
                                     <button class="btn btn-danger btn-xs"
                                             data-toggle="tooltip" data-placement="right" title="RESYNC ALL SENTINELS & PROXIES"

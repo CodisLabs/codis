@@ -262,7 +262,7 @@ function processProxyStats(codis_stats) {
 
 function processSentinels(codis_stats) {
     var ha = codis_stats.sentinels;
-    var out_of_resync = false;
+    var out_of_sync = false;
     var masters = {};
     var servers = [];
     masters = ha.masters;
@@ -271,12 +271,12 @@ function processSentinels(codis_stats) {
     }
     if (ha.sentinel != undefined) {
         servers = ha.sentinel.servers;
-        out_of_resync = ha.sentinel.out_of_resync;
+        out_of_sync = ha.sentinel.out_of_sync;
     }
     if (servers == undefined) {
         servers = {};
     }
-    return {servers:servers, masters:masters, out_of_resync: out_of_resync}
+    return {servers:servers, masters:masters, out_of_sync: out_of_sync}
 }
 
 function alertAction(text, callback) {
@@ -448,7 +448,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             $scope.slots_action_failed = false;
             $scope.slots_action_remain = 0;
             $scope.sentinel_servers = [];
-            $scope.sentinel_out_of_resync = false;
+            $scope.sentinel_out_of_sync = false;
         }
         $scope.resetOverview();
 
@@ -519,7 +519,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             $scope.slots_action_failed = codis_stats.slot_action.progress.failed;
             $scope.slots_action_remain = codis_stats.slot_action.progress.remain;
             $scope.sentinel_servers = merge($scope.sentinel_servers, sentinel.servers);
-            $scope.sentinel_out_of_resync = sentinel.out_of_resync;
+            $scope.sentinel_out_of_sync = sentinel.out_of_sync;
 
             for (var i = 0; i < $scope.slots_array.length; i++) {
                 var slot = $scope.slots_array[i];

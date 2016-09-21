@@ -6,7 +6,7 @@ package models
 type Sentinel struct {
 	Servers []string `json:"servers,omitempty"`
 
-	OutOfResync bool `json:"out_of_resync"`
+	OutOfSync bool `json:"out_of_sync"`
 }
 
 func (p *Sentinel) Encode() []byte {

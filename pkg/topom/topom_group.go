@@ -77,7 +77,7 @@ func (s *Topom) ResyncGroup(gid int) error {
 
 	s.dirtyGroupCache(gid)
 
-	g.OutOfResync = false
+	g.OutOfSync = false
 	return s.storeUpdateGroup(g)
 }
 
@@ -111,7 +111,7 @@ func (s *Topom) GroupAddServer(gid int, dc, addr string) error {
 
 	if p := ctx.sentinel; len(p.Servers) != 0 {
 		s.dirtySentinelCache()
-		p.OutOfResync = true
+		p.OutOfSync = true
 		if err := s.storeUpdateSentinel(p); err != nil {
 			return err
 		}
@@ -152,7 +152,7 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 
 	if p := ctx.sentinel; len(p.Servers) != 0 {
 		s.dirtySentinelCache()
-		p.OutOfResync = true
+		p.OutOfSync = true
 		if err := s.storeUpdateSentinel(p); err != nil {
 			return err
 		}
@@ -168,7 +168,7 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 	}
 
 	if g.Servers[index].ReplicaGroup {
-		g.OutOfResync = true
+		g.OutOfSync = true
 	}
 	g.Servers = slice
 
@@ -292,7 +292,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 		if p := ctx.sentinel; len(p.Servers) != 0 {
 			s.dirtySentinelCache()
-			p.OutOfResync = true
+			p.OutOfSync = true
 			if err := s.storeUpdateSentinel(p); err != nil {
 				return err
 			}
@@ -344,7 +344,7 @@ func (s *Topom) EnableReplicaGroups(gid int, addr string, value bool) error {
 	s.dirtyGroupCache(g.Id)
 
 	if len(g.Servers) != 1 && ctx.isGroupInUse(g.Id) {
-		g.OutOfResync = true
+		g.OutOfSync = true
 	}
 	g.Servers[index].ReplicaGroup = value
 
