@@ -74,6 +74,8 @@ class CodisServer(Process):
         self.config = self._open_config(port, master_port, requirepass)
         self.port = port
 
+        print("    >> server.port = {}".format(port))
+
         logfile = "redis-{}.log".format(port)
         command = "codis-server {}".format(self.config)
         Process.__init__(self, command, logfile)
@@ -97,6 +99,8 @@ class CodisSentinel(Process):
         self.config = self._open_config(port)
         self.port = port
 
+        print("    >> sentinel.port = {}".format(port))
+
         logfile = "sentinel-{}.log".format(port)
         command = "codis-server {} --sentinel".format(self.config)
         Process.__init__(self, command, logfile)
@@ -117,6 +121,9 @@ class CodisProxy(Process):
         self.product_name = product_name
         self.product_auth = product_auth
 
+        print("    >> proxy.admin_port = {}".format(admin_port))
+        print("    >> proxy.proxy_port = {}".format(proxy_port))
+
         logfile = "proxy-{}.log".format(proxy_port)
         command = "codis-proxy -c {} --etcd 127.0.0.1:2379".format(self.config)
         Process.__init__(self, command, logfile)
@@ -128,8 +135,8 @@ class CodisProxy(Process):
             if product_auth is not None:
                 f.write('product_auth = "{}"\n'.format(product_auth))
             f.write('proto_type = "tcp4"\n')
-            f.write('admin_addr = "0.0.0.0:{}"\n'.format(admin_port))
-            f.write('proxy_addr = "0.0.0.0:{}"\n'.format(proxy_port))
+            f.write('admin_addr = ":{}"\n'.format(admin_port))
+            f.write('proxy_addr = ":{}"\n'.format(proxy_port))
             f.write('proxy_datacenter = "localhost"\n')
             f.write('proxy_heap_placeholder = "0"\n')
             f.write('proxy_max_offheap_size = "0"\n')
@@ -144,6 +151,8 @@ class CodisDashboard(Process):
         self.product_name = product_name
         self.product_auth = product_auth
 
+        print("    >> dashboard.admin_port = {}".format(admin_port))
+
         logfile = "dashboard-{}.log".format(admin_port)
         command = "codis-dashboard -c {}".format(self.config)
         Process.__init__(self, command, logfile)
@@ -156,7 +165,7 @@ class CodisDashboard(Process):
             f.write('product_name = "{}"\n'.format(product_name))
             if product_auth is not None:
                 f.write('product_auth = "{}"\n'.format(product_auth))
-            f.write('admin_addr = "0.0.0.0:{}"\n'.format(admin_port))
+            f.write('admin_addr = ":{}"\n'.format(admin_port))
         return config
 
 
@@ -164,6 +173,8 @@ class CodisFe(Process):
 
     def __init__(self, port, assets):
         self.port = port
+
+        print("    >> fe.listen = {}".format(port))
 
         logfile = "fe-{}.log".format(port)
         command = "codis-fe --etcd 127.0.0.1:2379 --listen 0.0.0.0:{} --assets-dir={}".format(self.port, assets)
