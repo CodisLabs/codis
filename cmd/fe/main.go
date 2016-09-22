@@ -287,7 +287,7 @@ func (r *ReverseProxy) GetProxy(name string) *httputil.ReverseProxy {
 func (r *ReverseProxy) GetNames() []string {
 	r.Lock()
 	defer r.Unlock()
-	r.reload(time.Second * 3)
+	r.reload(time.Second * 5)
 	var names []string
 	for name, _ := range r.routes {
 		names = append(names, name)
