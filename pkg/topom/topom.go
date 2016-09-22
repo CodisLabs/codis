@@ -26,7 +26,6 @@ import (
 type Topom struct {
 	mu sync.Mutex
 
-	token string
 	xauth string
 	model *models.Topom
 	store *models.Store
