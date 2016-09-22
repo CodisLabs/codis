@@ -31,10 +31,10 @@ codis-server:
 
 clean:
 	@rm -rf bin
+	@rm -rf scripts/tmp
 
 distclean: clean
-	@rm -rf scripts/tmp
-	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
+	@make --no-print-directory --quiet -C extern/redis-2.8.21 distclean
 
 gotest: codis-deps
 	go test ./pkg/...
