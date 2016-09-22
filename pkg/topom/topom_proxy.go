@@ -43,6 +43,40 @@ func (s *Topom) CreateProxy(addr string) error {
 	}
 }
 
+func (s *Topom) OnlineProxy(addr string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+
+	p, err := proxy.NewApiClient(addr).Model()
+	if err != nil {
+		return errors.Errorf("proxy@%s fetch model failed", addr)
+	}
+	c := s.newProxyClient(p)
+
+	if err := c.XPing(); err != nil {
+		return errors.Errorf("proxy@%s check xauth failed", addr)
+	}
+
+	s.dirtyProxyCache(p.Token)
+
+	if d := ctx.proxy[p.Token]; d != nil {
+		p.Id = d.Id
+		if err := s.storeUpdateProxy(p); err != nil {
+			return err
+		}
+	} else {
+		p.Id = ctx.maxProxyId() + 1
+		if err := s.storeCreateProxy(p); err != nil {
+			return err
+		}
+	}
+	return s.reinitProxy(ctx, p, c)
+}
+
 func (s *Topom) RemoveProxy(token string, force bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

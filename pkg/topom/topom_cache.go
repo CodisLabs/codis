@@ -175,6 +175,15 @@ func (s *Topom) storeCreateProxy(p *models.Proxy) error {
 	return nil
 }
 
+func (s *Topom) storeUpdateProxy(p *models.Proxy) error {
+	log.Warnf("update proxy-[%s]:\n%s", p.Token, p.Encode())
+	if err := s.store.UpdateProxy(p); err != nil {
+		log.ErrorErrorf(err, "store: update proxy-[%s] failed", p.Token)
+		return errors.Errorf("store: update proxy-[%s] failed", p.Token)
+	}
+	return nil
+}
+
 func (s *Topom) storeRemoveProxy(p *models.Proxy) error {
 	log.Warnf("remove proxy-[%s]:\n%s", p.Token, p.Encode())
 	if err := s.store.DeleteProxy(p.Token); err != nil {
