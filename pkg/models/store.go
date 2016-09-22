@@ -24,15 +24,21 @@ type Store struct {
 	prefix string
 }
 
+const CodisDir = "/codis3"
+
 func NewStore(client Client, name string) *Store {
 	return &Store{
 		client: client,
-		prefix: filepath.Join("/codis3", name),
+		prefix: filepath.Join(CodisDir, name),
 	}
 }
 
 func (s *Store) Close() error {
 	return s.client.Close()
+}
+
+func LockPath(product string) string {
+	return filepath.Join(CodisDir, product, "topom")
 }
 
 func (s *Store) LockPath() string {
