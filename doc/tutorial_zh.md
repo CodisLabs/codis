@@ -62,10 +62,11 @@ $ go get -u github.com/tools/godep && which godep
 
 #### 3. 下载 Codis 源代码
 
-下载完成后，Codis 源码会出现在 `$GOPATH/src/github.com/CodisLabs/codis` 路径下：
+Codis 源代码需要下载到 `$GOPATH/src/github.com/CodisLabs/codis`：
 
 ```bash
-$ go get -u -d github.com/CodisLabs/codis
+$ mkdir -p $GOPATH/src/github.com/CodisLabs
+$ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.0
 ```
 
 #### 4. 编译 Codis 源代码
@@ -78,14 +79,11 @@ $ cd $GOPATH/src/github.com/CodisLabs/codis
 $ make
 make -j -C extern/redis-2.8.21/
 ... ...
-    >>>> godep: Checking dependency ... ...
-    >>>> godep: Checking dependency ... ...
-... ...
-godep go build -i -o bin/codis-dashboard ./cmd/dashboard
-godep go build -i -o bin/codis-proxy ./cmd/proxy
-godep go build -i -o bin/codis-admin ./cmd/admin
-godep go build -i -o bin/codis-ha ./cmd/ha
-godep go build -i -o bin/codis-fe ./cmd/fe
+go build -i -o bin/codis-dashboard ./cmd/dashboard
+go build -i -o bin/codis-proxy ./cmd/proxy
+go build -i -o bin/codis-admin ./cmd/admin
+go build -i -o bin/codis-ha ./cmd/ha
+go build -i -o bin/codis-fe ./cmd/fe
 
 $ ls bin/
 total 69124
@@ -97,19 +95,12 @@ drwxr-xr-x 4 codis codis     4096 Jan  4 14:55 assets
 -rwxr-xr-x 1 codis codis 11057280 Jan  4 14:55 codis-proxy
 -rwxr-xr-x 1 codis codis  4234432 Jan  4 14:55 codis-server
 -rw-r--r-- 1 codis codis      148 Jan  4 14:55 version
+... ...
 
 $ cat bin/version
 version = 2016-01-03 14:53:22 +0800 @51f06ae3b58a256a58f857f590430977638846a3
 compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 ```
-
-#### 网络访问受限
-
-1. 在有网络环境的机器上，Codis 源码目录中执行命令 `make godep`；
-	+ 该操作会将 Codis 编译所依赖的第三方源码下载到 `Godeps/_workspace` 目录下；
-2. 在目标环境中，按照之前步骤配置好编译环境；
-	+ 离线安装 go 以及 godep 工具；
-3. 将处理过的 Codis 目录完整复制到访问受限的服务器的正确的路径下，执行 `make` 进行源码编译。
 
 #### 离线安装 godep 方法：
 
