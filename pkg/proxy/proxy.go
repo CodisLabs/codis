@@ -214,6 +214,12 @@ func (s *Proxy) IsClosed() bool {
 	return s.closed
 }
 
+func (s *Proxy) HasSwitched() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.router.HasSwitched()
+}
+
 func (s *Proxy) Slots() []*models.Slot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -442,8 +448,9 @@ type Stats struct {
 	Closed bool `json:"closed"`
 
 	Sentinels struct {
-		Servers []string       `json:"servers,omitempty"`
-		Masters map[int]string `json:"masters,omitempty"`
+		Servers  []string       `json:"servers,omitempty"`
+		Masters  map[int]string `json:"masters,omitempty"`
+		Switched bool           `json:"switched,omitempty"`
 	} `json:"sentinels"`
 
 	Ops struct {
@@ -515,6 +522,7 @@ func (s *Proxy) Stats(simple bool) *Stats {
 	servers, masters := s.GetSentinels()
 	stats.Sentinels.Servers = servers
 	stats.Sentinels.Masters = masters
+	stats.Sentinels.Switched = s.HasSwitched()
 
 	stats.Ops.Total = OpTotal()
 	stats.Ops.Fails = OpFails()

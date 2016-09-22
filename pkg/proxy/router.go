@@ -52,7 +52,7 @@ func (s *Router) Close() {
 	s.closed = true
 
 	for i := range s.slots {
-		s.fillSlot(&models.Slot{Id: i})
+		s.fillSlot(&models.Slot{Id: i}, false)
 	}
 }
 
@@ -91,6 +91,17 @@ func (s *Router) GetSlot(id int) *models.Slot {
 	return slot.snapshot(true)
 }
 
+func (s *Router) HasSwitched() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for i := range s.slots {
+		if s.slots[i].switched {
+			return true
+		}
+	}
+	return false
+}
+
 var (
 	ErrClosedRouter  = errors.New("use of closed router")
 	ErrInvalidSlotId = errors.New("use of invalid slot id")
@@ -105,7 +116,7 @@ func (s *Router) FillSlot(m *models.Slot) error {
 	if m.Id < 0 || m.Id >= MaxSlotNum {
 		return ErrInvalidSlotId
 	}
-	s.fillSlot(m)
+	s.fillSlot(m, false)
 	return nil
 }
 
@@ -171,7 +182,7 @@ func (s *Router) putBackendConn(bc *SharedBackendConn) {
 	}
 }
 
-func (s *Router) fillSlot(m *models.Slot) {
+func (s *Router) fillSlot(m *models.Slot, switched bool) {
 	slot := &s.slots[m.Id]
 	slot.blockAndWait()
 
@@ -187,6 +198,8 @@ func (s *Router) fillSlot(m *models.Slot) {
 		}
 	}
 	slot.replicaGroups = nil
+
+	slot.switched = switched
 
 	if addr := m.BackendAddr; len(addr) != 0 {
 		slot.backend.bc = s.getBackendConn(addr, true)
@@ -231,25 +244,25 @@ func (s *Router) SwitchMasters(masters map[int]string) error {
 }
 
 func (s *Router) trySwitchMaster(id int, masters map[int]string) {
-	var refill = false
+	var conflict = false
 	var m = s.slots[id].snapshot(false)
 
-	if addr := masters[m.BackendAddrId]; len(addr) != 0 {
+	if addr := masters[m.BackendAddrId]; addr != "" {
 		if addr != m.BackendAddr {
 			m.BackendAddr = addr
-			refill = true
+			conflict = true
 		}
 	}
-	if from := masters[m.MigrateFromId]; len(from) != 0 {
+	if from := masters[m.MigrateFromId]; from != "" {
 		if from != m.MigrateFrom {
 			m.MigrateFrom = from
-			refill = true
+			conflict = true
 		}
 	}
-	if !refill {
+	if !conflict {
 		return
 	}
-	log.Warnf("refill slot %04d +switch-master", id)
+	log.Warnf("slot %04d +switch-master", id)
 
-	s.fillSlot(m)
+	s.fillSlot(m, true)
 }

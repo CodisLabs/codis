@@ -21,6 +21,8 @@ type Slot struct {
 	}
 	refs sync.WaitGroup
 
+	switched bool
+
 	backend, migrate struct {
 		id int
 		bc *SharedBackendConn
@@ -28,7 +30,7 @@ type Slot struct {
 	replicaGroups [][]*SharedBackendConn
 }
 
-func (s *Slot) snapshot(replica bool) *models.Slot {
+func (s *Slot) snapshot(full bool) *models.Slot {
 	var m = &models.Slot{
 		Id:     s.id,
 		Locked: s.lock.hold,
@@ -38,7 +40,7 @@ func (s *Slot) snapshot(replica bool) *models.Slot {
 		MigrateFrom:   s.migrate.bc.Addr(),
 		MigrateFromId: s.migrate.id,
 	}
-	if !replica {
+	if !full {
 		return m
 	}
 	for i := range s.replicaGroups {
