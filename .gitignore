@@ -9,6 +9,7 @@
 .htaccess
 
 /bin
+/tmp
 /pkg/utils/version.go
 
 makefile
