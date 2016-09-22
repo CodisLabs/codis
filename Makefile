@@ -34,9 +34,10 @@ codis-server:
 
 clean:
 	@rm -rf bin
+	@rm -rf scripts/tmp
 
 distclean: clean
-	@make --no-print-directory --quiet -C extern/redis-2.8.21 clean
+	@make --no-print-directory --quiet -C extern/redis-2.8.21 distclean
 	@make --no-print-directory --quiet -C vendor/github.com/spinlock/jemalloc-go/ distclean
 
 gotest: codis-deps
