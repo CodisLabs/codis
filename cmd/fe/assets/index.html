@@ -142,8 +142,24 @@
                             <a ng-href="http://[[proxy.proxy_link]]" target="_blank" class="btn btn-primary btn-xs active" role="button">F</a>
                             <a ng-href="http://[[proxy.stats_link]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
                         </td>
-                        <td>[[proxy.proxy_addr]]</td>
-                        <td>[[proxy.admin_addr]]</td>
+                        <td ng-switch="proxy.switched">
+                            <span ng-switch-when="true" style="color: white; background-color: red"
+                                data-toggle="tooltip" data-placement="right" title="HA: MASTER SWITCHED">
+                                [[proxy.proxy_addr]]
+                            </span>
+                            <span ng-switch-default>
+                                [[proxy.proxy_addr]]
+                            </span>
+                        </td>
+                        <td ng-switch="proxy.switched">
+                            <span ng-switch-when="true" style="color: white; background-color: red"
+                                data-toggle="tooltip" data-placement="right" title="HA: MASTER SWITCHED">
+                                [[proxy.admin_addr]]
+                            </span>
+                            <span ng-switch-default>
+                                [[proxy.admin_addr]]
+                            </span>
+                        </td>
                         <td ng-switch="proxy.status">
                             <span ng-switch-when="HEALTHY" class="btn btn-primary btn-xs"
                                 data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS to [[proxy.proxy_addr]]"
@@ -387,8 +403,8 @@
                         <th style="min-width: 100px;">DC</th>
                         <th style="min-width: 180px;">
                             <span ng-switch="group.out_of_sync">
-                                <span ng-switch-when="true" class="status_label_warning">
-                                    (NEED RESYNC)
+                                <span ng-switch-when="true" style="color: white; background-color: red">
+                                    (OUT OF SYNC)
                                 </span>
                                 <span ng-switch-default>
                                     Master
@@ -561,7 +577,12 @@
                                 </span>
                             </span>
                         </th>
-                        <th style="min-width: 180px;">Server</th>
+                        <th style="min-width: 180px;">
+                            Servers
+                            <span ng-if="sentinel_out_of_sync" style="color: white; background-color: red">
+                                (OUT OF SYNC)
+                            </span>
+                        </th>
                         <th style="width: 35px;"/>
                     </tr>
                     </thead>

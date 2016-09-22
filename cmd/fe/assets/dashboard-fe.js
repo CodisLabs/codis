@@ -235,6 +235,7 @@ function processProxyStats(codis_stats) {
         var s = proxy_stats[p.token];
         p.sessions = "NA";
         p.commands = "NA";
+        p.switched = false;
         if (!s) {
             p.status = "PENDING";
         } else if (s.timeout) {
@@ -252,6 +253,11 @@ function processProxyStats(codis_stats) {
             if (p.admin_addr) {
                 p.proxy_link = p.admin_addr + "/proxy"
                 p.stats_link = p.admin_addr + "/proxy/stats"
+            }
+            if (s.stats.sentinels != undefined) {
+                if (s.stats.sentinels.switched != undefined) {
+                    p.switched = s.stats.sentinels.switched;
+                }
             }
             qps += s.stats.ops.qps;
             sessions += s.stats.sessions.alive;
@@ -598,7 +604,11 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.removeProxy = function (proxy, force) {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
-                alertAction("Remove and Shutdown proxy: " + toJsonHtml(proxy), function () {
+                var prefix = "";
+                if (force) {
+                    prefix = "[FORCE] ";
+                }
+                alertAction(prefix + "Remove and Shutdown proxy: " + toJsonHtml(proxy), function () {
                     var xauth = genXAuth(codis_name);
                     var value = 0;
                     if (force) {
