@@ -36,8 +36,7 @@ func (s *Topom) AddSentinel(addr string) error {
 	if err := sentinel.FlushConfig(addr); err != nil {
 		return err
 	}
-
-	s.dirtySentinelCache()
+	defer s.dirtySentinelCache()
 
 	p.Servers = append(p.Servers, addr)
 	p.OutOfSync = true
@@ -66,8 +65,7 @@ func (s *Topom) DelSentinel(addr string, force bool) error {
 	if len(slice) == len(p.Servers) {
 		return errors.Errorf("sentinel-[%s] not found", addr)
 	}
-
-	s.dirtySentinelCache()
+	defer s.dirtySentinelCache()
 
 	p.OutOfSync = true
 	if err := s.storeUpdateSentinel(p); err != nil {
@@ -163,8 +161,7 @@ func (s *Topom) ResyncSentinels() error {
 	if err != nil {
 		return err
 	}
-
-	s.dirtySentinelCache()
+	defer s.dirtySentinelCache()
 
 	p := ctx.sentinel
 	p.OutOfSync = true

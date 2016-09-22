@@ -26,8 +26,7 @@ func (s *Topom) CreateGroup(gid int) error {
 	if ctx.group[gid] != nil {
 		return errors.Errorf("group-[%d] already exists", gid)
 	}
-
-	s.dirtyGroupCache(gid)
+	defer s.dirtyGroupCache(gid)
 
 	g := &models.Group{
 		Id:      gid,
@@ -51,8 +50,7 @@ func (s *Topom) RemoveGroup(gid int) error {
 	if len(g.Servers) != 0 {
 		return errors.Errorf("group-[%d] isn't empty", gid)
 	}
-
-	s.dirtyGroupCache(g.Id)
+	defer s.dirtyGroupCache(g.Id)
 
 	return s.storeRemoveGroup(g)
 }
@@ -74,8 +72,7 @@ func (s *Topom) ResyncGroup(gid int) error {
 		log.Warnf("group-[%d] resync-group failed", g.Id)
 		return err
 	}
-
-	s.dirtyGroupCache(gid)
+	defer s.dirtyGroupCache(gid)
 
 	g.OutOfSync = false
 	return s.storeUpdateGroup(g)
@@ -110,14 +107,13 @@ func (s *Topom) GroupAddServer(gid int, dc, addr string) error {
 	}
 
 	if p := ctx.sentinel; len(p.Servers) != 0 {
-		s.dirtySentinelCache()
+		defer s.dirtySentinelCache()
 		p.OutOfSync = true
 		if err := s.storeUpdateSentinel(p); err != nil {
 			return err
 		}
 	}
-
-	s.dirtyGroupCache(g.Id)
+	defer s.dirtyGroupCache(g.Id)
 
 	g.Servers = append(g.Servers, &models.GroupServer{Addr: addr, DataCenter: dc})
 	return s.storeUpdateGroup(g)
@@ -151,14 +147,17 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 	}
 
 	if p := ctx.sentinel; len(p.Servers) != 0 {
-		s.dirtySentinelCache()
+		defer s.dirtySentinelCache()
 		p.OutOfSync = true
 		if err := s.storeUpdateSentinel(p); err != nil {
 			return err
 		}
 	}
+	defer s.dirtyGroupCache(g.Id)
 
-	s.dirtyGroupCache(g.Id)
+	if index != 0 && g.Servers[index].ReplicaGroup {
+		g.OutOfSync = true
+	}
 
 	var slice = make([]*models.GroupServer, 0, len(g.Servers))
 	for i, x := range g.Servers {
@@ -167,9 +166,6 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 		}
 	}
 
-	if g.Servers[index].ReplicaGroup {
-		g.OutOfSync = true
-	}
 	g.Servers = slice
 
 	return s.storeUpdateGroup(g)
@@ -202,8 +198,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 	if n := s.action.executor.Get(); n != 0 {
 		return errors.Errorf("slots-migration is running = %d", n)
 	}
-
-	s.dirtyGroupCache(g.Id)
+	defer s.dirtyGroupCache(g.Id)
 
 	g.Promoting.Index = index
 	g.Promoting.State = models.ActionPreparing
@@ -229,11 +224,11 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 	case models.ActionPreparing:
 
+		defer s.dirtyGroupCache(g.Id)
+
 		log.Warnf("group-[%d] resync to prepared", g.Id)
 
 		slots := ctx.getSlotMappingsByGroupId(g.Id)
-
-		s.dirtyGroupCache(g.Id)
 
 		g.Promoting.State = models.ActionPrepared
 		if err := s.resyncSlotMappings(ctx, slots...); err != nil {
@@ -251,6 +246,8 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 
 	case models.ActionPrepared:
 
+		defer s.dirtyGroupCache(g.Id)
+
 		var index = g.Promoting.Index
 		var slice = make([]*models.GroupServer, 0, len(g.Servers))
 		slice = append(slice, g.Servers[index])
@@ -260,8 +257,6 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 			}
 		}
 		slice = append(slice, g.Servers[0])
-
-		s.dirtyGroupCache(g.Id)
 
 		for _, x := range slice {
 			x.ReplicaGroup = false
@@ -291,7 +286,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		log.Warnf("group-[%d] resync to finished", g.Id)
 
 		if p := ctx.sentinel; len(p.Servers) != 0 {
-			s.dirtySentinelCache()
+			defer s.dirtySentinelCache()
 			p.OutOfSync = true
 			if err := s.storeUpdateSentinel(p); err != nil {
 				return err
@@ -304,8 +299,7 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 			log.Warnf("group-[%d] resync to finished failed", g.Id)
 			return err
 		}
-
-		s.dirtyGroupCache(g.Id)
+		defer s.dirtyGroupCache(g.Id)
 
 		g = &models.Group{
 			Id:      g.Id,
@@ -340,8 +334,7 @@ func (s *Topom) EnableReplicaGroups(gid int, addr string, value bool) error {
 	if g.Promoting.State != models.ActionNothing {
 		return errors.Errorf("group-[%d] is promoting", g.Id)
 	}
-
-	s.dirtyGroupCache(g.Id)
+	defer s.dirtyGroupCache(g.Id)
 
 	if len(g.Servers) != 1 && ctx.isGroupInUse(g.Id) {
 		g.OutOfSync = true
@@ -370,8 +363,7 @@ func (s *Topom) SyncCreateAction(addr string) error {
 	if g.Servers[index].Action.State == models.ActionPending {
 		return errors.Errorf("server-[%s] action already exist", addr)
 	}
-
-	s.dirtyGroupCache(g.Id)
+	defer s.dirtyGroupCache(g.Id)
 
 	g.Servers[index].Action.Index = ctx.maxSyncActionIndex() + 1
 	g.Servers[index].Action.State = models.ActionPending
@@ -397,8 +389,7 @@ func (s *Topom) SyncRemoveAction(addr string) error {
 	if g.Servers[index].Action.State == models.ActionNothing {
 		return errors.Errorf("server-[%s] action doesn't exist", addr)
 	}
-
-	s.dirtyGroupCache(g.Id)
+	defer s.dirtyGroupCache(g.Id)
 
 	g.Servers[index] = &models.GroupServer{Addr: addr}
 	return s.storeUpdateGroup(g)
@@ -428,10 +419,9 @@ func (s *Topom) SyncActionPrepare() (string, error) {
 	if g.Servers[index].Action.State != models.ActionPending {
 		return "", errors.Errorf("server-[%s] action state is invalid", addr)
 	}
+	defer s.dirtyGroupCache(g.Id)
 
 	log.Warnf("server-[%s] action prepare", addr)
-
-	s.dirtyGroupCache(g.Id)
 
 	g.Servers[index].Action.Index = 0
 	g.Servers[index].Action.State = models.ActionSyncing
@@ -457,10 +447,9 @@ func (s *Topom) SyncActionComplete(addr string, failed bool) error {
 	if g.Servers[index].Action.State != models.ActionSyncing {
 		return nil
 	}
+	defer s.dirtyGroupCache(g.Id)
 
 	log.Warnf("server-[%s] action failed = %t", addr, failed)
-
-	s.dirtyGroupCache(g.Id)
 
 	var state string
 	if !failed {

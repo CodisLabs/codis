@@ -33,8 +33,7 @@ func (s *Topom) CreateProxy(addr string) error {
 	} else {
 		p.Id = ctx.maxProxyId() + 1
 	}
-
-	s.dirtyProxyCache(p.Token)
+	defer s.dirtyProxyCache(p.Token)
 
 	if err := s.storeCreateProxy(p); err != nil {
 		return err
@@ -60,8 +59,7 @@ func (s *Topom) OnlineProxy(addr string) error {
 	if err := c.XPing(); err != nil {
 		return errors.Errorf("proxy@%s check xauth failed", addr)
 	}
-
-	s.dirtyProxyCache(p.Token)
+	defer s.dirtyProxyCache(p.Token)
 
 	if d := ctx.proxy[p.Token]; d != nil {
 		p.Id = d.Id
@@ -97,8 +95,7 @@ func (s *Topom) RemoveProxy(token string, force bool) error {
 			return errors.Errorf("proxy-[%s] shutdown failed", p.Token)
 		}
 	}
-
-	s.dirtyProxyCache(p.Token)
+	defer s.dirtyProxyCache(p.Token)
 
 	return s.storeRemoveProxy(p)
 }

@@ -35,8 +35,7 @@ func (s *Topom) SlotCreateAction(sid int, gid int) error {
 	if len(g.Servers) == 0 {
 		return errors.Errorf("group-[%d] is empty", gid)
 	}
-
-	s.dirtySlotsCache(m.Id)
+	defer s.dirtySlotsCache(m.Id)
 
 	m.Action.State = models.ActionPending
 	m.Action.Index = ctx.maxSlotActionIndex() + 1
@@ -62,8 +61,7 @@ func (s *Topom) SlotRemoveAction(sid int) error {
 	if m.Action.State != models.ActionPending {
 		return errors.Errorf("slot-[%d] action isn't pending", sid)
 	}
-
-	s.dirtySlotsCache(m.Id)
+	defer s.dirtySlotsCache(m.Id)
 
 	m = &models.SlotMapping{
 		Id:      m.Id,
@@ -94,8 +92,7 @@ func (s *Topom) SlotActionPrepare() (int, bool, error) {
 		if s.action.disabled.Get() {
 			return 0, false, nil
 		}
-
-		s.dirtySlotsCache(m.Id)
+		defer s.dirtySlotsCache(m.Id)
 
 		m.Action.State = models.ActionPreparing
 		if err := s.storeUpdateSlotMapping(m); err != nil {
@@ -106,9 +103,9 @@ func (s *Topom) SlotActionPrepare() (int, bool, error) {
 
 	case models.ActionPreparing:
 
-		log.Warnf("slot-[%d] resync to prepared", m.Id)
+		defer s.dirtySlotsCache(m.Id)
 
-		s.dirtySlotsCache(m.Id)
+		log.Warnf("slot-[%d] resync to prepared", m.Id)
 
 		m.Action.State = models.ActionPrepared
 		if err := s.resyncSlotMappings(ctx, m); err != nil {
@@ -126,9 +123,9 @@ func (s *Topom) SlotActionPrepare() (int, bool, error) {
 
 	case models.ActionPrepared:
 
-		log.Warnf("slot-[%d] resync to migrating", m.Id)
+		defer s.dirtySlotsCache(m.Id)
 
-		s.dirtySlotsCache(m.Id)
+		log.Warnf("slot-[%d] resync to migrating", m.Id)
 
 		m.Action.State = models.ActionMigrating
 		if err := s.resyncSlotMappings(ctx, m); err != nil {
@@ -175,7 +172,7 @@ func (s *Topom) SlotActionComplete(sid int) error {
 
 	case models.ActionMigrating:
 
-		s.dirtySlotsCache(m.Id)
+		defer s.dirtySlotsCache(m.Id)
 
 		m.Action.State = models.ActionFinished
 		if err := s.storeUpdateSlotMapping(m); err != nil {
@@ -192,8 +189,7 @@ func (s *Topom) SlotActionComplete(sid int) error {
 			log.Warnf("slot-[%d] resync to finished failed", m.Id)
 			return err
 		}
-
-		s.dirtySlotsCache(m.Id)
+		defer s.dirtySlotsCache(m.Id)
 
 		m = &models.SlotMapping{
 			Id:      m.Id,
@@ -285,7 +281,7 @@ func (s *Topom) SlotsAssignGroup(slots []*models.SlotMapping) error {
 	}
 
 	for _, m := range slots {
-		s.dirtySlotsCache(m.Id)
+		defer s.dirtySlotsCache(m.Id)
 
 		m = &models.SlotMapping{
 			Id:      m.Id,
