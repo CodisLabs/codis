@@ -24,7 +24,6 @@ import (
 type Proxy struct {
 	mu sync.Mutex
 
-	token string
 	xauth string
 	model *models.Proxy
 
@@ -50,10 +49,8 @@ func New(config *Config) (*Proxy, error) {
 		return nil, errors.Errorf("invalid product name = %s", config.ProductName)
 	}
 	s := &Proxy{config: config}
-	s.token = rpc.NewToken()
-	s.xauth = rpc.NewXAuth(config.ProductName, config.ProductAuth, s.token)
 	s.model = &models.Proxy{
-		Token: s.token, StartTime: time.Now().String(),
+		StartTime: time.Now().String(),
 	}
 	s.model.ProductName = config.ProductName
 	s.model.Pid = os.Getpid()
@@ -68,7 +65,7 @@ func New(config *Config) (*Proxy, error) {
 	s.init.C = make(chan struct{})
 	s.exit.C = make(chan struct{})
 
-	if err := s.setup(); err != nil {
+	if err := s.setup(config); err != nil {
 		s.Close()
 		return nil, err
 	}
@@ -81,14 +78,14 @@ func New(config *Config) (*Proxy, error) {
 	return s, nil
 }
 
-func (s *Proxy) setup() error {
-	proto := s.config.ProtoType
-	if l, err := net.Listen(proto, s.config.ProxyAddr); err != nil {
+func (s *Proxy) setup(config *Config) error {
+	proto := config.ProtoType
+	if l, err := net.Listen(proto, config.ProxyAddr); err != nil {
 		return errors.Trace(err)
 	} else {
 		s.lproxy = l
 
-		x, err := utils.ResolveAddr(proto, l.Addr().String(), s.config.HostProxy)
+		x, err := utils.ResolveAddr(proto, l.Addr().String(), config.HostProxy)
 		if err != nil {
 			return err
 		}
@@ -96,17 +93,29 @@ func (s *Proxy) setup() error {
 		s.model.ProxyAddr = x
 	}
 
-	if l, err := net.Listen("tcp", s.config.AdminAddr); err != nil {
+	proto = "tcp"
+	if l, err := net.Listen(proto, config.AdminAddr); err != nil {
 		return errors.Trace(err)
 	} else {
 		s.ladmin = l
 
-		x, err := utils.ResolveAddr("tcp", l.Addr().String(), s.config.HostAdmin)
+		x, err := utils.ResolveAddr("tcp", l.Addr().String(), config.HostAdmin)
 		if err != nil {
 			return err
 		}
 		s.model.AdminAddr = x
 	}
+
+	s.model.Token = rpc.NewToken(
+		config.ProductName,
+		s.lproxy.Addr().String(),
+		s.ladmin.Addr().String(),
+	)
+	s.xauth = rpc.NewXAuth(
+		config.ProductName,
+		config.ProductAuth,
+		s.model.Token,
+	)
 
 	return nil
 }
@@ -154,7 +163,7 @@ func (s *Proxy) Close() error {
 }
 
 func (s *Proxy) Token() string {
-	return s.token
+	return s.model.Token
 }
 
 func (s *Proxy) XAuth() string {

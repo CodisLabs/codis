@@ -6,30 +6,37 @@ package rpc
 import (
 	"bytes"
 	"crypto/md5"
-	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
-	"os"
-	"time"
+	"net"
+	"sort"
 )
 
-func NewToken() string {
-	hostname, _ := os.Hostname()
-	c := make([]byte, 16)
-	rand.Read(c)
+func NewToken(segs ...string) string {
+	var list []string
+	ifs, _ := net.Interfaces()
+	for _, i := range ifs {
+		addr := i.HardwareAddr.String()
+		if addr != "" {
+			list = append(list, addr)
+		}
+	}
+	sort.Strings(list)
 
-	s := fmt.Sprintf("%s-%d-%x", hostname, time.Now().UnixNano(), c)
-	b := md5.Sum([]byte(s))
+	t := &bytes.Buffer{}
+	fmt.Fprintf(t, "Codis-Token@%v", list)
+	for _, s := range segs {
+		fmt.Fprintf(t, "-{%s}", s)
+	}
+	b := md5.Sum(t.Bytes())
 	return fmt.Sprintf("%x", b)
 }
 
 func NewXAuth(segs ...string) string {
 	t := &bytes.Buffer{}
-	t.WriteString("Codis-XAuth")
+	fmt.Fprintf(t, "Codis-XAuth")
 	for _, s := range segs {
-		t.WriteString("-[")
-		t.WriteString(s)
-		t.WriteString("]")
+		fmt.Fprintf(t, "-[%s]", s)
 	}
 	b := sha256.Sum256(t.Bytes())
 	return fmt.Sprintf("%x", b[:16])
