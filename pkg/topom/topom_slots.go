@@ -281,6 +281,16 @@ func (s *Topom) SlotsAssignGroup(slots []*models.SlotMapping) error {
 	}
 
 	for _, m := range slots {
+		if g := ctx.group[m.GroupId]; !g.OutOfSync {
+			defer s.dirtyGroupCache(g.Id)
+			g.OutOfSync = true
+			if err := s.storeUpdateGroup(g); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, m := range slots {
 		defer s.dirtySlotsCache(m.Id)
 
 		m = &models.SlotMapping{
