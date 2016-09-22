@@ -433,7 +433,8 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.resetOverview = function () {
             $scope.codis_name = "NA";
             $scope.codis_addr = "NA";
-            $scope.codis_coord = "NA";
+            $scope.codis_coord_name = "Coordinator";
+            $scope.codis_coord_addr = "NA";
             $scope.codis_qps = "NA";
             $scope.codis_sessions = "NA";
             $scope.redis_mem = "NA";
@@ -469,7 +470,8 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 }
                 var overview = resp.data;
                 $scope.codis_addr = overview.model.admin_addr;
-                $scope.codis_coord = "[" + overview.config.coordinator_name + "] " + overview.config.coordinator_addr.replace(',', ' ');
+                $scope.codis_coord_name = "[" + overview.config.coordinator_name.charAt(0).toUpperCase() + overview.config.coordinator_name.slice(1) + "]";
+                $scope.codis_coord_addr = overview.config.coordinator_addr.replace(/,/g, ' ');
                 $scope.updateStats(overview.stats);
             });
         }
