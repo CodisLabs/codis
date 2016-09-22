@@ -1,5 +1,7 @@
 FROM golang:1.6.3
 
+RUN apt-get update
+
 ENV GOPATH /gopath
 ENV CODIS  ${GOPATH}/src/github.com/CodisLabs/codis
 ENV PATH   ${GOPATH}/bin:${PATH}:${CODIS}/bin

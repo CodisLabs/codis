@@ -28,6 +28,8 @@ codis-server:
 	make -j -C extern/redis-2.8.21/
 	@rm -f bin/codis-server
 	@cp -f extern/redis-2.8.21/src/redis-server bin/codis-server
+	@cp -f extern/redis-2.8.21/src/redis-benchmark bin/
+	@cp -f extern/redis-2.8.21/src/redis-cli bin/
 
 clean:
 	@rm -rf bin
