@@ -250,6 +250,7 @@ if __name__ == "__main__":
         gid = i + 1
         beg, end = i * 256, (i + 1) * 256 - 1
         codis_admin_dashboard(d.admin_port, "--slots-assign --beg={} --end={} --gid={} --confirm".format(beg, end, gid))
+        codis_admin_dashboard(d.admin_port, "--resync-group --gid={}".format(gid))
 
     while True:
         print(datetime.datetime.now())
