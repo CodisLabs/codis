@@ -1,0 +1,8 @@
+[Unit]
+Description=Codis-[{PRODUCT_NAME}]@{ADMIN_ADDR}
+[Service]
+ExecStart={BIN_PATH}/codis-dashboard \
+    --config={ETC_PATH}/{ADMIN_ADDR}/dashboard.toml --log={LOG_PATH}/{ADMIN_ADDR}/dashboard.log --log-level={LOG_LEVEL}
+Restart=always
+[Install]
+WantedBy=default.target
