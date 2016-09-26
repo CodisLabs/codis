@@ -308,7 +308,7 @@ session_keepalive_period = 60
 | session\_max\_pipeline      | 与 client 连接最大的 pipeline 大小                       |
 | session\_keepalive\_period  | 与 client 的 tcp keepalive 周期，仅 tcp 有效，0 表示禁止 |
 
-**注：Codis3 会将 jodis 节点注册在 `/jodis/{PRODUCT_NAME}` 下，这点与 Codis2 不太兼容，所以为了兼容性，可以可以考虑将 `jodis_compatible` 设置成 `true`。**
+**注：Codis3 会将 jodis 节点注册在 `/jodis/{PRODUCT_NAME}` 下，这点与 Codis2 不太兼容，所以为了兼容性，可以考虑将 `jodis_compatible` 设置成 `true`。**
 
 #### 2.3 Codis Server
 
