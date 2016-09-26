@@ -133,7 +133,7 @@ func (s *Proxy) Start() error {
 	close(s.init.C)
 
 	if s.jodis == nil && s.config.JodisAddr != "" {
-		s.jodis = NewJodis(s.config.JodisAddr, s.config.JodisTimeout, s.model)
+		s.jodis = NewJodis(s.config.JodisAddr, s.config.JodisTimeout, s.config.JodisCompatible, s.model)
 	}
 	return nil
 }

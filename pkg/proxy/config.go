@@ -33,6 +33,7 @@ proxy_addr = "0.0.0.0:19000"
 # Set jodis address & session timeout.
 jodis_addr = ""
 jodis_timeout = 10
+jodis_compatible = false
 
 # Proxy will ping-pong backend redis periodly to keep-alive
 backend_ping_period = 5
@@ -59,8 +60,9 @@ type Config struct {
 	HostProxy string `toml:"-" json:"-"`
 	HostAdmin string `toml:"-" json:"-"`
 
-	JodisAddr    string `toml:"jodis_addr" json:"jodis_addr"`
-	JodisTimeout int    `toml:"jodis_timeout" json:"jodis_timeout"`
+	JodisAddr       string `toml:"jodis_addr" json:"jodis_addr"`
+	JodisTimeout    int    `toml:"jodis_timeout" json:"jodis_timeout"`
+	JodisCompatible bool   `toml:"jodis_compatible" json:"jodis_compatible"`
 
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
