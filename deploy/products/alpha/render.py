@@ -41,6 +41,7 @@ class Coordinator:
     def __init__(self, config):
         self.name = config.get("name", "")
         self.addr = ",".join(config.get("addr", []))
+        self.compatible = config.get("compatible", False)
 
 
 class Dashboard():
@@ -128,6 +129,7 @@ class Proxy():
             'PROXY_ADDR': self.proxy_addr,
             'MAX_PIPELINE': self.template.max_pipeline,
             'JODIS_ADDR': self.template.jodis.addr,
+            'JODIS_COMPATIBLE': self.template.jodis.compatible,
             'NCPU': self.template.ncpu,
             'BIN_PATH': self.env.bin_path,
             'ETC_PATH': self.env.etc_path,
