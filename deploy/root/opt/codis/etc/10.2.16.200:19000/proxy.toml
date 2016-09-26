@@ -1,0 +1,37 @@
+##################################################
+#                                                #
+#                  Codis-Proxy                   #
+#                                                #
+##################################################
+
+# Set Codis Product Name/Auth.
+product_name = "demo-beta"
+product_auth = ""
+
+# Set bind address for admin(rpc), tcp only.
+admin_addr = "10.2.16.200:11080"
+
+# Set bind address for proxy, proto_type can be "tcp", "tcp4", "tcp6", "unix" or "unixpacket".
+proto_type = "tcp4"
+proxy_addr = "10.2.16.200:19000"
+
+# Set jodis address & session timeout.
+jodis_addr = "10.4.10.101:2181,10.4.10.102:2181,10.4.10.103:2181,10.4.10.104:2181,10.4.10.105:2181"
+jodis_timeout = 10
+
+# Proxy will ping-pong backend redis periodly to keep-alive
+backend_ping_period = 5
+
+# If there is no request from client for a long time, the connection will be droped. Set 0 to disable.
+session_max_timeout = 1800
+
+# Buffer size for each client connection.
+session_max_bufsize = 131072
+
+# Number of buffered requests for each client connection.
+# Make sure this is higher than the max number of requests for each pipeline request, or your client may be blocked.
+session_max_pipeline = 512
+
+# Set period between keep alives. Set 0 to disable.
+session_keepalive_period = 60
+

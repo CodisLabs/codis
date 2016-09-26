@@ -23,7 +23,7 @@ const DefaultConfig = `
 coordinator_name = "zookeeper"
 coordinator_addr = "127.0.0.1:2181"
 
-# Set Codis Product {Name/Auth}.
+# Set Codis Product Name/Auth.
 product_name = "codis-demo"
 product_auth = ""
 

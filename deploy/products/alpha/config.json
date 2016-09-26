@@ -1,0 +1,34 @@
+{
+    "product_name": "demo-alpha",
+    "product_auth": "",
+    "dashboard": {
+        "admin_addr": "127.0.0.1:18080",
+        "coordinator": {
+            "name": "etcd",
+            "addr": [
+                "127.0.0.1:2379"
+            ]
+        }
+    },
+    "proxy": {
+        "template": {
+            "ncpu": 4,
+            "max_clients": 10000,
+            "max_pipeline": 1024
+        },
+        "instance": [
+            {
+                "admin_addr": "127.0.0.1:11080",
+                "proxy_addr": "127.0.0.1:19000"
+            },
+            {
+                "admin_addr": "127.0.0.1:11081",
+                "proxy_addr": "127.0.0.1:19001"
+            },
+            {
+                "admin_addr": "127.0.0.1:11082",
+                "proxy_addr": "127.0.0.1:19002"
+            }
+        ]
+    }
+}

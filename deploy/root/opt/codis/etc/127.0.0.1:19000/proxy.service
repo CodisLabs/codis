@@ -1,0 +1,8 @@
+[Unit]
+Description=Codis-[demo-alpha]@127.0.0.1:11080/127.0.0.1:19000
+[Service]
+ExecStart=/opt/codis/bin/codis-proxy --ncpu=4 \
+    --config=/opt/codis/etc/127.0.0.1:19000/proxy.toml --log=/opt/codis/log/127.0.0.1:19000/proxy.log --log-level=INFO
+Restart=always
+[Install]
+WantedBy=default.target

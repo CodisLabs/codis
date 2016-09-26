@@ -19,7 +19,7 @@ const DefaultConfig = `
 #                                                #
 ##################################################
 
-# Set Codis Product {Name/Auth}.
+# Set Codis Product Name/Auth.
 product_name = "codis-demo"
 product_auth = ""
 

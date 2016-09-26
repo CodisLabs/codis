@@ -1,0 +1,17 @@
+##################################################
+#                                                #
+#                  Codis-Dashboard               #
+#                                                #
+##################################################
+
+# Set Coordinator, only accept "zookeeper" & "etcd".
+coordinator_name = "etcd"
+coordinator_addr = "127.0.0.1:2379"
+
+# Set Codis Product Name/Auth.
+product_name = "demo-alpha"
+product_auth = ""
+
+# Set bind address for admin(rpc), tcp only.
+admin_addr = "127.0.0.1:18080"
+
