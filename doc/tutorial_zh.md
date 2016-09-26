@@ -273,6 +273,7 @@ proxy_addr = "0.0.0.0:19000"
 # Set jodis address & session timeout.
 jodis_addr = ""
 jodis_timeout = 10
+jodis_compatible = false
 
 # Proxy will ping-pong backend redis periodly to keep-alive
 backend_ping_period = 5
@@ -300,11 +301,14 @@ session_keepalive_period = 60
 | proxy\_addr                 | Redis 端口地址或者路径                                   |
 | jodis\_addr                 | Jodis 注册 zookeeper 地址                                |
 | jodis\_timeout              | Jodis 注册 session timeout 时间，单位 second             |
+| jodis\_compatible           | **Jodis 注册 zookeeper 的路径**                          |
 | backend\_ping\_period       | 与 codis-server 探活周期，单位 second，0 表示禁止        |
 | session\_max\_timeout       | 与 client 连接最大读超时，单位 second，0 表示禁止        |
 | session\_max\_bufsize       | 与 client 连接读写缓冲区大小，单位 byte                  |
 | session\_max\_pipeline      | 与 client 连接最大的 pipeline 大小                       |
 | session\_keepalive\_period  | 与 client 的 tcp keepalive 周期，仅 tcp 有效，0 表示禁止 |
+
+**注：Codis3 会将 jodis 节点注册在 `/jodis/{PRODUCT_NAME}` 下，这点与 Codis2 不太兼容，所以为了兼容性，可以可以考虑将 `jodis_compatible` 设置成 `true`。**
 
 #### 2.3 Codis Server
 
