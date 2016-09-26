@@ -18,7 +18,7 @@ proxy_addr = "127.0.0.1:19002"
 # Set jodis address & session timeout.
 jodis_addr = ""
 jodis_timeout = 10
-jodis_compatible = False
+jodis_compatible = true
 
 # Proxy will ping-pong backend redis periodly to keep-alive
 backend_ping_period = 5
