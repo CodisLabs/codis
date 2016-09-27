@@ -259,6 +259,8 @@ func (s *Topom) GroupPromoteCommit(gid int) error {
 		slice = append(slice, g.Servers[0])
 
 		for _, x := range slice {
+			x.Action.Index = 0
+			x.Action.State = models.ActionNothing
 			x.ReplicaGroup = false
 		}
 
@@ -391,7 +393,8 @@ func (s *Topom) SyncRemoveAction(addr string) error {
 	}
 	defer s.dirtyGroupCache(g.Id)
 
-	g.Servers[index] = &models.GroupServer{Addr: addr}
+	g.Servers[index].Action.Index = 0
+	g.Servers[index].Action.State = models.ActionNothing
 	return s.storeUpdateGroup(g)
 }
 
