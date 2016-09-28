@@ -40,7 +40,7 @@ def symlink(src, dst):
 class Coordinator:
     def __init__(self, config):
         self.name = config.get("name", "")
-        self.addr = ",".join(config.get("addr", []))
+        self.addr = config.get("addr", "")
 
 
 class Dashboard():
@@ -48,8 +48,8 @@ class Dashboard():
         self.product = product
         self.env = product.env
         self.admin_addr = config.get("admin_addr", "")
-        self.sentinel_quorum = config.get("sentinel_quorum", 2)
 
+        self.sentinel_quorum = config.get("sentinel_quorum", 2)
         self.coordinator = Coordinator(config.get("coordinator", {}))
 
         if self.admin_addr == "":
@@ -59,6 +59,8 @@ class Dashboard():
         if self.coordinator.addr == "":
             raise Exception("coordinator.addr not found or empty")
 
+        self.admin_port = self.admin_addr.rsplit(':', 1)[1]
+
     def render(self, proxylist):
         kwargs = {
             'PRODUCT_NAME': self.product.name,
@@ -66,11 +68,11 @@ class Dashboard():
             'COORDINATOR_NAME': self.coordinator.name,
             'COORDINATOR_ADDR': self.coordinator.addr,
             'ADMIN_ADDR': self.admin_addr,
+            'ADMIN_PORT': self.admin_port,
             'SENTINEL_QUORUM': self.sentinel_quorum,
             'BIN_PATH': self.env.bin_path,
             'ETC_PATH': self.env.etc_path,
             'LOG_PATH': self.env.log_path,
-            'LOG_LEVEL': self.env.log_level,
         }
         base = os.path.join(generate_root, self.env.etc_path.lstrip('/'), self.admin_addr)
 
@@ -78,7 +80,7 @@ class Dashboard():
         generate(base, "dashboard.toml", temp.format(**kwargs))
 
         temp = readfile(template_root, "dashboard.service.template")
-        generate(base, "dashboard.service", temp.format(**kwargs))
+        generate(base, "dashboard@{}.service".format(self.admin_port), temp.format(**kwargs))
 
         admin = os.path.join(self.env.bin_path, "codis-admin")
         generate_bash(base, "dashboard_admin.sh", "{} --dashboard={} $@".format(admin, self.admin_addr))
@@ -108,7 +110,9 @@ class Template:
         self.max_cpu = config.get("max_cpu", 0)
         self.max_clients = config.get("max_clients", 10000)
         self.max_pipeline = config.get("max_pipeline", 1024)
-        self.jodis = Coordinator(config.get("jodis", {}))
+        self.log_level = config.get("log_level", "INFO")
+        self.jodis_name = config.get("jodis_name", "")
+        self.jodis_addr = config.get("jodis_addr", "")
 
 
 class Proxy():
@@ -125,23 +129,26 @@ class Proxy():
         if self.proxy_addr == "":
             raise Exception("proxy.proxy_addr not found")
 
+        self.proxy_port = self.proxy_addr.rsplit(':', 1)[1]
+
     def render(self):
         kwargs = {
             'PRODUCT_NAME': self.product.name,
             'PRODUCT_AUTH': self.product.auth,
             'ADMIN_ADDR': self.admin_addr,
             'PROXY_ADDR': self.proxy_addr,
+            'PROXY_PORT': self.proxy_port,
             'DATACENTER': self.datacenter,
             'MAX_CLIENTS': self.template.max_clients,
             'MAX_PIPELINE': self.template.max_pipeline,
-            'JODIS_NAME': self.template.jodis.name,
-            'JODIS_ADDR': self.template.jodis.addr,
+            'JODIS_NAME': self.template.jodis_name,
+            'JODIS_ADDR': self.template.jodis_addr,
             'MIN_CPU': self.template.min_cpu,
             'MAX_CPU': self.template.max_cpu,
+            'LOG_LEVEL': self.template.log_level,
             'BIN_PATH': self.env.bin_path,
             'ETC_PATH': self.env.etc_path,
             'LOG_PATH': self.env.log_path,
-            'LOG_LEVEL': self.env.log_level,
         }
         base = os.path.join(generate_root, self.env.etc_path.lstrip('/'), self.proxy_addr)
 
@@ -149,7 +156,7 @@ class Proxy():
         generate(base, "proxy.toml", temp.format(**kwargs))
 
         temp = readfile(template_root, "proxy.service.template")
-        generate(base, "proxy.service", temp.format(**kwargs))
+        generate(base, "proxy@{}.service".format(self.proxy_port), temp.format(**kwargs))
 
         admin = os.path.join(self.env.bin_path, "codis-admin")
         generate_bash(base, "proxy_admin.sh", "{} --proxy={} $@".format(admin, self.admin_addr))
