@@ -80,7 +80,7 @@ class Dashboard():
         generate(base, "dashboard.toml", temp.format(**kwargs))
 
         temp = readfile(template_root, "dashboard.service.template")
-        generate(base, "dashboard@{}.service".format(self.admin_port), temp.format(**kwargs))
+        generate(base, "codis_dashboard_{}.service".format(self.admin_port), temp.format(**kwargs))
 
         admin = os.path.join(self.env.bin_path, "codis-admin")
         generate_bash(base, "dashboard_admin.sh", "{} --dashboard={} $@".format(admin, self.admin_addr))
@@ -156,7 +156,7 @@ class Proxy():
         generate(base, "proxy.toml", temp.format(**kwargs))
 
         temp = readfile(template_root, "proxy.service.template")
-        generate(base, "proxy@{}.service".format(self.proxy_port), temp.format(**kwargs))
+        generate(base, "codis_proxy_{}.service".format(self.proxy_port), temp.format(**kwargs))
 
         admin = os.path.join(self.env.bin_path, "codis-admin")
         generate_bash(base, "proxy_admin.sh", "{} --proxy={} $@".format(admin, self.admin_addr))
