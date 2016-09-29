@@ -2,7 +2,7 @@
 Description=Codis-[demo-alpha]@19002
 [Service]
 ExecStart=/opt/codis/bin/codis-proxy --ncpu=4 \
-    --config=/opt/codis/etc/127.0.0.1:19002/proxy.toml --log=/opt/codis/log/proxy_19002.log --log-level=INFO
+    --config=/opt/codis/etc/127.0.0.1:19002/proxy.toml --log=/opt/codis/log/127.0.0.1:19002/proxy.log --log-level=INFO
 Restart=always
 [Install]
 WantedBy=default.target
