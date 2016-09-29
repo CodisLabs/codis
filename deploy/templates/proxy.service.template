@@ -2,7 +2,7 @@
 Description=Codis-[{PRODUCT_NAME}]@{PROXY_PORT}
 [Service]
 ExecStart={BIN_PATH}/codis-proxy --ncpu={MIN_CPU} --max-ncpu={MAX_CPU} \
-    --config={ETC_PATH}/{PROXY_ADDR}/proxy.toml --log={LOG_PATH}/proxy_{PROXY_PORT}.log --log-level={LOG_LEVEL}
+    --config={ETC_PATH}/{PROXY_ADDR}/proxy.toml --log={LOG_PATH}/{PROXY_ADDR}/proxy.log --log-level={LOG_LEVEL}
 Restart=always
 [Install]
 WantedBy=default.target
