@@ -391,9 +391,10 @@
             <div class="col-md-12" ng-repeat="group in group_array">
                 <table class="table table-bordered table-striped table-hover table-condensed">
                     <thead>
-                    <tr> <th style="width: 45px; text-align: center" ng-switch="group.ispromoting">
+                    <tr>
+                        <th style="width: 45px; text-align: center" ng-switch="group.ispromoting">
                             <span ng-switch-when="true" class="status_label_error">
-                                [[group.id]]
+                                [ [[group.id]] ]
                             </span>
                             <span ng-switch-default>
                                 [[group.id]]
@@ -412,51 +413,56 @@
                             </span>
                         </th>
                         <th style="width: 35px;"/>
-                        <th style="width: 35px;"/>
-                        <th style="min-width: 100px;"/>
-                        <th style="min-width: 260px;">Memory</th>
-                        <th style="min-width: 260px;">Keys</th>
-                        <th style="width: 35px;" ng-switch="group.ispromoting">
-                            <span ng-switch-when="true">
+                        <th style="width: 35px;">
+                            <span ng-if="group.ispromoting">
                                 <button class="btn btn-danger btn-xs"
                                         data-toggle="tooltip" data-placement="right" title="PROMOTE-COMMIT GROUP-[[group.id]]"
                                         ng-click="promoteCommit(group.id)">
                                     <span class="glyphicon glyphicon-wrench"></span>
                                 </button>
                             </span>
-                            <span ng-switch-default ng-if="group.canremove">
-                                <button class="btn btn-primary btn-xs"
-                                        data-toggle="tooltip" data-placement="right" title="REMOVE GROUP-[[group.id]]"
-                                        ng-click="removeGroup(group.id)">
-                                    <span class="glyphicon glyphicon-trash"></span>
-                                </button>
+                        </th>
+                        <th style="min-width: 100px;"/>
+                        <th style="min-width: 200px;">Memory</th>
+                        <th style="min-width: 260px;">Keys</th>
+                        <th style="width: 35px;">
+                            <span ng-if="!group.ispromoting">
+                                <span ng-if="group.canremove">
+                                    <button class="btn btn-primary btn-xs"
+                                            data-toggle="tooltip" data-placement="right" title="REMOVE GROUP-[[group.id]]"
+                                            ng-click="removeGroup(group.id)">
+                                        <span class="glyphicon glyphicon-trash"></span>
+                                    </button>
+                                </span>
                             </span>
                         </th>
                     </tr>
                     </thead>
                     <tr ng-repeat="server in group.servers">
-                        <td class="button_tight_column" ng-switch="server.canpromote" style="text-align: center">
-                            <span ng-switch-when="true">
-                                <button class="btn btn-warning btn-xs"
-                                        data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
-                                        ng-click="promoteServer(group.id, server.server)">
-                                    <span class="glyphicon glyphicon-upload"></span>
-                                </button>
-                            </span>
-                            <span ng-switch-default ng-switch="group.out_of_sync">
+                        <td class="button_tight_column" style="text-align: center">
+                            <span ng-if="!group.ispromoting" ng-switch="server.canpromote">
                                 <span ng-switch-when="true">
-                                    <button class="btn btn-danger btn-xs"
-                                            data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of GROUP-[[group.id]]"
-                                            ng-click="resyncGroup(group)">
-                                        <span class="glyphicon glyphicon-send"></span>
+                                    <button class="btn btn-warning btn-xs"
+                                            data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
+                                            ng-click="promoteServer(group.id, server.server)">
+                                        <span class="glyphicon glyphicon-upload"></span>
                                     </button>
                                 </span>
-                                <span ng-switch-default>
-                                    <button class="btn btn-primary btn-xs"
-                                            data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of GROUP-[[group.id]]"
-                                            ng-click="resyncGroup(group)">
-                                        <span class="glyphicon glyphicon-send"></span>
-                                    </button>
+                                <span ng-switch-default ng-switch="group.out_of_sync">
+                                    <span ng-switch-when="true">
+                                        <button class="btn btn-danger btn-xs"
+                                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of GROUP-[[group.id]]"
+                                                ng-click="resyncGroup(group)">
+                                            <span class="glyphicon glyphicon-send"></span>
+                                        </button>
+                                    </span>
+                                    <span ng-switch-default>
+                                        <button class="btn btn-primary btn-xs"
+                                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of GROUP-[[group.id]]"
+                                                ng-click="resyncGroup(group)">
+                                            <span class="glyphicon glyphicon-send"></span>
+                                        </button>
+                                    </span>
                                 </span>
                             </span>
                         </td>
@@ -490,25 +496,48 @@
                             <span ng-switch-when="false" class="status_label_error">[[server.master]]</span>
                             <span ng-switch-default>[[server.master]]</span>
                         </td>
-                        <td>
-                            <input style="float: right; margin-right: 8px" type="checkbox"
-                                data-toggle="tooltip" data-placement="right" title="REPLICA_GROUP = [[server.replica_group]]"
-                                ng-model="server.replica_group" ng-click="enableReplicaGroups(group.id, server.server, server.replica_group)">
-                        </td>
-                        <td class="button_tight_column" ng-switch="server.canslaveof">
-                            <span ng-switch-when="create">
-                                <button class="btn btn-success btn-xs"
-                                        data-toggle="tooltip" data-placement="right" title="SLAVEOF [[server.master_expect]]"
-                                        ng-click="createSyncAction(server.server)">
-                                    <span class="glyphicon glyphicon-wrench"></span>
-                                </button>
+                        <td ng-switch="group.ispromoting">
+                            <span ng-switch-when="true">
+                                <input style="float: right; margin-right: 8px" type="checkbox" disabled="disabled"
+                                    data-toggle="tooltip" data-placement="right" title="REPLICA_GROUP = [[server.replica_group]]"
+                                    ng-model="server.replica_group">
                             </span>
-                            <span ng-switch-when="remove">
-                                <button class="btn btn-danger btn-xs"
-                                        data-toggle="tooltip" data-placement="right" title="CANCEL ACTION"
-                                        ng-click="removeSyncAction(server.server)">
-                                    <span class="glyphicon glyphicon-minus"></span>
-                                </button>
+                            <span ng-switch-default>
+                                <input style="float: right; margin-right: 8px" type="checkbox"
+                                    data-toggle="tooltip" data-placement="right" title="REPLICA_GROUP = [[server.replica_group]]"
+                                    ng-model="server.replica_group" ng-click="enableReplicaGroups(group.id, server.server, server.replica_group)">
+                            </span>
+                        </td>
+                        <td class="button_tight_column" ng-switch="group.ispromoting">
+                            <span ng-switch-when="true" ng-switch="server.canslaveof">
+                                <span ng-switch-when="create">
+                                    <button class="btn btn-success btn-xs disabled"
+                                            data-toggle="tooltip" data-placement="right" title="SLAVEOF [[server.master_expect]]">
+                                        <span class="glyphicon glyphicon-wrench"></span>
+                                    </button>
+                                </span>
+                                <span ng-switch-when="remove">
+                                    <button class="btn btn-danger btn-xs disable"
+                                            data-toggle="tooltip" data-placement="right" title="CANCEL ACTION">
+                                        <span class="glyphicon glyphicon-minus"></span>
+                                    </button>
+                                </span>
+                            </span>
+                            <span ng-switch-default ng-switch="server.canslaveof">
+                                <span ng-switch-when="create">
+                                    <button class="btn btn-success btn-xs"
+                                            data-toggle="tooltip" data-placement="right" title="SLAVEOF [[server.master_expect]]"
+                                            ng-click="createSyncAction(server.server)">
+                                        <span class="glyphicon glyphicon-wrench"></span>
+                                    </button>
+                                </span>
+                                <span ng-switch-when="remove">
+                                    <button class="btn btn-danger btn-xs"
+                                            data-toggle="tooltip" data-placement="right" title="CANCEL ACTION"
+                                            ng-click="removeSyncAction(server.server)">
+                                        <span class="glyphicon glyphicon-minus"></span>
+                                    </button>
+                                </span>
                             </span>
                         </td>
                         <td>[[server.actionstate]]</td>
@@ -519,13 +548,23 @@
                             <span ng-switch-when="PENDING" class="status_label_pending">[[server.status]]</span>
                             <span ng-switch-default>[[server.keys]]</span>
                         </td>
-                        <td class="button_tight_column" ng-switch="server.canremove">
-                            <span ng-switch-when="true">
-                                <button class="btn btn-danger btn-xs"
-                                        data-toggle="tooltip" data-placement="right" title="REMOVE SERVER [[server.server]]"
-                                        ng-click="delGroupServer(group.id, server.server)">
-                                    <span class="glyphicon glyphicon-minus"></span>
-                                </button>
+                        <td class="button_tight_column" ng-switch="group.ispromoting">
+                            <span ng-switch-when="true" ng-switch="server.canremove">
+                                <span ng-switch-when="true">
+                                    <button class="btn btn-danger btn-xs disabled"
+                                            data-toggle="tooltip" data-placement="right" title="REMOVE SERVER [[server.server]]">
+                                        <span class="glyphicon glyphicon-minus"></span>
+                                    </button>
+                                </span>
+                            </span>
+                            <span ng-switch-default ng-switch="server.canremove">
+                                <span ng-switch-when="true">
+                                    <button class="btn btn-danger btn-xs"
+                                            data-toggle="tooltip" data-placement="right" title="REMOVE SERVER [[server.server]]"
+                                            ng-click="delGroupServer(group.id, server.server)">
+                                        <span class="glyphicon glyphicon-minus"></span>
+                                    </button>
+                                </span>
                             </span>
                         </td>
                     </tr>

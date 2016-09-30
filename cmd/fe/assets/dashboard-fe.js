@@ -384,26 +384,19 @@ function processGroupStats(codis_stats) {
                     x.master_status = (x.master == g.servers[0].server + ":up");
                 }
             }
-            if (g.ispromoting) {
-                x.canremove = false;
-                x.canpromote = false;
-                x.canslaveof = "";
-                x.actionstate = "";
-            } else {
-                x.canremove = (j != 0 || g.servers.length <= 1);
-                x.canpromote = j != 0;
-                if (x.action.state) {
-                    if (x.action.state != "pending") {
-                        x.canslaveof = "create";
-                        x.actionstate = x.action.state;
-                    } else {
-                        x.canslaveof = "remove";
-                        x.actionstate = x.action.state + ":" + x.action.index;
-                    }
-                } else {
+            x.canremove = (j != 0 || g.servers.length <= 1);
+            x.canpromote = j != 0;
+            if (x.action.state) {
+                if (x.action.state != "pending") {
                     x.canslaveof = "create";
-                    x.actionstate = "";
+                    x.actionstate = x.action.state;
+                } else {
+                    x.canslaveof = "remove";
+                    x.actionstate = x.action.state + ":" + x.action.index;
                 }
+            } else {
+                x.canslaveof = "create";
+                x.actionstate = "";
             }
         }
     }
