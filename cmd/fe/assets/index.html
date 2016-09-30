@@ -75,7 +75,7 @@
                         <td>Dashboard</td>
                         <td ng-switch="codis_addr">
                             <span ng-switch-when="NA">NA</span>
-                            <span ng-switch-default><a href="/topom?forward=[[codis_name]]" target="_blank">[[codis_addr]]</a></span>
+                            <span ng-switch-default><a href="http://[[codis_addr]]/topom" target="_blank">[[codis_addr]]</a></span>
                         </td>
                     </tr>
                     </tbody>
@@ -124,8 +124,8 @@
                 <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
                     <thead>
                     <tr>
-                        <th style="min-width: 30px;"/>ID</th>
-                        <th style="width: 50px;">Stats</th>
+                        <th style="width: 35px; text-align: center"/>ID</th>
+                        <th style="width: 50px; text-align: center">Stats</th>
                         <th style="min-width: 160px;">Proxy</th>
                         <th style="min-width: 160px;">Admin</th>
                         <th style="width: 35px;"/>
@@ -466,29 +466,32 @@
                                 </span>
                             </span>
                         </td>
-                        <td ng-switch="server.ha_status">
-                            <span ng-switch-when="ha_master" style="color: darkgreen"
-                                data-toggle="tooltip" data-placement="right" title="HA: MASTER">
-                                [[server.server]]
-                            </span>
-                            <span ng-switch-when="ha_real_master" style="color: white; background-color: darkgreen"
-                                data-toggle="tooltip" data-placement="right" title="HA: REAL MASTER">
-                                [[server.server]]
-                            </span>
-                            <span ng-switch-when="ha_not_master" style="color: white; background-color: red"
-                                data-toggle="tooltip" data-placement="right" title="HA: NOT MASTER">
-                                [[server.server]]
-                            </span>
-                            <span ng-switch-when="ha_slave"
-                                data-toggle="tooltip" data-placement="right" title="HA: SLAVE">
-                                [[server.server]]
-                            </span>
-                            <span ng-switch-when="ha_defined" style="color: white; background-color: darkgray"
-                                data-toggle="tooltip" data-placement="right" title="HA: UNDEFINED">
-                                [[server.server]]
-                            </span>
-                            <span ng-switch-default>
-                                [[server.server]]
+                        <td>
+                            <a ng-href="http://[[codis_addr]]/api/topom/group/info/[[server.server]]" target="_blank" class="btn btn-default btn-xs active" role="button">INFO</a> 
+                            <span ng-switch="server.ha_status">
+                                <span ng-switch-when="ha_master" style="color: darkgreen"
+                                    data-toggle="tooltip" data-placement="right" title="HA: MASTER">
+                                    [[server.server]]
+                                </span>
+                                <span ng-switch-when="ha_real_master" style="color: white; background-color: darkgreen"
+                                    data-toggle="tooltip" data-placement="right" title="HA: REAL MASTER">
+                                    [[server.server]]
+                                </span>
+                                <span ng-switch-when="ha_not_master" style="color: white; background-color: red"
+                                    data-toggle="tooltip" data-placement="right" title="HA: NOT MASTER">
+                                    [[server.server]]
+                                </span>
+                                <span ng-switch-when="ha_slave"
+                                    data-toggle="tooltip" data-placement="right" title="HA: SLAVE">
+                                    [[server.server]]
+                                </span>
+                                <span ng-switch-when="ha_defined" style="color: white; background-color: darkgray"
+                                    data-toggle="tooltip" data-placement="right" title="HA: UNDEFINED">
+                                    [[server.server]]
+                                </span>
+                                <span ng-switch-default>
+                                    [[server.server]]
+                                </span>
                             </span>
                         </td>
                         <td>[[server.datacenter]]</td>
@@ -617,7 +620,7 @@
                             </span>
                         </th>
                         <th style="min-width: 180px;">
-                            Servers
+                            Sentinels
                             <span ng-if="sentinel_out_of_sync" style="color: white; background-color: red">
                                 (OUT OF SYNC)
                             </span>
@@ -627,7 +630,9 @@
                     </thead>
                     <tr ng-repeat="sentinel in sentinel_servers">
                         <td/>
-                        <td>[[sentinel]]</td>
+                        <td>
+                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel]]" target="_blank" class="btn btn-default btn-xs active" role="button">INFO</a> [[sentinel]]
+                        </td>
                         <td class="button_tight_column">
                             <button class="btn btn-danger btn-xs"
                                 data-toggle="tooltip" data-placement="right" title="REMOVE SENTINEL [[sentinel]]"

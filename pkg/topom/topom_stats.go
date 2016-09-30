@@ -27,7 +27,7 @@ func (s *Topom) newRedisStats(addr string, timeout time.Duration) *RedisStats {
 
 	go func() {
 		defer close(ch)
-		x, err := s.redisp.Info(addr)
+		x, err := s.redisp.InfoFull(addr)
 		if err != nil {
 			stats.Error = rpc.NewRemoteError(err)
 		} else {

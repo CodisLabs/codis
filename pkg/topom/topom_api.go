@@ -96,6 +96,7 @@ func newApiServer(t *Topom) http.Handler {
 				r.Put("/create/:xauth/:addr", api.SyncCreateAction)
 				r.Put("/remove/:xauth/:addr", api.SyncRemoveAction)
 			})
+			r.Get("/info/:addr", api.InfoServer)
 		})
 		r.Group("/slots", func(r martini.Router) {
 			r.Group("/action", func(r martini.Router) {
@@ -111,6 +112,7 @@ func newApiServer(t *Topom) http.Handler {
 			r.Put("/add/:xauth/:addr", api.AddSentinel)
 			r.Put("/del/:xauth/:addr/:force", api.DelSentinel)
 			r.Put("/resync-all/:xauth", api.ResyncSentinels)
+			r.Get("/info/:addr", api.InfoSentinel)
 		})
 	})
 
@@ -471,6 +473,42 @@ func (s *apiServer) ResyncSentinels(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) InfoServer(params martini.Params) (int, string) {
+	addr, err := s.parseAddr(params)
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	c, err := redis.NewClient(addr, s.topom.Config().ProductAuth, time.Second)
+	if err != nil {
+		log.WarnErrorf(err, "create redis client to %s failed", addr)
+		return rpc.ApiResponseError(err)
+	}
+	defer c.Close()
+	if info, err := c.InfoFull(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson(info)
+	}
+}
+
+func (s *apiServer) InfoSentinel(params martini.Params) (int, string) {
+	addr, err := s.parseAddr(params)
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	c, err := redis.NewClient(addr, s.topom.Config().ProductAuth, time.Second)
+	if err != nil {
+		log.WarnErrorf(err, "create redis client to %s failed", addr)
+		return rpc.ApiResponseError(err)
+	}
+	defer c.Close()
+	if info, err := c.Info(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson(info)
 	}
 }
 

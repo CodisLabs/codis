@@ -79,44 +79,51 @@ func (c *Client) Receive() (interface{}, error) {
 }
 
 func (c *Client) Info() (map[string]string, error) {
-	var info map[string]string
-	if reply, err := c.Do("INFO"); err != nil {
+	r, err := c.Do("INFO")
+	if err != nil {
+		return nil, err
+	}
+	text, err := redigo.String(r, nil)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	info := make(map[string]string)
+	for _, line := range strings.Split(text, "\n") {
+		kv := strings.SplitN(line, ":", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		if key := strings.TrimSpace(kv[0]); key != "" {
+			info[key] = strings.TrimSpace(kv[1])
+		}
+	}
+	return info, nil
+}
+
+func (c *Client) InfoFull() (map[string]string, error) {
+	if info, err := c.Info(); err != nil {
 		return nil, err
 	} else {
-		text, err := redigo.String(reply, nil)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		info = make(map[string]string)
-		for _, line := range strings.Split(text, "\n") {
-			kv := strings.SplitN(line, ":", 2)
-			if len(kv) != 2 {
-				continue
-			}
-			if key := strings.TrimSpace(kv[0]); key != "" {
-				info[key] = strings.TrimSpace(kv[1])
-			}
-		}
 		host := info["master_host"]
 		port := info["master_port"]
 		if host != "" || port != "" {
 			info["master_addr"] = net.JoinHostPort(host, port)
 		}
-	}
-	if reply, err := c.Do("CONFIG", "get", "maxmemory"); err != nil {
-		return nil, err
-	} else {
-		p, err := redigo.Values(reply, nil)
+		r, err := c.Do("CONFIG", "get", "maxmemory")
+		if err != nil {
+			return nil, err
+		}
+		p, err := redigo.Values(r, nil)
 		if err != nil || len(p) != 2 {
-			return nil, errors.Errorf("invalid response = %v", reply)
+			return nil, errors.Errorf("invalid response = %v", r)
 		}
 		v, err := redigo.Int(p[1], nil)
 		if err != nil {
-			return nil, errors.Errorf("invalid response = %v", reply)
+			return nil, errors.Errorf("invalid response = %v", r)
 		}
 		info["maxmemory"] = strconv.Itoa(v)
+		return info, nil
 	}
-	return info, nil
 }
 
 func (c *Client) SetMaster(master string) error {
@@ -320,13 +327,13 @@ func (p *Pool) PutClient(c *Client) {
 	}
 }
 
-func (p *Pool) Info(addr string) (map[string]string, error) {
+func (p *Pool) InfoFull(addr string) (map[string]string, error) {
 	c, err := p.GetClient(addr)
 	if err != nil {
 		return nil, err
 	}
 	defer p.PutClient(c)
-	return c.Info()
+	return c.InfoFull()
 }
 
 func (p *Pool) MigrateSlot(slot int, from, dest string) (int, error) {
