@@ -48,18 +48,18 @@ function humanSize(size) {
     }
     size /= 1024;
     if (size < 1024) {
-        return size.toFixed(3) + " KB";
+        return size.toFixed(2) + " KB";
     }
     size /= 1024;
     if (size < 1024) {
-        return size.toFixed(3) + " MB";
+        return size.toFixed(2) + " MB";
     }
     size /= 1024;
     if (size < 1024) {
-        return size.toFixed(3) + " GB";
+        return size.toFixed(2) + " GB";
     }
     size /= 1024;
-    return size.toFixed(3) + " TB";
+    return size.toFixed(2) + " TB";
 }
 
 function newChatsOpsConfig() {
