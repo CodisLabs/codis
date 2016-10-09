@@ -5,3 +5,4 @@
 /opt/codis/bin/codis-admin --proxy=10.2.16.200:11080 $@
 /opt/codis/bin/codis-admin --proxy=10.2.16.201:11080 $@
 /opt/codis/bin/codis-admin --proxy=10.2.16.202:11080 $@
+

@@ -23,7 +23,7 @@ def generate(path, name, content):
 
 
 def generate_bash(path, name, content):
-    content = "#!/usr/bin/env bash\n\n" + content
+    content = "#!/usr/bin/env bash\n\n" + content + "\n"
     generate(path, name, content)
     file = os.path.join(path, name)
     os.chmod(file, os.stat(file).st_mode | stat.S_IEXEC)
