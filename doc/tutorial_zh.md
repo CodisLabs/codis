@@ -66,7 +66,7 @@ Codis 源代码需要下载到 `$GOPATH/src/github.com/CodisLabs/codis`：
 
 ```bash
 $ mkdir -p $GOPATH/src/github.com/CodisLabs
-$ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.0
+$ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.1
 ```
 
 #### 4. 编译 Codis 源代码
