@@ -110,7 +110,7 @@ compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 
 ## 1. 快速启动
 
-源码中提供了可供本地测试使用的脚本 `scripts/demo.sh`，该脚本会生成一个本地集群。
+源码中提供了可供本地测试使用的脚本 `scripts/demo_test.py`，该脚本会生成一个本地集群。
 
 **注意：脚本依赖 etcd 作为外部存储，启动时会创建一个占用 2379 端口的 etcd 实例；如果本地已经存在该实例，会导致可能污染该实例（写入测试程序所需配置文件）并最终启动失败。**
 
@@ -119,15 +119,41 @@ compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 
 ```bash
 $ which etcd &>/dev/null || go get github.com/coreos/etcd
-$ bash demo.sh
-etcd.pid=81455
-codis-server-16379.pid=81456
-... ...
-proxy-11080x19000.pid=81465
-... ...
-dashboard.pid=81473
-fe.pid=81475
-done
+$ python3 demo_test.py
+init etcd, done
+    >> server.port = 16379
+    >> server.port = 16380
+    >> server.port = 16381
+    >> server.port = 16382
+    >> server.port = 17379
+    >> server.port = 17380
+    >> server.port = 17381
+    >> server.port = 17382
+init codis-server, done
+    >> sentinel.port = 26379
+    >> sentinel.port = 26380
+    >> sentinel.port = 26381
+    >> sentinel.port = 26382
+    >> sentinel.port = 26383
+init codis-sentinel, done
+checkall, done
+    >> dashboard.admin_port = 18080
+init codis-dashboard, done
+checkall, done
+    >> proxy.admin_port = 11080
+    >> proxy.proxy_port = 19000
+    >> proxy.admin_port = 11081
+    >> proxy.proxy_port = 19001
+    >> proxy.admin_port = 11082
+    >> proxy.proxy_port = 19002
+    >> proxy.admin_port = 11083
+    >> proxy.proxy_port = 19003
+init codis-proxy, done
+    >> fe.listen = 8080
+init codis-fe, done
+checkall, done
+create groups, done
+add sentinels, done
 Mon Jan  4 15:10:44 CST 2016
 Mon Jan  4 15:11:14 CST 2016
 ... ...
