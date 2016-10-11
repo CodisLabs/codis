@@ -160,13 +160,13 @@
                                 [[proxy.admin_addr]]
                             </span>
                         </td>
-                        <td ng-switch="proxy.status" style="text-align: center">
-                            <span ng-switch-when="HEALTHY" class="btn btn-success btn-xs active"
+                        <td style="text-align: center">
+                            <span ng-if="proxy.status == 'HEALTHY'" class="btn btn-success btn-xs active"
                                 data-toggle="tooltip" data-placement="right" title="RESYNC ALL SLOTS to [[proxy.proxy_addr]]"
                                 ng-click="reinitProxy(proxy)">
                                 SYNC
                             </span>
-                            <span ng-switch-when="PENDING" class="btn btn-danger btn-xs active"
+                            <span ng-if="proxy.status == 'PENDING' || proxy.switched" class="btn btn-danger btn-xs active"
                                 data-toggle="tooltip" data-placement="right" title="RESYNC ALL SLOTS to [[proxy.proxy_addr]]"
                                 ng-click="reinitProxy(proxy)">
                                 SYNC
