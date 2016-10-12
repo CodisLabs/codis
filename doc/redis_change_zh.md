@@ -40,7 +40,7 @@
 
     - slotnum - 查询的 slot 序号，[0, MAX\_SLOT\_NUM）
 
-    - cursor - 说明参考 SCAN 命令，要求范围 [1, INT\_MAX]
+    - cursor - 说明参考 SCAN 命令
 
     - [COUNT count) - 说明参考 SCAN 命令
 
