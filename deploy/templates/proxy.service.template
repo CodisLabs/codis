@@ -6,3 +6,4 @@ ExecStart={BIN_PATH}/codis-proxy --ncpu={MIN_CPU} --max-ncpu={MAX_CPU} \
 Restart=always
 [Install]
 WantedBy=default.target
+

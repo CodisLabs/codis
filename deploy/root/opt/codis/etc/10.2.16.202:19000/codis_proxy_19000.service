@@ -6,3 +6,4 @@ ExecStart=/opt/codis/bin/codis-proxy --ncpu=4 --max-ncpu=8 \
 Restart=always
 [Install]
 WantedBy=default.target
+

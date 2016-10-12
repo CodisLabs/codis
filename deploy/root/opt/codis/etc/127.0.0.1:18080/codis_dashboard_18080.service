@@ -6,3 +6,4 @@ ExecStart=/opt/codis/bin/codis-dashboard \
 Restart=always
 [Install]
 WantedBy=default.target
+
