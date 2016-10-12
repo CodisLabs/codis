@@ -83,25 +83,30 @@ class Dashboard():
         generate(base, "codis_dashboard_{}.service".format(self.admin_port), temp.format(**kwargs))
 
         admin = os.path.join(self.env.bin_path, "codis-admin")
-        generate_bash(base, "dashboard_admin.sh", "{} --dashboard={} $@".format(admin, self.admin_addr))
+        generate_bash(base, "dashboard_admin", "{} --dashboard={} $@".format(admin, self.admin_addr))
 
         scripts = ''
         for p in proxylist:
             scripts += "{} --dashboard={} --online-proxy --addr={}".format(admin, self.admin_addr, p.admin_addr)
             scripts += "\n"
-        generate_bash(base, "online_proxy.sh", scripts)
+        generate_bash(base, "foreach_proxy_online", scripts)
 
         scripts = ''
         for p in proxylist:
             scripts += "{} --dashboard={} --reinit-proxy --addr={}".format(admin, self.admin_addr, p.admin_addr)
             scripts += "\n"
-        generate_bash(base, "reinit_proxy.sh", scripts)
+        generate_bash(base, "foreach_proxy_reinit", scripts)
 
         scripts = ''
         for p in proxylist:
             scripts += "{} --proxy={} $@".format(admin, p.admin_addr)
             scripts += "\n"
-        generate_bash(base, "foreach_proxy.sh", scripts)
+        generate_bash(base, "foreach_proxy", scripts)
+
+        cwd = os.getcwd()
+        os.chdir(os.path.join(base, ".."))
+        symlink(self.admin_addr, self.product.name)
+        os.chdir(cwd)
 
 
 class Template:
@@ -159,7 +164,7 @@ class Proxy():
         generate(base, "codis_proxy_{}.service".format(self.proxy_port), temp.format(**kwargs))
 
         admin = os.path.join(self.env.bin_path, "codis-admin")
-        generate_bash(base, "proxy_admin.sh", "{} --proxy={} $@".format(admin, self.admin_addr))
+        generate_bash(base, "proxy_admin", "{} --proxy={} $@".format(admin, self.admin_addr))
 
 
 class Env:
