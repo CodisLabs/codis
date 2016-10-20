@@ -5,19 +5,19 @@ package bufio2
 
 type sliceAlloc struct {
 	buf []byte
-	off int
 }
 
-func (d *sliceAlloc) Make(n int) []byte {
-	if n >= 512 {
+func (d *sliceAlloc) Make(n int) (ss []byte) {
+	switch {
+	case n == 0:
+		return []byte{}
+	case n >= 512:
 		return make([]byte, n)
+	default:
+		if len(d.buf) < n {
+			d.buf = make([]byte, 8192)
+		}
+		ss, d.buf = d.buf[:n:n], d.buf[n:]
+		return ss
 	}
-	if max := len(d.buf) - d.off; max < n {
-		d.buf = make([]byte, 8192)
-		d.off = 0
-	}
-	n += d.off
-	s := d.buf[d.off:n:n]
-	d.off = n
-	return s
 }

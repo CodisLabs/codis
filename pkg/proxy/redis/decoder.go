@@ -65,8 +65,6 @@ type Decoder struct {
 	br *bufio2.Reader
 
 	Err error
-
-	alloc RespAlloc
 }
 
 var ErrFailedDecoder = errors.New("use of failed decoder")
@@ -122,7 +120,7 @@ func (d *Decoder) decodeResp() (*Resp, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	r := d.alloc.NewResp()
+	r := &Resp{}
 	r.Type = RespType(b)
 	switch r.Type {
 	default:
@@ -197,7 +195,7 @@ func (d *Decoder) decodeArray() ([]*Resp, error) {
 	case n == -1:
 		return nil, nil
 	}
-	array := d.alloc.MakeSlice(int(n))
+	array := make([]*Resp, n)
 	for i := range array {
 		r, err := d.decodeResp()
 		if err != nil {
@@ -249,7 +247,7 @@ func (d *Decoder) decodeMultiBulk() ([]*Resp, error) {
 	case n > MaxArrayLen:
 		return nil, errors.Trace(ErrBadArrayLenTooLong)
 	}
-	multi := d.alloc.MakeSlice(int(n))
+	multi := make([]*Resp, n)
 	for i := range multi {
 		r, err := d.decodeResp()
 		if err != nil {
