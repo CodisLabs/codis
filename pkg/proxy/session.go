@@ -126,17 +126,14 @@ func (s *Session) Start(d *Router, config *Config) {
 		}
 
 		tasks := make(chan *Request, config.SessionMaxPipeline)
-		var ch = make(chan struct{})
 
 		go func() {
-			defer close(ch)
 			s.loopWriter(tasks)
+			decrSessions()
 		}()
 
 		go func() {
 			s.loopReader(tasks, d)
-			<-ch
-			decrSessions()
 		}()
 	})
 }
