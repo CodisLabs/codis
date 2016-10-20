@@ -42,8 +42,6 @@ type Session struct {
 
 	broken     atomic2.Bool
 	authorized bool
-
-	alloc RequestAlloc
 }
 
 func (s *Session) String() string {
@@ -158,10 +156,10 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		s.LastOpUnix = start.Unix()
 		s.Ops++
 
-		r := s.alloc.NewRequest()
+		r := &Request{}
 		r.Multi = multi
 		r.Start = start.UnixNano()
-		r.Batch = s.alloc.NewBatch()
+		r.Batch = &sync.WaitGroup{}
 		if err := s.handleRequest(r, d); err != nil {
 			r.Resp = redis.NewErrorf("ERR handle request, %s", err)
 			tasks <- r
@@ -195,8 +193,6 @@ func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 		}
 		if err := p.Encode(resp); err != nil {
 			return s.incrOpFails(err)
-		} else {
-			r.Release()
 		}
 		if err := p.Flush(len(tasks) == 0); err != nil {
 			return s.incrOpFails(err)
@@ -366,24 +362,23 @@ func (s *Session) handleRequestMGet(r *Request, d *Router) error {
 	case nkeys == 1:
 		return d.dispatch(r)
 	}
-	var sub = make([]*Request, nkeys)
+	var sub = r.MakeSubRequest(nkeys)
 	for i := range sub {
-		sub[i] = s.alloc.SubRequest(r)
 		sub[i].Multi = []*redis.Resp{
 			r.Multi[0],
 			r.Multi[i+1],
 		}
-		if err := d.dispatch(sub[i]); err != nil {
+		if err := d.dispatch(&sub[i]); err != nil {
 			return err
 		}
 	}
 	r.Coalesce = func() error {
 		var array = make([]*redis.Resp, len(sub))
-		for i, x := range sub {
-			if err := x.Err; err != nil {
+		for i := range sub {
+			if err := sub[i].Err; err != nil {
 				return err
 			}
-			switch resp := x.Resp; {
+			switch resp := sub[i].Resp; {
 			case resp == nil:
 				return ErrRespIsRequired
 			case resp.IsArray() && len(resp.Array) == 1:
@@ -407,24 +402,23 @@ func (s *Session) handleRequestMSet(r *Request, d *Router) error {
 	case nblks == 2:
 		return d.dispatch(r)
 	}
-	var sub = make([]*Request, nblks/2)
+	var sub = r.MakeSubRequest(nblks / 2)
 	for i := range sub {
-		sub[i] = s.alloc.SubRequest(r)
 		sub[i].Multi = []*redis.Resp{
 			r.Multi[0],
 			r.Multi[i*2+1],
 			r.Multi[i*2+2],
 		}
-		if err := d.dispatch(sub[i]); err != nil {
+		if err := d.dispatch(&sub[i]); err != nil {
 			return err
 		}
 	}
 	r.Coalesce = func() error {
-		for _, x := range sub {
-			if err := x.Err; err != nil {
+		for i := range sub {
+			if err := sub[i].Err; err != nil {
 				return err
 			}
-			switch resp := x.Resp; {
+			switch resp := sub[i].Resp; {
 			case resp == nil:
 				return ErrRespIsRequired
 			case resp.IsString():
@@ -447,24 +441,23 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 	case nkeys == 1:
 		return d.dispatch(r)
 	}
-	var sub = make([]*Request, nkeys)
+	var sub = r.MakeSubRequest(nkeys)
 	for i := range sub {
-		sub[i] = s.alloc.SubRequest(r)
 		sub[i].Multi = []*redis.Resp{
 			r.Multi[0],
 			r.Multi[i+1],
 		}
-		if err := d.dispatch(sub[i]); err != nil {
+		if err := d.dispatch(&sub[i]); err != nil {
 			return err
 		}
 	}
 	r.Coalesce = func() error {
 		var n int
-		for _, x := range sub {
-			if err := x.Err; err != nil {
+		for i := range sub {
+			if err := sub[i].Err; err != nil {
 				return err
 			}
-			switch resp := x.Resp; {
+			switch resp := sub[i].Resp; {
 			case resp == nil:
 				return ErrRespIsRequired
 			case resp.IsInt() && len(resp.Value) == 1:
