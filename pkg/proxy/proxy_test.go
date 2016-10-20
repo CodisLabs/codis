@@ -51,11 +51,11 @@ func TestStats(x *testing.T) {
 	var c = NewApiClient(addr)
 
 	c.SetXAuth(config.ProductName, config.ProductAuth, "")
-	_, err1 := c.Stats()
+	_, err1 := c.StatsSimple()
 	assert.Must(err1 != nil)
 
 	c.SetXAuth(config.ProductName, config.ProductAuth, s.Model().Token)
-	_, err2 := c.Stats()
+	_, err2 := c.Stats(0)
 	assert.MustNoError(err2)
 }
 
