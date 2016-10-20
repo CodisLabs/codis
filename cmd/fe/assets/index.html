@@ -40,12 +40,11 @@
 
 <div id="main">
     <div class="container-full">
-        <div class="row" style="min-width: 1200px">
-            <div class="col-md-4" style="min-width:380px;">
+        <div class="row" style="min-width: 400px">
+            <div class="col-md-12">
                 <h4 style="padding-left:20px;"><b>Overview</b></h4>
                 <table class="table table-bordered" style="font-weight: bold;">
-                    <col width="35%">
-                    <col width="65%">
+                    <col width="200px">
                     <tbody>
                     <tr>
                         <td>Product Name</td>
@@ -80,9 +79,11 @@
                     </tr>
                     </tbody>
                 </table>
+                <div>
+                    <highchart config="chart_ops" style="height:270px"></highchart>
+                </div>
                 <table class="table">
-                    <col width="35%">
-                    <col width="65%">
+                    <col width="200px">
                     <tr>
                         <td style="border:none;" ng-model="refresh_interval">
                             <b>Refresh: [[refresh_interval]]</b>
@@ -93,10 +94,6 @@
                         </td>
                     </tr>
                 </table>
-            </div>
-            <div class="col-md-8">
-                <h4 style="padding-left:70px; padding-bottom: 16px;"><b>QPS</b></h4>
-                <highchart config="chart_ops" style="height:290px"></highchart>
             </div>
         </div>
 
@@ -129,7 +126,7 @@
                         <th style="min-width: 160px;">Proxy</th>
                         <th style="min-width: 160px;">Admin</th>
                         <th style="width: 60px;"/>
-                        <th style="min-width: 100px;">Data Center</th>
+                        <th style="min-width: 100px;">DataCenter</th>
                         <th style="width: 35px;"/>
                         <th style="min-width: 140px;">Sessions</th>
                         <th style="min-width: 200px;">Commands</th>
@@ -374,7 +371,7 @@
                                 ng-disabled="!new_server_group || !new_server_addr">Add Server
                         </button>
                         <input style="height: 28px; width: 140px; " type="text" class="form-control"
-                               class="form-control" placeholder="Data Center"
+                               class="form-control" placeholder="DataCenter"
                                ng-model="new_server_datacenter">
                         <input style="height: 28px; width: 250px; " type="text" class="form-control"
                                placeholder="Codis Server Address"

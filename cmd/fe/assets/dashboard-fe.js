@@ -470,7 +470,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 var overview = resp.data;
                 $scope.codis_addr = overview.model.admin_addr;
                 $scope.codis_coord_name = "[" + overview.config.coordinator_name.charAt(0).toUpperCase() + overview.config.coordinator_name.slice(1) + "]";
-                $scope.codis_coord_addr = overview.config.coordinator_addr.replace(/,/g, ' ');
+                $scope.codis_coord_addr = overview.config.coordinator_addr;
                 $scope.updateStats(overview.stats);
             });
         }
