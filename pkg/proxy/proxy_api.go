@@ -6,6 +6,7 @@ package proxy
 import (
 	"net/http"
 	"runtime"
+	"strconv"
 	"strings"
 
 	_ "net/http/pprof"
@@ -69,6 +70,7 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Get("/model", api.Model)
 		r.Get("/xping/:xauth", api.XPing)
 		r.Get("/stats/:xauth", api.Stats)
+		r.Get("/stats/:xauth/:flags", api.Stats)
 		r.Get("/slots/:xauth", api.Slots)
 		r.Put("/start/:xauth", api.Start)
 		r.Put("/stats/reset/:xauth", api.ResetStats)
@@ -100,7 +102,7 @@ func (s *apiServer) verifyXAuth(params martini.Params) error {
 }
 
 func (s *apiServer) Overview() (int, string) {
-	return rpc.ApiResponseJson(s.proxy.Overview(false))
+	return rpc.ApiResponseJson(s.proxy.Overview(StatsFull))
 }
 
 func (s *apiServer) Model() (int, string) {
@@ -108,7 +110,7 @@ func (s *apiServer) Model() (int, string) {
 }
 
 func (s *apiServer) StatsNoXAuth() (int, string) {
-	return rpc.ApiResponseJson(s.proxy.Stats(false))
+	return rpc.ApiResponseJson(s.proxy.Stats(StatsFull))
 }
 
 func (s *apiServer) SlotsNoXAuth() (int, string) {
@@ -127,7 +129,15 @@ func (s *apiServer) Stats(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		return s.StatsNoXAuth()
+		var flags StatsFlags
+		if s := params["flags"]; s != "" {
+			n, err := strconv.Atoi(s)
+			if err != nil {
+				return rpc.ApiResponseError(err)
+			}
+			flags = StatsFlags(n)
+		}
+		return rpc.ApiResponseJson(s.proxy.Stats(flags))
 	}
 }
 
@@ -265,8 +275,17 @@ func (c *ApiClient) XPing() error {
 	return rpc.ApiGetJson(url, nil)
 }
 
-func (c *ApiClient) Stats() (*Stats, error) {
+func (c *ApiClient) StatsSimple() (*Stats, error) {
 	url := c.encodeURL("/api/proxy/stats/%s", c.xauth)
+	stats := &Stats{}
+	if err := rpc.ApiGetJson(url, stats); err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+func (c *ApiClient) Stats(flags StatsFlags) (*Stats, error) {
+	url := c.encodeURL("/api/proxy/stats/%s/%d", c.xauth, flags)
 	stats := &Stats{}
 	if err := rpc.ApiGetJson(url, stats); err != nil {
 		return nil, err

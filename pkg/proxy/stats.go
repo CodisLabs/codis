@@ -69,7 +69,7 @@ func OpFails() int64 {
 	return cmdstats.fails.Get()
 }
 
-func OpQps() int64 {
+func OpQPS() int64 {
 	return cmdstats.qps.Get()
 }
 

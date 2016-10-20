@@ -45,7 +45,7 @@ func (p *Proxy) startMetricsJson() {
 	period = math2.MaxDuration(time.Second, period)
 
 	p.startMetricsReporter(period, func() error {
-		return rpc.ApiPostJson(server, p.Overview(true))
+		return rpc.ApiPostJson(server, p.Overview(StatsRuntime))
 	}, nil)
 }
 
@@ -79,7 +79,7 @@ func (p *Proxy) startMetricsInfluxdb() {
 			return errors.Trace(err)
 		}
 		model := p.Model()
-		stats := p.Stats(true)
+		stats := p.Stats(StatsRuntime)
 
 		tags := map[string]string{
 			"token":        model.Token,
@@ -91,7 +91,7 @@ func (p *Proxy) startMetricsInfluxdb() {
 		fields := map[string]interface{}{
 			"ops_total":                stats.Ops.Total,
 			"ops_fails":                stats.Ops.Fails,
-			"ops_qps":                  stats.Ops.Qps,
+			"ops_qps":                  stats.Ops.QPS,
 			"sessions_total":           stats.Sessions.Total,
 			"sessions_alive":           stats.Sessions.Alive,
 			"rusage_mem":               stats.Rusage.Mem,

@@ -456,7 +456,7 @@ type Stats struct {
 	Ops struct {
 		Total int64      `json:"total"`
 		Fails int64      `json:"fails"`
-		Qps   int64      `json:"qps"`
+		QPS   int64      `json:"qps"`
 		Cmd   []*OpStats `json:"cmd,omitempty"`
 	} `json:"ops"`
 
@@ -500,21 +500,35 @@ type Stats struct {
 	} `json:"runtime"`
 }
 
-func (s *Proxy) Overview(simple bool) *Overview {
+type StatsFlags uint32
+
+func (s StatsFlags) HasBit(m StatsFlags) bool {
+	return (s & m) != 0
+}
+
+const (
+	StatsCmds = StatsFlags(1 << iota)
+	StatsSlots
+	StatsRuntime
+
+	StatsFull = StatsFlags(^uint32(0))
+)
+
+func (s *Proxy) Overview(flags StatsFlags) *Overview {
 	o := &Overview{
 		Version: utils.Version,
 		Compile: utils.Compile,
 		Config:  s.Config(),
 		Model:   s.Model(),
-		Stats:   s.Stats(simple),
+		Stats:   s.Stats(flags),
 	}
-	if !simple {
+	if flags.HasBit(StatsSlots) {
 		o.Slots = s.Slots()
 	}
 	return o
 }
 
-func (s *Proxy) Stats(simple bool) *Stats {
+func (s *Proxy) Stats(flags StatsFlags) *Stats {
 	stats := &Stats{}
 	stats.Online = s.IsOnline()
 	stats.Closed = s.IsClosed()
@@ -526,8 +540,9 @@ func (s *Proxy) Stats(simple bool) *Stats {
 
 	stats.Ops.Total = OpTotal()
 	stats.Ops.Fails = OpFails()
-	stats.Ops.Qps = OpQps()
-	if !simple {
+	stats.Ops.QPS = OpQPS()
+
+	if flags.HasBit(StatsCmds) {
 		stats.Ops.Cmd = GetOpStatsAll()
 	}
 
@@ -537,26 +552,27 @@ func (s *Proxy) Stats(simple bool) *Stats {
 	stats.Rusage.Mem = GetSysMemTotal()
 	stats.Rusage.CPU = GetSysCPUUsage()
 
-	var r runtime.MemStats
-	runtime.ReadMemStats(&r)
+	if flags.HasBit(StatsRuntime) {
+		var r runtime.MemStats
+		runtime.ReadMemStats(&r)
 
-	stats.Runtime.General.Alloc = r.Alloc
-	stats.Runtime.General.Sys = r.Sys
-	stats.Runtime.General.Lookups = r.Lookups
-	stats.Runtime.General.Mallocs = r.Mallocs
-	stats.Runtime.General.Frees = r.Frees
-	stats.Runtime.Heap.Alloc = r.HeapAlloc
-	stats.Runtime.Heap.Sys = r.HeapSys
-	stats.Runtime.Heap.Idle = r.HeapIdle
-	stats.Runtime.Heap.Inuse = r.HeapInuse
-	stats.Runtime.Heap.Objects = r.HeapObjects
-	stats.Runtime.GC.Num = r.NumGC
-	stats.Runtime.GC.CPUFraction = r.GCCPUFraction
-	stats.Runtime.GC.TotalPauseMs = r.PauseTotalNs / uint64(time.Millisecond)
-	stats.Runtime.NumProcs = runtime.GOMAXPROCS(0)
-	stats.Runtime.NumGoroutines = runtime.NumGoroutine()
-	stats.Runtime.NumCgoCall = runtime.NumCgoCall()
-	stats.Runtime.MemOffheap = unsafe2.OffheapBytes()
-
+		stats.Runtime.General.Alloc = r.Alloc
+		stats.Runtime.General.Sys = r.Sys
+		stats.Runtime.General.Lookups = r.Lookups
+		stats.Runtime.General.Mallocs = r.Mallocs
+		stats.Runtime.General.Frees = r.Frees
+		stats.Runtime.Heap.Alloc = r.HeapAlloc
+		stats.Runtime.Heap.Sys = r.HeapSys
+		stats.Runtime.Heap.Idle = r.HeapIdle
+		stats.Runtime.Heap.Inuse = r.HeapInuse
+		stats.Runtime.Heap.Objects = r.HeapObjects
+		stats.Runtime.GC.Num = r.NumGC
+		stats.Runtime.GC.CPUFraction = r.GCCPUFraction
+		stats.Runtime.GC.TotalPauseMs = r.PauseTotalNs / uint64(time.Millisecond)
+		stats.Runtime.NumProcs = runtime.GOMAXPROCS(0)
+		stats.Runtime.NumGoroutines = runtime.NumGoroutine()
+		stats.Runtime.NumCgoCall = runtime.NumCgoCall()
+		stats.Runtime.MemOffheap = unsafe2.OffheapBytes()
+	}
 	return stats
 }
