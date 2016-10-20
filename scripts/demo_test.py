@@ -46,7 +46,7 @@ class Process:
     def is_running(self):
         try:
             self.proc.wait(0)
-        except subprocess.TimeoutExpired:
+        except Exception:
             pass
         return self.proc.returncode is None
 
