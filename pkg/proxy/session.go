@@ -79,7 +79,14 @@ func NewSessionConn(sock net.Conn, config *Config) *Session {
 	return NewSession(c, config.ProductAuth)
 }
 
-func (s *Session) CloseWithError(err error, half bool) {
+func (s *Session) CloseReader() error {
+	s.exit.Do(func() {
+		log.Infof("session [%p] closed: %s, quit", s, s)
+	})
+	return s.Conn.CloseReader()
+}
+
+func (s *Session) CloseWithError(err error) error {
 	s.exit.Do(func() {
 		if err != nil {
 			log.Infof("session [%p] closed: %s, error: %s", s, s, err)
@@ -87,12 +94,8 @@ func (s *Session) CloseWithError(err error, half bool) {
 			log.Infof("session [%p] closed: %s, quit", s, s)
 		}
 	})
-	if half {
-		s.Conn.CloseReader()
-	} else {
-		s.Conn.Close()
-		s.broken.Set(true)
-	}
+	s.broken.Set(true)
+	return s.Conn.Close()
 }
 
 var (
@@ -107,7 +110,7 @@ func (s *Session) Start(d *Router, config *Config) {
 		if int(incrSessions()) > config.ProxyMaxClients {
 			go func() {
 				s.Conn.Encode(redis.NewErrorf("ERR max number of clients reached"), true)
-				s.CloseWithError(ErrTooManySessions, false)
+				s.CloseWithError(ErrTooManySessions)
 			}()
 			decrSessions()
 			return
@@ -116,7 +119,7 @@ func (s *Session) Start(d *Router, config *Config) {
 		if !d.isOnline() {
 			go func() {
 				s.Conn.Encode(redis.NewErrorf("ERR router is not online"), true)
-				s.CloseWithError(ErrRouterNotOnline, false)
+				s.CloseWithError(ErrRouterNotOnline)
 			}()
 			decrSessions()
 			return
@@ -141,7 +144,9 @@ func (s *Session) Start(d *Router, config *Config) {
 func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 	defer func() {
 		if err != nil {
-			s.CloseWithError(err, true)
+			s.CloseWithError(err)
+		} else {
+			s.CloseReader()
 		}
 		close(tasks)
 	}()
@@ -173,7 +178,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 
 func (s *Session) loopWriter(tasks <-chan *Request) (err error) {
 	defer func() {
-		s.CloseWithError(err, false)
+		s.CloseWithError(err)
 		for _ = range tasks {
 			s.incrOpFails(nil)
 		}
