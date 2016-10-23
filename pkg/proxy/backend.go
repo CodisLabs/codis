@@ -181,7 +181,7 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 
 func (bc *BackendConn) failWriter() {
 	bc.ready.Set(false)
-	bc.delay = math2.MinMaxDuration(bc.delay*2, time.Second/4, time.Second*15)
+	bc.delay = math2.MinMaxDuration(bc.delay*2, time.Millisecond*50, time.Second*5)
 	timeout := time.After(bc.delay)
 	for {
 		select {
