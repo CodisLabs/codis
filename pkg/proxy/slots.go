@@ -35,10 +35,10 @@ func (s *Slot) snapshot(full bool) *models.Slot {
 		Id:     s.id,
 		Locked: s.lock.hold,
 
-		BackendAddr:   s.backend.bc.Addr(),
-		BackendAddrId: s.backend.id,
-		MigrateFrom:   s.migrate.bc.Addr(),
-		MigrateFromId: s.migrate.id,
+		BackendAddr:        s.backend.bc.Addr(),
+		BackendAddrGroupId: s.backend.id,
+		MigrateFrom:        s.migrate.bc.Addr(),
+		MigrateFromGroupId: s.migrate.id,
 	}
 	if !full {
 		return m

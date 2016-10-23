@@ -9,10 +9,11 @@ type Slot struct {
 	Id     int  `json:"id"`
 	Locked bool `json:"locked,omitempty"`
 
-	BackendAddr   string     `json:"backend_addr,omitempty"`
-	BackendAddrId int        `json:"backend_addr_id,omitempty"`
-	MigrateFrom   string     `json:"migrate_from,omitempty"`
-	MigrateFromId int        `json:"migrate_from_id,omitempty"`
+	BackendAddr        string `json:"backend_addr,omitempty"`
+	BackendAddrGroupId int    `json:"backend_addr_group_id,omitempty"`
+	MigrateFrom        string `json:"migrate_from,omitempty"`
+	MigrateFromGroupId int    `json:"migrate_from_group_id,omitempty"`
+
 	ReplicaGroups [][]string `json:"replica_groups,omitempty"`
 }
 

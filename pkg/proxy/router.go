@@ -203,11 +203,11 @@ func (s *Router) fillSlot(m *models.Slot, switched bool) {
 
 	if addr := m.BackendAddr; len(addr) != 0 {
 		slot.backend.bc = s.getBackendConn(addr, true)
-		slot.backend.id = m.BackendAddrId
+		slot.backend.id = m.BackendAddrGroupId
 	}
 	if from := m.MigrateFrom; len(from) != 0 {
 		slot.migrate.bc = s.getBackendConn(from, true)
-		slot.migrate.id = m.MigrateFromId
+		slot.migrate.id = m.MigrateFromGroupId
 	}
 	for i := range m.ReplicaGroups {
 		var group []*SharedBackendConn
@@ -244,22 +244,22 @@ func (s *Router) SwitchMasters(masters map[int]string) error {
 }
 
 func (s *Router) trySwitchMaster(id int, masters map[int]string) {
-	var conflict = false
+	var update bool
 	var m = s.slots[id].snapshot(false)
 
-	if addr := masters[m.BackendAddrId]; addr != "" {
+	if addr := masters[m.BackendAddrGroupId]; addr != "" {
 		if addr != m.BackendAddr {
 			m.BackendAddr = addr
-			conflict = true
+			update = true
 		}
 	}
-	if from := masters[m.MigrateFromId]; from != "" {
+	if from := masters[m.MigrateFromGroupId]; from != "" {
 		if from != m.MigrateFrom {
 			m.MigrateFrom = from
-			conflict = true
+			update = true
 		}
 	}
-	if !conflict {
+	if !update {
 		return
 	}
 	log.Warnf("slot %04d +switch-master", id)

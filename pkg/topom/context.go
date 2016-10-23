@@ -83,21 +83,21 @@ func (ctx *context) toSlot(m *models.SlotMapping, dc string) *models.Slot {
 	switch m.Action.State {
 	case models.ActionNothing, models.ActionPending:
 		slot.BackendAddr = ctx.getGroupMaster(m.GroupId)
-		slot.BackendAddrId = m.GroupId
+		slot.BackendAddrGroupId = m.GroupId
 		slot.ReplicaGroups = ctx.toReplicaGroups(m.GroupId, dc)
 	case models.ActionPreparing:
 		slot.BackendAddr = ctx.getGroupMaster(m.GroupId)
-		slot.BackendAddrId = m.GroupId
+		slot.BackendAddrGroupId = m.GroupId
 	case models.ActionPrepared:
 		fallthrough
 	case models.ActionMigrating:
 		slot.BackendAddr = ctx.getGroupMaster(m.Action.TargetId)
-		slot.BackendAddrId = m.Action.TargetId
+		slot.BackendAddrGroupId = m.Action.TargetId
 		slot.MigrateFrom = ctx.getGroupMaster(m.GroupId)
-		slot.MigrateFromId = m.GroupId
+		slot.MigrateFromGroupId = m.GroupId
 	case models.ActionFinished:
 		slot.BackendAddr = ctx.getGroupMaster(m.Action.TargetId)
-		slot.BackendAddrId = m.Action.TargetId
+		slot.BackendAddrGroupId = m.Action.TargetId
 	default:
 		log.Panicf("slot-[%d] action state is invalid:\n%s", m.Id, m.Encode())
 	}
