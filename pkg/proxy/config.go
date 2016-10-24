@@ -19,6 +19,7 @@ type Config struct {
 	proto         string //tcp or tcp4
 	provider      string
 	dashboardAddr string
+	connModel     string //server or slot
 
 	pingPeriod       int // seconds
 	maxTimeout       int // seconds
@@ -56,6 +57,9 @@ func LoadConf(configFile string) (*Config, error) {
 
 	conf.proto, _ = c.ReadString("proto", "tcp")
 	conf.provider, _ = c.ReadString("coordinator", "zookeeper")
+
+    	conf.connModel, _ = c.ReadString("backend_connection_model", "server")
+   	conf.connModel = strings.TrimSpace(conf.connModel)
 
 	loadConfInt := func(entry string, defval int) int {
 		v, _ := c.ReadInt(entry, defval)

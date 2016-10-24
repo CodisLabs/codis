@@ -4,6 +4,7 @@
 package router
 
 import (
+	"strconv"
 	"strings"
 	"sync"
 
@@ -18,6 +19,7 @@ type Router struct {
 	mu sync.Mutex
 
 	auth string
+	cmodel string
 	pool map[string]*SharedBackendConn
 
 	slots [MaxSlotNum]*Slot
@@ -26,12 +28,13 @@ type Router struct {
 }
 
 func New() *Router {
-	return NewWithAuth("")
+	return NewWithAuth("", "server")
 }
 
-func NewWithAuth(auth string) *Router {
+func NewWithAuth(auth string, cmodel string) *Router {
 	s := &Router{
 		auth: auth,
+		cmodel: cmodel,
 		pool: make(map[string]*SharedBackendConn),
 	}
 	for i := 0; i < len(s.slots); i++ {
@@ -104,10 +107,28 @@ func (s *Router) getBackendConn(addr string) *SharedBackendConn {
 	return bc
 }
 
+func (s *Router) getSlotBackendConn(addr string, slot int) *SharedBackendConn {
+    key := strconv.Itoa(slot) + ":" + addr
+    bc := s.pool[key]
+    if bc != nil {
+        bc.IncrRefcnt()
+    } else {
+        bc = NewSharedBackendConn(addr, s.auth)
+        s.pool[key] = bc
+    }
+    return bc
+}
+
 func (s *Router) putBackendConn(bc *SharedBackendConn) {
 	if bc != nil && bc.Close() {
 		delete(s.pool, bc.Addr())
 	}
+}
+
+func (s *Router) putSlotBackendConn(bc *SharedBackendConn, slot int) {
+    if bc != nil && bc.Close() {
+        delete(s.pool, (strconv.Itoa(slot) + ":" + bc.addr))
+    }
 }
 
 func (s *Router) isValidSlot(i int) bool {
@@ -121,8 +142,13 @@ func (s *Router) resetSlot(i int) {
 	slot := s.slots[i]
 	slot.blockAndWait()
 
-	s.putBackendConn(slot.backend.bc)
-	s.putBackendConn(slot.migrate.bc)
+    	if s.cmodel == "slot" {
+        	s.putSlotBackendConn(slot.backend.bc, i)
+        	s.putSlotBackendConn(slot.migrate.bc, i)
+    	} else {
+        	s.putBackendConn(slot.backend.bc)
+        	s.putBackendConn(slot.migrate.bc)
+    	}
 	slot.reset()
 
 	slot.unblock()
@@ -135,8 +161,13 @@ func (s *Router) fillSlot(i int, addr, from string, lock bool) {
 	slot := s.slots[i]
 	slot.blockAndWait()
 
-	s.putBackendConn(slot.backend.bc)
-	s.putBackendConn(slot.migrate.bc)
+    	if s.cmodel == "slot" {
+        	s.putSlotBackendConn(slot.backend.bc, i)
+        	s.putSlotBackendConn(slot.migrate.bc, i)
+    	} else {
+        	s.putBackendConn(slot.backend.bc)
+        	s.putBackendConn(slot.migrate.bc)
+    	}
 	slot.reset()
 
 	if len(addr) != 0 {
@@ -148,11 +179,19 @@ func (s *Router) fillSlot(i int, addr, from string, lock bool) {
 			slot.backend.port = []byte(xx[1])
 		}
 		slot.backend.addr = addr
-		slot.backend.bc = s.getBackendConn(addr)
+        	if s.cmodel == "slot" {
+            		slot.backend.bc = s.getSlotBackendConn(addr, i)
+        	} else {
+            		slot.backend.bc = s.getBackendConn(addr)
+        	}
 	}
 	if len(from) != 0 {
 		slot.migrate.from = from
-		slot.migrate.bc = s.getBackendConn(from)
+	        if s.cmodel == "slot" {
+            		slot.migrate.bc = s.getSlotBackendConn(from, i)
+        	} else {
+            		slot.migrate.bc = s.getBackendConn(from)
+        	}
 	}
 
 	if !lock {
