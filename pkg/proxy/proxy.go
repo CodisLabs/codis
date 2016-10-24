@@ -74,7 +74,7 @@ func New(addr string, debugVarAddr string, conf *Config) *Server {
 	} else {
 		s.listener = l
 	}
-	s.router = router.NewWithAuth(conf.passwd)
+	s.router = router.NewWithAuth(conf.passwd, conf.connModel)
 	s.evtbus = make(chan interface{}, 1024)
 
 	s.register()
