@@ -74,7 +74,7 @@ class Dashboard():
             'ETC_PATH': self.env.etc_path,
             'LOG_PATH': self.env.log_path,
         }
-        base = os.path.join(generate_root, self.env.etc_path.lstrip('/'), self.admin_addr)
+        base = os.path.join(generate_root, self.env.etc_path.lstrip('/'), self.admin_addr.replace(':', '_'))
 
         temp = readfile(template_root, "dashboard.toml.template")
         generate(base, "dashboard.toml", temp.format(**kwargs))
@@ -105,7 +105,7 @@ class Dashboard():
 
         cwd = os.getcwd()
         os.chdir(os.path.join(base, ".."))
-        symlink(self.admin_addr, self.product.name)
+        symlink(self.admin_addr.replace(':', '_'), self.product.name)
         os.chdir(cwd)
 
 
@@ -155,7 +155,7 @@ class Proxy():
             'ETC_PATH': self.env.etc_path,
             'LOG_PATH': self.env.log_path,
         }
-        base = os.path.join(generate_root, self.env.etc_path.lstrip('/'), self.proxy_addr)
+        base = os.path.join(generate_root, self.env.etc_path.lstrip('/'), self.proxy_addr.replace(':', '_'))
 
         temp = readfile(template_root, "proxy.toml.template")
         generate(base, "proxy.toml", temp.format(**kwargs))
