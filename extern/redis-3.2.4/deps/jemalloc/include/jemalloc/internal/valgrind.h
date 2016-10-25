@@ -30,15 +30,17 @@
  * calls must be embedded in macros rather than in functions so that when
  * Valgrind reports errors, there are no extra stack frames in the backtraces.
  */
-#define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero) do {		\
-	if (unlikely(in_valgrind && cond))				\
-		VALGRIND_MALLOCLIKE_BLOCK(ptr, usize, p2rz(ptr), zero);	\
+#define	JEMALLOC_VALGRIND_MALLOC(cond, tsdn, ptr, usize, zero) do {	\
+	if (unlikely(in_valgrind && cond)) {				\
+		VALGRIND_MALLOCLIKE_BLOCK(ptr, usize, p2rz(tsdn, ptr),	\
+		    zero);						\
+	}								\
 } while (0)
-#define	JEMALLOC_VALGRIND_REALLOC(maybe_moved, ptr, usize,		\
+#define	JEMALLOC_VALGRIND_REALLOC(maybe_moved, tsdn, ptr, usize,	\
     ptr_maybe_null, old_ptr, old_usize, old_rzsize, old_ptr_maybe_null,	\
     zero) do {								\
 	if (unlikely(in_valgrind)) {					\
-		size_t rzsize = p2rz(ptr);				\
+		size_t rzsize = p2rz(tsdn, ptr);			\
 									\
 		if (!maybe_moved || ptr == old_ptr) {			\
 			VALGRIND_RESIZEINPLACE_BLOCK(ptr, old_usize,	\
@@ -81,8 +83,8 @@
 #define	JEMALLOC_VALGRIND_MAKE_MEM_NOACCESS(ptr, usize) do {} while (0)
 #define	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(ptr, usize) do {} while (0)
 #define	JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ptr, usize) do {} while (0)
-#define	JEMALLOC_VALGRIND_MALLOC(cond, ptr, usize, zero) do {} while (0)
-#define	JEMALLOC_VALGRIND_REALLOC(maybe_moved, ptr, usize,		\
+#define	JEMALLOC_VALGRIND_MALLOC(cond, tsdn, ptr, usize, zero) do {} while (0)
+#define	JEMALLOC_VALGRIND_REALLOC(maybe_moved, tsdn, ptr, usize,	\
     ptr_maybe_null, old_ptr, old_usize, old_rzsize, old_ptr_maybe_null,	\
     zero) do {} while (0)
 #define	JEMALLOC_VALGRIND_FREE(ptr, rzsize) do {} while (0)

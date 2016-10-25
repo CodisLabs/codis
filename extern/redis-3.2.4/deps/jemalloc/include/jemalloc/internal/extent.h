@@ -48,7 +48,7 @@ struct extent_node_s {
 		/* Linkage for the size/address-ordered tree. */
 		rb_node(extent_node_t)	szad_link;
 
-		/* Linkage for arena's huge and node_cache lists. */
+		/* Linkage for arena's achunks, huge, and node_cache lists. */
 		ql_elm(extent_node_t)	ql_link;
 	};
 

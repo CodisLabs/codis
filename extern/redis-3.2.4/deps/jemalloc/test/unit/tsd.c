@@ -99,6 +99,11 @@ int
 main(void)
 {
 
+	/* Core tsd bootstrapping must happen prior to data_tsd_boot(). */
+	if (nallocx(1, 0) == 0) {
+		malloc_printf("Initialization error");
+		return (test_status_fail);
+	}
 	data_tsd_boot();
 
 	return (test(

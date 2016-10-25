@@ -93,6 +93,10 @@ TEST_BEGIN(test_stats_arenas_summary)
 	huge = mallocx(chunksize, 0);
 	assert_ptr_not_null(huge, "Unexpected mallocx() failure");
 
+	dallocx(little, 0);
+	dallocx(large, 0);
+	dallocx(huge, 0);
+
 	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
 	    "Unexpected mallctl() failure");
 
@@ -116,10 +120,6 @@ TEST_BEGIN(test_stats_arenas_summary)
 		assert_u64_le(nmadvise, purged,
 		    "nmadvise should be no greater than purged");
 	}
-
-	dallocx(little, 0);
-	dallocx(large, 0);
-	dallocx(huge, 0);
 }
 TEST_END
 
@@ -220,11 +220,11 @@ TEST_BEGIN(test_stats_arenas_large)
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
 		    "allocated should be greater than zero");
-		assert_zu_gt(nmalloc, 0,
+		assert_u64_gt(nmalloc, 0,
 		    "nmalloc should be greater than zero");
-		assert_zu_ge(nmalloc, ndalloc,
+		assert_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
-		assert_zu_gt(nrequests, 0,
+		assert_u64_gt(nrequests, 0,
 		    "nrequests should be greater than zero");
 	}
 
@@ -262,9 +262,9 @@ TEST_BEGIN(test_stats_arenas_huge)
 	if (config_stats) {
 		assert_zu_gt(allocated, 0,
 		    "allocated should be greater than zero");
-		assert_zu_gt(nmalloc, 0,
+		assert_u64_gt(nmalloc, 0,
 		    "nmalloc should be greater than zero");
-		assert_zu_ge(nmalloc, ndalloc,
+		assert_u64_ge(nmalloc, ndalloc,
 		    "nmalloc should be at least as large as ndalloc");
 	}
 

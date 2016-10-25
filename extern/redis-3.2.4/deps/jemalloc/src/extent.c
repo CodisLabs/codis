@@ -15,7 +15,7 @@ extent_quantize(size_t size)
 }
 
 JEMALLOC_INLINE_C int
-extent_szad_comp(extent_node_t *a, extent_node_t *b)
+extent_szad_comp(const extent_node_t *a, const extent_node_t *b)
 {
 	int ret;
 	size_t a_qsize = extent_quantize(extent_node_size_get(a));
@@ -41,7 +41,7 @@ rb_gen(, extent_tree_szad_, extent_tree_t, extent_node_t, szad_link,
     extent_szad_comp)
 
 JEMALLOC_INLINE_C int
-extent_ad_comp(extent_node_t *a, extent_node_t *b)
+extent_ad_comp(const extent_node_t *a, const extent_node_t *b)
 {
 	uintptr_t a_addr = (uintptr_t)extent_node_addr_get(a);
 	uintptr_t b_addr = (uintptr_t)extent_node_addr_get(b);

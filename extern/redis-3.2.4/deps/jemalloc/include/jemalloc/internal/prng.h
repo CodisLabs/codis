@@ -18,31 +18,9 @@
  * proportional to bit position.  For example, the lowest bit has a cycle of 2,
  * the next has a cycle of 4, etc.  For this reason, we prefer to use the upper
  * bits.
- *
- * Macro parameters:
- *   uint32_t r          : Result.
- *   unsigned lg_range   : (0..32], number of least significant bits to return.
- *   uint32_t state      : Seed value.
- *   const uint32_t a, c : See above discussion.
  */
-#define	prng32(r, lg_range, state, a, c) do {				\
-	assert((lg_range) > 0);						\
-	assert((lg_range) <= 32);					\
-									\
-	r = (state * (a)) + (c);					\
-	state = r;							\
-	r >>= (32 - (lg_range));					\
-} while (false)
-
-/* Same as prng32(), but 64 bits of pseudo-randomness, using uint64_t. */
-#define	prng64(r, lg_range, state, a, c) do {				\
-	assert((lg_range) > 0);						\
-	assert((lg_range) <= 64);					\
-									\
-	r = (state * (a)) + (c);					\
-	state = r;							\
-	r >>= (64 - (lg_range));					\
-} while (false)
+#define	PRNG_A	UINT64_C(6364136223846793005)
+#define	PRNG_C	UINT64_C(1442695040888963407)
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
@@ -55,6 +33,47 @@
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
+
+#ifndef JEMALLOC_ENABLE_INLINE
+uint64_t	prng_lg_range(uint64_t *state, unsigned lg_range);
+uint64_t	prng_range(uint64_t *state, uint64_t range);
+#endif
+
+#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_PRNG_C_))
+JEMALLOC_ALWAYS_INLINE uint64_t
+prng_lg_range(uint64_t *state, unsigned lg_range)
+{
+	uint64_t ret;
+
+	assert(lg_range > 0);
+	assert(lg_range <= 64);
+
+	ret = (*state * PRNG_A) + PRNG_C;
+	*state = ret;
+	ret >>= (64 - lg_range);
+
+	return (ret);
+}
+
+JEMALLOC_ALWAYS_INLINE uint64_t
+prng_range(uint64_t *state, uint64_t range)
+{
+	uint64_t ret;
+	unsigned lg_range;
+
+	assert(range > 1);
+
+	/* Compute the ceiling of lg(range). */
+	lg_range = ffs_u64(pow2_ceil_u64(range)) - 1;
+
+	/* Generate a result in [0..range) via repeated trial. */
+	do {
+		ret = prng_lg_range(state, lg_range);
+	} while (ret >= range);
+
+	return (ret);
+}
+#endif
 
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/

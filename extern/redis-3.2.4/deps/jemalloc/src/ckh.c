@@ -40,8 +40,8 @@
 /******************************************************************************/
 /* Function prototypes for non-inline static functions. */
 
-static bool	ckh_grow(tsd_t *tsd, ckh_t *ckh);
-static void	ckh_shrink(tsd_t *tsd, ckh_t *ckh);
+static bool	ckh_grow(tsdn_t *tsdn, ckh_t *ckh);
+static void	ckh_shrink(tsdn_t *tsdn, ckh_t *ckh);
 
 /******************************************************************************/
 
@@ -99,7 +99,7 @@ ckh_try_bucket_insert(ckh_t *ckh, size_t bucket, const void *key,
 	 * Cycle through the cells in the bucket, starting at a random position.
 	 * The randomness avoids worst-case search overhead as buckets fill up.
 	 */
-	prng32(offset, LG_CKH_BUCKET_CELLS, ckh->prng_state, CKH_A, CKH_C);
+	offset = (unsigned)prng_lg_range(&ckh->prng_state, LG_CKH_BUCKET_CELLS);
 	for (i = 0; i < (ZU(1) << LG_CKH_BUCKET_CELLS); i++) {
 		cell = &ckh->tab[(bucket << LG_CKH_BUCKET_CELLS) +
 		    ((i + offset) & ((ZU(1) << LG_CKH_BUCKET_CELLS) - 1))];
@@ -141,7 +141,8 @@ ckh_evict_reloc_insert(ckh_t *ckh, size_t argbucket, void const **argkey,
 		 * were an item for which both hashes indicated the same
 		 * bucket.
 		 */
-		prng32(i, LG_CKH_BUCKET_CELLS, ckh->prng_state, CKH_A, CKH_C);
+		i = (unsigned)prng_lg_range(&ckh->prng_state,
+		    LG_CKH_BUCKET_CELLS);
 		cell = &ckh->tab[(bucket << LG_CKH_BUCKET_CELLS) + i];
 		assert(cell->key != NULL);
 
@@ -243,12 +244,11 @@ ckh_rebuild(ckh_t *ckh, ckhc_t *aTab)
 }
 
 static bool
-ckh_grow(tsd_t *tsd, ckh_t *ckh)
+ckh_grow(tsdn_t *tsdn, ckh_t *ckh)
 {
 	bool ret;
 	ckhc_t *tab, *ttab;
-	size_t lg_curcells;
-	unsigned lg_prevbuckets;
+	unsigned lg_prevbuckets, lg_curcells;
 
 #ifdef CKH_COUNT
 	ckh->ngrows++;
@@ -266,12 +266,12 @@ ckh_grow(tsd_t *tsd, ckh_t *ckh)
 
 		lg_curcells++;
 		usize = sa2u(sizeof(ckhc_t) << lg_curcells, CACHELINE);
-		if (usize == 0) {
+		if (unlikely(usize == 0 || usize > HUGE_MAXCLASS)) {
 			ret = true;
 			goto label_return;
 		}
-		tab = (ckhc_t *)ipallocztm(tsd, usize, CACHELINE, true, NULL,
-		    true, NULL);
+		tab = (ckhc_t *)ipallocztm(tsdn, usize, CACHELINE, true, NULL,
+		    true, arena_ichoose(tsdn, NULL));
 		if (tab == NULL) {
 			ret = true;
 			goto label_return;
@@ -283,12 +283,12 @@ ckh_grow(tsd_t *tsd, ckh_t *ckh)
 		ckh->lg_curbuckets = lg_curcells - LG_CKH_BUCKET_CELLS;
 
 		if (!ckh_rebuild(ckh, tab)) {
-			idalloctm(tsd, tab, tcache_get(tsd, false), true);
+			idalloctm(tsdn, tab, NULL, true, true);
 			break;
 		}
 
 		/* Rebuilding failed, so back out partially rebuilt table. */
-		idalloctm(tsd, ckh->tab, tcache_get(tsd, false), true);
+		idalloctm(tsdn, ckh->tab, NULL, true, true);
 		ckh->tab = tab;
 		ckh->lg_curbuckets = lg_prevbuckets;
 	}
@@ -299,11 +299,11 @@ label_return:
 }
 
 static void
-ckh_shrink(tsd_t *tsd, ckh_t *ckh)
+ckh_shrink(tsdn_t *tsdn, ckh_t *ckh)
 {
 	ckhc_t *tab, *ttab;
-	size_t lg_curcells, usize;
-	unsigned lg_prevbuckets;
+	size_t usize;
+	unsigned lg_prevbuckets, lg_curcells;
 
 	/*
 	 * It is possible (though unlikely, given well behaved hashes) that the
@@ -312,10 +312,10 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh)
 	lg_prevbuckets = ckh->lg_curbuckets;
 	lg_curcells = ckh->lg_curbuckets + LG_CKH_BUCKET_CELLS - 1;
 	usize = sa2u(sizeof(ckhc_t) << lg_curcells, CACHELINE);
-	if (usize == 0)
+	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS))
 		return;
-	tab = (ckhc_t *)ipallocztm(tsd, usize, CACHELINE, true, NULL, true,
-	    NULL);
+	tab = (ckhc_t *)ipallocztm(tsdn, usize, CACHELINE, true, NULL, true,
+	    arena_ichoose(tsdn, NULL));
 	if (tab == NULL) {
 		/*
 		 * An OOM error isn't worth propagating, since it doesn't
@@ -330,7 +330,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh)
 	ckh->lg_curbuckets = lg_curcells - LG_CKH_BUCKET_CELLS;
 
 	if (!ckh_rebuild(ckh, tab)) {
-		idalloctm(tsd, tab, tcache_get(tsd, false), true);
+		idalloctm(tsdn, tab, NULL, true, true);
 #ifdef CKH_COUNT
 		ckh->nshrinks++;
 #endif
@@ -338,7 +338,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh)
 	}
 
 	/* Rebuilding failed, so back out partially rebuilt table. */
-	idalloctm(tsd, ckh->tab, tcache_get(tsd, false), true);
+	idalloctm(tsdn, ckh->tab, NULL, true, true);
 	ckh->tab = tab;
 	ckh->lg_curbuckets = lg_prevbuckets;
 #ifdef CKH_COUNT
@@ -347,7 +347,7 @@ ckh_shrink(tsd_t *tsd, ckh_t *ckh)
 }
 
 bool
-ckh_new(tsd_t *tsd, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
+ckh_new(tsdn_t *tsdn, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
     ckh_keycomp_t *keycomp)
 {
 	bool ret;
@@ -387,12 +387,12 @@ ckh_new(tsd_t *tsd, ckh_t *ckh, size_t minitems, ckh_hash_t *hash,
 	ckh->keycomp = keycomp;
 
 	usize = sa2u(sizeof(ckhc_t) << lg_mincells, CACHELINE);
-	if (usize == 0) {
+	if (unlikely(usize == 0 || usize > HUGE_MAXCLASS)) {
 		ret = true;
 		goto label_return;
 	}
-	ckh->tab = (ckhc_t *)ipallocztm(tsd, usize, CACHELINE, true, NULL, true,
-	    NULL);
+	ckh->tab = (ckhc_t *)ipallocztm(tsdn, usize, CACHELINE, true, NULL,
+	    true, arena_ichoose(tsdn, NULL));
 	if (ckh->tab == NULL) {
 		ret = true;
 		goto label_return;
@@ -404,7 +404,7 @@ label_return:
 }
 
 void
-ckh_delete(tsd_t *tsd, ckh_t *ckh)
+ckh_delete(tsdn_t *tsdn, ckh_t *ckh)
 {
 
 	assert(ckh != NULL);
@@ -421,9 +421,9 @@ ckh_delete(tsd_t *tsd, ckh_t *ckh)
 	    (unsigned long long)ckh->nrelocs);
 #endif
 
-	idalloctm(tsd, ckh->tab, tcache_get(tsd, false), true);
+	idalloctm(tsdn, ckh->tab, NULL, true, true);
 	if (config_debug)
-		memset(ckh, 0x5a, sizeof(ckh_t));
+		memset(ckh, JEMALLOC_FREE_JUNK, sizeof(ckh_t));
 }
 
 size_t
@@ -456,7 +456,7 @@ ckh_iter(ckh_t *ckh, size_t *tabind, void **key, void **data)
 }
 
 bool
-ckh_insert(tsd_t *tsd, ckh_t *ckh, const void *key, const void *data)
+ckh_insert(tsdn_t *tsdn, ckh_t *ckh, const void *key, const void *data)
 {
 	bool ret;
 
@@ -468,7 +468,7 @@ ckh_insert(tsd_t *tsd, ckh_t *ckh, const void *key, const void *data)
 #endif
 
 	while (ckh_try_insert(ckh, &key, &data)) {
-		if (ckh_grow(tsd, ckh)) {
+		if (ckh_grow(tsdn, ckh)) {
 			ret = true;
 			goto label_return;
 		}
@@ -480,7 +480,7 @@ label_return:
 }
 
 bool
-ckh_remove(tsd_t *tsd, ckh_t *ckh, const void *searchkey, void **key,
+ckh_remove(tsdn_t *tsdn, ckh_t *ckh, const void *searchkey, void **key,
     void **data)
 {
 	size_t cell;
@@ -502,7 +502,7 @@ ckh_remove(tsd_t *tsd, ckh_t *ckh, const void *searchkey, void **key,
 		    + LG_CKH_BUCKET_CELLS - 2)) && ckh->lg_curbuckets
 		    > ckh->lg_minbuckets) {
 			/* Ignore error due to OOM. */
-			ckh_shrink(tsd, ckh);
+			ckh_shrink(tsdn, ckh);
 		}
 
 		return (false);

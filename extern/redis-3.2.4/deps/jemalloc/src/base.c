@@ -13,11 +13,12 @@ static size_t		base_mapped;
 
 /******************************************************************************/
 
-/* base_mtx must be held. */
 static extent_node_t *
-base_node_try_alloc(void)
+base_node_try_alloc(tsdn_t *tsdn)
 {
 	extent_node_t *node;
+
+	malloc_mutex_assert_owner(tsdn, &base_mtx);
 
 	if (base_nodes == NULL)
 		return (NULL);
@@ -27,33 +28,34 @@ base_node_try_alloc(void)
 	return (node);
 }
 
-/* base_mtx must be held. */
 static void
-base_node_dalloc(extent_node_t *node)
+base_node_dalloc(tsdn_t *tsdn, extent_node_t *node)
 {
+
+	malloc_mutex_assert_owner(tsdn, &base_mtx);
 
 	JEMALLOC_VALGRIND_MAKE_MEM_UNDEFINED(node, sizeof(extent_node_t));
 	*(extent_node_t **)node = base_nodes;
 	base_nodes = node;
 }
 
-/* base_mtx must be held. */
 static extent_node_t *
-base_chunk_alloc(size_t minsize)
+base_chunk_alloc(tsdn_t *tsdn, size_t minsize)
 {
 	extent_node_t *node;
 	size_t csize, nsize;
 	void *addr;
 
+	malloc_mutex_assert_owner(tsdn, &base_mtx);
 	assert(minsize != 0);
-	node = base_node_try_alloc();
+	node = base_node_try_alloc(tsdn);
 	/* Allocate enough space to also carve a node out if necessary. */
 	nsize = (node == NULL) ? CACHELINE_CEILING(sizeof(extent_node_t)) : 0;
 	csize = CHUNK_CEILING(minsize + nsize);
 	addr = chunk_alloc_base(csize);
 	if (addr == NULL) {
 		if (node != NULL)
-			base_node_dalloc(node);
+			base_node_dalloc(tsdn, node);
 		return (NULL);
 	}
 	base_mapped += csize;
@@ -76,7 +78,7 @@ base_chunk_alloc(size_t minsize)
  * physical memory usage.
  */
 void *
-base_alloc(size_t size)
+base_alloc(tsdn_t *tsdn, size_t size)
 {
 	void *ret;
 	size_t csize, usize;
@@ -91,14 +93,14 @@ base_alloc(size_t size)
 
 	usize = s2u(csize);
 	extent_node_init(&key, NULL, NULL, usize, false, false);
-	malloc_mutex_lock(&base_mtx);
+	malloc_mutex_lock(tsdn, &base_mtx);
 	node = extent_tree_szad_nsearch(&base_avail_szad, &key);
 	if (node != NULL) {
 		/* Use existing space. */
 		extent_tree_szad_remove(&base_avail_szad, node);
 	} else {
 		/* Try to allocate more space. */
-		node = base_chunk_alloc(csize);
+		node = base_chunk_alloc(tsdn, csize);
 	}
 	if (node == NULL) {
 		ret = NULL;
@@ -111,7 +113,7 @@ base_alloc(size_t size)
 		extent_node_size_set(node, extent_node_size_get(node) - csize);
 		extent_tree_szad_insert(&base_avail_szad, node);
 	} else
-		base_node_dalloc(node);
+		base_node_dalloc(tsdn, node);
 	if (config_stats) {
 		base_allocated += csize;
 		/*
@@ -123,28 +125,29 @@ base_alloc(size_t size)
 	}
 	JEMALLOC_VALGRIND_MAKE_MEM_DEFINED(ret, csize);
 label_return:
-	malloc_mutex_unlock(&base_mtx);
+	malloc_mutex_unlock(tsdn, &base_mtx);
 	return (ret);
 }
 
 void
-base_stats_get(size_t *allocated, size_t *resident, size_t *mapped)
+base_stats_get(tsdn_t *tsdn, size_t *allocated, size_t *resident,
+    size_t *mapped)
 {
 
-	malloc_mutex_lock(&base_mtx);
+	malloc_mutex_lock(tsdn, &base_mtx);
 	assert(base_allocated <= base_resident);
 	assert(base_resident <= base_mapped);
 	*allocated = base_allocated;
 	*resident = base_resident;
 	*mapped = base_mapped;
-	malloc_mutex_unlock(&base_mtx);
+	malloc_mutex_unlock(tsdn, &base_mtx);
 }
 
 bool
 base_boot(void)
 {
 
-	if (malloc_mutex_init(&base_mtx))
+	if (malloc_mutex_init(&base_mtx, "base", WITNESS_RANK_BASE))
 		return (true);
 	extent_tree_szad_new(&base_avail_szad);
 	base_nodes = NULL;
@@ -153,22 +156,22 @@ base_boot(void)
 }
 
 void
-base_prefork(void)
+base_prefork(tsdn_t *tsdn)
 {
 
-	malloc_mutex_prefork(&base_mtx);
+	malloc_mutex_prefork(tsdn, &base_mtx);
 }
 
 void
-base_postfork_parent(void)
+base_postfork_parent(tsdn_t *tsdn)
 {
 
-	malloc_mutex_postfork_parent(&base_mtx);
+	malloc_mutex_postfork_parent(tsdn, &base_mtx);
 }
 
 void
-base_postfork_child(void)
+base_postfork_child(tsdn_t *tsdn)
 {
 
-	malloc_mutex_postfork_child(&base_mtx);
+	malloc_mutex_postfork_child(tsdn, &base_mtx);
 }

@@ -142,10 +142,10 @@ size_classes() {
 
   # All remaining groups.
   lg_grp=$((${lg_grp} + ${lg_g}))
-  while [ ${lg_grp} -lt ${ptr_bits} ] ; do
+  while [ ${lg_grp} -lt $((${ptr_bits} - 1)) ] ; do
     sep_line
     ndelta=1
-    if [ ${lg_grp} -eq $((${ptr_bits} - 1)) ] ; then
+    if [ ${lg_grp} -eq $((${ptr_bits} - 2)) ] ; then
       ndelta_limit=$((${g} - 1))
     else
       ndelta_limit=${g}

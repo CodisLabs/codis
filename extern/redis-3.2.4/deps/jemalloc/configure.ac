@@ -1,6 +1,8 @@
 dnl Process this file with autoconf to produce a configure script.
 AC_INIT([Makefile.in])
 
+AC_CONFIG_AUX_DIR([build-aux])
+
 dnl ============================================================================
 dnl Custom macro definitions.
 
@@ -138,6 +140,8 @@ if test "x$CFLAGS" = "x" ; then
     fi
     JE_CFLAGS_APPEND([-Wall])
     JE_CFLAGS_APPEND([-Werror=declaration-after-statement])
+    JE_CFLAGS_APPEND([-Wshorten-64-to-32])
+    JE_CFLAGS_APPEND([-Wsign-compare])
     JE_CFLAGS_APPEND([-pipe])
     JE_CFLAGS_APPEND([-g3])
   elif test "x$je_cv_msvc" = "xyes" ; then
@@ -164,13 +168,18 @@ if test "x${je_cv_msvc}" = "xyes" -a "x${ac_cv_header_inttypes_h}" = "xno"; then
   CPPFLAGS="$CPPFLAGS -I${srcdir}/include/msvc_compat/C99"
 fi
 
-AC_CHECK_SIZEOF([void *])
-if test "x${ac_cv_sizeof_void_p}" = "x8" ; then
-  LG_SIZEOF_PTR=3
-elif test "x${ac_cv_sizeof_void_p}" = "x4" ; then
-  LG_SIZEOF_PTR=2
+if test "x${je_cv_msvc}" = "xyes" ; then
+  LG_SIZEOF_PTR=LG_SIZEOF_PTR_WIN
+  AC_MSG_RESULT([Using a predefined value for sizeof(void *): 4 for 32-bit, 8 for 64-bit])
 else
-  AC_MSG_ERROR([Unsupported pointer size: ${ac_cv_sizeof_void_p}])
+  AC_CHECK_SIZEOF([void *])
+  if test "x${ac_cv_sizeof_void_p}" = "x8" ; then
+    LG_SIZEOF_PTR=3
+  elif test "x${ac_cv_sizeof_void_p}" = "x4" ; then
+    LG_SIZEOF_PTR=2
+  else
+    AC_MSG_ERROR([Unsupported pointer size: ${ac_cv_sizeof_void_p}])
+  fi
 fi
 AC_DEFINE_UNQUOTED([LG_SIZEOF_PTR], [$LG_SIZEOF_PTR])
 
@@ -194,6 +203,16 @@ else
 fi
 AC_DEFINE_UNQUOTED([LG_SIZEOF_LONG], [$LG_SIZEOF_LONG])
 
+AC_CHECK_SIZEOF([long long])
+if test "x${ac_cv_sizeof_long_long}" = "x8" ; then
+  LG_SIZEOF_LONG_LONG=3
+elif test "x${ac_cv_sizeof_long_long}" = "x4" ; then
+  LG_SIZEOF_LONG_LONG=2
+else
+  AC_MSG_ERROR([Unsupported long long size: ${ac_cv_sizeof_long_long}])
+fi
+AC_DEFINE_UNQUOTED([LG_SIZEOF_LONG_LONG], [$LG_SIZEOF_LONG_LONG])
+
 AC_CHECK_SIZEOF([intmax_t])
 if test "x${ac_cv_sizeof_intmax_t}" = "x16" ; then
   LG_SIZEOF_INTMAX_T=4
@@ -211,12 +230,22 @@ dnl CPU-specific settings.
 CPU_SPINWAIT=""
 case "${host_cpu}" in
   i686|x86_64)
-	AC_CACHE_VAL([je_cv_pause],
-	  [JE_COMPILABLE([pause instruction], [],
-	                [[__asm__ volatile("pause"); return 0;]],
-	                [je_cv_pause])])
-	if test "x${je_cv_pause}" = "xyes" ; then
-	    CPU_SPINWAIT='__asm__ volatile("pause")'
+	if test "x${je_cv_msvc}" = "xyes" ; then
+	    AC_CACHE_VAL([je_cv_pause_msvc],
+	      [JE_COMPILABLE([pause instruction MSVC], [],
+					[[_mm_pause(); return 0;]],
+					[je_cv_pause_msvc])])
+	    if test "x${je_cv_pause_msvc}" = "xyes" ; then
+		CPU_SPINWAIT='_mm_pause()'
+	    fi
+	else
+	    AC_CACHE_VAL([je_cv_pause],
+	      [JE_COMPILABLE([pause instruction], [],
+					[[__asm__ volatile("pause"); return 0;]],
+					[je_cv_pause])])
+	    if test "x${je_cv_pause}" = "xyes" ; then
+		CPU_SPINWAIT='__asm__ volatile("pause")'
+	    fi
 	fi
 	;;
   powerpc)
@@ -276,6 +305,7 @@ case "${host}" in
   *-*-freebsd*)
 	CFLAGS="$CFLAGS"
 	abi="elf"
+	AC_DEFINE([JEMALLOC_SYSCTL_VM_OVERCOMMIT], [ ])
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_FREE], [ ])
 	force_lazy_lock="1"
 	;;
@@ -300,6 +330,7 @@ case "${host}" in
 	CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
 	abi="elf"
 	AC_DEFINE([JEMALLOC_HAS_ALLOCA_H])
+	AC_DEFINE([JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY], [ ])
 	AC_DEFINE([JEMALLOC_PURGE_MADVISE_DONTNEED], [ ])
 	AC_DEFINE([JEMALLOC_THREADED_INIT], [ ])
 	AC_DEFINE([JEMALLOC_USE_CXX_THROW], [ ])
@@ -574,6 +605,15 @@ AC_ARG_WITH([install_suffix],
 )
 install_suffix="$INSTALL_SUFFIX"
 AC_SUBST([install_suffix])
+
+dnl Specify default malloc_conf.
+AC_ARG_WITH([malloc_conf],
+  [AS_HELP_STRING([--with-malloc-conf=<malloc_conf>], [config.malloc_conf options string])],
+  [JEMALLOC_CONFIG_MALLOC_CONF="$with_malloc_conf"],
+  [JEMALLOC_CONFIG_MALLOC_CONF=""]
+)
+config_malloc_conf="$JEMALLOC_CONFIG_MALLOC_CONF"
+AC_DEFINE_UNQUOTED([JEMALLOC_CONFIG_MALLOC_CONF], ["$config_malloc_conf"])
 
 dnl Substitute @je_@ in jemalloc_protos.h.in, primarily to make generation of
 dnl jemalloc_protos_jet.h easy.
@@ -1014,7 +1054,7 @@ dnl ============================================================================
 dnl Check for  __builtin_ffsl(), then ffsl(3), and fail if neither are found.
 dnl One of those two functions should (theoretically) exist on all platforms
 dnl that jemalloc currently has a chance of functioning on without modification.
-dnl We additionally assume ffs() or __builtin_ffs() are defined if
+dnl We additionally assume ffs[ll]() or __builtin_ffs[ll]() are defined if
 dnl ffsl() or __builtin_ffsl() are defined, respectively.
 JE_COMPILABLE([a program using __builtin_ffsl], [
 #include <stdio.h>
@@ -1027,6 +1067,7 @@ JE_COMPILABLE([a program using __builtin_ffsl], [
 	}
 ], [je_cv_gcc_builtin_ffsl])
 if test "x${je_cv_gcc_builtin_ffsl}" = "xyes" ; then
+  AC_DEFINE([JEMALLOC_INTERNAL_FFSLL], [__builtin_ffsll])
   AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [__builtin_ffsl])
   AC_DEFINE([JEMALLOC_INTERNAL_FFS], [__builtin_ffs])
 else
@@ -1041,6 +1082,7 @@ else
 	}
   ], [je_cv_function_ffsl])
   if test "x${je_cv_function_ffsl}" = "xyes" ; then
+    AC_DEFINE([JEMALLOC_INTERNAL_FFSLL], [ffsll])
     AC_DEFINE([JEMALLOC_INTERNAL_FFSL], [ffsl])
     AC_DEFINE([JEMALLOC_INTERNAL_FFS], [ffs])
   else
@@ -1100,7 +1142,7 @@ if test "x$LG_PAGE" = "xdetect"; then
     if (f == NULL) {
 	return 1;
     }
-    fprintf(f, "%d\n", result);
+    fprintf(f, "%d", result);
     fclose(f);
 
     return 0;
@@ -1133,27 +1175,36 @@ dnl ============================================================================
 dnl jemalloc configuration.
 dnl 
 
-dnl Set VERSION if source directory is inside a git repository.
-if test "x`test ! \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
-  dnl Pattern globs aren't powerful enough to match both single- and
-  dnl double-digit version numbers, so iterate over patterns to support up to
-  dnl version 99.99.99 without any accidental matches.
-  rm -f "${objroot}VERSION"
-  for pattern in ['[0-9].[0-9].[0-9]' '[0-9].[0-9].[0-9][0-9]' \
-                 '[0-9].[0-9][0-9].[0-9]' '[0-9].[0-9][0-9].[0-9][0-9]' \
-                 '[0-9][0-9].[0-9].[0-9]' '[0-9][0-9].[0-9].[0-9][0-9]' \
-                 '[0-9][0-9].[0-9][0-9].[0-9]' \
-                 '[0-9][0-9].[0-9][0-9].[0-9][0-9]']; do
-    if test ! -e "${objroot}VERSION" ; then
-      (test ! "${srcroot}" && cd "${srcroot}"; git describe --long --abbrev=40 --match="${pattern}") > "${objroot}VERSION.tmp" 2>/dev/null
-      if test $? -eq 0 ; then
-        mv "${objroot}VERSION.tmp" "${objroot}VERSION"
-        break
-      fi
+AC_ARG_WITH([version],
+  [AS_HELP_STRING([--with-version=<major>.<minor>.<bugfix>-<nrev>-g<gid>],
+   [Version string])],
+  [
+    echo "${with_version}" | grep ['^[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+-g[0-9a-f]\+$'] 2>&1 1>/dev/null
+    if test $? -ne 0 ; then
+      AC_MSG_ERROR([${with_version} does not match <major>.<minor>.<bugfix>-<nrev>-g<gid>])
     fi
-  done
-fi
-rm -f "${objroot}VERSION.tmp"
+    echo "$with_version" > "${objroot}VERSION"
+  ], [
+    dnl Set VERSION if source directory is inside a git repository.
+    if test "x`test ! \"${srcroot}\" && cd \"${srcroot}\"; git rev-parse --is-inside-work-tree 2>/dev/null`" = "xtrue" ; then
+      dnl Pattern globs aren't powerful enough to match both single- and
+      dnl double-digit version numbers, so iterate over patterns to support up
+      dnl to version 99.99.99 without any accidental matches.
+      for pattern in ['[0-9].[0-9].[0-9]' '[0-9].[0-9].[0-9][0-9]' \
+                     '[0-9].[0-9][0-9].[0-9]' '[0-9].[0-9][0-9].[0-9][0-9]' \
+                     '[0-9][0-9].[0-9].[0-9]' '[0-9][0-9].[0-9].[0-9][0-9]' \
+                     '[0-9][0-9].[0-9][0-9].[0-9]' \
+                     '[0-9][0-9].[0-9][0-9].[0-9][0-9]']; do
+        (test ! "${srcroot}" && cd "${srcroot}"; git describe --long --abbrev=40 --match="${pattern}") > "${objroot}VERSION.tmp" 2>/dev/null
+        if test $? -eq 0 ; then
+          mv "${objroot}VERSION.tmp" "${objroot}VERSION"
+          break
+        fi
+      done
+    fi
+    rm -f "${objroot}VERSION.tmp"
+  ])
+
 if test ! -e "${objroot}VERSION" ; then
   if test ! -e "${srcroot}VERSION" ; then
     AC_MSG_RESULT(
@@ -1190,13 +1241,8 @@ fi
 
 CPPFLAGS="$CPPFLAGS -D_REENTRANT"
 
-dnl Check whether clock_gettime(2) is in libc or librt.  This function is only
-dnl used in test code, so save the result to TESTLIBS to avoid poluting LIBS.
-SAVED_LIBS="${LIBS}"
-LIBS=
-AC_SEARCH_LIBS([clock_gettime], [rt], [TESTLIBS="${LIBS}"])
-AC_SUBST([TESTLIBS])
-LIBS="${SAVED_LIBS}"
+dnl Check whether clock_gettime(2) is in libc or librt.
+AC_SEARCH_LIBS([clock_gettime], [rt])
 
 dnl Check if the GNU-specific secure_getenv function exists.
 AC_CHECK_FUNC([secure_getenv],
@@ -1702,7 +1748,6 @@ AC_MSG_RESULT([CPPFLAGS           : ${CPPFLAGS}])
 AC_MSG_RESULT([LDFLAGS            : ${LDFLAGS}])
 AC_MSG_RESULT([EXTRA_LDFLAGS      : ${EXTRA_LDFLAGS}])
 AC_MSG_RESULT([LIBS               : ${LIBS}])
-AC_MSG_RESULT([TESTLIBS           : ${TESTLIBS}])
 AC_MSG_RESULT([RPATH_EXTRA        : ${RPATH_EXTRA}])
 AC_MSG_RESULT([])
 AC_MSG_RESULT([XSLTPROC           : ${XSLTPROC}])
@@ -1724,6 +1769,7 @@ AC_MSG_RESULT([JEMALLOC_PREFIX    : ${JEMALLOC_PREFIX}])
 AC_MSG_RESULT([JEMALLOC_PRIVATE_NAMESPACE])
 AC_MSG_RESULT([                   : ${JEMALLOC_PRIVATE_NAMESPACE}])
 AC_MSG_RESULT([install_suffix     : ${install_suffix}])
+AC_MSG_RESULT([malloc_conf        : ${config_malloc_conf}])
 AC_MSG_RESULT([autogen            : ${enable_autogen}])
 AC_MSG_RESULT([cc-silence         : ${enable_cc_silence}])
 AC_MSG_RESULT([debug              : ${enable_debug}])
