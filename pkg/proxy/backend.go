@@ -17,10 +17,8 @@ import (
 )
 
 type BackendConn struct {
-	addr string
-	host []byte
-	port []byte
 	stop sync.Once
+	addr string
 
 	input chan *Request
 	delay time.Duration
@@ -31,18 +29,10 @@ type BackendConn struct {
 }
 
 func NewBackendConn(addr string, config *Config) *BackendConn {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		log.ErrorErrorf(err, "split host-port failed, address = %s", addr)
-	}
 	bc := &BackendConn{
-		addr: addr,
-		host: []byte(host),
-		port: []byte(port),
+		addr: addr, config: config,
 	}
 	bc.input = make(chan *Request, 1024)
-
-	bc.config = config
 
 	go bc.run()
 
@@ -234,45 +224,127 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 	return nil
 }
 
-type SharedBackendConn struct {
-	*BackendConn
-	mu sync.Mutex
+type sharedBackendConn struct {
+	addr string
+	host []byte
+	port []byte
+
+	owner *sharedBackendConnPool
+	conns []*BackendConn
 
 	refcnt int
 }
 
-func NewSharedBackendConn(addr string, config *Config) *SharedBackendConn {
-	s := &SharedBackendConn{refcnt: 1}
-	s.BackendConn = NewBackendConn(addr, config)
+func newSharedBackendConn(addr string, config *Config, pool *sharedBackendConnPool) *sharedBackendConn {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		log.ErrorErrorf(err, "split host-port failed, address = %s", addr)
+	}
+	s := &sharedBackendConn{
+		addr: addr,
+		host: []byte(host), port: []byte(port),
+	}
+	s.owner = pool
+	s.conns = make([]*BackendConn, pool.parallel)
+	for i := range s.conns {
+		s.conns[i] = NewBackendConn(addr, config)
+	}
+	s.refcnt = 1
 	return s
 }
 
-func (s *SharedBackendConn) Addr() string {
+func (s *sharedBackendConn) Addr() string {
 	if s == nil {
 		return ""
 	}
 	return s.addr
 }
 
-func (s *SharedBackendConn) Release() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *sharedBackendConn) Release() {
+	if s == nil {
+		return
+	}
 	if s.refcnt <= 0 {
 		log.Panicf("shared backend conn has been closed, close too many times")
+	} else {
+		s.refcnt--
 	}
-	if s.refcnt == 1 {
-		s.BackendConn.Close()
+	if s.refcnt != 0 {
+		return
 	}
-	s.refcnt--
-	return s.refcnt == 0
+	for i := range s.conns {
+		s.conns[i].Close()
+	}
+	delete(s.owner.pool, s.addr)
 }
 
-func (s *SharedBackendConn) Retain() *SharedBackendConn {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.refcnt == 0 {
-		log.Panicf("shared backend conn has been closed")
+func (s *sharedBackendConn) Retain() *sharedBackendConn {
+	if s == nil {
+		return nil
 	}
-	s.refcnt++
+	if s.refcnt <= 0 {
+		log.Panicf("shared backend conn has been closed")
+	} else {
+		s.refcnt++
+	}
 	return s
+}
+
+func (s *sharedBackendConn) KeepAliveAll() {
+	if s == nil {
+		return
+	}
+	for i := range s.conns {
+		s.conns[i].KeepAlive()
+	}
+}
+
+func (s *sharedBackendConn) BackendConn(seed uint, must bool) *BackendConn {
+	if s == nil {
+		return nil
+	}
+	var i = seed
+	for _ = range s.conns {
+		i = (i + 1) % uint(len(s.conns))
+		if bc := s.conns[i]; bc.IsConnected() {
+			return bc
+		}
+	}
+	if !must {
+		return nil
+	}
+	return s.conns[0]
+}
+
+type sharedBackendConnPool struct {
+	parallel int
+
+	pool map[string]*sharedBackendConn
+}
+
+func newSharedBackendConnPool(parallel int) *sharedBackendConnPool {
+	p := &sharedBackendConnPool{}
+	p.parallel = math2.MaxInt(1, parallel)
+	p.pool = make(map[string]*sharedBackendConn)
+	return p
+}
+
+func (p *sharedBackendConnPool) KeepAliveAll() {
+	for _, bc := range p.pool {
+		bc.KeepAliveAll()
+	}
+}
+
+func (p *sharedBackendConnPool) Get(addr string) *sharedBackendConn {
+	return p.pool[addr]
+}
+
+func (p *sharedBackendConnPool) Retain(addr string, config *Config) *sharedBackendConn {
+	if bc := p.pool[addr]; bc != nil {
+		return bc.Retain()
+	} else {
+		bc = newSharedBackendConn(addr, config, p)
+		p.pool[addr] = bc
+		return bc
+	}
 }
