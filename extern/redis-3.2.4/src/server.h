@@ -1657,6 +1657,7 @@ void pfmergeCommand(client *c);
 void pfdebugCommand(client *c);
 void latencyCommand(client *c);
 void slotsinfoCommand(client *c);
+void slotsscanCommand(client *c);
 void slotsdelCommand(client *c);
 void slotsmgrtslotCommand(client *c);
 void slotsmgrtoneCommand(client *c);
