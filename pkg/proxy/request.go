@@ -34,11 +34,17 @@ func (r *Request) MakeSubRequest(n int) []Request {
 	var sub = make([]Request, n)
 	for i := range sub {
 		x := &sub[i]
-		x.Start = r.Start
+		x.Start = r.Start + int64(i)
 		x.Batch = r.Batch
 		x.OpStr = r.OpStr
 		x.OpFlag = r.OpFlag
 		x.Broken = r.Broken
 	}
 	return sub
+}
+
+const GOLDEN_RATIO_PRIME_32 = 0x9e370001
+
+func (r *Request) Seed() uint {
+	return uint(uint32(r.Start) * GOLDEN_RATIO_PRIME_32)
 }

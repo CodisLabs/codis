@@ -139,7 +139,7 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 }
 
 func (s *Slot) forward2(r *Request) (*BackendConn, error) {
-	seed := uint(r.Start)
+	var seed = r.Seed()
 	if s.migrate.bc == nil && r.IsReadOnly() {
 		for _, group := range s.replicaGroups {
 			var i = seed
