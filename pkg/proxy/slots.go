@@ -117,7 +117,7 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 	}
 	m.Batch = &sync.WaitGroup{}
 
-	s.migrate.bc.BackendConn(uint(r.Start), true).PushBack(m)
+	s.migrate.bc.BackendConn(r.Seed16(), true).PushBack(m)
 
 	m.Batch.Wait()
 
@@ -139,7 +139,7 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 }
 
 func (s *Slot) forward2(r *Request) (*BackendConn, error) {
-	var seed = r.Seed()
+	var seed = r.Seed16()
 	if s.migrate.bc == nil && r.IsReadOnly() {
 		for _, group := range s.replicaGroups {
 			var i = seed

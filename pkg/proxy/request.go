@@ -5,6 +5,7 @@ package proxy
 
 import (
 	"sync"
+	"unsafe"
 
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
@@ -34,7 +35,7 @@ func (r *Request) MakeSubRequest(n int) []Request {
 	var sub = make([]Request, n)
 	for i := range sub {
 		x := &sub[i]
-		x.Start = r.Start + int64(i)
+		x.Start = r.Start
 		x.Batch = r.Batch
 		x.OpStr = r.OpStr
 		x.OpFlag = r.OpFlag
@@ -45,6 +46,8 @@ func (r *Request) MakeSubRequest(n int) []Request {
 
 const GOLDEN_RATIO_PRIME_32 = 0x9e370001
 
-func (r *Request) Seed() uint {
-	return uint(uint32(r.Start) * GOLDEN_RATIO_PRIME_32)
+func (r *Request) Seed16() uint {
+	h32 := uint32(r.Start) + uint32(uintptr(unsafe.Pointer(r)))
+	h32 *= GOLDEN_RATIO_PRIME_32
+	return uint(h32 >> 16)
 }

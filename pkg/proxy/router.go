@@ -156,7 +156,7 @@ func (s *Router) dispatchSlot(r *Request, id int) error {
 func (s *Router) dispatchAddr(r *Request, addr string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var seed = r.Seed()
+	var seed = r.Seed16()
 	if bc := s.pool.primary.Get(addr).BackendConn(seed, false); bc != nil {
 		bc.PushBack(r)
 		return true
