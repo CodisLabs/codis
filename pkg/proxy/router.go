@@ -129,8 +129,8 @@ func (s *Router) KeepAlive() error {
 	if s.closed {
 		return ErrClosedRouter
 	}
-	s.pool.primary.KeepAliveAll()
-	s.pool.replica.KeepAliveAll()
+	s.pool.primary.KeepAlive()
+	s.pool.replica.KeepAlive()
 	return nil
 }
 

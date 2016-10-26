@@ -290,7 +290,7 @@ func (s *sharedBackendConn) Retain() *sharedBackendConn {
 	return s
 }
 
-func (s *sharedBackendConn) KeepAliveAll() {
+func (s *sharedBackendConn) KeepAlive() {
 	if s == nil {
 		return
 	}
@@ -329,9 +329,9 @@ func newSharedBackendConnPool(parallel int) *sharedBackendConnPool {
 	return p
 }
 
-func (p *sharedBackendConnPool) KeepAliveAll() {
+func (p *sharedBackendConnPool) KeepAlive() {
 	for _, bc := range p.pool {
-		bc.KeepAliveAll()
+		bc.KeepAlive()
 	}
 }
 
