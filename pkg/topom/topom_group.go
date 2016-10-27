@@ -241,6 +241,19 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 
 	case models.ActionPrepared:
 
+		if p := ctx.sentinel; len(p.Servers) != 0 {
+			defer s.dirtySentinelCache()
+			p.OutOfSync = true
+			if err := s.storeUpdateSentinel(p); err != nil {
+				return err
+			}
+			groupIds := map[int]bool{g.Id: true}
+			sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
+			if err := sentinel.Unmonitor(groupIds, time.Second*5, p.Servers...); err != nil {
+				log.WarnErrorf(err, "group-[%d] unmonitor sentinels failed", g.Id)
+			}
+		}
+
 		defer s.dirtyGroupCache(g.Id)
 
 		var index = g.Promoting.Index
@@ -266,26 +279,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 			return err
 		}
 
-		fallthrough
-
-	case models.ActionFinished:
-
-		log.Warnf("group-[%d] resync to finished", g.Id)
-
-		if p := ctx.sentinel; len(p.Servers) != 0 {
-			defer s.dirtySentinelCache()
-			p.OutOfSync = true
-			if err := s.storeUpdateSentinel(p); err != nil {
-				return err
-			}
-			groupIds := map[int]bool{g.Id: true}
-			sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
-			if err := sentinel.Unmonitor(groupIds, time.Second*5, p.Servers...); err != nil {
-				log.WarnErrorf(err, "group-[%d] unmonitor sentinels failed", g.Id)
-			}
-		}
-
-		var master = g.Servers[0].Addr
+		var master = slice[0].Addr
 		if c, err := redis.NewClient(master, s.config.ProductAuth, time.Second); err != nil {
 			log.WarnErrorf(err, "create redis client to %s failed", master)
 		} else {
@@ -294,6 +288,12 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 				log.WarnErrorf(err, "redis %s set master to NO:ONE failed", master)
 			}
 		}
+
+		fallthrough
+
+	case models.ActionFinished:
+
+		log.Warnf("group-[%d] resync to finished", g.Id)
 
 		slots := ctx.getSlotMappingsByGroupId(g.Id)
 
