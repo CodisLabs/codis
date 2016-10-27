@@ -266,16 +266,6 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 			return err
 		}
 
-		var master = slice[0].Addr
-		if c, err := redis.NewClient(master, s.config.ProductAuth, time.Second); err != nil {
-			log.WarnErrorf(err, "create redis client to %s failed", master)
-		} else {
-			defer c.Close()
-			if err := c.SetMaster("NO:ONE"); err != nil {
-				log.WarnErrorf(err, "redis %s set master to NO:ONE failed", master)
-			}
-		}
-
 		fallthrough
 
 	case models.ActionFinished:
@@ -287,6 +277,21 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 			p.OutOfSync = true
 			if err := s.storeUpdateSentinel(p); err != nil {
 				return err
+			}
+			groupIds := map[int]bool{g.Id: true}
+			sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
+			if err := sentinel.Unmonitor(groupIds, time.Second*5, p.Servers...); err != nil {
+				log.WarnErrorf(err, "group-[%d] unmonitor sentinels failed", g.Id)
+			}
+		}
+
+		var master = g.Servers[0].Addr
+		if c, err := redis.NewClient(master, s.config.ProductAuth, time.Second); err != nil {
+			log.WarnErrorf(err, "create redis client to %s failed", master)
+		} else {
+			defer c.Close()
+			if err := c.SetMaster("NO:ONE"); err != nil {
+				log.WarnErrorf(err, "redis %s set master to NO:ONE failed", master)
 			}
 		}
 
