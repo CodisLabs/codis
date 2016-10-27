@@ -158,7 +158,7 @@
                             </span>
                         </td>
                         <td style="text-align: center">
-                            <span ng-if="proxy.status == 'HEALTHY'" class="btn btn-success btn-xs active"
+                            <span ng-if="proxy.status == 'HEALTHY' && !proxy.switched" class="btn btn-success btn-xs active"
                                 data-toggle="tooltip" data-placement="right" title="RESYNC ALL SLOTS to [[proxy.proxy_addr]]"
                                 ng-click="reinitProxy(proxy)">
                                 SYNC
