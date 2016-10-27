@@ -90,7 +90,6 @@ func newApiServer(t *Topom) http.Handler {
 			r.Put("/add/:xauth/:gid/:addr/:datacenter", api.GroupAddServer)
 			r.Put("/del/:xauth/:gid/:addr", api.GroupDelServer)
 			r.Put("/promote/:xauth/:gid/:addr", api.GroupPromoteServer)
-			r.Put("/promote-commit/:xauth/:gid", api.GroupPromoteCommit)
 			r.Put("/replica-groups/:xauth/:gid/:addr/:value", api.EnableReplicaGroups)
 			r.Group("/action", func(r martini.Router) {
 				r.Put("/create/:xauth/:addr", api.SyncCreateAction)
@@ -387,21 +386,6 @@ func (s *apiServer) GroupPromoteServer(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.topom.GroupPromoteServer(gid, addr); err != nil {
-		return rpc.ApiResponseError(err)
-	} else {
-		return rpc.ApiResponseJson("OK")
-	}
-}
-
-func (s *apiServer) GroupPromoteCommit(params martini.Params) (int, string) {
-	if err := s.verifyXAuth(params); err != nil {
-		return rpc.ApiResponseError(err)
-	}
-	gid, err := s.parseInteger(params, "gid")
-	if err != nil {
-		return rpc.ApiResponseError(err)
-	}
-	if err := s.topom.GroupPromoteCommit(gid); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -790,11 +774,6 @@ func (c *ApiClient) GroupDelServer(gid int, addr string) error {
 
 func (c *ApiClient) GroupPromoteServer(gid int, addr string) error {
 	url := c.encodeURL("/api/topom/group/promote/%s/%d/%s", c.xauth, gid, addr)
-	return rpc.ApiPutJson(url, nil, nil)
-}
-
-func (c *ApiClient) GroupPromoteCommit(gid int) error {
-	url := c.encodeURL("/api/topom/group/promote-commit/%s/%d", c.xauth, gid)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

@@ -88,7 +88,6 @@ func TestApiGroup(x *testing.T) {
 	assert.MustNoError(c.SyncCreateAction(s1.Addr))
 	assert.MustNoError(c.SyncRemoveAction(s1.Addr))
 	assert.MustNoError(c.GroupPromoteServer(gid, s2.Addr))
-	assert.MustNoError(c.GroupPromoteCommit(gid))
 	assert.MustNoError(c.GroupDelServer(gid, s1.Addr))
 	assert.MustNoError(c.GroupDelServer(gid, s2.Addr))
 	assert.MustNoError(c.RemoveGroup(gid))

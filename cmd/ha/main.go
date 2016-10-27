@@ -278,9 +278,6 @@ func (hc *HealthyChecker) Maintains(client *topom.ApiClient, maxdown int) {
 					if err := client.GroupPromoteServer(g.Id, slave); err != nil {
 						log.PanicErrorf(err, "rpc promote server failed")
 					}
-					if err := client.GroupPromoteCommit(g.Id); err != nil {
-						log.PanicErrorf(err, "rpc promote commit failed")
-					}
 					log.Warnf("done.")
 				}
 			}

@@ -158,15 +158,15 @@ func TestGroupPromote(x *testing.T) {
 	reset()
 
 	assert.Must(t.GroupPromoteServer(gid, server1) != nil)
-	assert.MustNoError(t.GroupPromoteServer(gid, server2))
 	g1 := getGroup(t, gid)
-	assert.Must(g1.Promoting.State == models.ActionPreparing)
+	assert.Must(g1.Promoting.State == models.ActionNothing)
 	assert.Must(len(g1.Servers) == 2)
+	assert.Must(g1.Servers[0].Addr == server1)
+	assert.Must(g1.Servers[1].Addr == server2)
 
 	reset()
 
 	assert.MustNoError(t.GroupPromoteServer(gid, server2))
-	assert.MustNoError(t.GroupPromoteCommit(gid))
 	g2 := getGroup(t, gid)
 	assert.Must(g2.Promoting.State == models.ActionNothing)
 	assert.Must(len(g2.Servers) == 2)
@@ -186,13 +186,12 @@ func TestGroupPromote(x *testing.T) {
 	contextCreateProxy(t, p)
 	assert.MustNoError(c.Shutdown())
 
-	assert.MustNoError(t.GroupPromoteServer(gid, server2))
-	assert.Must(t.GroupPromoteCommit(gid) != nil)
+	assert.Must(t.GroupPromoteServer(gid, server2) != nil)
 
 	g3 := getGroup(t, gid)
 	assert.Must(g3.Promoting.State == models.ActionPreparing)
 	contextRemoveProxy(t, p)
-	assert.MustNoError(t.GroupPromoteCommit(gid))
+	assert.MustNoError(t.GroupPromoteServer(gid, server2))
 	g4 := getGroup(t, gid)
 	assert.Must(g4.Promoting.State == models.ActionNothing)
 	assert.Must(len(g4.Servers) == 2)

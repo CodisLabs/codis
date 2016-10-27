@@ -39,7 +39,6 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --group-status
 	codis-admin [-v] --dashboard=ADDR            --replica-groups --gid=ID --addr=ADDR (--enable|--disable)
 	codis-admin [-v] --dashboard=ADDR            --promote-server --gid=ID --addr=ADDR
-	codis-admin [-v] --dashboard=ADDR            --promote-commit --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --sync-action    --create --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --sync-action    --remove --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --create --sid=ID --gid=ID

@@ -189,38 +189,33 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 	}
 
 	if g.Promoting.State != models.ActionNothing {
-		return errors.Errorf("group-[%d] is promoting", g.Id)
-	}
-
-	if index == 0 {
-		return errors.Errorf("group-[%d] can't promote master", g.Id)
+		if index != g.Promoting.Index {
+			return errors.Errorf("group-[%d] is promoting index = %d", g.Id, index)
+		}
+	} else {
+		if index == 0 {
+			return errors.Errorf("group-[%d] can't promote master", g.Id)
+		}
 	}
 	if n := s.action.executor.Get(); n != 0 {
 		return errors.Errorf("slots-migration is running = %d", n)
 	}
-	defer s.dirtyGroupCache(g.Id)
-
-	g.Promoting.Index = index
-	g.Promoting.State = models.ActionPreparing
-	return s.storeUpdateGroup(g)
-}
-
-func (s *Topom) GroupPromoteCommit(gid int) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	ctx, err := s.newContext()
-	if err != nil {
-		return err
-	}
-
-	g, err := ctx.getGroup(gid)
-	if err != nil {
-		return err
-	}
-
-	log.Warnf("group-[%d] action promote-commit:\n%s", g.Id, g.Encode())
 
 	switch g.Promoting.State {
+
+	case models.ActionNothing:
+
+		defer s.dirtyGroupCache(g.Id)
+
+		log.Warnf("group-[%d] will promote index = %s", index)
+
+		g.Promoting.Index = index
+		g.Promoting.State = models.ActionPreparing
+		if err := s.storeUpdateGroup(g); err != nil {
+			return err
+		}
+
+		fallthrough
 
 	case models.ActionPreparing:
 
