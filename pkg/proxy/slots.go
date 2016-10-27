@@ -25,9 +25,9 @@ type Slot struct {
 
 	backend, migrate struct {
 		id int
-		bc *SharedBackendConn
+		bc *sharedBackendConn
 	}
-	replicaGroups [][]*SharedBackendConn
+	replicaGroups [][]*sharedBackendConn
 }
 
 func (s *Slot) snapshot(full bool) *models.Slot {
@@ -86,7 +86,7 @@ var (
 	ErrRespIsRequired = errors.New("resp is required")
 )
 
-func (s *Slot) prepare(r *Request, hkey []byte) (*SharedBackendConn, error) {
+func (s *Slot) prepare(r *Request, hkey []byte) (*BackendConn, error) {
 	if s.backend.bc == nil {
 		log.Warnf("slot-%04d is not ready: hkey = %s", s.id, hkey)
 		return nil, ErrSlotIsNotReady
@@ -117,7 +117,7 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 	}
 	m.Batch = &sync.WaitGroup{}
 
-	s.migrate.bc.PushBack(m)
+	s.migrate.bc.BackendConn(r.Seed16(), true).PushBack(m)
 
 	m.Batch.Wait()
 
@@ -138,20 +138,18 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 	}
 }
 
-func (s *Slot) forward2(r *Request) (*SharedBackendConn, error) {
-	if s.migrate.bc != nil || !r.IsReadOnly() {
-		return s.backend.bc, nil
-	}
-	seed := uint(r.Start)
-	for _, group := range s.replicaGroups {
-		for i := 0; i < len(group); i++ {
-			index := (seed + uint(i)) % uint(len(group))
-			if bc := group[index]; bc != nil {
-				if bc.IsConnected() {
+func (s *Slot) forward2(r *Request) (*BackendConn, error) {
+	var seed = r.Seed16()
+	if s.migrate.bc == nil && r.IsReadOnly() {
+		for _, group := range s.replicaGroups {
+			var i = seed
+			for _ = range group {
+				i = (i + 1) % uint(len(group))
+				if bc := group[i].BackendConn(seed, false); bc != nil {
 					return bc, nil
 				}
 			}
 		}
 	}
-	return s.backend.bc, nil
+	return s.backend.bc.BackendConn(seed, true), nil
 }

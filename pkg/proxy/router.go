@@ -16,8 +16,10 @@ const MaxSlotNum = models.MaxSlotNum
 type Router struct {
 	mu sync.RWMutex
 
-	pool map[string]*SharedBackendConn
-
+	pool struct {
+		primary *sharedBackendConnPool
+		replica *sharedBackendConnPool
+	}
 	slots [MaxSlotNum]Slot
 
 	config *Config
@@ -27,7 +29,8 @@ type Router struct {
 
 func NewRouter(config *Config) *Router {
 	s := &Router{config: config}
-	s.pool = make(map[string]*SharedBackendConn)
+	s.pool.primary = newSharedBackendConnPool(config.BackendPrimaryParallel)
+	s.pool.replica = newSharedBackendConnPool(config.BackendReplicaParallel)
 	for i := range s.slots {
 		s.slots[i].id = i
 	}
@@ -126,9 +129,8 @@ func (s *Router) KeepAlive() error {
 	if s.closed {
 		return ErrClosedRouter
 	}
-	for _, bc := range s.pool {
-		bc.KeepAlive()
-	}
+	s.pool.primary.KeepAlive()
+	s.pool.replica.KeepAlive()
 	return nil
 }
 
@@ -154,47 +156,31 @@ func (s *Router) dispatchSlot(r *Request, id int) error {
 func (s *Router) dispatchAddr(r *Request, addr string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	bc := s.getBackendConn(addr, false)
-	if bc == nil {
-		return false
-	} else {
+	var seed = r.Seed16()
+	if bc := s.pool.primary.Get(addr).BackendConn(seed, false); bc != nil {
 		bc.PushBack(r)
-		s.putBackendConn(bc)
 		return true
 	}
-}
-
-func (s *Router) getBackendConn(addr string, create bool) *SharedBackendConn {
-	if bc := s.pool[addr]; bc != nil {
-		return bc.Retain()
-	} else if create {
-		bc := NewSharedBackendConn(addr, s.config)
-		s.pool[addr] = bc
-		return bc
-	} else {
-		return nil
+	if bc := s.pool.replica.Get(addr).BackendConn(seed, false); bc != nil {
+		bc.PushBack(r)
+		return true
 	}
-}
-
-func (s *Router) putBackendConn(bc *SharedBackendConn) {
-	if bc != nil && bc.Release() {
-		delete(s.pool, bc.Addr())
-	}
+	return false
 }
 
 func (s *Router) fillSlot(m *models.Slot, switched bool) {
 	slot := &s.slots[m.Id]
 	slot.blockAndWait()
 
-	s.putBackendConn(slot.backend.bc)
+	slot.backend.bc.Release()
 	slot.backend.bc = nil
 	slot.backend.id = 0
-	s.putBackendConn(slot.migrate.bc)
+	slot.migrate.bc.Release()
 	slot.migrate.bc = nil
 	slot.migrate.id = 0
 	for i := range slot.replicaGroups {
 		for _, bc := range slot.replicaGroups[i] {
-			s.putBackendConn(bc)
+			bc.Release()
 		}
 	}
 	slot.replicaGroups = nil
@@ -202,17 +188,20 @@ func (s *Router) fillSlot(m *models.Slot, switched bool) {
 	slot.switched = switched
 
 	if addr := m.BackendAddr; len(addr) != 0 {
-		slot.backend.bc = s.getBackendConn(addr, true)
+		slot.backend.bc = s.pool.primary.Retain(addr, s.config)
 		slot.backend.id = m.BackendAddrGroupId
 	}
 	if from := m.MigrateFrom; len(from) != 0 {
-		slot.migrate.bc = s.getBackendConn(from, true)
+		slot.migrate.bc = s.pool.primary.Retain(from, s.config)
 		slot.migrate.id = m.MigrateFromGroupId
 	}
 	for i := range m.ReplicaGroups {
-		var group []*SharedBackendConn
+		var group []*sharedBackendConn
 		for _, addr := range m.ReplicaGroups[i] {
-			group = append(group, s.getBackendConn(addr, true))
+			group = append(group, s.pool.replica.Retain(addr, s.config))
+		}
+		if len(group) == 0 {
+			continue
 		}
 		slot.replicaGroups = append(slot.replicaGroups, group)
 	}

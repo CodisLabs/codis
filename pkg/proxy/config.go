@@ -64,6 +64,10 @@ backend_send_timeout = "50s"
 # Set backend pipeline buffer size.
 backend_max_pipeline = 1024
 
+# Set backend parallel connections per server
+backend_primary_parallel = 1
+backend_replica_parallel = 1
+
 # Set backend tcp keepalive period. (0 to disable)
 backend_keepalive_period = "75s"
 
@@ -122,6 +126,8 @@ type Config struct {
 	BackendSendBufsize     bytesize.Int64    `toml:"backend_send_bufsize" json:"backend_send_bufsize"`
 	BackendSendTimeout     timesize.Duration `toml:"backend_send_timeout" json:"backend_send_timeout"`
 	BackendMaxPipeline     int               `toml:"backend_max_pipeline" json:"backend_max_pipeline"`
+	BackendPrimaryParallel int               `toml:"backend_primary_parallel" json:"backend_primary_parallel"`
+	BackendReplicaParallel int               `toml:"backend_replica_parallel" json:"backend_replica_parallel"`
 	BackendKeepAlivePeriod timesize.Duration `toml:"backend_keepalive_period" json:"backend_keepalive_period"`
 
 	SessionRecvBufsize     bytesize.Int64    `toml:"session_recv_bufsize" json:"session_recv_bufsize"`
@@ -218,6 +224,12 @@ func (c *Config) Validate() error {
 	}
 	if c.BackendMaxPipeline < 0 {
 		return errors.New("invalid backend_max_pipeline")
+	}
+	if c.BackendPrimaryParallel < 0 {
+		return errors.New("invalid backend_primary_parallel")
+	}
+	if c.BackendReplicaParallel < 0 {
+		return errors.New("invalid backend_replica_parallel")
 	}
 	if c.BackendKeepAlivePeriod < 0 {
 		return errors.New("invalid backend_keepalive_period")
