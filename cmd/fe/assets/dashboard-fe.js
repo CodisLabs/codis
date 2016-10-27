@@ -328,8 +328,14 @@ function processGroupStats(codis_stats) {
         var g = group_array[i];
         if (g.promoting.state) {
             g.ispromoting = g.promoting.state != "";
+            if (g.promoting.index) {
+                g.ispromoting_index = g.promoting.index;
+            } else {
+                g.ispromoting_index = 0;
+            }
         } else {
             g.ispromoting = false;
+            g.ispromoting_index = -1;
         }
         g.canremove = (g.servers.length == 0);
         for (var j = 0; j < g.servers.length; j++) {
@@ -384,8 +390,15 @@ function processGroupStats(codis_stats) {
                     x.master_status = (x.master == g.servers[0].server + ":up");
                 }
             }
-            x.canremove = (j != 0 || g.servers.length <= 1);
-            x.canpromote = j != 0;
+            if (g.ispromoting) {
+                x.canremove = false;
+                x.canpromote = false;
+                x.ispromoting = (j == g.ispromoting_index);
+            } else {
+                x.canremove = (j != 0 || g.servers.length <= 1);
+                x.canpromote = j != 0;
+                x.ispromoting = false;
+            }
             if (x.action.state) {
                 if (x.action.state != "pending") {
                     x.canslaveof = "create";
@@ -764,23 +777,10 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                     var xauth = genXAuth(codis_name);
                     var url = concatUrl("/api/topom/group/promote/" + xauth + "/" + group_id + "/" + server_addr, codis_name);
                     $http.put(url).then(function () {
-                        $scope.promoteCommit(group_id);
+                        $scope.refreshStats();
                     }, function (failedResp) {
                         alertErrorResp(failedResp);
                     });
-                });
-            }
-        }
-
-        $scope.promoteCommit = function (group_id) {
-            var codis_name = $scope.codis_name;
-            if (isValidInput(codis_name) && isValidInput(group_id)) {
-                var xauth = genXAuth(codis_name);
-                var url = concatUrl("/api/topom/group/promote-commit/" + xauth + "/" + group_id, codis_name);
-                $http.put(url).then(function () {
-                    $scope.refreshStats();
-                }, function (failedResp) {
-                    alertErrorResp(failedResp);
                 });
             }
         }

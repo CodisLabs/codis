@@ -410,15 +410,7 @@
                             </span>
                         </th>
                         <th style="width: 25px;"/>
-                        <th style="width: 35px;">
-                            <span ng-if="group.ispromoting">
-                                <button class="btn btn-danger btn-xs active"
-                                        data-toggle="tooltip" data-placement="right" title="PROMOTE-COMMIT GROUP-[[group.id]]"
-                                        ng-click="promoteCommit(group.id)">
-                                    <span class="glyphicon glyphicon-wrench"></span>
-                                </button>
-                            </span>
-                        </th>
+                        <th style="width: 35px;"/>
                         <th style="min-width: 100px;"/>
                         <th style="min-width: 140px;">Memory</th>
                         <th style="min-width: 230px;">Keys</th>
@@ -437,8 +429,8 @@
                     </thead>
                     <tr ng-repeat="server in group.servers">
                         <td class="button_tight_column" style="text-align: center">
-                            <span ng-if="!group.ispromoting" ng-switch="server.canpromote">
-                                <span ng-switch-when="true">
+                            <span ng-if="!group.ispromoting">
+                                <span ng-if="server.canpromote">
                                     <button class="btn btn-warning btn-xs active"
                                             style="width: 70px;"
                                             data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
@@ -446,7 +438,7 @@
                                         PROMPTE
                                     </button>
                                 </span>
-                                <span ng-switch-default ng-switch="group.out_of_sync">
+                                <span ng-if="!server.canpromote" ng-switch="group.out_of_sync">
                                     <span ng-switch-when="true">
                                         <button class="btn btn-danger btn-xs active"
                                                 style="width: 70px;"
@@ -463,6 +455,16 @@
                                             SYNC
                                         </button>
                                     </span>
+                                </span>
+                            </span>
+                            <span ng-if="group.ispromoting">
+                                <span ng-if="server.ispromoting">
+                                    <button class="btn btn-danger btn-xs active"
+                                            style="width: 70px;"
+                                            data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
+                                            ng-click="promoteServer(group.id, server.server)">
+                                        PROMPTE
+                                    </button>
                                 </span>
                             </span>
                         </td>
