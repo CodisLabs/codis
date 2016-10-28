@@ -42,7 +42,7 @@ func init() {
 	}
 	client = &http.Client{
 		Transport: tr,
-		Timeout:   time.Second * 30,
+		Timeout:   time.Minute,
 	}
 	go func() {
 		for {
