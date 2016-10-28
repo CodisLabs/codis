@@ -55,11 +55,11 @@ backend_ping_period = "5s"
 
 # Set backend recv buffer size & timeout.
 backend_recv_bufsize = "128kb"
-backend_recv_timeout = "50s"
+backend_recv_timeout = "30s"
 
 # Set backend send buffer & timeout.
 backend_send_bufsize = "128kb"
-backend_send_timeout = "50s"
+backend_send_timeout = "30s"
 
 # Set backend pipeline buffer size.
 backend_max_pipeline = 1024
