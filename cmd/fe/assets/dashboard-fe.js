@@ -143,7 +143,7 @@ function renderSlotsCharts(slots_array) {
         for (var beg = 0, end = 0; end <= n; end++) {
             if (end == n || slots_array[end].group_id != g) {
                 if (beg < end) {
-                    s.data.push({x: xaxis, low: beg, high: end - 1, group_id: g});
+                    s.data.push({x: xaxis, beg: beg, end: end - 1, low: beg, high: end, group_id: g});
                 }
                 beg = end + 1;
             }
@@ -152,7 +152,7 @@ function renderSlotsCharts(slots_array) {
         for (var beg = 0, end = 0; end <= n; end++) {
             if (end == n || !(slots_array[end].action.target_id && slots_array[end].action.target_id == g)) {
                 if (beg < end) {
-                    s.data.push({x: xaxis, low: beg, high: end - 1, group_id: g});
+                    s.data.push({x: xaxis, beg: beg, end: end - 1, low: beg, high: end, group_id: g});
                 }
                 beg = end + 1;
             }
@@ -214,11 +214,11 @@ function renderSlotsCharts(slots_array) {
             formatter: function () {
                 switch (this.point.x) {
                 case 0:
-                    return '<b>Slot-[' + this.point.low + "," + this.point.high + "]</b> are <b>Offline</b>";
+                    return '<b>Slot-[' + this.point.beg + "," + this.point.end + "]</b> are <b>Offline</b>";
                 case 1:
-                    return '<b>Slot-[' + this.point.low + "," + this.point.high + "]</b> will be moved to <b>Group-[" + this.point.group_id + "]</b>";
+                    return '<b>Slot-[' + this.point.beg + "," + this.point.end + "]</b> will be moved to <b>Group-[" + this.point.group_id + "]</b>";
                 case 2:
-                    return '<b>Slot-[' + this.point.low + "," + this.point.high + "]</b> --> <b>Group-[" + this.point.group_id + "]</b>";
+                    return '<b>Slot-[' + this.point.beg + "," + this.point.end + "]</b> --> <b>Group-[" + this.point.group_id + "]</b>";
                 }
             }
         },
