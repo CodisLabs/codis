@@ -18,6 +18,12 @@ func init() {
 	}
 }
 
+const JodisDir = "/jodis"
+
+func JodisPath(product string, token string) string {
+	return filepath.Join(JodisDir, product, fmt.Sprintf("proxy-%s", token))
+}
+
 const CodisDir = "/codis3"
 
 func ProductDir(product string) string {
@@ -40,20 +46,12 @@ func ProxyDir(product string) string {
 	return filepath.Join(CodisDir, product, "proxy")
 }
 
-func JodisDir(product string) string {
-	return filepath.Join(CodisDir, product, "jodis")
-}
-
 func GroupPath(product string, gid int) string {
 	return filepath.Join(CodisDir, product, "group", fmt.Sprintf("group-%04d", gid))
 }
 
 func ProxyPath(product string, token string) string {
 	return filepath.Join(CodisDir, product, "proxy", fmt.Sprintf("proxy-%s", token))
-}
-
-func JodisPath(product string, token string) string {
-	return filepath.Join(CodisDir, product, "jodis", fmt.Sprintf("proxy-%s", token))
 }
 
 func SentinelPath(product string) string {
@@ -105,20 +103,12 @@ func (s *Store) ProxyDir() string {
 	return ProxyDir(s.product)
 }
 
-func (s *Store) JodisDir() string {
-	return JodisDir(s.product)
-}
-
 func (s *Store) GroupPath(gid int) string {
 	return GroupPath(s.product, gid)
 }
 
 func (s *Store) ProxyPath(token string) string {
 	return ProxyPath(s.product, token)
-}
-
-func (s *Store) JodisPath(token string) string {
-	return JodisPath(s.product, token)
 }
 
 func (s *Store) SentinelPath() string {
