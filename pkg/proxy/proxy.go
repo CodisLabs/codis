@@ -386,7 +386,7 @@ func (s *Proxy) serveProxy() {
 			if err != nil {
 				return err
 			}
-			NewSessionConn(c, s.config).Start(s.router, s.config)
+			NewSession(c, s.config).Start(s.router)
 		}
 	}(s.lproxy)
 

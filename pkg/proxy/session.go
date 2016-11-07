@@ -26,7 +26,6 @@ type Session struct {
 	CreateUnix int64
 	LastOpUnix int64
 
-	auth string
 	quit bool
 	exit sync.Once
 
@@ -40,7 +39,9 @@ type Session struct {
 	}
 	start sync.Once
 
-	broken     atomic2.Bool
+	broken atomic2.Bool
+	config *Config
+
 	authorized bool
 }
 
@@ -58,17 +59,7 @@ func (s *Session) String() string {
 	return string(b)
 }
 
-func NewSession(conn *redis.Conn, auth string) *Session {
-	s := &Session{
-		Conn: conn, auth: auth,
-		CreateUnix: time.Now().Unix(),
-	}
-	s.stats.opmap = make(map[string]*opStats, 16)
-	log.Infof("session [%p] create: %s", s, s)
-	return s
-}
-
-func NewSessionConn(sock net.Conn, config *Config) *Session {
+func NewSession(sock net.Conn, config *Config) *Session {
 	c := redis.NewConn(sock,
 		config.SessionRecvBufsize.Int(),
 		config.SessionSendBufsize.Int(),
@@ -76,7 +67,14 @@ func NewSessionConn(sock net.Conn, config *Config) *Session {
 	c.ReaderTimeout = config.SessionRecvTimeout.Get()
 	c.WriterTimeout = config.SessionSendTimeout.Get()
 	c.SetKeepAlivePeriod(config.SessionKeepAlivePeriod.Get())
-	return NewSession(c, config.ProductAuth)
+
+	s := &Session{
+		Conn: c, config: config,
+		CreateUnix: time.Now().Unix(),
+	}
+	s.stats.opmap = make(map[string]*opStats, 16)
+	log.Infof("session [%p] create: %s", s, s)
+	return s
 }
 
 func (s *Session) CloseReader() error {
@@ -105,9 +103,9 @@ var (
 
 var RespOK = redis.NewString([]byte("OK"))
 
-func (s *Session) Start(d *Router, config *Config) {
+func (s *Session) Start(d *Router) {
 	s.start.Do(func() {
-		if int(incrSessions()) > config.ProxyMaxClients {
+		if int(incrSessions()) > s.config.ProxyMaxClients {
 			go func() {
 				s.Conn.Encode(redis.NewErrorf("ERR max number of clients reached"), true)
 				s.CloseWithError(ErrTooManySessions)
@@ -125,7 +123,7 @@ func (s *Session) Start(d *Router, config *Config) {
 			return
 		}
 
-		tasks := make(chan *Request, config.SessionMaxPipeline)
+		tasks := make(chan *Request, s.config.SessionMaxPipeline)
 
 		go func() {
 			s.loopWriter(tasks)
@@ -147,6 +145,12 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		}
 		close(tasks)
 	}()
+
+	var base OpFlag
+	if s.config.BackendPrimaryOnly {
+		base |= FlagPrimaryOnly
+	}
+
 	for !s.quit {
 		multi, err := s.Conn.DecodeMultiBulk()
 		if err != nil {
@@ -162,7 +166,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		r.Multi = multi
 		r.Start = start.UnixNano()
 		r.Batch = &sync.WaitGroup{}
-		if err := s.handleRequest(r, d); err != nil {
+		if err := s.handleRequest(r, d, base); err != nil {
 			r.Resp = redis.NewErrorf("ERR handle request, %s", err)
 			tasks <- r
 			return s.incrOpFails(err)
@@ -225,13 +229,13 @@ func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
 	}
 }
 
-func (s *Session) handleRequest(r *Request, d *Router) error {
+func (s *Session) handleRequest(r *Request, d *Router, base OpFlag) error {
 	opstr, flag, err := getOpInfo(r.Multi)
 	if err != nil {
 		return err
 	}
 	r.OpStr = opstr
-	r.OpFlag = flag
+	r.OpFlag = flag | base
 	r.Broken = &s.broken
 
 	if flag.IsNotAllowed() {
@@ -246,7 +250,7 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 	}
 
 	if !s.authorized {
-		if s.auth != "" {
+		if s.config.ProductAuth != "" {
 			r.Resp = redis.NewErrorf("NOAUTH Authentication required")
 			return nil
 		}
@@ -289,9 +293,9 @@ func (s *Session) handleAuth(r *Request) error {
 		return nil
 	}
 	switch {
-	case s.auth == "":
+	case s.config.ProductAuth == "":
 		r.Resp = redis.NewErrorf("ERR Client sent AUTH, but no password is set")
-	case s.auth != string(r.Multi[1].Value):
+	case s.config.ProductAuth != string(r.Multi[1].Value):
 		s.authorized = false
 		r.Resp = redis.NewErrorf("ERR invalid password")
 	default:
