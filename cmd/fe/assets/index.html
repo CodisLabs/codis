@@ -431,12 +431,24 @@
                         <td class="button_tight_column" style="text-align: center">
                             <span ng-if="!group.ispromoting">
                                 <span ng-if="server.canpromote">
-                                    <button class="btn btn-warning btn-xs active"
-                                            style="width: 70px;"
-                                            data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
-                                            ng-click="promoteServer(group.id, server.server)">
-                                        PROMPTE
-                                    </button>
+                                    <span ng-switch="server.ha_status">
+                                        <span ng-switch-when="ha_real_master">
+                                            <button class="btn btn-danger btn-xs active"
+                                                    style="width: 70px;"
+                                                    data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
+                                                    ng-click="promoteServer(group.id, server.server)">
+                                                PROMPTE
+                                            </button>
+                                        </span>
+                                        <span ng-switch-default>
+                                            <button class="btn btn-warning btn-xs active"
+                                                    style="width: 70px;"
+                                                    data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
+                                                    ng-click="promoteServer(group.id, server.server)">
+                                                PROMPTE
+                                            </button>
+                                        </span>
+                                    </span>
                                 </span>
                                 <span ng-if="!server.canpromote" ng-switch="group.out_of_sync">
                                     <span ng-switch-when="true">
