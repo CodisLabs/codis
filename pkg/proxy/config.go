@@ -64,6 +64,9 @@ backend_send_timeout = "30s"
 # Set backend pipeline buffer size.
 backend_max_pipeline = 1024
 
+# Set backend never read replica groups, default is false
+backend_primary_only = false
+
 # Set backend parallel connections per server
 backend_primary_parallel = 1
 backend_replica_parallel = 1
@@ -126,6 +129,7 @@ type Config struct {
 	BackendSendBufsize     bytesize.Int64    `toml:"backend_send_bufsize" json:"backend_send_bufsize"`
 	BackendSendTimeout     timesize.Duration `toml:"backend_send_timeout" json:"backend_send_timeout"`
 	BackendMaxPipeline     int               `toml:"backend_max_pipeline" json:"backend_max_pipeline"`
+	BackendPrimaryOnly     bool              `toml:"backend_primary_only" json:"backend_primary_only"`
 	BackendPrimaryParallel int               `toml:"backend_primary_parallel" json:"backend_primary_parallel"`
 	BackendReplicaParallel int               `toml:"backend_replica_parallel" json:"backend_replica_parallel"`
 	BackendKeepAlivePeriod timesize.Duration `toml:"backend_keepalive_period" json:"backend_keepalive_period"`
