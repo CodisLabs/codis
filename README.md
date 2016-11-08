@@ -55,6 +55,9 @@ Slots
 Group
 ![group](doc/pictures/snapshots3.png)
 
+Sentinel
+![sentinel](doc/pictures/snapshots4.png)
+
 ##Benchmarks
 [See benchmark results](doc/benchmark.md)
 
