@@ -456,13 +456,35 @@ func (t *cmdDashboard) handleGroupCommand(d map[string]interface{}) {
 
 	case d["--resync-group"].(bool):
 
-		gid := utils.ArgumentIntegerMust(d, "--gid")
+		switch {
 
-		log.Debugf("call rpc resync-group to dashboard %s", t.addr)
-		if err := c.ResyncGroup(gid); err != nil {
-			log.PanicErrorf(err, "call rpc resync-group to dashboard %s failed", t.addr)
+		case d["--all"].(bool):
+
+			stats, err := c.Stats()
+			if err != nil {
+				log.PanicErrorf(err, "call rpc stats to dashboard %s failed", t.addr)
+			}
+			log.Debugf("call rpc stats OK")
+
+			for _, g := range stats.Group.Models {
+				log.Debugf("call rpc resync-group [%d] to dashboard %s", g.Id, t.addr)
+				if err := c.ResyncGroup(g.Id); err != nil {
+					log.PanicErrorf(err, "call rpc resync-group to dashboard %s failed", t.addr)
+				}
+			}
+			log.Debugf("call rpc resync-group OK")
+
+		default:
+
+			gid := utils.ArgumentIntegerMust(d, "--gid")
+
+			log.Debugf("call rpc resync-group to dashboard %s", t.addr)
+			if err := c.ResyncGroup(gid); err != nil {
+				log.PanicErrorf(err, "call rpc resync-group to dashboard %s failed", t.addr)
+			}
+			log.Debugf("call rpc resync-group OK")
+
 		}
-		log.Debugf("call rpc resync-group OK")
 
 	case d["--group-add"].(bool):
 
