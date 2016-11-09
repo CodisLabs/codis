@@ -47,6 +47,13 @@ backend_send_timeout = "50s"
 # Set backend pipeline buffer size.
 backend_max_pipeline = 1024
 
+# Set backend never read replica groups, default is false
+backend_primary_only = false
+
+# Set backend parallel connections per server
+backend_primary_parallel = 1
+backend_replica_parallel = 1
+
 # Set backend tcp keepalive period. (0 to disable)
 backend_keepalive_period = "75s"
 
