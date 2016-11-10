@@ -15,41 +15,12 @@
         "sentinel_quorum": 2
     },
     "proxy": {
-        "template": {
-            "min_cpu": 4,
-            "max_cpu": 8,
-            "max_clients": 2000,
-            "max_pipeline": 512,
-            "log_level": "WARN",
-            "jodis_name": "zookeeper",
-            "jodis_addr": "10.4.10.101:2181,10.4.10.102:2181,10.4.10.103:2181,10.4.10.104:2181,10.4.10.105:2181"
-        },
-        "instance": [
-            {
-                "datacenter": "dc1",
-                "admin_addr": "10.4.10.200:11080",
-                "proxy_addr": "10.4.10.200:19000"
-            },
-            {
-                "datacenter": "dc1",
-                "admin_addr": "10.4.10.201:11080",
-                "proxy_addr": "10.4.10.201:19000"
-            },
-            {
-                "datacenter": "dc2",
-                "admin_addr": "10.2.16.200:11080",
-                "proxy_addr": "10.2.16.200:19000"
-            },
-            {
-                "datacenter": "dc2",
-                "admin_addr": "10.2.16.201:11080",
-                "proxy_addr": "10.2.16.201:19000"
-            },
-            {
-                "datacenter": "dc2",
-                "admin_addr": "10.2.16.202:11080",
-                "proxy_addr": "10.2.16.202:19000"
-            }
-        ]
+        "min_cpu": 4,
+        "max_cpu": 8,
+        "max_clients": 2000,
+        "max_pipeline": 512,
+        "log_level": "WARN",
+        "jodis_name": "zookeeper",
+        "jodis_addr": "10.4.10.101:2181,10.4.10.102:2181,10.4.10.103:2181,10.4.10.104:2181,10.4.10.105:2181"
     }
 }

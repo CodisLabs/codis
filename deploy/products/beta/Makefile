@@ -1,2 +1,2 @@
 all:
-	./render.py
+	./gen.py && ./render.py

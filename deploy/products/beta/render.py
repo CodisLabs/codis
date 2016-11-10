@@ -188,8 +188,8 @@ class Product:
 
         self.proxylist = []
         if "proxy" in config:
-            template = Template(config["proxy"].get("template", {}))
-            for p in config["proxy"].get("instance", []):
+            template = Template(config.get("proxy", {}))
+            for p in config.get("instance", []):
                 self.proxylist.append(Proxy(self, template, p))
         self.proxylist.sort(key=lambda p: p.datacenter + "|" + p.proxy_addr)
 
@@ -203,6 +203,9 @@ config = {}
 
 with open('config.json') as f:
     config = json.loads(f.read())
+
+with open('instance.json') as f:
+    config["instance"] = json.loads(f.read())
 
 product = Product(config)
 product.render()
