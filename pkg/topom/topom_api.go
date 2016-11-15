@@ -483,7 +483,7 @@ func (s *apiServer) InfoSentinel(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	c, err := redis.NewClient(addr, s.topom.Config().ProductAuth, time.Second)
+	c, err := redis.NewClient(addr, "", time.Second)
 	if err != nil {
 		log.WarnErrorf(err, "create redis client to %s failed", addr)
 		return rpc.ApiResponseError(err)
