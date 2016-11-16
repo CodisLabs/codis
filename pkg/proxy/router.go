@@ -195,15 +195,17 @@ func (s *Router) fillSlot(m *models.Slot, switched bool) {
 		slot.migrate.bc = s.pool.primary.Retain(from, s.config)
 		slot.migrate.id = m.MigrateFromGroupId
 	}
-	for i := range m.ReplicaGroups {
-		var group []*sharedBackendConn
-		for _, addr := range m.ReplicaGroups[i] {
-			group = append(group, s.pool.replica.Retain(addr, s.config))
+	if !s.config.BackendPrimaryOnly {
+		for i := range m.ReplicaGroups {
+			var group []*sharedBackendConn
+			for _, addr := range m.ReplicaGroups[i] {
+				group = append(group, s.pool.replica.Retain(addr, s.config))
+			}
+			if len(group) == 0 {
+				continue
+			}
+			slot.replicaGroups = append(slot.replicaGroups, group)
 		}
-		if len(group) == 0 {
-			continue
-		}
-		slot.replicaGroups = append(slot.replicaGroups, group)
 	}
 
 	if !m.Locked {

@@ -146,11 +146,6 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		close(tasks)
 	}()
 
-	var base OpFlag
-	if s.config.BackendPrimaryOnly {
-		base |= FlagPrimaryOnly
-	}
-
 	for !s.quit {
 		multi, err := s.Conn.DecodeMultiBulk()
 		if err != nil {
@@ -166,7 +161,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		r.Multi = multi
 		r.Start = start.UnixNano()
 		r.Batch = &sync.WaitGroup{}
-		if err := s.handleRequest(r, d, base); err != nil {
+		if err := s.handleRequest(r, d); err != nil {
 			r.Resp = redis.NewErrorf("ERR handle request, %s", err)
 			tasks <- r
 			return s.incrOpFails(err)
@@ -229,13 +224,13 @@ func (s *Session) handleResponse(r *Request) (*redis.Resp, error) {
 	}
 }
 
-func (s *Session) handleRequest(r *Request, d *Router, base OpFlag) error {
+func (s *Session) handleRequest(r *Request, d *Router) error {
 	opstr, flag, err := getOpInfo(r.Multi)
 	if err != nil {
 		return err
 	}
 	r.OpStr = opstr
-	r.OpFlag = flag | base
+	r.OpFlag = flag
 	r.Broken = &s.broken
 
 	if flag.IsNotAllowed() {

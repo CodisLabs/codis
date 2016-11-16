@@ -37,10 +37,6 @@ func (f OpFlag) IsReadOnly() bool {
 	return (f & mask) == 0
 }
 
-func (f OpFlag) IsPrimaryOnly() bool {
-	return (f & FlagPrimaryOnly) != 0
-}
-
 type OpInfo struct {
 	Name string
 	Flag OpFlag
@@ -50,8 +46,6 @@ const (
 	FlagWrite = 1 << iota
 	FlagMayWrite
 	FlagNotAllow
-
-	FlagPrimaryOnly
 )
 
 var opTable = make(map[string]OpInfo, 256)
