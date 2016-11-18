@@ -299,9 +299,9 @@ extern prof_dump_header_t *prof_dump_header;
 void	prof_idump(tsdn_t *tsdn);
 bool	prof_mdump(tsd_t *tsd, const char *filename);
 void	prof_gdump(tsdn_t *tsdn);
-prof_tdata_t	*prof_tdata_init(tsdn_t *tsdn);
+prof_tdata_t	*prof_tdata_init(tsd_t *tsd);
 prof_tdata_t	*prof_tdata_reinit(tsd_t *tsd, prof_tdata_t *tdata);
-void	prof_reset(tsdn_t *tsdn, size_t lg_sample);
+void	prof_reset(tsd_t *tsd, size_t lg_sample);
 void	prof_tdata_cleanup(tsd_t *tsd);
 bool	prof_active_get(tsdn_t *tsdn);
 bool	prof_active_set(tsdn_t *tsdn, bool active);
@@ -315,7 +315,7 @@ bool	prof_gdump_get(tsdn_t *tsdn);
 bool	prof_gdump_set(tsdn_t *tsdn, bool active);
 void	prof_boot0(void);
 void	prof_boot1(void);
-bool	prof_boot2(tsdn_t *tsdn);
+bool	prof_boot2(tsd_t *tsd);
 void	prof_prefork0(tsdn_t *tsdn);
 void	prof_prefork1(tsdn_t *tsdn);
 void	prof_postfork_parent(tsdn_t *tsdn);
@@ -384,7 +384,7 @@ prof_tdata_get(tsd_t *tsd, bool create)
 	if (create) {
 		if (unlikely(tdata == NULL)) {
 			if (tsd_nominal(tsd)) {
-				tdata = prof_tdata_init(tsd_tsdn(tsd));
+				tdata = prof_tdata_init(tsd);
 				tsd_prof_tdata_set(tsd, tdata);
 			}
 		} else if (unlikely(tdata->expired)) {

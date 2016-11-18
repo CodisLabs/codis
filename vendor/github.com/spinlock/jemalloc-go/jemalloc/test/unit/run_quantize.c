@@ -111,7 +111,7 @@ TEST_BEGIN(test_monotonic)
 
 	floor_prev = 0;
 	ceil_prev = 0;
-	for (i = 1; i < run_quantize_max >> LG_PAGE; i++) {
+	for (i = 1; i <= chunksize >> LG_PAGE; i++) {
 		size_t run_size, floor, ceil;
 
 		run_size = i << LG_PAGE;

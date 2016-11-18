@@ -5,6 +5,9 @@ typedef struct malloc_mutex_s malloc_mutex_t;
 
 #ifdef _WIN32
 #  define MALLOC_MUTEX_INITIALIZER
+#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
+#  define MALLOC_MUTEX_INITIALIZER					\
+     {OS_UNFAIR_LOCK_INIT, WITNESS_INITIALIZER(WITNESS_RANK_OMIT)}
 #elif (defined(JEMALLOC_OSSPIN))
 #  define MALLOC_MUTEX_INITIALIZER {0, WITNESS_INITIALIZER(WITNESS_RANK_OMIT)}
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
@@ -35,6 +38,8 @@ struct malloc_mutex_s {
 #  else
 	CRITICAL_SECTION	lock;
 #  endif
+#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
+	os_unfair_lock		lock;
 #elif (defined(JEMALLOC_OSSPIN))
 	OSSpinLock		lock;
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))
@@ -88,6 +93,8 @@ malloc_mutex_lock(tsdn_t *tsdn, malloc_mutex_t *mutex)
 #  else
 		EnterCriticalSection(&mutex->lock);
 #  endif
+#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
+		os_unfair_lock_lock(&mutex->lock);
 #elif (defined(JEMALLOC_OSSPIN))
 		OSSpinLockLock(&mutex->lock);
 #else
@@ -109,6 +116,8 @@ malloc_mutex_unlock(tsdn_t *tsdn, malloc_mutex_t *mutex)
 #  else
 		LeaveCriticalSection(&mutex->lock);
 #  endif
+#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
+		os_unfair_lock_unlock(&mutex->lock);
 #elif (defined(JEMALLOC_OSSPIN))
 		OSSpinLockUnlock(&mutex->lock);
 #else

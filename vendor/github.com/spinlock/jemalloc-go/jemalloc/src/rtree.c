@@ -96,12 +96,15 @@ rtree_node_init(rtree_t *rtree, unsigned level, rtree_node_elm_t **elmp)
 	rtree_node_elm_t *node;
 
 	if (atomic_cas_p((void **)elmp, NULL, RTREE_NODE_INITIALIZING)) {
+		spin_t spinner;
+
 		/*
 		 * Another thread is already in the process of initializing.
 		 * Spin-wait until initialization is complete.
 		 */
+		spin_init(&spinner);
 		do {
-			CPU_SPINWAIT;
+			spin_adaptive(&spinner);
 			node = atomic_read_p((void **)elmp);
 		} while (node == RTREE_NODE_INITIALIZING);
 	} else {
@@ -125,5 +128,5 @@ rtree_node_elm_t *
 rtree_child_read_hard(rtree_t *rtree, rtree_node_elm_t *elm, unsigned level)
 {
 
-	return (rtree_node_init(rtree, level, &elm->child));
+	return (rtree_node_init(rtree, level+1, &elm->child));
 }

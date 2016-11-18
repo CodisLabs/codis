@@ -26,7 +26,7 @@ TEST_BEGIN(test_fork)
 		test_fail("Unexpected fork() failure");
 	} else if (pid == 0) {
 		/* Child. */
-		exit(0);
+		_exit(0);
 	} else {
 		int status;
 

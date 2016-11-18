@@ -2,24 +2,24 @@
 
 TEST_BEGIN(test_new_delete)
 {
-	tsdn_t *tsdn;
+	tsd_t *tsd;
 	ckh_t ckh;
 
-	tsdn = tsdn_fetch();
+	tsd = tsd_fetch();
 
-	assert_false(ckh_new(tsdn, &ckh, 2, ckh_string_hash,
+	assert_false(ckh_new(tsd, &ckh, 2, ckh_string_hash,
 	    ckh_string_keycomp), "Unexpected ckh_new() error");
-	ckh_delete(tsdn, &ckh);
+	ckh_delete(tsd, &ckh);
 
-	assert_false(ckh_new(tsdn, &ckh, 3, ckh_pointer_hash,
+	assert_false(ckh_new(tsd, &ckh, 3, ckh_pointer_hash,
 	    ckh_pointer_keycomp), "Unexpected ckh_new() error");
-	ckh_delete(tsdn, &ckh);
+	ckh_delete(tsd, &ckh);
 }
 TEST_END
 
 TEST_BEGIN(test_count_insert_search_remove)
 {
-	tsdn_t *tsdn;
+	tsd_t *tsd;
 	ckh_t ckh;
 	const char *strs[] = {
 	    "a string",
@@ -30,9 +30,9 @@ TEST_BEGIN(test_count_insert_search_remove)
 	const char *missing = "A string not in the hash table.";
 	size_t i;
 
-	tsdn = tsdn_fetch();
+	tsd = tsd_fetch();
 
-	assert_false(ckh_new(tsdn, &ckh, 2, ckh_string_hash,
+	assert_false(ckh_new(tsd, &ckh, 2, ckh_string_hash,
 	    ckh_string_keycomp), "Unexpected ckh_new() error");
 	assert_zu_eq(ckh_count(&ckh), 0,
 	    "ckh_count() should return %zu, but it returned %zu", ZU(0),
@@ -40,7 +40,7 @@ TEST_BEGIN(test_count_insert_search_remove)
 
 	/* Insert. */
 	for (i = 0; i < sizeof(strs)/sizeof(const char *); i++) {
-		ckh_insert(tsdn, &ckh, strs[i], strs[i]);
+		ckh_insert(tsd, &ckh, strs[i], strs[i]);
 		assert_zu_eq(ckh_count(&ckh), i+1,
 		    "ckh_count() should return %zu, but it returned %zu", i+1,
 		    ckh_count(&ckh));
@@ -85,7 +85,7 @@ TEST_BEGIN(test_count_insert_search_remove)
 		vp = (i & 2) ? &v.p : NULL;
 		k.p = NULL;
 		v.p = NULL;
-		assert_false(ckh_remove(tsdn, &ckh, strs[i], kp, vp),
+		assert_false(ckh_remove(tsd, &ckh, strs[i], kp, vp),
 		    "Unexpected ckh_remove() error");
 
 		ks = (i & 1) ? strs[i] : (const char *)NULL;
@@ -101,22 +101,22 @@ TEST_BEGIN(test_count_insert_search_remove)
 		    ckh_count(&ckh));
 	}
 
-	ckh_delete(tsdn, &ckh);
+	ckh_delete(tsd, &ckh);
 }
 TEST_END
 
 TEST_BEGIN(test_insert_iter_remove)
 {
 #define	NITEMS ZU(1000)
-	tsdn_t *tsdn;
+	tsd_t *tsd;
 	ckh_t ckh;
 	void **p[NITEMS];
 	void *q, *r;
 	size_t i;
 
-	tsdn = tsdn_fetch();
+	tsd = tsd_fetch();
 
-	assert_false(ckh_new(tsdn, &ckh, 2, ckh_pointer_hash,
+	assert_false(ckh_new(tsd, &ckh, 2, ckh_pointer_hash,
 	    ckh_pointer_keycomp), "Unexpected ckh_new() error");
 
 	for (i = 0; i < NITEMS; i++) {
@@ -128,7 +128,7 @@ TEST_BEGIN(test_insert_iter_remove)
 		size_t j;
 
 		for (j = i; j < NITEMS; j++) {
-			assert_false(ckh_insert(tsdn, &ckh, p[j], p[j]),
+			assert_false(ckh_insert(tsd, &ckh, p[j], p[j]),
 			    "Unexpected ckh_insert() failure");
 			assert_false(ckh_search(&ckh, p[j], &q, &r),
 			    "Unexpected ckh_search() failure");
@@ -143,13 +143,13 @@ TEST_BEGIN(test_insert_iter_remove)
 		for (j = i + 1; j < NITEMS; j++) {
 			assert_false(ckh_search(&ckh, p[j], NULL, NULL),
 			    "Unexpected ckh_search() failure");
-			assert_false(ckh_remove(tsdn, &ckh, p[j], &q, &r),
+			assert_false(ckh_remove(tsd, &ckh, p[j], &q, &r),
 			    "Unexpected ckh_remove() failure");
 			assert_ptr_eq(p[j], q, "Key pointer mismatch");
 			assert_ptr_eq(p[j], r, "Value pointer mismatch");
 			assert_true(ckh_search(&ckh, p[j], NULL, NULL),
 			    "Unexpected ckh_search() success");
-			assert_true(ckh_remove(tsdn, &ckh, p[j], &q, &r),
+			assert_true(ckh_remove(tsd, &ckh, p[j], &q, &r),
 			    "Unexpected ckh_remove() success");
 		}
 
@@ -184,13 +184,13 @@ TEST_BEGIN(test_insert_iter_remove)
 	for (i = 0; i < NITEMS; i++) {
 		assert_false(ckh_search(&ckh, p[i], NULL, NULL),
 		    "Unexpected ckh_search() failure");
-		assert_false(ckh_remove(tsdn, &ckh, p[i], &q, &r),
+		assert_false(ckh_remove(tsd, &ckh, p[i], &q, &r),
 		    "Unexpected ckh_remove() failure");
 		assert_ptr_eq(p[i], q, "Key pointer mismatch");
 		assert_ptr_eq(p[i], r, "Value pointer mismatch");
 		assert_true(ckh_search(&ckh, p[i], NULL, NULL),
 		    "Unexpected ckh_search() success");
-		assert_true(ckh_remove(tsdn, &ckh, p[i], &q, &r),
+		assert_true(ckh_remove(tsd, &ckh, p[i], &q, &r),
 		    "Unexpected ckh_remove() success");
 		dallocx(p[i], 0);
 	}
@@ -198,7 +198,7 @@ TEST_BEGIN(test_insert_iter_remove)
 	assert_zu_eq(ckh_count(&ckh), 0,
 	    "ckh_count() should return %zu, but it returned %zu",
 	    ZU(0), ckh_count(&ckh));
-	ckh_delete(tsdn, &ckh);
+	ckh_delete(tsd, &ckh);
 #undef NITEMS
 }
 TEST_END

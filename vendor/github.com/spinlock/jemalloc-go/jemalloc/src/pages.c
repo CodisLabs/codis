@@ -207,6 +207,11 @@ os_overcommits_sysctl(void)
 #endif
 
 #ifdef JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY
+/*
+ * Use syscall(2) rather than {open,read,close}(2) when possible to avoid
+ * reentry during bootstrapping if another library has interposed system call
+ * wrappers.
+ */
 static bool
 os_overcommits_proc(void)
 {
@@ -214,11 +219,26 @@ os_overcommits_proc(void)
 	char buf[1];
 	ssize_t nread;
 
+#if defined(JEMALLOC_HAVE_SYSCALL) && defined(SYS_open)
+	fd = (int)syscall(SYS_open, "/proc/sys/vm/overcommit_memory", O_RDONLY);
+#else
 	fd = open("/proc/sys/vm/overcommit_memory", O_RDONLY);
+#endif
 	if (fd == -1)
 		return (false); /* Error. */
 
+#if defined(JEMALLOC_HAVE_SYSCALL) && defined(SYS_read)
+	nread = (ssize_t)syscall(SYS_read, fd, &buf, sizeof(buf));
+#else
 	nread = read(fd, &buf, sizeof(buf));
+#endif
+
+#if defined(JEMALLOC_HAVE_SYSCALL) && defined(SYS_close)
+	syscall(SYS_close, fd);
+#else
+	close(fd);
+#endif
+
 	if (nread < 1)
 		return (false); /* Error. */
 	/*

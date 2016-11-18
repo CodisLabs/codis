@@ -162,7 +162,9 @@ static const bool config_cache_oblivious =
 #endif
 
 #include "jemalloc/internal/ph.h"
+#ifndef __PGI
 #define	RB_COMPACT
+#endif
 #include "jemalloc/internal/rb.h"
 #include "jemalloc/internal/qr.h"
 #include "jemalloc/internal/ql.h"
@@ -184,6 +186,9 @@ static const bool config_cache_oblivious =
 #define	JEMALLOC_H_TYPES
 
 #include "jemalloc/internal/jemalloc_internal_macros.h"
+
+/* Page size index type. */
+typedef unsigned pszind_t;
 
 /* Size class index type. */
 typedef unsigned szind_t;
@@ -234,7 +239,7 @@ typedef unsigned szind_t;
 #  ifdef __alpha__
 #    define LG_QUANTUM		4
 #  endif
-#  if (defined(__sparc64__) || defined(__sparcv9))
+#  if (defined(__sparc64__) || defined(__sparcv9) || defined(__sparc_v9__))
 #    define LG_QUANTUM		4
 #  endif
 #  if (defined(__amd64__) || defined(__x86_64__) || defined(_M_X64))
@@ -364,6 +369,7 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/valgrind.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/ckh.h"
@@ -396,6 +402,7 @@ typedef unsigned szind_t;
 #include "jemalloc/internal/valgrind.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/ckh.h"
@@ -456,10 +463,15 @@ extern unsigned	narenas_auto;
 extern arena_t	**arenas;
 
 /*
+ * pind2sz_tab encodes the same information as could be computed by
+ * pind2sz_compute().
+ */
+extern size_t const	pind2sz_tab[NPSIZES];
+/*
  * index2size_tab encodes the same information as could be computed (at
  * unacceptable cost in some code paths) by index2size_compute().
  */
-extern size_t const	index2size_tab[NSIZES+1];
+extern size_t const	index2size_tab[NSIZES];
 /*
  * size2index_tab is a compact lookup table that rounds request sizes up to
  * size classes.  In order to reduce cache footprint, the table is compressed,
@@ -467,6 +479,7 @@ extern size_t const	index2size_tab[NSIZES+1];
  */
 extern uint8_t const	size2index_tab[];
 
+arena_t	*a0get(void);
 void	*a0malloc(size_t size);
 void	a0dalloc(void *ptr);
 void	*bootstrap_malloc(size_t size);
@@ -492,6 +505,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/valgrind.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/ckh.h"
@@ -524,6 +538,7 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/valgrind.h"
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/atomic.h"
+#include "jemalloc/internal/spin.h"
 #include "jemalloc/internal/prng.h"
 #include "jemalloc/internal/ticker.h"
 #include "jemalloc/internal/ckh.h"
@@ -543,6 +558,11 @@ void	jemalloc_postfork_child(void);
 #include "jemalloc/internal/huge.h"
 
 #ifndef JEMALLOC_ENABLE_INLINE
+pszind_t	psz2ind(size_t psz);
+size_t	pind2sz_compute(pszind_t pind);
+size_t	pind2sz_lookup(pszind_t pind);
+size_t	pind2sz(pszind_t pind);
+size_t	psz2u(size_t psz);
 szind_t	size2index_compute(size_t size);
 szind_t	size2index_lookup(size_t size);
 szind_t	size2index(size_t size);
@@ -555,7 +575,7 @@ size_t	s2u(size_t size);
 size_t	sa2u(size_t size, size_t alignment);
 arena_t	*arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal);
 arena_t	*arena_choose(tsd_t *tsd, arena_t *arena);
-arena_t	*arena_ichoose(tsdn_t *tsdn, arena_t *arena);
+arena_t	*arena_ichoose(tsd_t *tsd, arena_t *arena);
 arena_tdata_t	*arena_tdata_get(tsd_t *tsd, unsigned ind,
     bool refresh_if_missing);
 arena_t	*arena_get(tsdn_t *tsdn, unsigned ind, bool init_if_missing);
@@ -563,10 +583,90 @@ ticker_t	*decay_ticker_get(tsd_t *tsd, unsigned ind);
 #endif
 
 #if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_C_))
+JEMALLOC_INLINE pszind_t
+psz2ind(size_t psz)
+{
+
+	if (unlikely(psz > HUGE_MAXCLASS))
+		return (NPSIZES);
+	{
+		pszind_t x = lg_floor((psz<<1)-1);
+		pszind_t shift = (x < LG_SIZE_CLASS_GROUP + LG_PAGE) ? 0 : x -
+		    (LG_SIZE_CLASS_GROUP + LG_PAGE);
+		pszind_t grp = shift << LG_SIZE_CLASS_GROUP;
+
+		pszind_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_PAGE + 1) ?
+		    LG_PAGE : x - LG_SIZE_CLASS_GROUP - 1;
+
+		size_t delta_inverse_mask = ZI(-1) << lg_delta;
+		pszind_t mod = ((((psz-1) & delta_inverse_mask) >> lg_delta)) &
+		    ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
+
+		pszind_t ind = grp + mod;
+		return (ind);
+	}
+}
+
+JEMALLOC_INLINE size_t
+pind2sz_compute(pszind_t pind)
+{
+
+	{
+		size_t grp = pind >> LG_SIZE_CLASS_GROUP;
+		size_t mod = pind & ((ZU(1) << LG_SIZE_CLASS_GROUP) - 1);
+
+		size_t grp_size_mask = ~((!!grp)-1);
+		size_t grp_size = ((ZU(1) << (LG_PAGE +
+		    (LG_SIZE_CLASS_GROUP-1))) << grp) & grp_size_mask;
+
+		size_t shift = (grp == 0) ? 1 : grp;
+		size_t lg_delta = shift + (LG_PAGE-1);
+		size_t mod_size = (mod+1) << lg_delta;
+
+		size_t sz = grp_size + mod_size;
+		return (sz);
+	}
+}
+
+JEMALLOC_INLINE size_t
+pind2sz_lookup(pszind_t pind)
+{
+	size_t ret = (size_t)pind2sz_tab[pind];
+	assert(ret == pind2sz_compute(pind));
+	return (ret);
+}
+
+JEMALLOC_INLINE size_t
+pind2sz(pszind_t pind)
+{
+
+	assert(pind < NPSIZES);
+	return (pind2sz_lookup(pind));
+}
+
+JEMALLOC_INLINE size_t
+psz2u(size_t psz)
+{
+
+	if (unlikely(psz > HUGE_MAXCLASS))
+		return (0);
+	{
+		size_t x = lg_floor((psz<<1)-1);
+		size_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_PAGE + 1) ?
+		    LG_PAGE : x - LG_SIZE_CLASS_GROUP - 1;
+		size_t delta = ZU(1) << lg_delta;
+		size_t delta_mask = delta - 1;
+		size_t usize = (psz + delta_mask) & ~delta_mask;
+		return (usize);
+	}
+}
+
 JEMALLOC_INLINE szind_t
 size2index_compute(size_t size)
 {
 
+	if (unlikely(size > HUGE_MAXCLASS))
+		return (NSIZES);
 #if (NTBINS != 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
 		szind_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
@@ -575,9 +675,7 @@ size2index_compute(size_t size)
 	}
 #endif
 	{
-		szind_t x = unlikely(ZI(size) < 0) ? ((size<<1) ?
-		    (ZU(1)<<(LG_SIZEOF_PTR+3)) : ((ZU(1)<<(LG_SIZEOF_PTR+3))-1))
-		    : lg_floor((size<<1)-1);
+		szind_t x = lg_floor((size<<1)-1);
 		szind_t shift = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM) ? 0 :
 		    x - (LG_SIZE_CLASS_GROUP + LG_QUANTUM);
 		szind_t grp = shift << LG_SIZE_CLASS_GROUP;
@@ -663,6 +761,8 @@ JEMALLOC_ALWAYS_INLINE size_t
 s2u_compute(size_t size)
 {
 
+	if (unlikely(size > HUGE_MAXCLASS))
+		return (0);
 #if (NTBINS > 0)
 	if (size <= (ZU(1) << LG_TINY_MAXCLASS)) {
 		size_t lg_tmin = LG_TINY_MAXCLASS - NTBINS + 1;
@@ -672,9 +772,7 @@ s2u_compute(size_t size)
 	}
 #endif
 	{
-		size_t x = unlikely(ZI(size) < 0) ? ((size<<1) ?
-		    (ZU(1)<<(LG_SIZEOF_PTR+3)) : ((ZU(1)<<(LG_SIZEOF_PTR+3))-1))
-		    : lg_floor((size<<1)-1);
+		size_t x = lg_floor((size<<1)-1);
 		size_t lg_delta = (x < LG_SIZE_CLASS_GROUP + LG_QUANTUM + 1)
 		    ?  LG_QUANTUM : x - LG_SIZE_CLASS_GROUP - 1;
 		size_t delta = ZU(1) << lg_delta;
@@ -815,14 +913,10 @@ arena_choose(tsd_t *tsd, arena_t *arena)
 }
 
 JEMALLOC_INLINE arena_t *
-arena_ichoose(tsdn_t *tsdn, arena_t *arena)
+arena_ichoose(tsd_t *tsd, arena_t *arena)
 {
 
-	assert(!tsdn_null(tsdn) || arena != NULL);
-
-	if (!tsdn_null(tsdn))
-		return (arena_choose_impl(tsdn_tsd(tsdn), NULL, true));
-	return (arena);
+	return (arena_choose_impl(tsd, arena, true));
 }
 
 JEMALLOC_INLINE arena_tdata_t *

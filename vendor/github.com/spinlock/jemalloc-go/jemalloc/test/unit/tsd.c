@@ -58,18 +58,18 @@ thd_start(void *arg)
 	data_t d = (data_t)(uintptr_t)arg;
 	void *p;
 
-	assert_x_eq(*data_tsd_get(), DATA_INIT,
+	assert_x_eq(*data_tsd_get(true), DATA_INIT,
 	    "Initial tsd get should return initialization value");
 
 	p = malloc(1);
 	assert_ptr_not_null(p, "Unexpected malloc() failure");
 
 	data_tsd_set(&d);
-	assert_x_eq(*data_tsd_get(), d,
+	assert_x_eq(*data_tsd_get(true), d,
 	    "After tsd set, tsd get should return value that was set");
 
 	d = 0;
-	assert_x_eq(*data_tsd_get(), (data_t)(uintptr_t)arg,
+	assert_x_eq(*data_tsd_get(true), (data_t)(uintptr_t)arg,
 	    "Resetting local data should have no effect on tsd");
 
 	free(p);

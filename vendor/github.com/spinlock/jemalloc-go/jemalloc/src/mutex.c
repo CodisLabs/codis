@@ -80,6 +80,8 @@ malloc_mutex_init(malloc_mutex_t *mutex, const char *name, witness_rank_t rank)
 	    _CRT_SPINCOUNT))
 		return (true);
 #  endif
+#elif (defined(JEMALLOC_OS_UNFAIR_LOCK))
+	mutex->lock = OS_UNFAIR_LOCK_INIT;
 #elif (defined(JEMALLOC_OSSPIN))
 	mutex->lock = 0;
 #elif (defined(JEMALLOC_MUTEX_INIT_CB))

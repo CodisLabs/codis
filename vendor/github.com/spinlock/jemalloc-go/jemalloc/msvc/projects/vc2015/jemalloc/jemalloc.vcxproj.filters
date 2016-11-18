@@ -146,6 +146,12 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\size_classes.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\smoothstep.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\spin.h">
+      <Filter>Header Files\internal</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\stats.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
@@ -161,7 +167,7 @@
     <ClInclude Include="..\..\..\..\include\jemalloc\internal\util.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\include\jemalloc\internal\valgrind.h">
+    <ClInclude Include="..\..\..\..\include\jemalloc\internal\witness.h">
       <Filter>Header Files\internal</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\..\include\msvc_compat\strings.h">
@@ -241,6 +247,9 @@
     <ClCompile Include="..\..\..\..\src\rtree.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\..\src\spin.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\..\src\stats.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -254,6 +263,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\..\src\util.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\src\witness.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

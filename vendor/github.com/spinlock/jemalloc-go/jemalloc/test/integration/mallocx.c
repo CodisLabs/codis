@@ -50,6 +50,19 @@ get_huge_size(size_t ind)
 	return (get_size_impl("arenas.hchunk.0.size", ind));
 }
 
+/*
+ * On systems which can't merge extents, tests that call this function generate
+ * a lot of dirty memory very quickly.  Purging between cycles mitigates
+ * potential OOM on e.g. 32-bit Windows.
+ */
+static void
+purge(void)
+{
+
+	assert_d_eq(mallctl("arena.0.purge", NULL, NULL, NULL, 0), 0,
+	    "Unexpected mallctl error");
+}
+
 TEST_BEGIN(test_overflow)
 {
 	size_t hugemax;
@@ -96,6 +109,7 @@ TEST_BEGIN(test_oom)
 		if (ptrs[i] != NULL)
 			dallocx(ptrs[i], 0);
 	}
+	purge();
 
 #if LG_SIZEOF_PTR == 3
 	assert_ptr_null(mallocx(0x8000000000000000ULL,
@@ -113,7 +127,7 @@ TEST_END
 
 TEST_BEGIN(test_basic)
 {
-#define	MAXSZ (((size_t)1) << 26)
+#define	MAXSZ (((size_t)1) << 23)
 	size_t sz;
 
 	for (sz = 1; sz < MAXSZ; sz = nallocx(sz, 0) + 1) {
@@ -122,23 +136,28 @@ TEST_BEGIN(test_basic)
 		nsz = nallocx(sz, 0);
 		assert_zu_ne(nsz, 0, "Unexpected nallocx() error");
 		p = mallocx(sz, 0);
-		assert_ptr_not_null(p, "Unexpected mallocx() error");
+		assert_ptr_not_null(p,
+		    "Unexpected mallocx(size=%zx, flags=0) error", sz);
 		rsz = sallocx(p, 0);
 		assert_zu_ge(rsz, sz, "Real size smaller than expected");
 		assert_zu_eq(nsz, rsz, "nallocx()/sallocx() size mismatch");
 		dallocx(p, 0);
 
 		p = mallocx(sz, 0);
-		assert_ptr_not_null(p, "Unexpected mallocx() error");
+		assert_ptr_not_null(p,
+		    "Unexpected mallocx(size=%zx, flags=0) error", sz);
 		dallocx(p, 0);
 
 		nsz = nallocx(sz, MALLOCX_ZERO);
 		assert_zu_ne(nsz, 0, "Unexpected nallocx() error");
 		p = mallocx(sz, MALLOCX_ZERO);
-		assert_ptr_not_null(p, "Unexpected mallocx() error");
+		assert_ptr_not_null(p,
+		    "Unexpected mallocx(size=%zx, flags=MALLOCX_ZERO) error",
+		    nsz);
 		rsz = sallocx(p, 0);
 		assert_zu_eq(nsz, rsz, "nallocx()/sallocx() rsize mismatch");
 		dallocx(p, 0);
+		purge();
 	}
 #undef MAXSZ
 }
@@ -146,7 +165,7 @@ TEST_END
 
 TEST_BEGIN(test_alignment_and_size)
 {
-#define	MAXALIGN (((size_t)1) << 25)
+#define	MAXALIGN (((size_t)1) << 23)
 #define	NITER 4
 	size_t nsz, rsz, sz, alignment, total;
 	unsigned i;
@@ -196,6 +215,7 @@ TEST_BEGIN(test_alignment_and_size)
 				}
 			}
 		}
+		purge();
 	}
 #undef MAXALIGN
 #undef NITER

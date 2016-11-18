@@ -1,9 +1,6 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
-#define	JEMALLOC_CLOCK_GETTIME defined(_POSIX_MONOTONIC_CLOCK) \
-    && _POSIX_MONOTONIC_CLOCK >= 0
-
 typedef struct nstime_s nstime_t;
 
 /* Maximum supported number of seconds (~584 years). */
@@ -34,9 +31,12 @@ void	nstime_imultiply(nstime_t *time, uint64_t multiplier);
 void	nstime_idivide(nstime_t *time, uint64_t divisor);
 uint64_t	nstime_divide(const nstime_t *time, const nstime_t *divisor);
 #ifdef JEMALLOC_JET
+typedef bool (nstime_monotonic_t)(void);
+extern nstime_monotonic_t *nstime_monotonic;
 typedef bool (nstime_update_t)(nstime_t *);
 extern nstime_update_t *nstime_update;
 #else
+bool	nstime_monotonic(void);
 bool	nstime_update(nstime_t *time);
 #endif
 
