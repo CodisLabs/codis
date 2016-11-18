@@ -21,15 +21,8 @@ size_t		map_bias;
 size_t		map_misc_offset;
 size_t		arena_maxrun; /* Max run size for arenas. */
 size_t		large_maxclass; /* Max large size class. */
-size_t		run_quantize_max; /* Max run_quantize_*() input. */
-static size_t	small_maxrun; /* Max run size for small size classes. */
-static bool	*small_run_tab; /* Valid small run page multiples. */
-static size_t	*run_quantize_floor_tab; /* run_quantize_floor() memoization. */
-static size_t	*run_quantize_ceil_tab; /* run_quantize_ceil() memoization. */
 unsigned	nlclasses; /* Number of large size classes. */
 unsigned	nhclasses; /* Number of huge size classes. */
-static szind_t	runs_avail_bias; /* Size index for first runs_avail tree. */
-static szind_t	runs_avail_nclasses; /* Number of runs_avail trees. */
 
 /******************************************************************************/
 /*
@@ -37,6 +30,8 @@ static szind_t	runs_avail_nclasses; /* Number of runs_avail trees. */
  * definition.
  */
 
+static void	arena_chunk_dalloc(tsdn_t *tsdn, arena_t *arena,
+    arena_chunk_t *chunk);
 static void	arena_purge_to_limit(tsdn_t *tsdn, arena_t *arena,
     size_t ndirty_limit);
 static void	arena_run_dalloc(tsdn_t *tsdn, arena_t *arena, arena_run_t *run,
@@ -77,83 +72,6 @@ arena_run_addr_comp(const arena_chunk_map_misc_t *a,
 ph_gen(static UNUSED, arena_run_heap_, arena_run_heap_t, arena_chunk_map_misc_t,
     ph_link, arena_run_addr_comp)
 
-static size_t
-run_quantize_floor_compute(size_t size)
-{
-	size_t qsize;
-
-	assert(size != 0);
-	assert(size == PAGE_CEILING(size));
-
-	/* Don't change sizes that are valid small run sizes. */
-	if (size <= small_maxrun && small_run_tab[size >> LG_PAGE])
-		return (size);
-
-	/*
-	 * Round down to the nearest run size that can actually be requested
-	 * during normal large allocation.  Add large_pad so that cache index
-	 * randomization can offset the allocation from the page boundary.
-	 */
-	qsize = index2size(size2index(size - large_pad + 1) - 1) + large_pad;
-	if (qsize <= SMALL_MAXCLASS + large_pad)
-		return (run_quantize_floor_compute(size - large_pad));
-	assert(qsize <= size);
-	return (qsize);
-}
-
-static size_t
-run_quantize_ceil_compute_hard(size_t size)
-{
-	size_t large_run_size_next;
-
-	assert(size != 0);
-	assert(size == PAGE_CEILING(size));
-
-	/*
-	 * Return the next quantized size greater than the input size.
-	 * Quantized sizes comprise the union of run sizes that back small
-	 * region runs, and run sizes that back large regions with no explicit
-	 * alignment constraints.
-	 */
-
-	if (size > SMALL_MAXCLASS) {
-		large_run_size_next = PAGE_CEILING(index2size(size2index(size -
-		    large_pad) + 1) + large_pad);
-	} else
-		large_run_size_next = SIZE_T_MAX;
-	if (size >= small_maxrun)
-		return (large_run_size_next);
-
-	while (true) {
-		size += PAGE;
-		assert(size <= small_maxrun);
-		if (small_run_tab[size >> LG_PAGE]) {
-			if (large_run_size_next < size)
-				return (large_run_size_next);
-			return (size);
-		}
-	}
-}
-
-static size_t
-run_quantize_ceil_compute(size_t size)
-{
-	size_t qsize = run_quantize_floor_compute(size);
-
-	if (qsize < size) {
-		/*
-		 * Skip a quantization that may have an adequately large run,
-		 * because under-sized runs may be mixed in.  This only happens
-		 * when an unusual size is requested, i.e. for aligned
-		 * allocation, and is just one of several places where linear
-		 * search would potentially find sufficiently aligned available
-		 * memory somewhere lower.
-		 */
-		qsize = run_quantize_ceil_compute_hard(qsize);
-	}
-	return (qsize);
-}
-
 #ifdef JEMALLOC_JET
 #undef run_quantize_floor
 #define	run_quantize_floor JEMALLOC_N(n_run_quantize_floor)
@@ -162,13 +80,27 @@ static size_t
 run_quantize_floor(size_t size)
 {
 	size_t ret;
+	pszind_t pind;
 
 	assert(size > 0);
-	assert(size <= run_quantize_max);
+	assert(size <= HUGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
-	ret = run_quantize_floor_tab[(size >> LG_PAGE) - 1];
-	assert(ret == run_quantize_floor_compute(size));
+	assert(size != 0);
+	assert(size == PAGE_CEILING(size));
+
+	pind = psz2ind(size - large_pad + 1);
+	if (pind == 0) {
+		/*
+		 * Avoid underflow.  This short-circuit would also do the right
+		 * thing for all sizes in the range for which there are
+		 * PAGE-spaced size classes, but it's simplest to just handle
+		 * the one case that would cause erroneous results.
+		 */
+		return (size);
+	}
+	ret = pind2sz(pind - 1) + large_pad;
+	assert(ret <= size);
 	return (ret);
 }
 #ifdef JEMALLOC_JET
@@ -187,11 +119,21 @@ run_quantize_ceil(size_t size)
 	size_t ret;
 
 	assert(size > 0);
-	assert(size <= run_quantize_max);
+	assert(size <= HUGE_MAXCLASS);
 	assert((size & PAGE_MASK) == 0);
 
-	ret = run_quantize_ceil_tab[(size >> LG_PAGE) - 1];
-	assert(ret == run_quantize_ceil_compute(size));
+	ret = run_quantize_floor(size);
+	if (ret < size) {
+		/*
+		 * Skip a quantization that may have an adequately large run,
+		 * because under-sized runs may be mixed in.  This only happens
+		 * when an unusual size is requested, i.e. for aligned
+		 * allocation, and is just one of several places where linear
+		 * search would potentially find sufficiently aligned available
+		 * memory somewhere lower.
+		 */
+		ret = pind2sz(psz2ind(ret - large_pad + 1)) + large_pad;
+	}
 	return (ret);
 }
 #ifdef JEMALLOC_JET
@@ -200,25 +142,17 @@ run_quantize_ceil(size_t size)
 run_quantize_t *run_quantize_ceil = JEMALLOC_N(n_run_quantize_ceil);
 #endif
 
-static arena_run_heap_t *
-arena_runs_avail_get(arena_t *arena, szind_t ind)
-{
-
-	assert(ind >= runs_avail_bias);
-	assert(ind - runs_avail_bias < runs_avail_nclasses);
-
-	return (&arena->runs_avail[ind - runs_avail_bias]);
-}
-
 static void
 arena_avail_insert(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
     size_t npages)
 {
-	szind_t ind = size2index(run_quantize_floor(arena_miscelm_size_get(
+	pszind_t pind = psz2ind(run_quantize_floor(arena_miscelm_size_get(
 	    arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_run_heap_insert(arena_runs_avail_get(arena, ind),
+	assert((npages << LG_PAGE) < chunksize);
+	assert(pind2sz(pind) <= chunksize);
+	arena_run_heap_insert(&arena->runs_avail[pind],
 	    arena_miscelm_get_mutable(chunk, pageind));
 }
 
@@ -226,11 +160,13 @@ static void
 arena_avail_remove(arena_t *arena, arena_chunk_t *chunk, size_t pageind,
     size_t npages)
 {
-	szind_t ind = size2index(run_quantize_floor(arena_miscelm_size_get(
+	pszind_t pind = psz2ind(run_quantize_floor(arena_miscelm_size_get(
 	    arena_miscelm_get_const(chunk, pageind))));
 	assert(npages == (arena_mapbits_unallocated_size_get(chunk, pageind) >>
 	    LG_PAGE));
-	arena_run_heap_remove(arena_runs_avail_get(arena, ind),
+	assert((npages << LG_PAGE) < chunksize);
+	assert(pind2sz(pind) <= chunksize);
+	arena_run_heap_remove(&arena->runs_avail[pind],
 	    arena_miscelm_get_mutable(chunk, pageind));
 }
 
@@ -649,14 +585,13 @@ arena_chunk_alloc_internal(tsdn_t *tsdn, arena_t *arena, bool *zero,
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 
 	chunk = chunk_alloc_cache(tsdn, arena, &chunk_hooks, NULL, chunksize,
-	    chunksize, zero, true);
+	    chunksize, zero, commit, true);
 	if (chunk != NULL) {
 		if (arena_chunk_register(tsdn, arena, chunk, *zero)) {
 			chunk_dalloc_cache(tsdn, arena, &chunk_hooks, chunk,
 			    chunksize, true);
 			return (NULL);
 		}
-		*commit = true;
 	}
 	if (chunk == NULL) {
 		chunk = arena_chunk_alloc_internal_hard(tsdn, arena,
@@ -953,6 +888,7 @@ arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	void *ret;
 	chunk_hooks_t chunk_hooks = CHUNK_HOOKS_INITIALIZER;
 	size_t csize = CHUNK_CEILING(usize);
+	bool commit = true;
 
 	malloc_mutex_lock(tsdn, &arena->lock);
 
@@ -964,7 +900,7 @@ arena_chunk_alloc_huge(tsdn_t *tsdn, arena_t *arena, size_t usize,
 	arena_nactive_add(arena, usize >> LG_PAGE);
 
 	ret = chunk_alloc_cache(tsdn, arena, &chunk_hooks, NULL, csize,
-	    alignment, zero, true);
+	    alignment, zero, &commit, true);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 	if (ret == NULL) {
 		ret = arena_chunk_alloc_huge_hard(tsdn, arena, &chunk_hooks,
@@ -1074,6 +1010,7 @@ arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena, void *chunk,
 	void *nchunk = (void *)((uintptr_t)chunk + CHUNK_CEILING(oldsize));
 	size_t udiff = usize - oldsize;
 	size_t cdiff = CHUNK_CEILING(usize) - CHUNK_CEILING(oldsize);
+	bool commit = true;
 
 	malloc_mutex_lock(tsdn, &arena->lock);
 
@@ -1085,7 +1022,7 @@ arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena, void *chunk,
 	arena_nactive_add(arena, udiff >> LG_PAGE);
 
 	err = (chunk_alloc_cache(tsdn, arena, &chunk_hooks, nchunk, cdiff,
-	    chunksize, zero, true) == NULL);
+	    chunksize, zero, &commit, true) == NULL);
 	malloc_mutex_unlock(tsdn, &arena->lock);
 	if (err) {
 		err = arena_chunk_ralloc_huge_expand_hard(tsdn, arena,
@@ -1109,12 +1046,13 @@ arena_chunk_ralloc_huge_expand(tsdn_t *tsdn, arena_t *arena, void *chunk,
 static arena_run_t *
 arena_run_first_best_fit(arena_t *arena, size_t size)
 {
-	szind_t ind, i;
+	pszind_t pind, i;
 
-	ind = size2index(run_quantize_ceil(size));
-	for (i = ind; i < runs_avail_nclasses + runs_avail_bias; i++) {
+	pind = psz2ind(run_quantize_ceil(size));
+
+	for (i = pind; pind2sz(i) <= chunksize; i++) {
 		arena_chunk_map_misc_t *miscelm = arena_run_heap_first(
-		    arena_runs_avail_get(arena, i));
+		    &arena->runs_avail[i]);
 		if (miscelm != NULL)
 			return (&miscelm->run);
 	}
@@ -1125,7 +1063,7 @@ arena_run_first_best_fit(arena_t *arena, size_t size)
 static arena_run_t *
 arena_run_alloc_large_helper(arena_t *arena, size_t size, bool zero)
 {
-	arena_run_t *run = arena_run_first_best_fit(arena, s2u(size));
+	arena_run_t *run = arena_run_first_best_fit(arena, size);
 	if (run != NULL) {
 		if (arena_run_split_large(arena, run, size, zero))
 			run = NULL;
@@ -1256,14 +1194,14 @@ arena_decay_deadline_init(arena_t *arena)
 	 * Generate a new deadline that is uniformly random within the next
 	 * epoch after the current one.
 	 */
-	nstime_copy(&arena->decay_deadline, &arena->decay_epoch);
-	nstime_add(&arena->decay_deadline, &arena->decay_interval);
-	if (arena->decay_time > 0) {
+	nstime_copy(&arena->decay.deadline, &arena->decay.epoch);
+	nstime_add(&arena->decay.deadline, &arena->decay.interval);
+	if (arena->decay.time > 0) {
 		nstime_t jitter;
 
-		nstime_init(&jitter, prng_range(&arena->decay_jitter_state,
-		    nstime_ns(&arena->decay_interval)));
-		nstime_add(&arena->decay_deadline, &jitter);
+		nstime_init(&jitter, prng_range_u64(&arena->decay.jitter_state,
+		    nstime_ns(&arena->decay.interval)));
+		nstime_add(&arena->decay.deadline, &jitter);
 	}
 }
 
@@ -1273,7 +1211,7 @@ arena_decay_deadline_reached(const arena_t *arena, const nstime_t *time)
 
 	assert(opt_purge == purge_mode_decay);
 
-	return (nstime_compare(&arena->decay_deadline, time) <= 0);
+	return (nstime_compare(&arena->decay.deadline, time) <= 0);
 }
 
 static size_t
@@ -1298,92 +1236,103 @@ arena_decay_backlog_npages_limit(const arena_t *arena)
 	 */
 	sum = 0;
 	for (i = 0; i < SMOOTHSTEP_NSTEPS; i++)
-		sum += arena->decay_backlog[i] * h_steps[i];
+		sum += arena->decay.backlog[i] * h_steps[i];
 	npages_limit_backlog = (size_t)(sum >> SMOOTHSTEP_BFP);
 
 	return (npages_limit_backlog);
 }
 
 static void
-arena_decay_epoch_advance(arena_t *arena, const nstime_t *time)
+arena_decay_backlog_update_last(arena_t *arena)
 {
-	uint64_t nadvance_u64;
-	nstime_t delta;
-	size_t ndirty_delta;
+	size_t ndirty_delta = (arena->ndirty > arena->decay.ndirty) ?
+	    arena->ndirty - arena->decay.ndirty : 0;
+	arena->decay.backlog[SMOOTHSTEP_NSTEPS-1] = ndirty_delta;
+}
 
-	assert(opt_purge == purge_mode_decay);
-	assert(arena_decay_deadline_reached(arena, time));
+static void
+arena_decay_backlog_update(arena_t *arena, uint64_t nadvance_u64)
+{
 
-	nstime_copy(&delta, time);
-	nstime_subtract(&delta, &arena->decay_epoch);
-	nadvance_u64 = nstime_divide(&delta, &arena->decay_interval);
-	assert(nadvance_u64 > 0);
-
-	/* Add nadvance_u64 decay intervals to epoch. */
-	nstime_copy(&delta, &arena->decay_interval);
-	nstime_imultiply(&delta, nadvance_u64);
-	nstime_add(&arena->decay_epoch, &delta);
-
-	/* Set a new deadline. */
-	arena_decay_deadline_init(arena);
-
-	/* Update the backlog. */
 	if (nadvance_u64 >= SMOOTHSTEP_NSTEPS) {
-		memset(arena->decay_backlog, 0, (SMOOTHSTEP_NSTEPS-1) *
+		memset(arena->decay.backlog, 0, (SMOOTHSTEP_NSTEPS-1) *
 		    sizeof(size_t));
 	} else {
 		size_t nadvance_z = (size_t)nadvance_u64;
 
 		assert((uint64_t)nadvance_z == nadvance_u64);
 
-		memmove(arena->decay_backlog, &arena->decay_backlog[nadvance_z],
+		memmove(arena->decay.backlog, &arena->decay.backlog[nadvance_z],
 		    (SMOOTHSTEP_NSTEPS - nadvance_z) * sizeof(size_t));
 		if (nadvance_z > 1) {
-			memset(&arena->decay_backlog[SMOOTHSTEP_NSTEPS -
+			memset(&arena->decay.backlog[SMOOTHSTEP_NSTEPS -
 			    nadvance_z], 0, (nadvance_z-1) * sizeof(size_t));
 		}
 	}
-	ndirty_delta = (arena->ndirty > arena->decay_ndirty) ? arena->ndirty -
-	    arena->decay_ndirty : 0;
-	arena->decay_ndirty = arena->ndirty;
-	arena->decay_backlog[SMOOTHSTEP_NSTEPS-1] = ndirty_delta;
-	arena->decay_backlog_npages_limit =
-	    arena_decay_backlog_npages_limit(arena);
+
+	arena_decay_backlog_update_last(arena);
 }
 
-static size_t
-arena_decay_npages_limit(arena_t *arena)
+static void
+arena_decay_epoch_advance_helper(arena_t *arena, const nstime_t *time)
 {
-	size_t npages_limit;
+	uint64_t nadvance_u64;
+	nstime_t delta;
 
 	assert(opt_purge == purge_mode_decay);
+	assert(arena_decay_deadline_reached(arena, time));
 
-	npages_limit = arena->decay_backlog_npages_limit;
+	nstime_copy(&delta, time);
+	nstime_subtract(&delta, &arena->decay.epoch);
+	nadvance_u64 = nstime_divide(&delta, &arena->decay.interval);
+	assert(nadvance_u64 > 0);
 
-	/* Add in any dirty pages created during the current epoch. */
-	if (arena->ndirty > arena->decay_ndirty)
-		npages_limit += arena->ndirty - arena->decay_ndirty;
+	/* Add nadvance_u64 decay intervals to epoch. */
+	nstime_copy(&delta, &arena->decay.interval);
+	nstime_imultiply(&delta, nadvance_u64);
+	nstime_add(&arena->decay.epoch, &delta);
 
-	return (npages_limit);
+	/* Set a new deadline. */
+	arena_decay_deadline_init(arena);
+
+	/* Update the backlog. */
+	arena_decay_backlog_update(arena, nadvance_u64);
+}
+
+static void
+arena_decay_epoch_advance_purge(tsdn_t *tsdn, arena_t *arena)
+{
+	size_t ndirty_limit = arena_decay_backlog_npages_limit(arena);
+
+	if (arena->ndirty > ndirty_limit)
+		arena_purge_to_limit(tsdn, arena, ndirty_limit);
+	arena->decay.ndirty = arena->ndirty;
+}
+
+static void
+arena_decay_epoch_advance(tsdn_t *tsdn, arena_t *arena, const nstime_t *time)
+{
+
+	arena_decay_epoch_advance_helper(arena, time);
+	arena_decay_epoch_advance_purge(tsdn, arena);
 }
 
 static void
 arena_decay_init(arena_t *arena, ssize_t decay_time)
 {
 
-	arena->decay_time = decay_time;
+	arena->decay.time = decay_time;
 	if (decay_time > 0) {
-		nstime_init2(&arena->decay_interval, decay_time, 0);
-		nstime_idivide(&arena->decay_interval, SMOOTHSTEP_NSTEPS);
+		nstime_init2(&arena->decay.interval, decay_time, 0);
+		nstime_idivide(&arena->decay.interval, SMOOTHSTEP_NSTEPS);
 	}
 
-	nstime_init(&arena->decay_epoch, 0);
-	nstime_update(&arena->decay_epoch);
-	arena->decay_jitter_state = (uint64_t)(uintptr_t)arena;
+	nstime_init(&arena->decay.epoch, 0);
+	nstime_update(&arena->decay.epoch);
+	arena->decay.jitter_state = (uint64_t)(uintptr_t)arena;
 	arena_decay_deadline_init(arena);
-	arena->decay_ndirty = arena->ndirty;
-	arena->decay_backlog_npages_limit = 0;
-	memset(arena->decay_backlog, 0, SMOOTHSTEP_NSTEPS * sizeof(size_t));
+	arena->decay.ndirty = arena->ndirty;
+	memset(arena->decay.backlog, 0, SMOOTHSTEP_NSTEPS * sizeof(size_t));
 }
 
 static bool
@@ -1403,7 +1352,7 @@ arena_decay_time_get(tsdn_t *tsdn, arena_t *arena)
 	ssize_t decay_time;
 
 	malloc_mutex_lock(tsdn, &arena->lock);
-	decay_time = arena->decay_time;
+	decay_time = arena->decay.time;
 	malloc_mutex_unlock(tsdn, &arena->lock);
 
 	return (decay_time);
@@ -1464,35 +1413,44 @@ static void
 arena_maybe_purge_decay(tsdn_t *tsdn, arena_t *arena)
 {
 	nstime_t time;
-	size_t ndirty_limit;
 
 	assert(opt_purge == purge_mode_decay);
 
 	/* Purge all or nothing if the option is disabled. */
-	if (arena->decay_time <= 0) {
-		if (arena->decay_time == 0)
+	if (arena->decay.time <= 0) {
+		if (arena->decay.time == 0)
 			arena_purge_to_limit(tsdn, arena, 0);
 		return;
 	}
 
-	nstime_copy(&time, &arena->decay_epoch);
-	if (unlikely(nstime_update(&time))) {
-		/* Time went backwards.  Force an epoch advance. */
-		nstime_copy(&time, &arena->decay_deadline);
+	nstime_init(&time, 0);
+	nstime_update(&time);
+	if (unlikely(!nstime_monotonic() && nstime_compare(&arena->decay.epoch,
+	    &time) > 0)) {
+		/*
+		 * Time went backwards.  Move the epoch back in time and
+		 * generate a new deadline, with the expectation that time
+		 * typically flows forward for long enough periods of time that
+		 * epochs complete.  Unfortunately, this strategy is susceptible
+		 * to clock jitter triggering premature epoch advances, but
+		 * clock jitter estimation and compensation isn't feasible here
+		 * because calls into this code are event-driven.
+		 */
+		nstime_copy(&arena->decay.epoch, &time);
+		arena_decay_deadline_init(arena);
+	} else {
+		/* Verify that time does not go backwards. */
+		assert(nstime_compare(&arena->decay.epoch, &time) <= 0);
 	}
 
-	if (arena_decay_deadline_reached(arena, &time))
-		arena_decay_epoch_advance(arena, &time);
-
-	ndirty_limit = arena_decay_npages_limit(arena);
-
 	/*
-	 * Don't try to purge unless the number of purgeable pages exceeds the
-	 * current limit.
+	 * If the deadline has been reached, advance to the current epoch and
+	 * purge to the new limit if necessary.  Note that dirty pages created
+	 * during the current epoch are not subject to purge until a future
+	 * epoch, so as a result purging only happens during epoch advances.
 	 */
-	if (arena->ndirty <= ndirty_limit)
-		return;
-	arena_purge_to_limit(tsdn, arena, ndirty_limit);
+	if (arena_decay_deadline_reached(arena, &time))
+		arena_decay_epoch_advance(tsdn, arena, &time);
 }
 
 void
@@ -1561,7 +1519,7 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 
 		if (rdelm == &chunkselm->rd) {
 			extent_node_t *chunkselm_next;
-			bool zero;
+			bool zero, commit;
 			UNUSED void *chunk;
 
 			npages = extent_node_size_get(chunkselm) >> LG_PAGE;
@@ -1575,10 +1533,11 @@ arena_stash_dirty(tsdn_t *tsdn, arena_t *arena, chunk_hooks_t *chunk_hooks,
 			 * dalloc_node=false argument to chunk_alloc_cache().
 			 */
 			zero = false;
+			commit = false;
 			chunk = chunk_alloc_cache(tsdn, arena, chunk_hooks,
 			    extent_node_addr_get(chunkselm),
 			    extent_node_size_get(chunkselm), chunksize, &zero,
-			    false);
+			    &commit, false);
 			assert(chunk == extent_node_addr_get(chunkselm));
 			assert(zero == extent_node_zeroed_get(chunkselm));
 			extent_node_dirty_insert(chunkselm, purge_runs_sentinel,
@@ -1967,7 +1926,7 @@ arena_reset(tsd_t *tsd, arena_t *arena)
 	assert(!arena->purging);
 	arena->nactive = 0;
 
-	for(i = 0; i < runs_avail_nclasses; i++)
+	for (i = 0; i < NPSIZES; i++)
 		arena_run_heap_new(&arena->runs_avail[i]);
 
 	malloc_mutex_unlock(tsd_tsdn(tsd), &arena->lock);
@@ -2606,7 +2565,8 @@ arena_malloc_large(tsdn_t *tsdn, arena_t *arena, szind_t binind, bool zero)
 		 * that is a multiple of the cacheline size, e.g. [0 .. 63) * 64
 		 * for 4 KiB pages and 64-byte cachelines.
 		 */
-		r = prng_lg_range(&arena->offset_state, LG_PAGE - LG_CACHELINE);
+		r = prng_lg_range_zu(&arena->offset_state, LG_PAGE -
+		    LG_CACHELINE, false);
 		random_offset = ((uintptr_t)r) << LG_CACHELINE;
 	} else
 		random_offset = 0;
@@ -3391,7 +3351,7 @@ arena_basic_stats_merge_locked(arena_t *arena, unsigned *nthreads,
 	*nthreads += arena_nthreads_get(arena, false);
 	*dss = dss_prec_names[arena->dss_prec];
 	*lg_dirty_mult = arena->lg_dirty_mult;
-	*decay_time = arena->decay_time;
+	*decay_time = arena->decay.time;
 	*nactive += arena->nactive;
 	*ndirty += arena->ndirty;
 }
@@ -3496,23 +3456,19 @@ arena_t *
 arena_new(tsdn_t *tsdn, unsigned ind)
 {
 	arena_t *arena;
-	size_t arena_size;
 	unsigned i;
 
-	/* Compute arena size to incorporate sufficient runs_avail elements. */
-	arena_size = offsetof(arena_t, runs_avail) + (sizeof(arena_run_heap_t) *
-	    runs_avail_nclasses);
 	/*
 	 * Allocate arena, arena->lstats, and arena->hstats contiguously, mainly
 	 * because there is no way to clean up if base_alloc() OOMs.
 	 */
 	if (config_stats) {
 		arena = (arena_t *)base_alloc(tsdn,
-		    CACHELINE_CEILING(arena_size) + QUANTUM_CEILING(nlclasses *
-		    sizeof(malloc_large_stats_t) + nhclasses) *
-		    sizeof(malloc_huge_stats_t));
+		    CACHELINE_CEILING(sizeof(arena_t)) +
+		    QUANTUM_CEILING((nlclasses * sizeof(malloc_large_stats_t)))
+		    + (nhclasses * sizeof(malloc_huge_stats_t)));
 	} else
-		arena = (arena_t *)base_alloc(tsdn, arena_size);
+		arena = (arena_t *)base_alloc(tsdn, sizeof(arena_t));
 	if (arena == NULL)
 		return (NULL);
 
@@ -3524,11 +3480,11 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	if (config_stats) {
 		memset(&arena->stats, 0, sizeof(arena_stats_t));
 		arena->stats.lstats = (malloc_large_stats_t *)((uintptr_t)arena
-		    + CACHELINE_CEILING(arena_size));
+		    + CACHELINE_CEILING(sizeof(arena_t)));
 		memset(arena->stats.lstats, 0, nlclasses *
 		    sizeof(malloc_large_stats_t));
 		arena->stats.hstats = (malloc_huge_stats_t *)((uintptr_t)arena
-		    + CACHELINE_CEILING(arena_size) +
+		    + CACHELINE_CEILING(sizeof(arena_t)) +
 		    QUANTUM_CEILING(nlclasses * sizeof(malloc_large_stats_t)));
 		memset(arena->stats.hstats, 0, nhclasses *
 		    sizeof(malloc_huge_stats_t));
@@ -3548,10 +3504,10 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 		 * deterministic seed.
 		 */
 		arena->offset_state = config_debug ? ind :
-		    (uint64_t)(uintptr_t)arena;
+		    (size_t)(uintptr_t)arena;
 	}
 
-	arena->dss_prec = chunk_dss_prec_get(tsdn);
+	arena->dss_prec = chunk_dss_prec_get();
 
 	ql_new(&arena->achunks);
 
@@ -3562,8 +3518,9 @@ arena_new(tsdn_t *tsdn, unsigned ind)
 	arena->nactive = 0;
 	arena->ndirty = 0;
 
-	for(i = 0; i < runs_avail_nclasses; i++)
+	for (i = 0; i < NPSIZES; i++)
 		arena_run_heap_new(&arena->runs_avail[i]);
+
 	qr_new(&arena->runs_dirty, rd_link);
 	qr_new(&arena->chunks_cache, cc_link);
 
@@ -3693,9 +3650,6 @@ bin_info_run_size_calc(arena_bin_info_t *bin_info)
 	bin_info->reg0_offset = (uint32_t)(actual_run_size - (actual_nregs *
 	    bin_info->reg_interval) - pad_size + bin_info->redzone_size);
 
-	if (actual_run_size > small_maxrun)
-		small_maxrun = actual_run_size;
-
 	assert(bin_info->reg0_offset - bin_info->redzone_size + (bin_info->nregs
 	    * bin_info->reg_interval) + pad_size == bin_info->run_size);
 }
@@ -3711,7 +3665,7 @@ bin_info_init(void)
 	bin_info_run_size_calc(bin_info);				\
 	bitmap_info_init(&bin_info->bitmap_info, bin_info->nregs);
 #define	BIN_INFO_INIT_bin_no(index, size)
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup)	\
+#define	SC(index, lg_grp, lg_delta, ndelta, psz, bin, lg_delta_lookup)	\
 	BIN_INFO_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
 	SIZE_CLASSES
 #undef BIN_INFO_INIT_bin_yes
@@ -3719,62 +3673,7 @@ bin_info_init(void)
 #undef SC
 }
 
-static bool
-small_run_size_init(void)
-{
-
-	assert(small_maxrun != 0);
-
-	small_run_tab = (bool *)base_alloc(NULL, sizeof(bool) * (small_maxrun >>
-	    LG_PAGE));
-	if (small_run_tab == NULL)
-		return (true);
-
-#define	TAB_INIT_bin_yes(index, size) {					\
-		arena_bin_info_t *bin_info = &arena_bin_info[index];	\
-		small_run_tab[bin_info->run_size >> LG_PAGE] = true;	\
-	}
-#define	TAB_INIT_bin_no(index, size)
-#define	SC(index, lg_grp, lg_delta, ndelta, bin, lg_delta_lookup)	\
-	TAB_INIT_bin_##bin(index, (ZU(1)<<lg_grp) + (ZU(ndelta)<<lg_delta))
-	SIZE_CLASSES
-#undef TAB_INIT_bin_yes
-#undef TAB_INIT_bin_no
-#undef SC
-
-	return (false);
-}
-
-static bool
-run_quantize_init(void)
-{
-	unsigned i;
-
-	run_quantize_max = chunksize + large_pad;
-
-	run_quantize_floor_tab = (size_t *)base_alloc(NULL, sizeof(size_t) *
-	    (run_quantize_max >> LG_PAGE));
-	if (run_quantize_floor_tab == NULL)
-		return (true);
-
-	run_quantize_ceil_tab = (size_t *)base_alloc(NULL, sizeof(size_t) *
-	    (run_quantize_max >> LG_PAGE));
-	if (run_quantize_ceil_tab == NULL)
-		return (true);
-
-	for (i = 1; i <= run_quantize_max >> LG_PAGE; i++) {
-		size_t run_size = i << LG_PAGE;
-
-		run_quantize_floor_tab[i-1] =
-		    run_quantize_floor_compute(run_size);
-		run_quantize_ceil_tab[i-1] =
-		    run_quantize_ceil_compute(run_size);
-	}
-
-	return (false);
-}
-
-bool
+void
 arena_boot(void)
 {
 	unsigned i;
@@ -3822,15 +3721,6 @@ arena_boot(void)
 	nhclasses = NSIZES - nlclasses - NBINS;
 
 	bin_info_init();
-	if (small_run_size_init())
-		return (true);
-	if (run_quantize_init())
-		return (true);
-
-	runs_avail_bias = size2index(PAGE);
-	runs_avail_nclasses = size2index(run_quantize_max)+1 - runs_avail_bias;
-
-	return (false);
 }
 
 void

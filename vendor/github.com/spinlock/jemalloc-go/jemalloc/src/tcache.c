@@ -445,14 +445,14 @@ tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena)
 }
 
 bool
-tcaches_create(tsdn_t *tsdn, unsigned *r_ind)
+tcaches_create(tsd_t *tsd, unsigned *r_ind)
 {
 	arena_t *arena;
 	tcache_t *tcache;
 	tcaches_t *elm;
 
 	if (tcaches == NULL) {
-		tcaches = base_alloc(tsdn, sizeof(tcache_t *) *
+		tcaches = base_alloc(tsd_tsdn(tsd), sizeof(tcache_t *) *
 		    (MALLOCX_TCACHE_MAX+1));
 		if (tcaches == NULL)
 			return (true);
@@ -460,10 +460,10 @@ tcaches_create(tsdn_t *tsdn, unsigned *r_ind)
 
 	if (tcaches_avail == NULL && tcaches_past > MALLOCX_TCACHE_MAX)
 		return (true);
-	arena = arena_ichoose(tsdn, NULL);
+	arena = arena_ichoose(tsd, NULL);
 	if (unlikely(arena == NULL))
 		return (true);
-	tcache = tcache_create(tsdn, arena);
+	tcache = tcache_create(tsd_tsdn(tsd), arena);
 	if (tcache == NULL)
 		return (true);
 

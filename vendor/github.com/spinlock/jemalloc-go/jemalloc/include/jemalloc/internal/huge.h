@@ -17,7 +17,7 @@ bool	huge_ralloc_no_move(tsdn_t *tsdn, void *ptr, size_t oldsize,
 void	*huge_ralloc(tsd_t *tsd, arena_t *arena, void *ptr, size_t oldsize,
     size_t usize, size_t alignment, bool zero, tcache_t *tcache);
 #ifdef JEMALLOC_JET
-typedef void (huge_dalloc_junk_t)(tsdn_t *, void *, size_t);
+typedef void (huge_dalloc_junk_t)(void *, size_t);
 extern huge_dalloc_junk_t *huge_dalloc_junk;
 #endif
 void	huge_dalloc(tsdn_t *tsdn, void *ptr);

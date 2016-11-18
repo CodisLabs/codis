@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/CodisLabs/codis",
-	"GoVersion": "go1.6",
+	"GoVersion": "go1.7",
 	"GodepVersion": "v74",
 	"Packages": [
 		"./..."
@@ -98,7 +98,7 @@
 		},
 		{
 			"ImportPath": "github.com/spinlock/jemalloc-go",
-			"Rev": "d634c197ef292e5f6ec4d2903091e07cc18b09c4"
+			"Rev": "4a5f246e96bdc01bb5c612d27a8b1dc93dea7d2c"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",

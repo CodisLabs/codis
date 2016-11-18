@@ -145,7 +145,7 @@ tcache_t *tcache_create(tsdn_t *tsdn, arena_t *arena);
 void	tcache_cleanup(tsd_t *tsd);
 void	tcache_enabled_cleanup(tsd_t *tsd);
 void	tcache_stats_merge(tsdn_t *tsdn, tcache_t *tcache, arena_t *arena);
-bool	tcaches_create(tsdn_t *tsdn, unsigned *r_ind);
+bool	tcaches_create(tsd_t *tsd, unsigned *r_ind);
 void	tcaches_flush(tsd_t *tsd, unsigned ind);
 void	tcaches_destroy(tsd_t *tsd, unsigned ind);
 bool	tcache_boot(tsdn_t *tsdn);

@@ -1,37 +1,51 @@
 /******************************************************************************/
 #ifdef JEMALLOC_H_TYPES
 
-typedef enum {
-	dss_prec_disabled  = 0,
-	dss_prec_primary   = 1,
-	dss_prec_secondary = 2,
-
-	dss_prec_limit     = 3
-} dss_prec_t;
-#define	DSS_PREC_DEFAULT	dss_prec_secondary
-#define	DSS_DEFAULT		"secondary"
+typedef struct spin_s spin_t;
 
 #endif /* JEMALLOC_H_TYPES */
 /******************************************************************************/
 #ifdef JEMALLOC_H_STRUCTS
 
-extern const char *dss_prec_names[];
+struct spin_s {
+	unsigned iteration;
+};
 
 #endif /* JEMALLOC_H_STRUCTS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_EXTERNS
 
-dss_prec_t	chunk_dss_prec_get(void);
-bool	chunk_dss_prec_set(dss_prec_t dss_prec);
-void	*chunk_alloc_dss(tsdn_t *tsdn, arena_t *arena, void *new_addr,
-    size_t size, size_t alignment, bool *zero, bool *commit);
-bool	chunk_in_dss(void *chunk);
-bool	chunk_dss_mergeable(void *chunk_a, void *chunk_b);
-void	chunk_dss_boot(void);
-
 #endif /* JEMALLOC_H_EXTERNS */
 /******************************************************************************/
 #ifdef JEMALLOC_H_INLINES
 
+#ifndef JEMALLOC_ENABLE_INLINE
+void	spin_init(spin_t *spin);
+void	spin_adaptive(spin_t *spin);
+#endif
+
+#if (defined(JEMALLOC_ENABLE_INLINE) || defined(JEMALLOC_SPIN_C_))
+JEMALLOC_INLINE void
+spin_init(spin_t *spin)
+{
+
+	spin->iteration = 0;
+}
+
+JEMALLOC_INLINE void
+spin_adaptive(spin_t *spin)
+{
+	volatile uint64_t i;
+
+	for (i = 0; i < (KQU(1) << spin->iteration); i++)
+		CPU_SPINWAIT;
+
+	if (spin->iteration < 63)
+		spin->iteration++;
+}
+
+#endif
+
 #endif /* JEMALLOC_H_INLINES */
 /******************************************************************************/
+
