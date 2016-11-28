@@ -138,7 +138,7 @@ func (s *Proxy) setup(config *Config) error {
 		s.model.Token,
 	)
 
-	if config.JodisName != "" {
+	if config.JodisAddr != "" {
 		c, err := models.NewClient(config.JodisName, config.JodisAddr, config.JodisTimeout.Get())
 		if err != nil {
 			return err
