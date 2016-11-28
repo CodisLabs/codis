@@ -169,8 +169,15 @@ func (s *Topom) ResyncSentinels() error {
 		return err
 	}
 
+	config := &redis.MonitorConfig{
+		Quorum:          s.config.SentinelQuorum,
+		ParallelSyncs:   s.config.SentinelParallelSyncs,
+		DownAfter:       s.config.SentinelDownAfter.Get(),
+		FailoverTimeout: s.config.SentinelFailoverTimeout.Get(),
+	}
+
 	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
-	if err := sentinel.Monitor(ctx.getGroupMasters(), s.config.SentinelQuorum, time.Second*5, p.Servers...); err != nil {
+	if err := sentinel.Monitor(ctx.getGroupMasters(), config, time.Second*5, p.Servers...); err != nil {
 		log.WarnErrorf(err, "resync sentinels failed")
 		return err
 	}

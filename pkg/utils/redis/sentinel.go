@@ -272,7 +272,14 @@ func (s *Sentinel) Masters(groups map[int]bool, timeout time.Duration, sentinels
 	return masters
 }
 
-func (s *Sentinel) monitor(ctx context.Context, sentinel string, timeout time.Duration, masters map[int]string, quorum int) error {
+type MonitorConfig struct {
+	Quorum          int
+	ParallelSyncs   int
+	DownAfter       time.Duration
+	FailoverTimeout time.Duration
+}
+
+func (s *Sentinel) monitor(ctx context.Context, sentinel string, timeout time.Duration, masters map[int]string, config *MonitorConfig) error {
 	c, err := s.newSentinelClient(sentinel, timeout)
 	if err != nil {
 		return err
@@ -300,11 +307,20 @@ func (s *Sentinel) monitor(ctx context.Context, sentinel string, timeout time.Du
 					return err
 				}
 			}
-			switch _, err := c.Do("SENTINEL", "monitor", node, host, port, quorum); {
+			switch _, err := c.Do("SENTINEL", "monitor", node, host, port, config.Quorum); {
 			case err != nil:
 				return err
 			case s.auth != "":
 				_, err := c.Do("SENTINEL", "set", node, "auth-pass", s.auth)
+				if err != nil {
+					return err
+				}
+				fallthrough
+			default:
+				_, err := c.Do("SENTINEL", "set", node,
+					"parallel-syncs", config.ParallelSyncs,
+					"down-after-milliseconds", int(config.DownAfter/time.Millisecond),
+					"failover-timeout", int(config.FailoverTimeout/time.Millisecond))
 				if err != nil {
 					return err
 				}
@@ -321,7 +337,7 @@ func (s *Sentinel) monitor(ctx context.Context, sentinel string, timeout time.Du
 	}
 }
 
-func (s *Sentinel) Monitor(masters map[int]string, quorum int, timeout time.Duration, sentinels ...string) error {
+func (s *Sentinel) Monitor(masters map[int]string, config *MonitorConfig, timeout time.Duration, sentinels ...string) error {
 	nctx, cancel := context.WithCancel(s.Context)
 	defer cancel()
 
@@ -329,7 +345,7 @@ func (s *Sentinel) Monitor(masters map[int]string, quorum int, timeout time.Dura
 
 	for i := range sentinels {
 		go func(sentinel string) {
-			err := s.monitor(nctx, sentinel, timeout, masters, quorum)
+			err := s.monitor(nctx, sentinel, timeout, masters, config)
 			if err != nil {
 				log.WarnErrorf(err, "sentinel %s monitor failed", sentinel)
 			}
