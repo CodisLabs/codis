@@ -10,6 +10,7 @@ import (
 
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/timesize"
 )
 
 const DefaultConfig = `
@@ -30,8 +31,11 @@ product_auth = ""
 # Set bind address for admin(rpc), tcp only.
 admin_addr = "0.0.0.0:18080"
 
-# Set quorum value for sentinel, default is 2.
+# Set configs for redis sentinel.
 sentinel_quorum = 2
+sentinel_parallel_syncs = 1
+sentinel_down_after = "30s"
+sentinel_failover_timeout = "5m"
 `
 
 type Config struct {
@@ -45,7 +49,10 @@ type Config struct {
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
 
-	SentinelQuorum int `toml:"sentinel_quorum" json:"sentinel_quorum"`
+	SentinelQuorum          int               `toml:"sentinel_quorum" json:"sentinel_quorum"`
+	SentinelParallelSyncs   int               `toml:"sentinel_parallel_syncs" json:"sentinel_parallel_syncs"`
+	SentinelDownAfter       timesize.Duration `toml:"sentinel_down_after" json:"sentinel_down_after"`
+	SentinelFailoverTimeout timesize.Duration `toml:"sentinel_failover_timeout" json:"sentinel_failover_timeout"`
 }
 
 func NewDefaultConfig() *Config {
@@ -90,6 +97,15 @@ func (c *Config) Validate() error {
 	}
 	if c.SentinelQuorum <= 0 {
 		return errors.New("invalid sentinel_quorum")
+	}
+	if c.SentinelParallelSyncs <= 0 {
+		return errors.New("invalid sentinel_parallel_syncs")
+	}
+	if c.SentinelDownAfter <= 0 {
+		return errors.New("invalid sentinel_down_after")
+	}
+	if c.SentinelFailoverTimeout <= 0 {
+		return errors.New("invalid sentinel_failover_timeout")
 	}
 	return nil
 }
