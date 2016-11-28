@@ -166,6 +166,8 @@ class CodisDashboard(Process):
             if product_auth is not None:
                 f.write('product_auth = "{}"\n'.format(product_auth))
             f.write('admin_addr = ":{}"\n'.format(admin_port))
+            f.write('sentinel_down_after = "5s"\n')
+            f.write('sentinel_failover_timeout = "10m"\n')
         return config
 
 
@@ -205,10 +207,12 @@ if __name__ == "__main__":
     EtcdServer()
     print("init etcd, done")
 
+    passwd = None
+
     for i in range(0, 4):
-        CodisServer(16379+i)
+        CodisServer(16379+i, None, passwd)
     for i in range(0, 4):
-        CodisServer(17379+i, master_port=16379+i)
+        CodisServer(17379+i, 16379+i, passwd)
     print("init codis-server, done")
 
     for i in range(0, 5):
@@ -218,14 +222,14 @@ if __name__ == "__main__":
     checkall(3)
     print("checkall, done")
 
-    d = CodisDashboard(18080, "demo-test")
+    d = CodisDashboard(18080, "demo-test", passwd)
     print("init codis-dashboard, done")
 
     checkall(3)
     print("checkall, done")
 
     for i in range(0, 4):
-        CodisProxy(11080+i, 19000+i, "demo-test")
+        CodisProxy(11080+i, 19000+i, "demo-test", passwd)
     print("init codis-proxy, done")
 
     CodisFe(8080, "../../cmd/fe/assets")
