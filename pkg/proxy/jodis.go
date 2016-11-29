@@ -5,8 +5,6 @@ package proxy
 
 import (
 	"encoding/json"
-	"fmt"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -30,7 +28,7 @@ type Jodis struct {
 	watching bool
 }
 
-func NewJodis(c models.Client, p *models.Proxy, compatible bool) *Jodis {
+func NewJodis(c models.Client, p *models.Proxy) *Jodis {
 	var m = map[string]string{
 		"addr":  p.ProxyAddr,
 		"admin": p.AdminAddr,
@@ -42,13 +40,7 @@ func NewJodis(c models.Client, p *models.Proxy, compatible bool) *Jodis {
 	if err != nil {
 		log.PanicErrorf(err, "json marshal failed")
 	}
-	var path string
-	if compatible {
-		path = filepath.Join("/zk/codis", fmt.Sprintf("db_%s", p.ProductName), "proxy", p.Token)
-	} else {
-		path = models.JodisPath(p.ProductName, p.Token)
-	}
-	return &Jodis{path: path, data: b, client: c}
+	return &Jodis{path: p.JodisPath, data: b, client: c}
 }
 
 func (j *Jodis) Path() string {

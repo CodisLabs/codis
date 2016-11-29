@@ -4,10 +4,12 @@
 package proxy
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -143,7 +145,12 @@ func (s *Proxy) setup(config *Config) error {
 		if err != nil {
 			return err
 		}
-		s.xjodis = NewJodis(c, s.model, config.JodisCompatible)
+		if config.JodisCompatible {
+			s.model.JodisPath = filepath.Join("/zk/codis", fmt.Sprintf("db_%s", config.ProductName), "proxy", s.model.Token)
+		} else {
+			s.model.JodisPath = models.JodisPath(config.ProductName, s.model.Token)
+		}
+		s.xjodis = NewJodis(c, s.model)
 	}
 
 	return nil

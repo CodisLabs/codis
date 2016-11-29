@@ -12,6 +12,8 @@ type Proxy struct {
 	ProtoType string `json:"proto_type"`
 	ProxyAddr string `json:"proxy_addr"`
 
+	JodisPath string `json:"jodis_path,omitempty"`
+
 	ProductName string `json:"product_name"`
 
 	Pid int    `json:"pid"`
