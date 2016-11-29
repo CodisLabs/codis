@@ -164,7 +164,7 @@ func (s *apiServer) ResetStats(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
-		ResetOpStats()
+		ResetStats()
 		return rpc.ApiResponseJson("OK")
 	}
 }

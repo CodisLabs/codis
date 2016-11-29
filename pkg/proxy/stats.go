@@ -4,6 +4,7 @@
 package proxy
 
 import (
+	"math"
 	"sort"
 	"sync"
 	"time"
@@ -52,11 +53,11 @@ func init() {
 	go func() {
 		for {
 			start := time.Now()
-			count := cmdstats.total.Get()
+			total := cmdstats.total.Get()
 			time.Sleep(time.Second)
-			delta := cmdstats.total.Get() - count
-			ratio := float64(time.Second) / float64(time.Since(start))
-			cmdstats.qps.Set(int64(float64(delta) * ratio))
+			delta := cmdstats.total.Get() - total
+			normalized := math.Max(0, float64(delta)) * float64(time.Second) / float64(time.Since(start))
+			cmdstats.qps.Set(int64(normalized + 0.5))
 		}
 	}()
 }
@@ -117,10 +118,14 @@ func GetOpStatsAll() []*OpStats {
 	return all
 }
 
-func ResetOpStats() {
+func ResetStats() {
 	cmdstats.Lock()
 	cmdstats.opmap = make(map[string]*opStats, 128)
 	cmdstats.Unlock()
+
+	cmdstats.total.Set(0)
+	cmdstats.fails.Set(0)
+	sessions.total.Set(sessions.alive.Get())
 }
 
 func incrOpTotal(n int64) {
