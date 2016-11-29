@@ -17,7 +17,7 @@ dashboard)
                     -v `realpath log`:/codis/log \
         -p 28080:18080 \
         codis-image \
-        codis-dashboard -l log/dashboard.log -c dashboard.toml --zookeeper ${hostip}:2181 --host-admin ${hostip}:28080
+        codis-dashboard -l log/dashboard.log -c dashboard.toml --host-admin ${hostip}:28080
     ;;
 
 proxy)
