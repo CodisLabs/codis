@@ -430,3 +430,60 @@ func (s *Sentinel) Unmonitor(groups map[int]bool, timeout time.Duration, sentine
 	}
 	return nil
 }
+
+func (s *Sentinel) InfoMonitored(sentinel string, timeout time.Duration) (map[string]interface{}, error) {
+	c, err := s.newSentinelClient(sentinel, timeout)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+
+	toMap := func(reply interface{}, err error) (map[string]string, error) {
+		s, err := redigo.Strings(reply, err)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		var m = make(map[string]string)
+		for i := 0; i < len(s); i += 2 {
+			m[s[i]] = s[i+1]
+		}
+		return m, nil
+	}
+
+	toMaps := func(reply interface{}, err error) ([]map[string]string, error) {
+		a, err := redigo.Values(reply, err)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		var slice []map[string]string
+		for i := range a {
+			m, err := toMap(a[i], nil)
+			if err != nil {
+				return nil, err
+			}
+			slice = append(slice, m)
+		}
+		return slice, nil
+	}
+
+	masters, err := toMaps(c.Do("SENTINEL", "masters"))
+	if err != nil {
+		return nil, err
+	}
+	var info = make(map[string]interface{})
+	for _, master := range masters {
+		node := master["name"]
+		if !s.hasSameProduct(node) {
+			continue
+		}
+		slaves, err := toMaps(c.Do("SENTINEL", "slaves", node))
+		if err != nil {
+			return nil, err
+		}
+		info[node] = map[string]interface{}{
+			"master": master,
+			"slaves": slaves,
+		}
+	}
+	return info, nil
+}

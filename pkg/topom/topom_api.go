@@ -112,6 +112,7 @@ func newApiServer(t *Topom) http.Handler {
 			r.Put("/del/:xauth/:addr/:force", api.DelSentinel)
 			r.Put("/resync-all/:xauth", api.ResyncSentinels)
 			r.Get("/info/:addr", api.InfoSentinel)
+			r.Get("/info/:addr/monitored", api.InfoSentinelMonitored)
 		})
 	})
 
@@ -490,6 +491,19 @@ func (s *apiServer) InfoSentinel(params martini.Params) (int, string) {
 	}
 	defer c.Close()
 	if info, err := c.Info(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson(info)
+	}
+}
+
+func (s *apiServer) InfoSentinelMonitored(params martini.Params) (int, string) {
+	addr, err := s.parseAddr(params)
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	sentinel := redis.NewSentinel(s.topom.Config().ProductName)
+	if info, err := sentinel.InfoMonitored(addr, time.Second); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson(info)
