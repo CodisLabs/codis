@@ -105,7 +105,7 @@ func responseBodyAsError(rsp *http.Response) (error, error) {
 }
 
 func apiMarshalJson(v interface{}) ([]byte, error) {
-	return json.Marshal(v)
+	return json.MarshalIndent(v, "", "    ")
 }
 
 func apiRequestJson(method string, url string, args, reply interface{}) error {
