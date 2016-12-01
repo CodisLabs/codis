@@ -616,12 +616,12 @@
                 <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
                     <thead>
                     <tr>
-                        <th style="width: 60px; text-align: center">
+                        <th style="width: 85px; text-align: center">
                             <span ng-switch="sentinel_out_of_sync">
                                 <span ng-switch-when="true">
                                     <button class="btn btn-danger btn-xs active"
                                             data-toggle="tooltip" data-placement="right" title="RESYNC ALL SENTINELS & PROXIES"
-                                            style="width: 45px;"
+                                            style="width: 70px;"
                                             ng-click="resyncSentinels()">
                                         SYNC
                                     </button>
@@ -629,14 +629,14 @@
                                 <span ng-switch-default>
                                     <button class="btn btn-primary btn-xs active"
                                             data-toggle="tooltip" data-placement="right" title="RESYNC ALL SENTINELS & PROXIES"
-                                            style="width: 45px;"
+                                            style="width: 70px;"
                                             ng-click="resyncSentinels()">
                                         SYNC
                                     </button>
                                 </span>
                             </span>
                         </th>
-                        <th style="min-width: 180px;">
+                        <th style="min-width: 260px;">
                             Sentinels
                             <span ng-if="sentinel_out_of_sync" style="color: white; background-color: red">
                                 (OUT OF SYNC)
@@ -647,10 +647,13 @@
                     </thead>
                     <tr ng-repeat="sentinel in sentinel_servers">
                         <td style="text-align: center">
-                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel]]" style="width: 45px;" target="_blank" class="btn btn-default btn-xs active" role="button">INFO</a>
+                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel]]/monitored" style="width: 70px;" target="_blank" class="btn btn-default btn-xs active" role="button">WATCHED</a>
                         </td>
                         <td>
-                            [[sentinel]]
+                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
+                            <span>
+                                [[sentinel]]
+                            </span>
                         </td>
                         <td class="button_tight_column">
                             <button class="btn btn-danger btn-xs active"

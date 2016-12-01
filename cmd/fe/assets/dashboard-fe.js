@@ -695,7 +695,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.resyncSentinels = function () {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
-                alertAction("Resync All Sentinels", function () {
+                alertAction("Resync All Sentinels: " + toJsonHtml($scope.sentinel_servers), function () {
                     var xauth = genXAuth(codis_name);
                     var url = concatUrl("/api/topom/sentinels/resync-all/" + xauth, codis_name);
                     $http.put(url).then(function () {
@@ -723,12 +723,14 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.delSentinel = function (server_addr) {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name) && isValidInput(server_addr)) {
-                var xauth = genXAuth(codis_name);
-                var url = concatUrl("/api/topom/sentinels/del/" + xauth + "/" + server_addr + "/0", codis_name);
-                $http.put(url).then(function () {
-                    $scope.refreshStats();
-                }, function (failedResp) {
-                    alertErrorResp(failedResp);
+                alertAction("Remove sentinel " + server_addr, function () {
+                    var xauth = genXAuth(codis_name);
+                    var url = concatUrl("/api/topom/sentinels/del/" + xauth + "/" + server_addr + "/0", codis_name);
+                    $http.put(url).then(function () {
+                        $scope.refreshStats();
+                    }, function (failedResp) {
+                        alertErrorResp(failedResp);
+                    });
                 });
             }
         }
