@@ -71,7 +71,7 @@ func (s *Topom) refillCache() error {
 	} else {
 		s.cache.proxy = proxy
 	}
-	if sentinel, err := s.refillSentinel(); err != nil {
+	if sentinel, err := s.refillCacheSentinel(s.cache.sentinel); err != nil {
 		log.ErrorErrorf(err, "store: load sentinel failed")
 		return errors.Errorf("store: load sentinel failed")
 	} else {
@@ -143,7 +143,10 @@ func (s *Topom) refillCacheProxy(proxy map[string]*models.Proxy) (map[string]*mo
 	return proxy, nil
 }
 
-func (s *Topom) refillSentinel() (*models.Sentinel, error) {
+func (s *Topom) refillCacheSentinel(sentinel *models.Sentinel) (*models.Sentinel, error) {
+	if sentinel != nil {
+		return sentinel, nil
+	}
 	p, err := s.store.LoadSentinel(false)
 	if err != nil {
 		return nil, err
