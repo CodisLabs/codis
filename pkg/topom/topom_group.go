@@ -207,7 +207,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 
 		defer s.dirtyGroupCache(g.Id)
 
-		log.Warnf("group-[%d] will promote index = %s", index)
+		log.Warnf("group-[%d] will promote index = %s", g.Id, index)
 
 		g.Promoting.Index = index
 		g.Promoting.State = models.ActionPreparing
