@@ -181,11 +181,13 @@ Options:
 		time.Sleep(time.Second)
 	}
 
+	log.Warnf("[%p] proxy is working ...", s)
+
 	for !s.IsClosed() {
 		time.Sleep(time.Second)
 	}
 
-	log.Warnf("[%p] proxy exiting ...", s)
+	log.Warnf("[%p] proxy is exiting ...", s)
 }
 
 func AutoGOMAXPROCS(min, max int) {
