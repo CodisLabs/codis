@@ -294,7 +294,6 @@ func (s *Topom) Stats() (*Stats, error) {
 }
 
 type Stats struct {
-	Online bool `json:"online"`
 	Closed bool `json:"closed"`
 
 	Slots []*models.SlotMapping `json:"slots"`
