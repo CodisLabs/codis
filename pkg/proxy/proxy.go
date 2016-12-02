@@ -311,7 +311,7 @@ func (s *Proxy) rewatchSentinels(servers []string) {
 		s.ha.masters = nil
 	}
 	if len(servers) != 0 {
-		s.ha.monitor = redis.NewSentinel(s.config.ProductName)
+		s.ha.monitor = redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
 		go func(p *redis.Sentinel) {
 			refetch := make(chan time.Duration)
 			go func() {

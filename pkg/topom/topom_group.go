@@ -248,7 +248,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 				return err
 			}
 			groupIds := map[int]bool{g.Id: true}
-			sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
+			sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
 			if err := sentinel.Unmonitor(groupIds, time.Second*5, p.Servers...); err != nil {
 				log.WarnErrorf(err, "group-[%d] unmonitor sentinels failed", g.Id)
 			}

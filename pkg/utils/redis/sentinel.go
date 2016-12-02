@@ -24,11 +24,7 @@ type Sentinel struct {
 	product, auth string
 }
 
-func NewSentinel(product string) *Sentinel {
-	return NewSentinelAuth(product, "")
-}
-
-func NewSentinelAuth(product, auth string) *Sentinel {
+func NewSentinel(product, auth string) *Sentinel {
 	s := &Sentinel{product: product, auth: auth}
 	s.Context, s.Cancel = context.WithCancel(context.Background())
 	return s
@@ -54,12 +50,8 @@ func (s *Sentinel) hasSameProduct(node string) bool {
 	return strings.HasPrefix(node, s.product)
 }
 
-func (s *Sentinel) newSentinelClient(sentinel string, timeout time.Duration) (*Client, error) {
-	return NewClient(sentinel, "", timeout)
-}
-
 func (s *Sentinel) subscribe(ctx context.Context, sentinel string, timeout time.Duration) (bool, error) {
-	c, err := s.newSentinelClient(sentinel, timeout)
+	c, err := NewClientNoAuth(sentinel, timeout)
 	if err != nil {
 		return false, err
 	}
@@ -151,7 +143,7 @@ func (s *Sentinel) Subscribe(timeout time.Duration, sentinels ...string) bool {
 }
 
 func (s *Sentinel) isRoleMaster(addr string) (bool, error) {
-	c, err := NewClient(addr, s.auth, time.Second*5)
+	c, err := NewClient(addr, s.auth, time.Second)
 	if err != nil {
 		return false, err
 	}
@@ -164,7 +156,7 @@ func (s *Sentinel) isRoleMaster(addr string) (bool, error) {
 }
 
 func (s *Sentinel) masters(ctx context.Context, sentinel string, timeout time.Duration, groups map[int]bool) (map[int]string, error) {
-	c, err := s.newSentinelClient(sentinel, timeout)
+	c, err := NewClientNoAuth(sentinel, timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +206,7 @@ func (s *Sentinel) masters(ctx context.Context, sentinel string, timeout time.Du
 }
 
 func (s *Sentinel) FlushConfig(sentinel string) error {
-	c, err := NewClient(sentinel, "", time.Second*5)
+	c, err := NewClientNoAuth(sentinel, time.Second)
 	if err != nil {
 		return err
 	}
@@ -280,7 +272,7 @@ type MonitorConfig struct {
 }
 
 func (s *Sentinel) monitor(ctx context.Context, sentinel string, timeout time.Duration, masters map[int]string, config *MonitorConfig) error {
-	c, err := s.newSentinelClient(sentinel, timeout)
+	c, err := NewClientNoAuth(sentinel, timeout)
 	if err != nil {
 		return err
 	}
@@ -367,7 +359,7 @@ func (s *Sentinel) Monitor(masters map[int]string, config *MonitorConfig, timeou
 }
 
 func (s *Sentinel) unmonitor(ctx context.Context, sentinel string, timeout time.Duration, groups map[int]bool) error {
-	c, err := s.newSentinelClient(sentinel, time.Second*5)
+	c, err := NewClientNoAuth(sentinel, time.Second*5)
 	if err != nil {
 		return err
 	}
@@ -432,7 +424,7 @@ func (s *Sentinel) Unmonitor(groups map[int]bool, timeout time.Duration, sentine
 }
 
 func (s *Sentinel) InfoMonitored(sentinel string, timeout time.Duration) (map[string]interface{}, error) {
-	c, err := s.newSentinelClient(sentinel, timeout)
+	c, err := NewClientNoAuth(sentinel, timeout)
 	if err != nil {
 		return nil, err
 	}

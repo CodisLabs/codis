@@ -484,7 +484,7 @@ func (s *apiServer) InfoSentinel(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	c, err := redis.NewClient(addr, "", time.Second)
+	c, err := redis.NewClientNoAuth(addr, time.Second)
 	if err != nil {
 		log.WarnErrorf(err, "create redis client to %s failed", addr)
 		return rpc.ApiResponseError(err)
@@ -502,7 +502,7 @@ func (s *apiServer) InfoSentinelMonitored(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	sentinel := redis.NewSentinel(s.topom.Config().ProductName)
+	sentinel := redis.NewSentinel(s.topom.Config().ProductName, s.topom.Config().ProductAuth)
 	if info, err := sentinel.InfoMonitored(addr, time.Second); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {

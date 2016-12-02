@@ -25,6 +25,10 @@ type Client struct {
 	Timeout time.Duration
 }
 
+func NewClientNoAuth(addr string, timeout time.Duration) (*Client, error) {
+	return NewClient(addr, "", timeout)
+}
+
 func NewClient(addr string, auth string, timeout time.Duration) (*Client, error) {
 	c, err := redigo.Dial("tcp", addr, []redigo.DialOption{
 		redigo.DialConnectTimeout(time.Second * 5),

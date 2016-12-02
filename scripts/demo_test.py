@@ -88,6 +88,8 @@ class CodisServer(Process):
             f.write('dbfilename "{}.rdb"\n'.format(port))
             if master_port is not None:
                 f.write('slaveof 127.0.0.1 {}\n'.format(master_port))
+                if requirepass is not None:
+                    f.write('masterauth {}\n'.format(requirepass))
             if requirepass is not None:
                 f.write('requirepass {}\n'.format(requirepass))
         return config
@@ -210,7 +212,7 @@ if __name__ == "__main__":
     EtcdServer()
     print("init etcd, done")
 
-    passwd = None
+    passwd = "passwd"
 
     for i in range(0, 4):
         CodisServer(16379+i, None, passwd)

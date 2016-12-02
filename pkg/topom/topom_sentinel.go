@@ -32,7 +32,7 @@ func (s *Topom) AddSentinel(addr string) error {
 		}
 	}
 
-	sentinel := redis.NewSentinel(s.config.ProductName)
+	sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
 	if err := sentinel.FlushConfig(addr); err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (s *Topom) DelSentinel(addr string, force bool) error {
 		return err
 	}
 
-	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
+	sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
 	if err := sentinel.Unmonitor(ctx.getGroupIds(), time.Second*5, addr); err != nil {
 		log.WarnErrorf(err, "remove sentinel %s failed", addr)
 		if !force {
@@ -113,7 +113,7 @@ func (s *Topom) rewatchSentinels(servers []string) {
 	if len(servers) == 0 {
 		s.ha.masters = nil
 	} else {
-		s.ha.monitor = redis.NewSentinel(s.config.ProductName)
+		s.ha.monitor = redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
 		go func(p *redis.Sentinel) {
 			refetch := make(chan time.Duration)
 			go func() {
@@ -176,7 +176,7 @@ func (s *Topom) ResyncSentinels() error {
 		FailoverTimeout: s.config.SentinelFailoverTimeout.Get(),
 	}
 
-	sentinel := redis.NewSentinelAuth(s.config.ProductName, s.config.ProductAuth)
+	sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
 	if err := sentinel.Monitor(ctx.getGroupMasters(), config, time.Second*5, p.Servers...); err != nil {
 		log.WarnErrorf(err, "resync sentinels failed")
 		return err
