@@ -359,7 +359,7 @@ func (s *Sentinel) Monitor(masters map[int]string, config *MonitorConfig, timeou
 }
 
 func (s *Sentinel) unmonitor(ctx context.Context, sentinel string, timeout time.Duration, groups map[int]bool) error {
-	c, err := NewClientNoAuth(sentinel, time.Second*5)
+	c, err := NewClientNoAuth(sentinel, time.Second)
 	if err != nil {
 		return err
 	}

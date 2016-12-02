@@ -31,18 +31,13 @@ func NewClientNoAuth(addr string, timeout time.Duration) (*Client, error) {
 
 func NewClient(addr string, auth string, timeout time.Duration) (*Client, error) {
 	c, err := redigo.Dial("tcp", addr, []redigo.DialOption{
-		redigo.DialConnectTimeout(time.Second * 5),
-		redigo.DialReadTimeout(timeout), redigo.DialWriteTimeout(time.Second * 10),
+		redigo.DialConnectTimeout(time.Second),
+		redigo.DialPassword(auth),
+		redigo.DialReadTimeout(timeout),
+		redigo.DialWriteTimeout(time.Second * 5),
 	}...)
 	if err != nil {
 		return nil, errors.Trace(err)
-	}
-	if auth != "" {
-		_, err := c.Do("AUTH", auth)
-		if err != nil {
-			c.Close()
-			return nil, errors.Trace(err)
-		}
 	}
 	return &Client{
 		conn: c, addr: addr, auth: auth,
@@ -297,12 +292,19 @@ func (p *Pool) Cleanup() error {
 }
 
 func (p *Pool) GetClient(addr string) (*Client, error) {
+	c, err := p.getClientFromCache(addr)
+	if err != nil || c != nil {
+		return c, err
+	}
+	return NewClient(addr, p.auth, p.timeout)
+}
+
+func (p *Pool) getClientFromCache(addr string) (*Client, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
 		return nil, ErrClosedPool
 	}
-
 	if list := p.pool[addr]; list != nil {
 		for i := list.Len(); i != 0; i-- {
 			c := list.Remove(list.Front()).(*Client)
@@ -313,7 +315,7 @@ func (p *Pool) GetClient(addr string) (*Client, error) {
 			}
 		}
 	}
-	return NewClient(addr, p.auth, p.timeout)
+	return nil, nil
 }
 
 func (p *Pool) PutClient(c *Client) {
