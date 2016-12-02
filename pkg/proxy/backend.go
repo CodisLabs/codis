@@ -74,7 +74,7 @@ func (bc *BackendConn) KeepAlive() bool {
 }
 
 func (bc *BackendConn) newBackendReader(round int, config *Config) (*redis.Conn, chan<- *Request, error) {
-	c, err := redis.DialTimeout(bc.addr, time.Second*10,
+	c, err := redis.DialTimeout(bc.addr, time.Second*5,
 		config.BackendRecvBufsize.Int(),
 		config.BackendSendBufsize.Int())
 	if err != nil {
