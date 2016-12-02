@@ -50,6 +50,7 @@ class Dashboard():
         self.admin_addr = config.get("admin_addr", "")
 
         self.sentinel_quorum = config.get("sentinel_quorum", 2)
+        self.sentinel_down_after = config.get("sentinel_down_after", "30s")
         self.coordinator = Coordinator(config.get("coordinator", {}))
 
         if self.admin_addr == "":
@@ -70,6 +71,7 @@ class Dashboard():
             'ADMIN_ADDR': self.admin_addr,
             'ADMIN_PORT': self.admin_port,
             'SENTINEL_QUORUM': self.sentinel_quorum,
+            'SENTINEL_DOWN_AFTER': self.sentinel_down_after,
             'BIN_PATH': self.env.bin_path,
             'ETC_PATH': self.env.etc_path,
             'LOG_PATH': self.env.log_path,

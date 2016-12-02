@@ -15,6 +15,9 @@ product_auth = ""
 # Set bind address for admin(rpc), tcp only.
 admin_addr = "127.0.0.1:18080"
 
-# Set quorum value for sentinel, default is 2.
+# Set configs for redis sentinel.
 sentinel_quorum = 2
+sentinel_parallel_syncs = 1
+sentinel_down_after = "10s"
+sentinel_failover_timeout = "5m"
 

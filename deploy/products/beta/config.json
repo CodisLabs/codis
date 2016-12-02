@@ -12,7 +12,8 @@
             "name": "zookeeper",
             "addr": "10.4.10.101:2181,10.4.10.102:2181,10.4.10.103:2181,10.4.10.104:2181,10.4.10.105:2181"
         },
-        "sentinel_quorum": 2
+        "sentinel_quorum": 2,
+        "sentinel_down_after": "10s"
     },
     "proxy": {
         "min_cpu": 4,
