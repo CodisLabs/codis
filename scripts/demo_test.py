@@ -212,7 +212,7 @@ if __name__ == "__main__":
     EtcdServer()
     print("init etcd, done")
 
-    passwd = "passwd"
+    passwd = None
 
     for i in range(0, 4):
         CodisServer(16379+i, None, passwd)
