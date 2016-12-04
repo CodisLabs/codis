@@ -283,7 +283,14 @@ func (s *Topom) Stats() (*Stats, error) {
 	stats.Slots = ctx.slots
 
 	stats.Group.Models = models.SortGroup(ctx.group)
-	stats.Group.Stats = s.stats.servers
+	stats.Group.Stats = map[string]*RedisStats{}
+	for _, g := range ctx.group {
+		for _, x := range g.Servers {
+			if v := s.stats.servers[x.Addr]; v != nil {
+				stats.Group.Stats[x.Addr] = v
+			}
+		}
+	}
 
 	stats.Proxy.Models = models.SortProxy(ctx.proxy)
 	stats.Proxy.Stats = s.stats.proxies
@@ -294,7 +301,13 @@ func (s *Topom) Stats() (*Stats, error) {
 	stats.SlotAction.Progress.Failed = s.action.progress.failed.Get()
 	stats.SlotAction.Executor = s.action.executor.Get()
 
-	stats.HA.Sentinel = ctx.sentinel
+	stats.HA.Model = ctx.sentinel
+	stats.HA.Stats = map[string]*RedisStats{}
+	for _, server := range ctx.sentinel.Servers {
+		if v := s.stats.servers[server]; v != nil {
+			stats.HA.Stats[server] = v
+		}
+	}
 	stats.HA.Masters = s.ha.masters
 
 	return stats, nil
@@ -328,8 +341,10 @@ type Stats struct {
 	} `json:"slot_action"`
 
 	HA struct {
-		Sentinel *models.Sentinel `json:"sentinel,omitempty"`
-		Masters  map[int]string   `json:"masters,omitempty"`
+		Model *models.Sentinel       `json:"model"`
+		Stats map[string]*RedisStats `json:"stats"`
+
+		Masters map[int]string `json:"masters,omitempty"`
 	} `json:"sentinels"`
 }
 

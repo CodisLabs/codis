@@ -636,29 +636,46 @@
                                 </span>
                             </span>
                         </th>
-                        <th style="min-width: 260px;">
+                        <th style="min-width: 220px;">
                             Sentinels
                             <span ng-if="sentinel_out_of_sync" style="color: white; background-color: red">
                                 (OUT OF SYNC)
                             </span>
                         </th>
-                        <th style="width: 35px;"/>
+                        <th style="min-width: 35px;"/>
+                        <th style="min-width: 560px;">
+                            Status
+                        </th>
+                        <th style="min-width: 35px;"/>
                     </tr>
                     </thead>
                     <tr ng-repeat="sentinel in sentinel_servers">
                         <td style="text-align: center">
-                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel]]/monitored" style="width: 70px;" target="_blank" class="btn btn-default btn-xs active" role="button">WATCHED</a>
+                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel.server]]/monitored" style="width: 70px;" target="_blank" class="btn btn-default btn-xs active" role="button">WATCHED</a>
                         </td>
                         <td>
-                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
+                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel.server]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
                             <span>
-                                [[sentinel]]
+                                [[sentinel.server]]
                             </span>
+                        </td>
+                        <td class="button_tight_column" style="text-align: center">
+                            <button class="btn btn-danger btn-xs active" ng-if="sentinel.status == 'ERROR'"
+                                data-toggle="tooltip" data-placement="right" title="FORCE REMOVE SENTINEL [[sentinel.server]]"
+                                ng-click="delSentinel(sentinel, true)">
+                                <span class="glyphicon glyphicon-remove"></span>
+                            </button>
+                        </td>
+                        <td ng-switch="sentinel.status">
+                            <span ng-switch-when="ERROR" class="status_label_error">[[sentinel.status]]</span>
+                            <span ng-switch-when="TIMEOUT" class="status_label_warning">[[sentinel.status]]</span>
+                            <span ng-switch-when="PENDING" class="status_label_pending">[[sentinel.status]]</span>
+                            <span ng-switch-default>[[sentinel.status_text]]</span>
                         </td>
                         <td class="button_tight_column">
                             <button class="btn btn-danger btn-xs active"
-                                data-toggle="tooltip" data-placement="right" title="REMOVE SENTINEL [[sentinel]]"
-                                ng-click="delSentinel(sentinel)">
+                                data-toggle="tooltip" data-placement="right" title="REMOVE SENTINEL [[sentinel.server]]"
+                                ng-click="delSentinel(sentinel, false)">
                                 <span class="glyphicon glyphicon-minus"></span>
                             </button>
                         </td>

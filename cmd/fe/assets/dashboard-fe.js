@@ -266,21 +266,80 @@ function processProxyStats(codis_stats) {
     return {proxy_array: proxy_array, qps: qps, sessions: sessions};
 }
 
-function processSentinels(codis_stats) {
+function processSentinels(codis_stats, codis_name) {
     var ha = codis_stats.sentinels;
     var out_of_sync = false;
-    var masters = {};
     var servers = [];
-    masters = ha.masters;
+    if (ha.model != undefined) {
+        for (var i = 0; i < ha.model.servers.length; i ++) {
+            var x = {server: ha.model.servers[i]};
+            var s = ha.stats[x.server];
+            if (!s) {
+                x.status = "PENDING";
+            } else if (s.timeout) {
+                x.status = "TIMEOUT";
+            } else if (s.error) {
+                x.status = "ERROR";
+            } else {
+                x.masters = 0;
+                x.masters_down = 0;
+                x.slaves = 0;
+                x.sentinels = 0;
+                var masters = s.stats["sentinel_masters"];
+                if (masters != undefined) {
+                    for (var j = 0; j < masters; j ++) {
+                        var record = s.stats["master" + j];
+                        if (record != undefined) {
+                            var pairs = record.split(",");
+                            var dict = {};
+                            for (var t = 0; t < pairs.length; t ++) {
+                                var ss = pairs[t].split("=");
+                                if (ss.length == 2) {
+                                    dict[ss[0]] = ss[1];
+                                }
+                            }
+                            var name = dict["name"];
+                            if (name == undefined) {
+                                continue;
+                            }
+                            if (name.lastIndexOf(codis_name) != 0) {
+                                continue;
+                            }
+                            if (name.lastIndexOf("-") != codis_name.length) {
+                                continue;
+                            }
+                            x.masters ++;
+                            if (dict["status"] != "ok") {
+                                x.masters_down ++;
+                            }
+                            x.slaves += parseInt(dict["slaves"]);
+                            x.sentinels += parseInt(dict["sentinels"]);
+                        }
+                    }
+                }
+                x.status_text = "masters=" + x.masters;
+                x.status_text += ",down=" + x.masters_down;
+                var avg = 0;
+                if (x.slaves == 0) {
+                    avg = 0;
+                } else {
+                    avg = Number(x.slaves) / x.masters;
+                }
+                x.status_text += ",slaves=" + avg.toFixed(2);
+                if (x.sentinels == 0) {
+                    avg = 0;
+                } else {
+                    avg = Number(x.sentinels) / x.masters;
+                }
+                x.status_text += ",sentinels=" + avg.toFixed(2);
+            }
+            servers.push(x);
+        }
+        out_of_sync = ha.model.out_of_sync;
+    }
+    var masters = ha.masters;
     if (masters == undefined) {
         masters = {};
-    }
-    if (ha.sentinel != undefined) {
-        servers = ha.sentinel.servers;
-        out_of_sync = ha.sentinel.out_of_sync;
-    }
-    if (servers == undefined) {
-        servers = {};
     }
     return {servers:servers, masters:masters, out_of_sync: out_of_sync}
 }
@@ -491,7 +550,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.updateStats = function (codis_stats) {
             var proxy_stats = processProxyStats(codis_stats);
             var group_stats = processGroupStats(codis_stats);
-            var sentinel = processSentinels(codis_stats);
+            var sentinel = processSentinels(codis_stats, $scope.codis_name);
 
             var merge = function(obj1, obj2) {
                 if (obj1 === null || obj2 === null) {
@@ -695,7 +754,11 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.resyncSentinels = function () {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
-                alertAction("Resync All Sentinels: " + toJsonHtml($scope.sentinel_servers), function () {
+                var servers = [];
+                for (var i = 0; i < $scope.sentinel_servers.length; i ++) {
+                    servers.push($scope.sentinel_servers[i].server);
+                }
+                alertAction("Resync All Sentinels: " + toJsonHtml(servers), function () {
                     var xauth = genXAuth(codis_name);
                     var url = concatUrl("/api/topom/sentinels/resync-all/" + xauth, codis_name);
                     $http.put(url).then(function () {
@@ -720,12 +783,20 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.delSentinel = function (server_addr) {
+        $scope.delSentinel = function (sentinel, force) {
             var codis_name = $scope.codis_name;
-            if (isValidInput(codis_name) && isValidInput(server_addr)) {
-                alertAction("Remove sentinel " + server_addr, function () {
+            if (isValidInput(codis_name)) {
+                var prefix = "";
+                if (force) {
+                    prefix = "[FORCE] ";
+                }
+                alertAction(prefix + "Remove sentinel " + sentinel.server, function () {
                     var xauth = genXAuth(codis_name);
-                    var url = concatUrl("/api/topom/sentinels/del/" + xauth + "/" + server_addr + "/0", codis_name);
+                    var value = 0;
+                    if (force) {
+                        value = 1;
+                    }
+                    var url = concatUrl("/api/topom/sentinels/del/" + xauth + "/" + sentinel.server + "/" + value, codis_name);
                     $http.put(url).then(function () {
                         $scope.refreshStats();
                     }, function (failedResp) {
