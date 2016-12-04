@@ -21,13 +21,13 @@ type RedisStats struct {
 	Timeout  bool  `json:"timeout,omitempty"`
 }
 
-func (s *Topom) newRedisStats(addr string, timeout time.Duration) *RedisStats {
+func (s *Topom) newRedisStats(addr string, timeout time.Duration, do func(addr string) (map[string]string, error)) *RedisStats {
 	var ch = make(chan struct{})
 	stats := &RedisStats{}
 
 	go func() {
 		defer close(ch)
-		x, err := s.redisp.InfoFull(addr)
+		x, err := do(addr)
 		if err != nil {
 			stats.Error = rpc.NewRemoteError(err)
 		} else {
@@ -51,15 +51,21 @@ func (s *Topom) RefreshRedisStats(timeout time.Duration) (*sync2.Future, error) 
 		return nil, err
 	}
 	var fut sync2.Future
+	goStats := func(addr string, do func(addr string) (map[string]string, error)) {
+		fut.Add()
+		go func() {
+			stats := s.newRedisStats(addr, timeout, do)
+			stats.UnixTime = time.Now().Unix()
+			fut.Done(addr, stats)
+		}()
+	}
 	for _, g := range ctx.group {
 		for _, x := range g.Servers {
-			fut.Add()
-			go func(addr string) {
-				stats := s.newRedisStats(addr, timeout)
-				stats.UnixTime = time.Now().Unix()
-				fut.Done(addr, stats)
-			}(x.Addr)
+			goStats(x.Addr, s.redisp.InfoFull)
 		}
+	}
+	for _, server := range ctx.sentinel.Servers {
+		goStats(server, s.ha.redisp.Info)
 	}
 	go func() {
 		stats := make(map[string]*RedisStats)

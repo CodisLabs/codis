@@ -66,6 +66,8 @@ type Topom struct {
 	}
 
 	ha struct {
+		redisp *redis.Pool
+
 		monitor *redis.Sentinel
 		masters map[int]string
 	}
@@ -84,6 +86,8 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	s.config = config
 	s.exit.C = make(chan struct{})
 	s.redisp = redis.NewPool(config.ProductAuth, time.Second*10)
+
+	s.ha.redisp = redis.NewPool("", time.Second*5)
 
 	s.model = &models.Topom{
 		StartTime: time.Now().String(),
@@ -150,6 +154,9 @@ func (s *Topom) Close() error {
 	}
 	if s.redisp != nil {
 		s.redisp.Close()
+	}
+	if s.ha.redisp != nil {
+		s.ha.redisp.Close()
 	}
 
 	defer s.store.Close()

@@ -333,6 +333,15 @@ func (p *Pool) PutClient(c *Client) {
 	}
 }
 
+func (p *Pool) Info(addr string) (map[string]string, error) {
+	c, err := p.GetClient(addr)
+	if err != nil {
+		return nil, err
+	}
+	defer p.PutClient(c)
+	return c.Info()
+}
+
 func (p *Pool) InfoFull(addr string) (map[string]string, error) {
 	c, err := p.GetClient(addr)
 	if err != nil {
