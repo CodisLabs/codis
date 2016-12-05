@@ -356,6 +356,33 @@ function alertAction(text, callback) {
                 dialog.close();
                 callback();
             },
+        }, {
+            label: "CANCEL",
+            action: function(dialogItself){
+                dialogItself.close();
+            }
+        }],
+    });
+}
+
+function alertAction2(text, callback) {
+    BootstrapDialog.show({
+        title: "Warning !!",
+        type: "type-danger",
+        message: text,
+        closable: true,
+        buttons: [{
+            label: "JUST DO IT",
+            cssClass: "btn-danger",
+            action: function (dialog) {
+                dialog.close();
+                callback();
+            },
+        }, {
+            label: "CANCEL",
+            action: function(dialogItself){
+                dialogItself.close();
+            }
         }],
     });
 }
@@ -692,15 +719,45 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.reinitProxy = function (proxy) {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
-                alertAction("Reinit and Start proxy: " + toJsonHtml(proxy), function () {
-                    var xauth = genXAuth(codis_name);
-                    var url = concatUrl("/api/topom/proxy/reinit/" + xauth + "/" + proxy.token, codis_name);
-                    $http.put(url).then(function () {
-                        $scope.refreshStats();
-                    }, function (failedResp) {
-                        alertErrorResp(failedResp);
+                var confused = [];
+                for (var i = 0; i < $scope.group_array.length; i ++) {
+                    var group = $scope.group_array[i];
+                    var ha_real_master = -1;
+                    for (var j = 0; j < group.servers.length; j ++) {
+                        if (group.servers[j].ha_status == "ha_real_master") {
+                            ha_real_master = j;
+                        }
+                    }
+                    if (ha_real_master >= 0) {
+                        confused.push({group: group.id, logical_master: group.servers[0].server, ha_real_master: group.servers[ha_real_master].server});
+                    }
+                }
+                if (confused.length == 0) {
+                    alertAction("Reinit and Start proxy: " + toJsonHtml(proxy), function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/proxy/reinit/" + xauth + "/" + proxy.token, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
                     });
-                });
+                } else {
+                    var prompts = toJsonHtml(proxy);
+                    prompts += "\n\n";
+                    prompts += "HA: real master & logical master area conflicting: " + toJsonHtml(confused);
+                    prompts += "\n\n";
+                    prompts += "Please fix these before resync proxy-[" + proxy.token + "].";
+                    alertAction2("Reinit and Start proxy: " + prompts, function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/proxy/reinit/" + xauth + "/" + proxy.token, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
+                    });
+                }
             }
         }
 
@@ -736,18 +793,37 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 var o = {};
                 o.id = group.id;
                 o.servers = [];
+                var ha_real_master = -1;
                 for (var j = 0; j < group.servers.length; j++) {
                     o.servers.push(group.servers[j].server);
+                    if (group.servers[j].ha_status == "ha_real_master") {
+                        ha_real_master = j;
+                    }
                 }
-                alertAction("Resync Group-[" + group.id + "]: " + toJsonHtml(o), function () {
-                    var xauth = genXAuth(codis_name);
-                    var url = concatUrl("/api/topom/group/resync/" + xauth + "/" + group.id, codis_name);
-                    $http.put(url).then(function () {
-                        $scope.refreshStats();
-                    }, function (failedResp) {
-                        alertErrorResp(failedResp);
+                if (ha_real_master < 0) {
+                    alertAction("Resync Group-[" + group.id + "]: " + toJsonHtml(o), function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/group/resync/" + xauth + "/" + group.id, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
                     });
-                });
+                } else {
+                    var prompts = toJsonHtml(o);
+                    prompts += "\n\n";
+                    prompts += "HA: server[" + ha_real_master + "]=" + group.servers[ha_real_master].server + " should be the real group master, do you really want to resync group-[" + group.id + "] ??";
+                    alertAction2("Resync Group-[" + group.id + "]: " + prompts, function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/group/resync/" + xauth + "/" + group.id, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
+                    });
+                }
             }
         }
 
@@ -758,15 +834,45 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 for (var i = 0; i < $scope.sentinel_servers.length; i ++) {
                     servers.push($scope.sentinel_servers[i].server);
                 }
-                alertAction("Resync All Sentinels: " + toJsonHtml(servers), function () {
-                    var xauth = genXAuth(codis_name);
-                    var url = concatUrl("/api/topom/sentinels/resync-all/" + xauth, codis_name);
-                    $http.put(url).then(function () {
-                        $scope.refreshStats();
-                    }, function (failedResp) {
-                        alertErrorResp(failedResp);
+                var confused = [];
+                for (var i = 0; i < $scope.group_array.length; i ++) {
+                    var group = $scope.group_array[i];
+                    var ha_real_master = -1;
+                    for (var j = 0; j < group.servers.length; j ++) {
+                        if (group.servers[j].ha_status == "ha_real_master") {
+                            ha_real_master = j;
+                        }
+                    }
+                    if (ha_real_master >= 0) {
+                        confused.push({group: group.id, logical_master: group.servers[0].server, ha_real_master: group.servers[ha_real_master].server});
+                    }
+                }
+                if (confused.length == 0) {
+                    alertAction("Resync All Sentinels: " + toJsonHtml(servers), function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/sentinels/resync-all/" + xauth, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
                     });
-                });
+                } else {
+                    var prompts = toJsonHtml(servers);
+                    prompts += "\n\n";
+                    prompts += "HA: real master & logical master area conflicting: " + toJsonHtml(confused);
+                    prompts += "\n\n";
+                    prompts += "Please fix these before resync sentinels.";
+                    alertAction2("Resync All Sentinels: " + prompts, function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/sentinels/resync-all/" + xauth, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
+                    });
+                }
             }
         }
 
@@ -828,33 +934,84 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.delGroupServer = function (group_id, server_addr) {
+        $scope.delGroupServer = function (group, server_addr) {
             var codis_name = $scope.codis_name;
-            if (isValidInput(codis_name) && isValidInput(group_id) && isValidInput(server_addr)) {
-                alertAction("Remove server " + server_addr + " from Group-[" + group_id + "]", function () {
-                    var xauth = genXAuth(codis_name);
-                    var url = concatUrl("/api/topom/group/del/" + xauth + "/" + group_id + "/" + server_addr, codis_name);
-                    $http.put(url).then(function () {
-                        $scope.refreshStats();
-                    }, function (failedResp) {
-                        alertErrorResp(failedResp);
+            if (isValidInput(codis_name) && isValidInput(server_addr)) {
+                var o = {};
+                o.id = group.id;
+                o.servers = [];
+                var ha_real_master = -1;
+                for (var j = 0; j < group.servers.length; j++) {
+                    o.servers.push(group.servers[j].server);
+                    if (group.servers[j].ha_status == "ha_real_master") {
+                        ha_real_master = j;
+                    }
+                }
+                if (ha_real_master < 0 || group.servers[ha_real_master].server != server_addr) {
+                    alertAction("Remove server " + server_addr + " from Group-[" + group.id + "]: " + toJsonHtml(o), function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/group/del/" + xauth + "/" + group.id + "/" + server_addr, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
                     });
-                });
+                } else {
+                    var prompts = toJsonHtml(o);
+                    prompts += "\n\n";
+                    prompts += "HA: server[" + ha_real_master + "]=" + server_addr + " should be the real group master, do you really want to remove it ??";
+                    alertAction2("Remove server " + server_addr + " from Group-[" + group.id + "]: " + prompts, function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/group/del/" + xauth + "/" + group.id + "/" + server_addr, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
+                    });
+
+                }
             }
         }
 
-        $scope.promoteServer = function (group_id, server_addr) {
+        $scope.promoteServer = function (group, server_addr) {
             var codis_name = $scope.codis_name;
-            if (isValidInput(codis_name) && isValidInput(group_id) && isValidInput(server_addr)) {
-                alertAction("Promote server " + server_addr + " from Group-[" + group_id + "]", function () {
-                    var xauth = genXAuth(codis_name);
-                    var url = concatUrl("/api/topom/group/promote/" + xauth + "/" + group_id + "/" + server_addr, codis_name);
-                    $http.put(url).then(function () {
-                        $scope.refreshStats();
-                    }, function (failedResp) {
-                        alertErrorResp(failedResp);
+            if (isValidInput(codis_name) && isValidInput(server_addr)) {
+                var o = {};
+                o.id = group.id;
+                o.servers = [];
+                var ha_real_master = -1;
+                for (var j = 0; j < group.servers.length; j++) {
+                    o.servers.push(group.servers[j].server);
+                    if (group.servers[j].ha_status == "ha_real_master") {
+                        ha_real_master = j;
+                    }
+                }
+                if (ha_real_master < 0 || group.servers[ha_real_master].server == server_addr) {
+                    alertAction("Promote server " + server_addr + " from Group-[" + group.id + "]: " + toJsonHtml(o), function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/group/promote/" + xauth + "/" + group.id + "/" + server_addr, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
                     });
-                });
+                } else {
+                    var prompts = toJsonHtml(o);
+                    prompts += "\n\n";
+                    prompts += "HA: server[" + ha_real_master + "]=" + group.servers[ha_real_master].server + " should be the real group master, do you really want to promote " + server_addr + " ??";
+                    alertAction2("Promote server " + server_addr + " from Group-[" + group.id + "]: " + prompts, function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/group/promote/" + xauth + "/" + group.id + "/" + server_addr, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
+                    });
+                }
             }
         }
 

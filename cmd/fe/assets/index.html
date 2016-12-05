@@ -436,7 +436,7 @@
                                             <button class="btn btn-success btn-xs active"
                                                     style="width: 70px;"
                                                     data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
-                                                    ng-click="promoteServer(group.id, server.server)">
+                                                    ng-click="promoteServer(group, server.server)">
                                                 PROMPTE
                                             </button>
                                         </span>
@@ -444,7 +444,7 @@
                                             <button class="btn btn-warning btn-xs active"
                                                     style="width: 70px;"
                                                     data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
-                                                    ng-click="promoteServer(group.id, server.server)">
+                                                    ng-click="promoteServer(group, server.server)">
                                                 PROMPTE
                                             </button>
                                         </span>
@@ -474,7 +474,7 @@
                                     <button class="btn btn-danger btn-xs active"
                                             style="width: 70px;"
                                             data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
-                                            ng-click="promoteServer(group.id, server.server)">
+                                            ng-click="promoteServer(group, server.server)">
                                         PROMPTE
                                     </button>
                                 </span>
@@ -578,7 +578,7 @@
                                 <span ng-switch-when="true">
                                     <button class="btn btn-danger btn-xs active"
                                             data-toggle="tooltip" data-placement="right" title="REMOVE SERVER [[server.server]]"
-                                            ng-click="delGroupServer(group.id, server.server)">
+                                            ng-click="delGroupServer(group, server.server)">
                                         <span class="glyphicon glyphicon-minus"></span>
                                     </button>
                                 </span>
