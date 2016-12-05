@@ -24,7 +24,7 @@ const MinOffheapSlice = 1024 * 16
 
 func MakeSlice(n int) Slice {
 	if n >= MinOffheapSlice {
-		if s := newJeSlice(n, false); s != nil {
+		if s := newCGoSlice(n, false); s != nil {
 			return s
 		}
 	}
@@ -33,7 +33,7 @@ func MakeSlice(n int) Slice {
 
 func MakeOffheapSlice(n int) Slice {
 	if n >= 0 {
-		return newJeSlice(n, true)
+		return newCGoSlice(n, true)
 	}
 	panic("make slice with negative size")
 }
