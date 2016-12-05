@@ -17,17 +17,17 @@ func TestMakeGoSlice(t *testing.T) {
 	assert.Must(ok)
 }
 
-func TestMakeJeSlice(t *testing.T) {
+func TestMakeCGoSlice(t *testing.T) {
 	n := MinOffheapSlice * 2
 	SetMaxOffheapBytes(n * 2)
 
 	s1 := MakeSlice(n)
-	_, ok1 := s1.(*jeSlice)
+	_, ok1 := s1.(*cgoSlice)
 	assert.Must(ok1 && len(s1.Buffer()) == n)
 	defer FreeSlice(s1)
 
 	s2 := MakeSlice(n)
-	_, ok2 := s2.(*jeSlice)
+	_, ok2 := s2.(*cgoSlice)
 	assert.Must(ok2 && len(s2.Buffer()) == n)
 	defer FreeSlice(s2)
 
@@ -44,7 +44,7 @@ func TestMakeJeSlice(t *testing.T) {
 	assert.Must(OffheapBytes() == n)
 
 	s4 := MakeSlice(n)
-	_, ok4 := s4.(*jeSlice)
+	_, ok4 := s4.(*cgoSlice)
 	assert.Must(ok4 && len(s4.Buffer()) == n)
 	defer FreeSlice(s4)
 
