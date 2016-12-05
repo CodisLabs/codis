@@ -1,0 +1,11 @@
+*.conf
+*.toml
+*.etcd
+*.log
+*.rdb
+*.tmp
+*.swp
+
+.idea
+__pycache__
+
