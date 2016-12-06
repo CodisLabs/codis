@@ -262,6 +262,7 @@ func (s *Topom) newContext() (*context, error) {
 			ctx.group = s.cache.group
 			ctx.proxy = s.cache.proxy
 			ctx.sentinel = s.cache.sentinel
+			ctx.hosts.m = make(map[string]net.IP)
 			return ctx, nil
 		}
 	} else {
@@ -390,7 +391,7 @@ func (s *Topom) Slots() ([]*models.Slot, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ctx.toSlotSlice(ctx.slots, ""), nil
+	return ctx.toSlotSlice(ctx.slots, nil), nil
 }
 
 func (s *Topom) serveAdmin() {

@@ -4,6 +4,9 @@
 package topom
 
 import (
+	"net"
+	"sync"
+
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -18,6 +21,11 @@ type context struct {
 	proxy map[string]*models.Proxy
 
 	sentinel *models.Sentinel
+
+	hosts struct {
+		sync.Mutex
+		m map[string]net.IP
+	}
 }
 
 func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {
@@ -75,7 +83,7 @@ func (ctx *context) isSlotLocked(m *models.SlotMapping) bool {
 	return false
 }
 
-func (ctx *context) toSlot(m *models.SlotMapping, dc string) *models.Slot {
+func (ctx *context) toSlot(m *models.SlotMapping, p *models.Proxy) *models.Slot {
 	slot := &models.Slot{
 		Id:     m.Id,
 		Locked: ctx.isSlotLocked(m),
@@ -84,7 +92,7 @@ func (ctx *context) toSlot(m *models.SlotMapping, dc string) *models.Slot {
 	case models.ActionNothing, models.ActionPending:
 		slot.BackendAddr = ctx.getGroupMaster(m.GroupId)
 		slot.BackendAddrGroupId = m.GroupId
-		slot.ReplicaGroups = ctx.toReplicaGroups(m.GroupId, dc)
+		slot.ReplicaGroups = ctx.toReplicaGroups(m.GroupId, p)
 	case models.ActionPreparing:
 		slot.BackendAddr = ctx.getGroupMaster(m.GroupId)
 		slot.BackendAddrGroupId = m.GroupId
@@ -104,7 +112,23 @@ func (ctx *context) toSlot(m *models.SlotMapping, dc string) *models.Slot {
 	return slot
 }
 
-func (ctx *context) toReplicaGroups(gid int, dc string) [][]string {
+func (ctx *context) resolveIPAddr(addr string) net.IP {
+	ctx.hosts.Lock()
+	defer ctx.hosts.Unlock()
+	ip, ok := ctx.hosts.m[addr]
+	if !ok {
+		t, err := net.ResolveTCPAddr("tcp", addr)
+		if err != nil {
+			ctx.hosts.m[addr] = nil
+		} else {
+			ctx.hosts.m[addr] = t.IP
+			return t.IP
+		}
+	}
+	return ip
+}
+
+func (ctx *context) toReplicaGroups(gid int, p *models.Proxy) [][]string {
 	g := ctx.group[gid]
 	switch {
 	case g == nil:
@@ -114,14 +138,27 @@ func (ctx *context) toReplicaGroups(gid int, dc string) [][]string {
 	case len(g.Servers) <= 1:
 		return nil
 	}
-	var groups [2][]string
+	var dc string
+	var ip net.IP
+	if p != nil {
+		dc = p.DataCenter
+		ip = ctx.resolveIPAddr(p.AdminAddr)
+	}
+	getPriority := func(s *models.GroupServer) int {
+		if ip == nil || dc != s.DataCenter {
+			return 2
+		}
+		if ip.Equal(ctx.resolveIPAddr(s.Addr)) {
+			return 0
+		} else {
+			return 1
+		}
+	}
+	var groups [3][]string
 	for _, s := range g.Servers {
 		if s.ReplicaGroup {
-			if s.DataCenter == dc {
-				groups[0] = append(groups[0], s.Addr)
-			} else {
-				groups[1] = append(groups[1], s.Addr)
-			}
+			p := getPriority(s)
+			groups[p] = append(groups[p], s.Addr)
 		}
 	}
 	var replicas [][]string
@@ -133,10 +170,10 @@ func (ctx *context) toReplicaGroups(gid int, dc string) [][]string {
 	return replicas
 }
 
-func (ctx *context) toSlotSlice(slots []*models.SlotMapping, dc string) []*models.Slot {
+func (ctx *context) toSlotSlice(slots []*models.SlotMapping, p *models.Proxy) []*models.Slot {
 	var slice = make([]*models.Slot, len(slots))
 	for i, m := range slots {
-		slice[i] = ctx.toSlot(m, dc)
+		slice[i] = ctx.toSlot(m, p)
 	}
 	return slice
 }

@@ -36,7 +36,7 @@ func TestSlotState(x *testing.T) {
 		assert.MustNoError(err)
 		assert.Must(ctx.getGroupMaster(gid2) == server2)
 
-		slot := ctx.toSlot(m, "")
+		slot := ctx.toSlot(m, nil)
 
 		switch m.Action.State {
 		case models.ActionPrepared:
