@@ -23,7 +23,7 @@ func MemTotal() (int64, error) {
 	if err != nil {
 		return 0, errors.Trace(err)
 	}
-	return u.Maxrss * 1024, nil
+	return (u.Idrss + u.Isrss) * 1024, nil
 }
 
 func CPUTotal() (time.Duration, error) {
