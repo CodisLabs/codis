@@ -1,6 +1,7 @@
 *.conf
 *.toml
 *.etcd
+*.pyc
 *.log
 *.rdb
 *.tmp

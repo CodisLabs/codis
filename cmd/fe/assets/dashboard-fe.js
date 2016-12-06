@@ -236,6 +236,7 @@ function processProxyStats(codis_stats) {
         p.sessions = "NA";
         p.commands = "NA";
         p.switched = false;
+        p.primary_only = false;
         if (!s) {
             p.status = "PENDING";
         } else if (s.timeout) {
@@ -257,6 +258,11 @@ function processProxyStats(codis_stats) {
             if (s.stats.sentinels != undefined) {
                 if (s.stats.sentinels.switched != undefined) {
                     p.switched = s.stats.sentinels.switched;
+                }
+            }
+            if (s.stats.backend != undefined) {
+                if (s.stats.backend.primary_only != undefined) {
+                    p.primary_only = s.stats.backend.primary_only;
                 }
             }
             qps += s.stats.ops.qps;

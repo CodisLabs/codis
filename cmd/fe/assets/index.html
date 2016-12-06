@@ -137,7 +137,11 @@
                         <td class="text-center">[[proxy.id]]</td>
                         <td>
                             <a ng-href="http://[[proxy.proxy_link]]" target="_blank" class="btn btn-primary btn-xs active" role="button">F</a>
-                            <a ng-href="http://[[proxy.stats_link]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
+                            <a ng-href="http://[[proxy.stats_link]]" target="_blank" class="btn btn-default btn-xs active" role="button">
+                                <span ng-if="proxy.primary_only" style="color: DarkRed; font-weight: bold;"
+                                    data-toggle="tooltip" data-placement="right" title="BACKEND: PRIMARY ONLY">S</span>
+                                <span ng-if="!proxy.primary_only">S</span>
+                            </a>
                         </td>
                         <td ng-switch="proxy.switched">
                             <span ng-switch-when="true" style="color: white; background-color: red"

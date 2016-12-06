@@ -477,6 +477,10 @@ type Stats struct {
 		CPU float64 `json:"cpu"`
 	} `json:"rusage"`
 
+	Backend struct {
+		PrimaryOnly bool `json:"primary_only"`
+	} `json:"backend"`
+
 	Runtime *RuntimeStats `json:"runtime,omitempty"`
 }
 
@@ -560,6 +564,8 @@ func (s *Proxy) Stats(flags StatsFlags) *Stats {
 
 	stats.Rusage.Mem = GetSysMemTotal()
 	stats.Rusage.CPU = GetSysCPUUsage()
+
+	stats.Backend.PrimaryOnly = s.Config().BackendPrimaryOnly
 
 	if flags.HasBit(StatsRuntime) {
 		var r runtime.MemStats
