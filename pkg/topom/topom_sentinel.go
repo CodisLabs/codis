@@ -170,10 +170,12 @@ func (s *Topom) ResyncSentinels() error {
 	}
 
 	config := &redis.MonitorConfig{
-		Quorum:          s.config.SentinelQuorum,
-		ParallelSyncs:   s.config.SentinelParallelSyncs,
-		DownAfter:       s.config.SentinelDownAfter.Get(),
-		FailoverTimeout: s.config.SentinelFailoverTimeout.Get(),
+		Quorum:               s.config.SentinelQuorum,
+		ParallelSyncs:        s.config.SentinelParallelSyncs,
+		DownAfter:            s.config.SentinelDownAfter.Get(),
+		FailoverTimeout:      s.config.SentinelFailoverTimeout.Get(),
+		NotificationScript:   s.config.SentinelNotificationScript,
+		ClientReconfigScript: s.config.SentinelClientReconfigScript,
 	}
 
 	sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)

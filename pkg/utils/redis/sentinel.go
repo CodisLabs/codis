@@ -269,6 +269,9 @@ type MonitorConfig struct {
 	ParallelSyncs   int
 	DownAfter       time.Duration
 	FailoverTimeout time.Duration
+
+	NotificationScript   string
+	ClientReconfigScript string
 }
 
 func (s *Sentinel) monitor(ctx context.Context, sentinel string, timeout time.Duration, masters map[int]string, config *MonitorConfig) error {
@@ -302,17 +305,23 @@ func (s *Sentinel) monitor(ctx context.Context, sentinel string, timeout time.Du
 			switch _, err := c.Do("SENTINEL", "monitor", node, host, port, config.Quorum); {
 			case err != nil:
 				return err
-			case s.auth != "":
-				_, err := c.Do("SENTINEL", "set", node, "auth-pass", s.auth)
-				if err != nil {
-					return err
-				}
-				fallthrough
 			default:
-				_, err := c.Do("SENTINEL", "set", node,
+				var args = []interface{}{
+					"set", node,
 					"parallel-syncs", config.ParallelSyncs,
-					"down-after-milliseconds", int(config.DownAfter/time.Millisecond),
-					"failover-timeout", int(config.FailoverTimeout/time.Millisecond))
+					"down-after-milliseconds", int(config.DownAfter / time.Millisecond),
+					"failover-timeout", int(config.FailoverTimeout / time.Millisecond),
+				}
+				if s.auth != "" {
+					args = append(args, "auth-pass", s.auth)
+				}
+				if config.NotificationScript != "" {
+					args = append(args, "notification-script", config.NotificationScript)
+				}
+				if config.ClientReconfigScript != "" {
+					args = append(args, "client-reconfig-script", config.ClientReconfigScript)
+				}
+				_, err := c.Do("SENTINEL", args...)
 				if err != nil {
 					return err
 				}

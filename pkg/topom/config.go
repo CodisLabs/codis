@@ -36,6 +36,8 @@ sentinel_quorum = 2
 sentinel_parallel_syncs = 1
 sentinel_down_after = "30s"
 sentinel_failover_timeout = "5m"
+sentinel_notification_script = ""
+sentinel_client_reconfig_script = ""
 `
 
 type Config struct {
@@ -49,10 +51,12 @@ type Config struct {
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
 
-	SentinelQuorum          int               `toml:"sentinel_quorum" json:"sentinel_quorum"`
-	SentinelParallelSyncs   int               `toml:"sentinel_parallel_syncs" json:"sentinel_parallel_syncs"`
-	SentinelDownAfter       timesize.Duration `toml:"sentinel_down_after" json:"sentinel_down_after"`
-	SentinelFailoverTimeout timesize.Duration `toml:"sentinel_failover_timeout" json:"sentinel_failover_timeout"`
+	SentinelQuorum               int               `toml:"sentinel_quorum" json:"sentinel_quorum"`
+	SentinelParallelSyncs        int               `toml:"sentinel_parallel_syncs" json:"sentinel_parallel_syncs"`
+	SentinelDownAfter            timesize.Duration `toml:"sentinel_down_after" json:"sentinel_down_after"`
+	SentinelFailoverTimeout      timesize.Duration `toml:"sentinel_failover_timeout" json:"sentinel_failover_timeout"`
+	SentinelNotificationScript   string            `toml:"sentinel_notification_script" json:"sentinel_notification_script"`
+	SentinelClientReconfigScript string            `toml:"sentinel_client_reconfig_script" json:"sentinel_client_reconfig_script"`
 }
 
 func NewDefaultConfig() *Config {

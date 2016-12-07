@@ -34,6 +34,9 @@ class CodisDashboard(Process):
             f.write('admin_addr = ":{}"\n'.format(admin_port))
             f.write('sentinel_down_after = "5s"\n')
             f.write('sentinel_failover_timeout = "10m"\n')
+            path = os.getcwd()
+            f.write('sentinel_notification_script = "{}"\n'.format(os.path.join(path, "sentinel_notify.sh")))
+            f.write('sentinel_client_reconfig_script = "{}"\n'.format(os.path.join(path, "sentinel_reconfig.sh")))
         return config
 
 
