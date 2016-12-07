@@ -277,6 +277,9 @@ function processSentinels(codis_stats, codis_name) {
     var out_of_sync = false;
     var servers = [];
     if (ha.model != undefined) {
+        if (ha.model.servers == undefined) {
+            ha.model.servers = []
+        }
         for (var i = 0; i < ha.model.servers.length; i ++) {
             var x = {server: ha.model.servers[i]};
             var s = ha.stats[x.server];
