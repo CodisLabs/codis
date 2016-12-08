@@ -39,6 +39,7 @@ class CodisProxy(Process):
             f.write('proxy_datacenter = "localhost"\n')
             f.write('proxy_heap_placeholder = "0"\n')
             f.write('proxy_max_offheap_size = "0"\n')
+            f.write('session_break_on_failure = false\n')
         return config
 
 

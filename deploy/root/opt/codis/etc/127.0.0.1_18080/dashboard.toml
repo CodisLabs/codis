@@ -20,4 +20,6 @@ sentinel_quorum = 2
 sentinel_parallel_syncs = 1
 sentinel_down_after = "10s"
 sentinel_failover_timeout = "5m"
+sentinel_notification_script = ""
+sentinel_client_reconfig_script = ""
 
