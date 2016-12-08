@@ -461,10 +461,13 @@ type Stats struct {
 	} `json:"sentinels"`
 
 	Ops struct {
-		Total int64      `json:"total"`
-		Fails int64      `json:"fails"`
-		QPS   int64      `json:"qps"`
-		Cmd   []*OpStats `json:"cmd,omitempty"`
+		Total int64 `json:"total"`
+		Fails int64 `json:"fails"`
+		Redis struct {
+			Errors int64 `json:"errors"`
+		} `json:"redis"`
+		QPS int64      `json:"qps"`
+		Cmd []*OpStats `json:"cmd,omitempty"`
 	} `json:"ops"`
 
 	Sessions struct {
@@ -553,6 +556,7 @@ func (s *Proxy) Stats(flags StatsFlags) *Stats {
 
 	stats.Ops.Total = OpTotal()
 	stats.Ops.Fails = OpFails()
+	stats.Ops.Redis.Errors = OpRedisErrors()
 	stats.Ops.QPS = OpQPS()
 
 	if flags.HasBit(StatsCmds) {

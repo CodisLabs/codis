@@ -246,7 +246,11 @@ function processProxyStats(codis_stats) {
         } else {
             if (s.stats.online) {
                 p.sessions = "total=" + s.stats.sessions.total + ",alive=" + s.stats.sessions.alive;
-                p.commands = "total=" + s.stats.ops.total + ",fails=" + s.stats.ops.fails + ",qps=" + s.stats.ops.qps;
+                p.commands = "total=" + s.stats.ops.total + ",fails=" + s.stats.ops.fails;
+                if (s.stats.ops.redis != undefined) {
+                    p.commands += ",errors=" + s.stats.ops.redis.errors;
+                }
+                p.commands += ",qps=" + s.stats.ops.qps;
                 p.status = "HEALTHY";
             } else {
                 p.status = "PENDING";

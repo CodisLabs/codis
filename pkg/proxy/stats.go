@@ -17,6 +17,10 @@ type opStats struct {
 	opstr string
 	calls atomic2.Int64
 	nsecs atomic2.Int64
+	fails atomic2.Int64
+	redis struct {
+		errors atomic2.Int64
+	}
 }
 
 func (s *opStats) OpStats() *OpStats {
@@ -24,10 +28,12 @@ func (s *opStats) OpStats() *OpStats {
 		OpStr: s.opstr,
 		Calls: s.calls.Get(),
 		Usecs: s.nsecs.Get() / 1e3,
+		Fails: s.fails.Get(),
 	}
 	if o.Calls != 0 {
 		o.UsecsPercall = o.Usecs / o.Calls
 	}
+	o.RedisErrType = s.redis.errors.Get()
 	return o
 }
 
@@ -36,14 +42,19 @@ type OpStats struct {
 	Calls        int64  `json:"calls"`
 	Usecs        int64  `json:"usecs"`
 	UsecsPercall int64  `json:"usecs_percall"`
+	Fails        int64  `json:"fails"`
+	RedisErrType int64  `json:"redis_errtype"`
 }
 
 var cmdstats struct {
 	sync.RWMutex
 
+	opmap map[string]*opStats
 	total atomic2.Int64
 	fails atomic2.Int64
-	opmap map[string]*opStats
+	redis struct {
+		errors atomic2.Int64
+	}
 
 	qps atomic2.Int64
 }
@@ -68,6 +79,10 @@ func OpTotal() int64 {
 
 func OpFails() int64 {
 	return cmdstats.fails.Get()
+}
+
+func OpRedisErrors() int64 {
+	return cmdstats.redis.errors.Get()
 }
 
 func OpQPS() int64 {
@@ -125,6 +140,7 @@ func ResetStats() {
 
 	cmdstats.total.Set(0)
 	cmdstats.fails.Set(0)
+	cmdstats.redis.errors.Set(0)
 	sessions.total.Set(sessions.alive.Get())
 }
 
@@ -132,14 +148,18 @@ func incrOpTotal(n int64) {
 	cmdstats.total.Add(n)
 }
 
-func incrOpFails() {
-	cmdstats.fails.Incr()
-}
-
-func incrOpStats(opstr string, calls int64, nsecs int64) {
-	s := getOpStats(opstr, true)
-	s.calls.Add(calls)
-	s.nsecs.Add(nsecs)
+func incrOpStats(e *opStats) {
+	s := getOpStats(e.opstr, true)
+	s.calls.Add(e.calls.Swap(0))
+	s.nsecs.Add(e.nsecs.Swap(0))
+	if n := e.fails.Swap(0); n != 0 {
+		s.fails.Add(n)
+		cmdstats.fails.Add(n)
+	}
+	if n := e.redis.errors.Swap(0); n != 0 {
+		s.redis.errors.Add(n)
+		cmdstats.redis.errors.Add(n)
+	}
 }
 
 var sessions struct {

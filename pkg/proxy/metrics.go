@@ -91,6 +91,7 @@ func (p *Proxy) startMetricsInfluxdb() {
 		fields := map[string]interface{}{
 			"ops_total":                stats.Ops.Total,
 			"ops_fails":                stats.Ops.Fails,
+			"ops_redis_errors":         stats.Ops.Redis.Errors,
 			"ops_qps":                  stats.Ops.QPS,
 			"sessions_total":           stats.Sessions.Total,
 			"sessions_alive":           stats.Sessions.Alive,
