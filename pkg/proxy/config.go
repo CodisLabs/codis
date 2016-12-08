@@ -90,6 +90,9 @@ session_max_pipeline = 512
 # Set session tcp keepalive period. (0 to disable)
 session_keepalive_period = "75s"
 
+# Set session to be sensitive to failures. Default is false, instead of closing socket, proxy will send an error response to client.
+session_break_on_failure = false
+
 # Set metrics server (such as http://localhost:28000), proxy will report json formatted metrics to specified server in a predefined period.
 metrics_report_server = ""
 metrics_report_period = "1s"
@@ -140,6 +143,7 @@ type Config struct {
 	SessionSendTimeout     timesize.Duration `toml:"session_send_timeout" json:"session_send_timeout"`
 	SessionMaxPipeline     int               `toml:"session_max_pipeline" json:"session_max_pipeline"`
 	SessionKeepAlivePeriod timesize.Duration `toml:"session_keepalive_period" json:"session_keepalive_period"`
+	SessionBreakOnFailure  bool              `toml:"session_break_on_failure" json:"session_break_on_failure"`
 
 	MetricsReportServer           string            `toml:"metrics_report_server" json:"metrics_report_server"`
 	MetricsReportPeriod           timesize.Duration `toml:"metrics_report_period" json:"metrics_report_period"`
