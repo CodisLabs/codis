@@ -249,14 +249,14 @@ const MaxOpStrLen = 64
 
 func getOpInfo(multi []*redis.Resp) (string, OpFlag, error) {
 	if len(multi) < 1 {
-		return "", 0, errors.Trace(ErrBadMultiBulk)
+		return "", 0, ErrBadMultiBulk
 	}
 
 	var upper [MaxOpStrLen]byte
 
 	var op = multi[0].Value
 	if len(op) == 0 || len(op) > len(upper) {
-		return "", 0, errors.Trace(ErrBadOpStrLen)
+		return "", 0, ErrBadOpStrLen
 	}
 	for i := range op {
 		if c := charmap[op[i]]; c != 0 {

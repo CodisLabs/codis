@@ -88,11 +88,11 @@ var (
 
 func (s *Slot) prepare(r *Request, hkey []byte) (*BackendConn, error) {
 	if s.backend.bc == nil {
-		log.Warnf("slot-%04d is not ready: hkey = %s", s.id, hkey)
+		log.Debugf("slot-%04d is not ready: hash key = '%s'", s.id, hkey)
 		return nil, ErrSlotIsNotReady
 	}
 	if err := s.slotsmgrt(r, hkey); err != nil {
-		log.Warnf("slot-%04d migrate from = %s to %s failed: hkey = %s, error = %s",
+		log.Debugf("slot-%04d migrate from = %s to %s failed: hash key = '%s', error = %s",
 			s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, err)
 		return nil, err
 	} else {
@@ -128,13 +128,13 @@ func (s *Slot) slotsmgrt(r *Request, hkey []byte) error {
 	case resp == nil:
 		return ErrRespIsRequired
 	case resp.IsError():
-		return fmt.Errorf("error resp: %s", resp.Value)
+		return fmt.Errorf("bad slotsmgrt resp: %s", resp.Value)
 	case resp.IsInt():
-		log.Debugf("slot-%04d migrate from %s to %s: hkey = %s, resp = %s",
+		log.Debugf("slot-%04d migrate from %s to %s: hash key = %s, resp = %s",
 			s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, resp.Value)
 		return nil
 	default:
-		return fmt.Errorf("error resp: should be integer, but got %s", resp.Type)
+		return fmt.Errorf("bad slotsmgrt resp: should be integer, but got %s", resp.Type)
 	}
 }
 
