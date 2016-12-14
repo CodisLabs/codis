@@ -196,7 +196,7 @@ func AutoGOMAXPROCS(min, max int) {
 		var less, more int
 		var usage [10]float64
 		for i := 0; i < len(usage) && more == 0; i++ {
-			u, err := utils.CPUUsage(time.Second)
+			u, _, err := utils.CPUUsage(time.Second)
 			if err != nil {
 				log.WarnErrorf(err, "get cpu usage failed")
 				time.Sleep(time.Second * 30)

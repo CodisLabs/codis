@@ -476,8 +476,10 @@ type Stats struct {
 	} `json:"sessions"`
 
 	Rusage struct {
-		Mem int64   `json:"mem"`
-		CPU float64 `json:"cpu"`
+		Now string       `json:"now"`
+		CPU float64      `json:"cpu"`
+		Mem int64        `json:"mem"`
+		Raw *utils.Usage `json:"raw,omitempty"`
 	} `json:"rusage"`
 
 	Backend struct {
@@ -566,8 +568,12 @@ func (s *Proxy) Stats(flags StatsFlags) *Stats {
 	stats.Sessions.Total = SessionsTotal()
 	stats.Sessions.Alive = SessionsAlive()
 
-	stats.Rusage.Mem = GetSysMemTotal()
-	stats.Rusage.CPU = GetSysCPUUsage()
+	if u := GetSysUsage(); u != nil {
+		stats.Rusage.Now = u.Now.String()
+		stats.Rusage.CPU = u.CPU
+		stats.Rusage.Mem = u.MemTotal()
+		stats.Rusage.Raw = u.Usage
+	}
 
 	stats.Backend.PrimaryOnly = s.Config().BackendPrimaryOnly
 
