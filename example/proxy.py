@@ -47,7 +47,7 @@ if __name__ == "__main__":
     children = []
     atexit.register(kill_all, children)
 
-    product_name = "demo_test"
+    product_name = "demo-test"
     product_auth = None
 
     for i in range(0, 4):

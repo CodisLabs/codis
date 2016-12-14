@@ -44,7 +44,7 @@ if __name__ == "__main__":
     children = []
     atexit.register(kill_all, children)
 
-    product_name = "demo_test"
+    product_name = "demo-test"
     product_auth = None
 
     children.append(CodisDashboard(18080, product_name, product_auth))

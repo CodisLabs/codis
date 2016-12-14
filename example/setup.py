@@ -25,7 +25,7 @@ if __name__ == "__main__":
     children = []
     atexit.register(kill_all, children)
 
-    product_name = "demo_test"
+    product_name = "demo-test"
     product_auth = None
 
     # step 1. setup etcd & codis-server & codis-sentinel

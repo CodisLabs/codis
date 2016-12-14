@@ -5,14 +5,16 @@ export GO15VENDOREXPERIMENT=1
 build-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe
 
 codis-deps:
-	@mkdir -p bin && bash version
+	@mkdir -p bin config && bash version
 	@make --no-print-directory -C vendor/github.com/spinlock/jemalloc-go/
 
 codis-dashboard: codis-deps
 	go build -i -o bin/codis-dashboard ./cmd/dashboard
+	@./bin/codis-dashboard --default-config > config/dashboard.toml
 
 codis-proxy: codis-deps
 	go build -i -o bin/codis-proxy ./cmd/proxy
+	@./bin/codis-proxy --default-config > config/proxy.toml
 
 codis-admin: codis-deps
 	go build -i -o bin/codis-admin ./cmd/admin
