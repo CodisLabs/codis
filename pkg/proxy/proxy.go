@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -455,9 +456,9 @@ type Stats struct {
 	Closed bool `json:"closed"`
 
 	Sentinels struct {
-		Servers  []string       `json:"servers,omitempty"`
-		Masters  map[int]string `json:"masters,omitempty"`
-		Switched bool           `json:"switched,omitempty"`
+		Servers  []string          `json:"servers,omitempty"`
+		Masters  map[string]string `json:"masters,omitempty"`
+		Switched bool              `json:"switched,omitempty"`
 	} `json:"sentinels"`
 
 	Ops struct {
@@ -552,8 +553,15 @@ func (s *Proxy) Stats(flags StatsFlags) *Stats {
 	stats.Closed = s.IsClosed()
 
 	servers, masters := s.GetSentinels()
-	stats.Sentinels.Servers = servers
-	stats.Sentinels.Masters = masters
+	if servers != nil {
+		stats.Sentinels.Servers = servers
+	}
+	if masters != nil {
+		stats.Sentinels.Masters = make(map[string]string)
+		for gid, addr := range masters {
+			stats.Sentinels.Masters[strconv.Itoa(gid)] = addr
+		}
+	}
 	stats.Sentinels.Switched = s.HasSwitched()
 
 	stats.Ops.Total = OpTotal()

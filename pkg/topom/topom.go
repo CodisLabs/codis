@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -309,8 +310,12 @@ func (s *Topom) Stats() (*Stats, error) {
 			stats.HA.Stats[server] = v
 		}
 	}
-	stats.HA.Masters = s.ha.masters
-
+	stats.HA.Masters = make(map[string]string)
+	if s.ha.masters != nil {
+		for gid, addr := range s.ha.masters {
+			stats.HA.Masters[strconv.Itoa(gid)] = addr
+		}
+	}
 	return stats, nil
 }
 
@@ -342,10 +347,9 @@ type Stats struct {
 	} `json:"slot_action"`
 
 	HA struct {
-		Model *models.Sentinel       `json:"model"`
-		Stats map[string]*RedisStats `json:"stats"`
-
-		Masters map[int]string `json:"masters,omitempty"`
+		Model   *models.Sentinel       `json:"model"`
+		Stats   map[string]*RedisStats `json:"stats"`
+		Masters map[string]string      `json:"masters"`
 	} `json:"sentinels"`
 }
 
