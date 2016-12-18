@@ -23,7 +23,7 @@ def generate(path, name, content):
 
 
 def generate_bash(path, name, content):
-    content = "#!/usr/bin/env bash\n\n" + content + "\n"
+    content = "#!/usr/bin/env bash\n\nset -x\nset -e\n\n" + content + "\n"
     generate(path, name, content)
     file = os.path.join(path, name)
     os.chmod(file, os.stat(file).st_mode | stat.S_IEXEC)
@@ -87,19 +87,19 @@ class Dashboard():
         admin = os.path.join(self.env.bin_path, "codis-admin")
         generate_bash(base, "dashboard_admin", "{} --dashboard={} $@".format(admin, self.admin_addr))
 
-        scripts = 'set -x\nlet d=1\n'
+        scripts = 'let d=1\n'
         for p in proxylist:
             scripts += "sleep $d; {} --dashboard={} --online-proxy --addr={}".format(admin, self.admin_addr, p.admin_addr)
             scripts += "\n"
         generate_bash(base, "foreach_proxy_online", scripts)
 
-        scripts = 'set -x\nlet d=1\n'
+        scripts = 'let d=1\n'
         for p in proxylist:
             scripts += "sleep $d; {} --dashboard={} --reinit-proxy --addr={}".format(admin, self.admin_addr, p.admin_addr)
             scripts += "\n"
         generate_bash(base, "foreach_proxy_reinit", scripts)
 
-        scripts = 'set -x\nlet d=1\n'
+        scripts = 'let d=1\n'
         for p in proxylist:
             scripts += "sleep $d; {} --proxy={} $@".format(admin, p.admin_addr)
             scripts += "\n"
