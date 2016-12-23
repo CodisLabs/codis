@@ -87,19 +87,19 @@ class Dashboard():
         admin = os.path.join(self.env.bin_path, "codis-admin")
         generate_bash(base, "dashboard_admin", "{} --dashboard={} $@".format(admin, self.admin_addr))
 
-        scripts = 'let d=1\n'
+        scripts = 'd=1\n'
         for p in proxylist:
             scripts += "sleep $d; {} --dashboard={} --online-proxy --addr={}".format(admin, self.admin_addr, p.admin_addr)
             scripts += "\n"
         generate_bash(base, "foreach_proxy_online", scripts)
 
-        scripts = 'let d=1\n'
+        scripts = 'd=1\n'
         for p in proxylist:
             scripts += "sleep $d; {} --dashboard={} --reinit-proxy --addr={}".format(admin, self.admin_addr, p.admin_addr)
             scripts += "\n"
         generate_bash(base, "foreach_proxy_reinit", scripts)
 
-        scripts = 'let d=1\n'
+        scripts = 'd=1\n'
         for p in proxylist:
             scripts += "sleep $d; {} --proxy={} $@".format(admin, p.admin_addr)
             scripts += "\n"
