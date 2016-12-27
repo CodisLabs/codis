@@ -265,7 +265,8 @@ func (s *Topom) SlotsAssignGroup(slots []*models.SlotMapping) error {
 	}
 
 	for _, m := range slots {
-		if _, err := ctx.getSlotMapping(m.Id); err != nil {
+		_, err := ctx.getSlotMapping(m.Id)
+		if err != nil {
 			return err
 		}
 		g, err := ctx.getGroup(m.GroupId)
@@ -280,7 +281,7 @@ func (s *Topom) SlotsAssignGroup(slots []*models.SlotMapping) error {
 		}
 	}
 
-	for _, m := range slots {
+	for i, m := range slots {
 		if g := ctx.group[m.GroupId]; !g.OutOfSync {
 			defer s.dirtyGroupCache(g.Id)
 			g.OutOfSync = true
@@ -288,16 +289,51 @@ func (s *Topom) SlotsAssignGroup(slots []*models.SlotMapping) error {
 				return err
 			}
 		}
+		slots[i] = &models.SlotMapping{
+			Id: m.Id, GroupId: m.GroupId,
+		}
 	}
 
 	for _, m := range slots {
 		defer s.dirtySlotsCache(m.Id)
 
-		m = &models.SlotMapping{
-			Id:      m.Id,
-			GroupId: m.GroupId,
-		}
 		log.Warnf("slot-[%d] will be mapped to group-[%d]", m.Id, m.GroupId)
+
+		if err := s.storeUpdateSlotMapping(m); err != nil {
+			return err
+		}
+	}
+	return s.resyncSlotMappings(ctx, slots...)
+}
+
+func (s *Topom) SlotsAssignOffline(slots []*models.SlotMapping) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+
+	for _, m := range slots {
+		_, err := ctx.getSlotMapping(m.Id)
+		if err != nil {
+			return err
+		}
+		if m.GroupId != 0 {
+			return errors.Errorf("group of slot-[%d] should be 0", m.Id)
+		}
+	}
+
+	for i, m := range slots {
+		slots[i] = &models.SlotMapping{
+			Id: m.Id,
+		}
+	}
+
+	for _, m := range slots {
+		defer s.dirtySlotsCache(m.Id)
+
+		log.Warnf("slot-[%d] will be mapped to group-[%d] (offline)", m.Id, m.GroupId)
 
 		if err := s.storeUpdateSlotMapping(m); err != nil {
 			return err

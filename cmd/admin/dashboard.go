@@ -209,7 +209,34 @@ func (t *cmdDashboard) handleSlotsCommand(d map[string]interface{}) {
 		}
 		fmt.Println(string(b))
 
-	case d["--slots-assign"].(bool):
+	case d["--slots-assign"].(bool) && d["--offline"].(bool):
+
+		beg := utils.ArgumentIntegerMust(d, "--beg")
+		end := utils.ArgumentIntegerMust(d, "--end")
+
+		slots := []*models.SlotMapping{}
+		for i := beg; i <= end; i++ {
+			slots = append(slots, &models.SlotMapping{
+				Id: i,
+			})
+		}
+
+		if !d["--confirm"].(bool) {
+			b, err := json.MarshalIndent(slots, "", "    ")
+			if err != nil {
+				log.PanicErrorf(err, "json marshal failed")
+			}
+			fmt.Println(string(b))
+			return
+		}
+
+		log.Debugf("call rpc slots-assign to dashboard %s", t.addr)
+		if err := c.SlotsAssignOffline(slots); err != nil {
+			log.PanicErrorf(err, "call rpc slots-assign to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc slots-assign OK")
+
+	case d["--slots-assign"].(bool) && !d["--offline"].(bool):
 
 		beg := utils.ArgumentIntegerMust(d, "--beg")
 		end := utils.ArgumentIntegerMust(d, "--end")

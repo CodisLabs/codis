@@ -106,6 +106,7 @@ func newApiServer(t *Topom) http.Handler {
 				r.Put("/disabled/:xauth/:value", api.SetSlotActionDisabled)
 			})
 			r.Put("/assign/:xauth", binding.Json([]*models.SlotMapping{}), api.SlotsAssignGroup)
+			r.Put("/assign/:xauth/offline", binding.Json([]*models.SlotMapping{}), api.SlotsAssignOffline)
 		})
 		r.Group("/sentinels", func(r martini.Router) {
 			r.Put("/add/:xauth/:addr", api.AddSentinel)
@@ -664,6 +665,16 @@ func (s *apiServer) SlotsAssignGroup(slots []*models.SlotMapping, params martini
 	return rpc.ApiResponseJson("OK")
 }
 
+func (s *apiServer) SlotsAssignOffline(slots []*models.SlotMapping, params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.SlotsAssignOffline(slots); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	return rpc.ApiResponseJson("OK")
+}
+
 type ApiClient struct {
 	addr  string
 	xauth string
@@ -860,5 +871,10 @@ func (c *ApiClient) SetSlotActionDisabled(disabled bool) error {
 
 func (c *ApiClient) SlotsAssignGroup(slots []*models.SlotMapping) error {
 	url := c.encodeURL("/api/topom/slots/assign/%s", c.xauth)
+	return rpc.ApiPutJson(url, slots, nil)
+}
+
+func (c *ApiClient) SlotsAssignOffline(slots []*models.SlotMapping) error {
+	url := c.encodeURL("/api/topom/slots/assign/%s/offline", c.xauth)
 	return rpc.ApiPutJson(url, slots, nil)
 }

@@ -22,7 +22,7 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR           [config|model|stats|slots|group|proxy]
 	codis-admin [-v] --dashboard=ADDR            --shutdown
 	codis-admin [-v] --dashboard=ADDR            --log-level=LEVEL
-	codis-admin [-v] --dashboard=ADDR            --slots-assign   --beg=ID --end=ID --gid=ID [--confirm]
+	codis-admin [-v] --dashboard=ADDR            --slots-assign   --beg=ID --end=ID (--gid=ID|--offline) [--confirm]
 	codis-admin [-v] --dashboard=ADDR            --slots-status
 	codis-admin [-v] --dashboard=ADDR            --list-proxy
 	codis-admin [-v] --dashboard=ADDR            --create-proxy   --addr=ADDR
