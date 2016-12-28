@@ -353,17 +353,19 @@ func (s *Sentinel) Monitor(masters map[int]string, config *MonitorConfig, timeou
 		}(sentinels[i])
 	}
 
+	var err error
+
 	for _ = range sentinels {
 		select {
 		case <-s.Context.Done():
-			return nil
-		case err := <-results:
-			if err != nil {
-				return err
+			return err
+		case e := <-results:
+			if e != nil {
+				err = e
 			}
 		}
 	}
-	return nil
+	return err
 }
 
 func (s *Sentinel) unmonitor(ctx context.Context, sentinel string, timeout time.Duration, groups map[int]bool) error {
@@ -418,17 +420,19 @@ func (s *Sentinel) Unmonitor(groups map[int]bool, timeout time.Duration, sentine
 		}(sentinels[i])
 	}
 
+	var err error
+
 	for _ = range sentinels {
 		select {
 		case <-s.Context.Done():
-			return nil
-		case err := <-results:
-			if err != nil {
-				return err
+			return err
+		case e := <-results:
+			if e != nil {
+				err = e
 			}
 		}
 	}
-	return nil
+	return err
 }
 
 func (s *Sentinel) InfoMonitored(sentinel string, timeout time.Duration) (map[string]interface{}, error) {
