@@ -53,3 +53,6 @@ gobench: codis-deps
 
 docker:
 	docker build --force-rm -t codis-image .
+
+demo:
+	pushd example && make
