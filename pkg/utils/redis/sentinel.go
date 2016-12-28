@@ -233,8 +233,10 @@ func (s *Sentinel) Masters(groups map[int]bool, timeout time.Duration, sentinels
 		}(sentinels[i])
 	}
 
+	var majority = 1 + len(sentinels)/2
+
 	masters := make(map[int]string)
-	counter := make(map[int]int)
+	tickets := make(map[int]map[string]int)
 
 	for _ = range sentinels {
 		select {
@@ -243,19 +245,16 @@ func (s *Sentinel) Masters(groups map[int]bool, timeout time.Duration, sentinels
 		case m := <-results:
 			if m != nil {
 				for gid, addr := range m {
-					if masters[gid] == addr {
-						counter[gid]++
+					if masters[gid] != "" {
 						continue
 					}
-					switch counter[gid] {
-					case 0:
+					if tickets[gid] == nil {
+						tickets[gid] = make(map[string]int)
+					}
+					tickets[gid][addr] += 1
+
+					if tickets[gid][addr] >= majority {
 						masters[gid] = addr
-						counter[gid]++
-					case 1:
-						delete(masters, gid)
-						fallthrough
-					default:
-						counter[gid]--
 					}
 				}
 			}
