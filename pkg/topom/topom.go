@@ -398,6 +398,17 @@ func (s *Topom) Slots() ([]*models.Slot, error) {
 	return ctx.toSlotSlice(ctx.slots, nil), nil
 }
 
+func (s *Topom) Reload() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, err := s.newContext()
+	if err != nil {
+		return err
+	}
+	defer s.dirtyCacheAll()
+	return nil
+}
+
 func (s *Topom) serveAdmin() {
 	if s.IsClosed() {
 		return

@@ -30,6 +30,8 @@ func (t *cmdDashboard) Main(d map[string]interface{}) {
 
 	case d["--shutdown"].(bool):
 		t.handleShutdown(d)
+	case d["--reload"].(bool):
+		t.handleReload(d)
 	case d["--log-level"] != nil:
 		t.handleLogLevel(d)
 
@@ -187,6 +189,16 @@ func (t *cmdDashboard) handleShutdown(d map[string]interface{}) {
 		log.PanicErrorf(err, "call rpc shutdown to dashboard %s failed", t.addr)
 	}
 	log.Debugf("call rpc shutdown OK")
+}
+
+func (t *cmdDashboard) handleReload(d map[string]interface{}) {
+	c := t.newTopomClient()
+
+	log.Debugf("call rpc reload to dashboard %s", t.addr)
+	if err := c.Reload(); err != nil {
+		log.PanicErrorf(err, "call rpc reload to dashboard %s failed", t.addr)
+	}
+	log.Debugf("call rpc reload OK")
 }
 
 func (t *cmdDashboard) handleSlotsCommand(d map[string]interface{}) {

@@ -21,6 +21,7 @@ Usage:
 	codis-admin [-v] --proxy=ADDR [--auth=AUTH]  --forcegc
 	codis-admin [-v] --dashboard=ADDR           [config|model|stats|slots|group|proxy]
 	codis-admin [-v] --dashboard=ADDR            --shutdown
+	codis-admin [-v] --dashboard=ADDR            --reload
 	codis-admin [-v] --dashboard=ADDR            --log-level=LEVEL
 	codis-admin [-v] --dashboard=ADDR            --slots-assign   --beg=ID --end=ID (--gid=ID|--offline) [--confirm]
 	codis-admin [-v] --dashboard=ADDR            --slots-status
