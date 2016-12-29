@@ -20,7 +20,7 @@ const DefaultConfig = `
 #                                                #
 ##################################################
 
-# Set Coordinator, only accept "zookeeper" & "etcd" & "filestore".
+# Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
 coordinator_name = "zookeeper"
 coordinator_addr = "127.0.0.1:2181"
 

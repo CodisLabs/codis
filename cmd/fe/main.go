@@ -23,8 +23,6 @@ import (
 	"github.com/martini-contrib/render"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/models/etcd"
-	"github.com/CodisLabs/codis/pkg/models/zk"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -57,7 +55,7 @@ func init() {
 func main() {
 	const usage = `
 Usage:
-	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] (--dashboard-list=FILE|--zookeeper=ADDR|--etcd=ADDR) --listen=ADDR
+	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] (--dashboard-list=FILE|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT) --listen=ADDR
 	codis-fe  --version
 
 Options:
@@ -125,29 +123,42 @@ Options:
 	}
 
 	var loader ConfigLoader
-	switch {
-	case d["--dashboard-list"] != nil:
+	if d["--dashboard-list"] != nil {
 		file := utils.ArgumentMust(d, "--dashboard-list")
 		loader = &StaticLoader{file}
 		log.Warnf("set --dashboard-list = %s", file)
-
-	case d["--zookeeper"] != nil:
-		addr := utils.ArgumentMust(d, "--zookeeper")
-		c, err := zkclient.New(addr, time.Minute)
-		if err != nil {
-			log.PanicErrorf(err, "create zkclient to %s failed", addr)
+	} else {
+		var coordinator struct {
+			name string
+			addr string
 		}
-		loader = &DynamicLoader{c}
-		log.Warnf("set --zookeeper = %s", addr)
 
-	case d["--etcd"] != nil:
-		addr := utils.ArgumentMust(d, "--etcd")
-		c, err := etcdclient.New(addr, time.Minute)
-		if err != nil {
-			log.PanicErrorf(err, "create etcdclient to %s failed", addr)
+		switch {
+		case d["--zookeeper"] != nil:
+			coordinator.name = "zookeeper"
+			coordinator.addr = utils.ArgumentMust(d, "--zookeeper")
+
+		case d["--etcd"] != nil:
+			coordinator.name = "etcd"
+			coordinator.addr = utils.ArgumentMust(d, "--etcd")
+
+		case d["--filesystem"] != nil:
+			coordinator.name = "filesystem"
+			coordinator.addr = utils.ArgumentMust(d, "--filesystem")
+
+		default:
+			log.Panicf("invalid coordinator")
 		}
+
+		log.Warnf("set --%s = %s", coordinator.name, coordinator.addr)
+
+		c, err := models.NewClient(coordinator.name, coordinator.addr, time.Minute)
+		if err != nil {
+			log.PanicErrorf(err, "create '%s' client to '%s' failed", coordinator.name, coordinator.addr)
+		}
+		defer c.Close()
+
 		loader = &DynamicLoader{c}
-		log.Warnf("set --etcd = %s", addr)
 	}
 
 	router := NewReverseProxy(loader)

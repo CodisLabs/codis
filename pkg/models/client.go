@@ -28,16 +28,14 @@ type Client interface {
 	CreateEphemeralInOrder(path string, data []byte) (<-chan struct{}, string, error)
 }
 
-var ErrUnknownCoordinator = errors.New("unknown or invalid coordinator name")
-
 func NewClient(coordinator string, addrlist string, timeout time.Duration) (Client, error) {
 	switch coordinator {
-	case "fs", "filestore":
-		return fsclient.New(addrlist)
 	case "zk", "zookeeper":
 		return zkclient.New(addrlist, timeout)
 	case "etcd":
 		return etcdclient.New(addrlist, timeout)
+	case "fs", "filesystem":
+		return fsclient.New(addrlist)
 	}
-	return nil, errors.Trace(ErrUnknownCoordinator)
+	return nil, errors.Errorf("invalid coordinator name = %s", coordinator)
 }

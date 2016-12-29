@@ -29,7 +29,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--fillslots=FILE] [--ulimit=NLIMIT]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -128,15 +128,25 @@ Options:
 		name string
 		addr string
 	}
-	if s, ok := utils.Argument(d, "--zookeeper"); ok {
+
+	switch {
+
+	case d["--zookeeper"] != nil:
 		coordinator.name = "zookeeper"
-		coordinator.addr = s
-		log.Warnf("option --zookeeper = %s", s)
-	}
-	if s, ok := utils.Argument(d, "--etcd"); ok {
+		coordinator.addr = utils.ArgumentMust(d, "--zookeeper")
+
+	case d["--etcd"] != nil:
 		coordinator.name = "etcd"
-		coordinator.addr = s
-		log.Warnf("option --etcd = %s", s)
+		coordinator.addr = utils.ArgumentMust(d, "--etcd")
+
+	case d["--filesystem"] != nil:
+		coordinator.name = "filesystem"
+		coordinator.addr = utils.ArgumentMust(d, "--filesystem")
+
+	}
+
+	if coordinator.name != "" {
+		log.Warnf("option --%s = %s", coordinator.name, coordinator.addr)
 	}
 
 	var slots []*models.Slot
@@ -246,12 +256,12 @@ func AutoOnlineWithDashboard(p *proxy.Proxy, dashboard string) {
 }
 
 func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr string) {
-	client, err := models.NewClient(name, addr, time.Second*10)
+	client, err := models.NewClient(name, addr, time.Minute)
 	if err != nil {
-		log.PanicErrorf(err, "can't open connection with %s", addr)
+		log.PanicErrorf(err, "create '%s' client to '%s' failed", name, addr)
 	}
 	defer client.Close()
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 30; i++ {
 		if p.IsClosed() || p.IsOnline() {
 			return
 		}

@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/models/etcd"
-	"github.com/CodisLabs/codis/pkg/models/zk"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 )
@@ -39,31 +37,33 @@ func (t *cmdAdmin) Main(d map[string]interface{}) {
 }
 
 func (t *cmdAdmin) newTopomClient(d map[string]interface{}) models.Client {
+	var coordinator struct {
+		name string
+		addr string
+	}
+
 	switch {
 	case d["--zookeeper"] != nil:
-
-		addr := utils.ArgumentMust(d, "--zookeeper")
-
-		c, err := zkclient.New(addr, time.Minute)
-		if err != nil {
-			log.PanicErrorf(err, "create zkclient to %s failed", addr)
-		}
-		return c
+		coordinator.name = "zookeeper"
+		coordinator.addr = utils.ArgumentMust(d, "--zookeeper")
 
 	case d["--etcd"] != nil:
+		coordinator.name = "etcd"
+		coordinator.addr = utils.ArgumentMust(d, "--etcd")
 
-		addr := utils.ArgumentMust(d, "--etcd")
-
-		c, err := etcdclient.New(addr, time.Minute)
-		if err != nil {
-			log.PanicErrorf(err, "create etcdclient to %s failed", addr)
-		}
-		return c
+	case d["--filesystem"] != nil:
+		coordinator.name = "filesystem"
+		coordinator.addr = utils.ArgumentMust(d, "--filesystem")
 
 	default:
-		log.Panicf("nil client for topom")
-		return nil
+		log.Panicf("invalid coordinator")
 	}
+
+	c, err := models.NewClient(coordinator.name, coordinator.addr, time.Minute)
+	if err != nil {
+		log.PanicErrorf(err, "create '%s' client to '%s' failed", coordinator.name, coordinator.addr)
+	}
+	return c
 }
 
 func (t *cmdAdmin) newTopomStore(d map[string]interface{}) *models.Store {
@@ -92,16 +92,6 @@ func (t *cmdAdmin) handleConfigDump(d map[string]interface{}) {
 	default:
 		t.dumpConfigV3(d)
 	}
-}
-
-func (t *cmdAdmin) newZooKeeperClient(d map[string]interface{}) models.Client {
-	client, err := zkclient.NewWithLogfunc(d["--zookeeper"].(string), time.Second*5, func(format string, v ...interface{}) {
-		log.Debugf("zookeeper - %s", fmt.Sprintf(format, v...))
-	})
-	if err != nil {
-		log.PanicErrorf(err, "create zookeeper client to failed")
-	}
-	return client
 }
 
 type ConfigV3 struct {
