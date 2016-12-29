@@ -4,12 +4,10 @@
 package topom
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/assert"
-	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
 
 func TestSlotsCache(x *testing.T) {
@@ -150,74 +148,4 @@ func contextCreateProxy(t *Topom, p *models.Proxy) {
 func contextRemoveProxy(t *Topom, p *models.Proxy) {
 	t.dirtyProxyCache(p.Token)
 	assert.MustNoError(t.storeRemoveProxy(p))
-}
-
-type memStore struct {
-	data map[string][]byte
-}
-
-func newMemStore() *memStore {
-	return &memStore{make(map[string][]byte)}
-}
-
-type memClient struct {
-	*memStore
-}
-
-func newMemClient(store *memStore) models.Client {
-	if store == nil {
-		store = newMemStore()
-	}
-	return &memClient{store}
-}
-
-func (c *memClient) Create(path string, data []byte) error {
-	if _, ok := c.data[path]; ok {
-		return errors.Errorf("node already exists")
-	}
-	c.data[path] = data
-	return nil
-}
-
-func (c *memClient) Update(path string, data []byte) error {
-	c.data[path] = data
-	return nil
-}
-
-func (c *memClient) Delete(path string) error {
-	delete(c.data, path)
-	return nil
-}
-
-func (c *memClient) Read(path string, must bool) ([]byte, error) {
-	return c.data[path], nil
-}
-
-func (c *memClient) List(path string, must bool) ([]string, error) {
-	path = filepath.Clean(path)
-	var list []string
-	for k, _ := range c.data {
-		if path == filepath.Dir(k) {
-			list = append(list, k)
-		}
-	}
-	return list, nil
-}
-
-func (c *memClient) Close() error {
-	return nil
-}
-
-var ErrNotSupport = errors.New("not support")
-
-func (c *memClient) CreateEphemeral(path string, data []byte) (<-chan struct{}, error) {
-	return nil, errors.Trace(ErrNotSupport)
-}
-
-func (c *memClient) CreateEphemeralInOrder(path string, data []byte) (<-chan struct{}, string, error) {
-	return nil, "", errors.Trace(ErrNotSupport)
-}
-
-func (c *memClient) WatchInOrder(path string) (<-chan struct{}, []string, error) {
-	return nil, nil, errors.Trace(ErrNotSupport)
 }

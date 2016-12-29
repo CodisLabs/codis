@@ -2,7 +2,7 @@
 
 export GO15VENDOREXPERIMENT=1
 
-build-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe
+build-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe clean-tmp
 
 codis-deps:
 	@mkdir -p bin config && bash version
@@ -36,7 +36,10 @@ codis-server:
 	@cp -f extern/redis-3.2.4/src/redis-benchmark bin/
 	@cp -f extern/redis-3.2.4/src/redis-cli bin/
 
-clean:
+clean-tmp:
+	@rm -rf ./pkg/topom/gotest.tmp
+
+clean: clean-tmp
 	@rm -rf bin
 	@rm -rf scripts/tmp
 

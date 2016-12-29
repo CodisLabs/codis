@@ -4,9 +4,12 @@
 package topom
 
 import (
+	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/CodisLabs/codis/pkg/models"
+	"github.com/CodisLabs/codis/pkg/models/fs"
 	"github.com/CodisLabs/codis/pkg/proxy"
 	"github.com/CodisLabs/codis/pkg/utils/assert"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -24,8 +27,24 @@ func init() {
 	config.ProductAuth = "topom_auth"
 }
 
+func newDiskClient() *fsclient.Client {
+	const TempDir = "gotest.tmp"
+	assert.MustNoError(os.MkdirAll(TempDir, 0755))
+	d, err := ioutil.TempDir(TempDir, "")
+	assert.MustNoError(err)
+	c, err := fsclient.New(d)
+	assert.MustNoError(err)
+	return c
+}
+
+func newForkClient(client *fsclient.Client) *fsclient.Client {
+	c, err := fsclient.New(client.RootDir)
+	assert.MustNoError(err)
+	return c
+}
+
 func openTopom() *Topom {
-	t, err := New(newMemClient(nil), config)
+	t, err := New(newDiskClient(), config)
 	assert.MustNoError(err)
 	assert.MustNoError(t.Start(false))
 	return t
@@ -61,21 +80,21 @@ func TestTopomClose(x *testing.T) {
 }
 
 func TestTopomExclusive(x *testing.T) {
-	store := newMemStore()
+	client := newDiskClient()
 
-	t1, err := New(newMemClient(store), config)
+	t1, err := New(newForkClient(client), config)
 	assert.MustNoError(err)
 	assert.MustNoError(t1.Start(false))
 
 	defer t1.Close()
 
-	t2, err := New(newMemClient(store), config)
+	t2, err := New(newForkClient(client), config)
 	assert.MustNoError(err)
 	assert.Must(t2.Start(false) != nil)
 
 	t1.Close()
 
-	t3, err := New(newMemClient(store), config)
+	t3, err := New(newForkClient(client), config)
 	assert.MustNoError(err)
 	assert.MustNoError(t3.Start(false))
 }

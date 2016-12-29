@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/models/etcd"
+	"github.com/CodisLabs/codis/pkg/models/fs"
 	"github.com/CodisLabs/codis/pkg/models/zk"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
@@ -31,6 +32,8 @@ var ErrUnknownCoordinator = errors.New("unknown coordinator")
 
 func NewClient(coordinator string, addrlist string, timeout time.Duration) (Client, error) {
 	switch coordinator {
+	case "fs", "filestore":
+		return fsclient.New(addrlist)
 	case "zk", "zookeeper":
 		return zkclient.New(addrlist, timeout)
 	case "etcd":

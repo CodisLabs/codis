@@ -3,6 +3,7 @@
 *.out
 *.dump
 *.log.*
+*.tmp
 
 .DS_Store
 .htaccess
