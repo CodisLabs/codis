@@ -41,7 +41,7 @@ func New(dir string) (*Client, error) {
 		RootDir:  fullpath,
 		DataDir:  filepath.Join(fullpath, "data"),
 		TempDir:  filepath.Join(fullpath, "temp"),
-		LockFile: filepath.Join(fullpath, "lock"),
+		LockFile: filepath.Join(fullpath, "data.lck"),
 	}, nil
 }
 
