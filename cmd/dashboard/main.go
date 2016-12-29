@@ -14,8 +14,6 @@ import (
 	"github.com/docopt/docopt-go"
 
 	"github.com/CodisLabs/codis/pkg/models"
-	"github.com/CodisLabs/codis/pkg/models/etcd"
-	"github.com/CodisLabs/codis/pkg/models/zk"
 	"github.com/CodisLabs/codis/pkg/topom"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -87,31 +85,11 @@ Options:
 		log.Warnf("option --host-admin = %s", s)
 	}
 
-	var client models.Client
-
-	switch config.CoordinatorName {
-
-	case "zookeeper":
-		addr := config.CoordinatorAddr
-		client, err = zkclient.New(addr, time.Minute)
-		if err != nil {
-			log.PanicErrorf(err, "create zkclient to %s failed", addr)
-		}
-		defer client.Close()
-
-	case "etcd":
-		addr := config.CoordinatorAddr
-		client, err = etcdclient.New(addr, time.Minute)
-		if err != nil {
-			log.PanicErrorf(err, "create etcdclient to %s failed", addr)
-		}
-		defer client.Close()
-
-	default:
-
-		log.Panicf("invalid coordinator name = '%s'", config.CoordinatorName)
-
+	client, err := models.NewClient(config.CoordinatorName, config.CoordinatorAddr, time.Minute)
+	if err != nil {
+		log.PanicErrorf(err, "create '%s' client to '%s' failed", config.CoordinatorName, config.CoordinatorAddr)
 	}
+	defer client.Close()
 
 	s, err := topom.New(client, config)
 	if err != nil {

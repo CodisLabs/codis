@@ -28,7 +28,7 @@ type Client interface {
 	CreateEphemeralInOrder(path string, data []byte) (<-chan struct{}, string, error)
 }
 
-var ErrUnknownCoordinator = errors.New("unknown coordinator")
+var ErrUnknownCoordinator = errors.New("unknown or invalid coordinator name")
 
 func NewClient(coordinator string, addrlist string, timeout time.Duration) (Client, error) {
 	switch coordinator {
