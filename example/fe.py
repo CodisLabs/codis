@@ -13,7 +13,7 @@ class CodisFE(Process):
         self.port = port
 
         self.logfile = "fe-{}.log".format(port)
-        self.command = "codis-fe --etcd 127.0.0.1:2379 --listen 0.0.0.0:{} --assets-dir={}".format(self.port, assets)
+        self.command = "codis-fe --filesystem rootfs --listen 0.0.0.0:{} --assets-dir={}".format(self.port, assets)
         Process.__init__(self, self.command, self.logfile)
 
         dict = {"pid": self.proc.pid, "assets": assets}

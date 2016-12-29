@@ -3,4 +3,4 @@ all: clean
 
 clean:
 	@rm -f *.conf *.toml *.pyc *.log *.rdb
-	@rm -f *.etcd -r
+	@rm -rf rootfs

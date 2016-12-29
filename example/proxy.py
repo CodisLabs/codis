@@ -17,7 +17,7 @@ class CodisProxy(Process):
         self.product_auth = product_auth
 
         self.logfile = "proxy-{}.log".format(proxy_port)
-        self.command = "codis-proxy -c {} --etcd 127.0.0.1:2379".format(self.config)
+        self.command = "codis-proxy -c {} --filesystem rootfs".format(self.config)
         Process.__init__(self, self.command, self.logfile)
 
         dict = {"admin_port": admin_port, "proxy_port": proxy_port, "pid": self.proc.pid}
@@ -33,9 +33,6 @@ class CodisProxy(Process):
             f.write('proto_type = "tcp4"\n')
             f.write('admin_addr = ":{}"\n'.format(admin_port))
             f.write('proxy_addr = ":{}"\n'.format(proxy_port))
-            f.write('jodis_name = "etcd"\n')
-            f.write('jodis_addr = "127.0.0.1:2379"\n')
-            f.write('jodis_compatible = false\n')
             f.write('proxy_datacenter = "localhost"\n')
             f.write('proxy_heap_placeholder = "0"\n')
             f.write('proxy_max_offheap_size = "0"\n')

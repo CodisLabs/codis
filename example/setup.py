@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-from etcd import *
 from server import *
 from sentinel import *
 from dashboard import *
@@ -28,9 +27,7 @@ if __name__ == "__main__":
     product_name = "demo-test"
     product_auth = None
 
-    # step 1. setup etcd & codis-server & codis-sentinel
-
-    children.append(Etcd())
+    # step 1. codis-server & codis-sentinel
 
     # codis-server [master 16380+i <== following == 17380+i slave]
     for port in range(16380, 16384):
@@ -40,8 +37,8 @@ if __name__ == "__main__":
     for port in range(26380, 26385):
         children.append(CodisSentinel(port))
 
-    check_alive(children, 3)
-    print("[OK] setup etcd & codis-server & codis-sentinel")
+    check_alive(children, 1)
+    print("[OK] setup codis-server & codis-sentinel")
 
     # step 2. setup codis-fe & codis-dashboard & codis-proxy
 

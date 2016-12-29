@@ -26,8 +26,8 @@ class CodisDashboard(Process):
     def _open_config(admin_port, product_name, product_auth=None):
         config = 'dashboard-{}.toml'.format(admin_port)
         with open(config, "w+") as f:
-            f.write('coordinator_name = "etcd"\n')
-            f.write('coordinator_addr = "127.0.0.1:2379"\n')
+            f.write('coordinator_name = "filesystem"\n')
+            f.write('coordinator_addr = "rootfs"\n')
             f.write('product_name = "{}"\n'.format(product_name))
             if product_auth is not None:
                 f.write('product_auth = "{}"\n'.format(product_auth))

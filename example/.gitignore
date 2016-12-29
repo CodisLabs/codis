@@ -1,6 +1,5 @@
 *.conf
 *.toml
-*.etcd
 *.pyc
 *.log
 *.rdb
@@ -10,3 +9,4 @@
 .idea
 __pycache__
 
+/rootfs
