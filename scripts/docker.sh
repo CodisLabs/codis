@@ -42,6 +42,17 @@ server)
     done
     ;;
 
+fe)
+    docker rm -f      "Codis-F8080" &> /dev/null
+    docker run --name "Codis-F8080" -d \
+         -v `realpath log`:/codis/log \
+         -v `realpath ../config/codis.json`:/codis/codis.json \
+         -p 8080:8080 \
+     --privileged=true \
+     sxiong/codis \
+     codis-fe -l log/fe.log --dashboard-list=/codis/codis.json --listen=0.0.0.0:8080 --assets=/gopath/src/github.com/CodisLabs/codis/bin/assets
+    ;;
+
 cleanup)
     docker rm -f      "Codis-D28080" &> /dev/null
     docker rm -f      "Codis-P29000" &> /dev/null
