@@ -1,5 +1,5 @@
 [
     {
         "name": "codis-demo",
-        "dashboard": "202.114.18.78:28080" }
+        "dashboard": "128.0.0.1:28080" }
 ]
