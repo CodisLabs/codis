@@ -98,7 +98,7 @@
 		},
 		{
 			"ImportPath": "github.com/spinlock/jemalloc-go",
-			"Rev": "4a5f246e96bdc01bb5c612d27a8b1dc93dea7d2c"
+			"Rev": "c02d8364a3e58416d9de7be36db64ee0494eceb7"
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",

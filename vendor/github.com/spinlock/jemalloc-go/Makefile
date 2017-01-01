@@ -1,15 +1,28 @@
-.DEFAULT_GOAL = all
+.DEFAULT_GOAL = build
 
-all:
-	@test -f jemalloc/Makefile || make config --quiet
+PWD := $(shell pwd)
+SRC := jemalloc-4.4.0
+
+build:
+	@test -f $(SRC)/Makefile || make config --quiet
+
+install: build
+	@go install -x -v ./
 
 config:
-	cd jemalloc && ./autogen.sh --with-jemalloc-prefix="je_"
-	@make -f help.mk --quiet relink
+	@cd $(SRC) && ./autogen.sh --with-jemalloc-prefix="je_"
+	@rm -rf jemalloc VERSION
+	@ln -s $(SRC)/include/jemalloc
+	@ln -s $(SRC)/VERSION
+	@make -f help.mk relink
 
 clean distclean:
-	@test -f jemalloc/Makefile && make -C jemalloc --quiet distclean || true
-	@make -f help.mk --quiet rmlink
+	@test -f $(SRC)/Makefile && make -C $(SRC) --quiet distclean || true
+	@rm -rf jemalloc VERSION
+	@make -f help.mk unlink
 
-install: all
-	go install ./
+relink unlink:
+	@make -f help.mk $@
+
+test:
+	@go test -v ./
