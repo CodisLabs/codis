@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -29,7 +30,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT] [--pidfile=FILE]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -167,6 +168,21 @@ Options:
 	defer s.Close()
 
 	log.Warnf("create proxy with config\n%s", config)
+
+	if s, ok := utils.Argument(d, "--pidfile"); ok {
+		if pidfile, err := filepath.Abs(s); err != nil {
+			log.WarnErrorf(err, "parse pidfile = '%s' failed", s)
+		} else if err := ioutil.WriteFile(pidfile, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+			log.WarnErrorf(err, "write pidfile = '%s' failed", pidfile)
+		} else {
+			defer func() {
+				if err := os.Remove(pidfile); err != nil {
+					log.WarnErrorf(err, "remove pidfile = '%s' failed", pidfile)
+				}
+			}()
+			log.Warnf("option --pidfile = %s", pidfile)
+		}
+	}
 
 	go func() {
 		defer s.Close()

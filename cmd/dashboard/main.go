@@ -5,9 +5,12 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -22,7 +25,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR]
+	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--pidfile=FILE]
 	codis-dashboard  --default-config
 	codis-dashboard  --version
 
@@ -98,6 +101,21 @@ Options:
 	defer s.Close()
 
 	log.Warnf("create topom with config\n%s", config)
+
+	if s, ok := utils.Argument(d, "--pidfile"); ok {
+		if pidfile, err := filepath.Abs(s); err != nil {
+			log.WarnErrorf(err, "parse pidfile = '%s' failed", s)
+		} else if err := ioutil.WriteFile(pidfile, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+			log.WarnErrorf(err, "write pidfile = '%s' failed", pidfile)
+		} else {
+			defer func() {
+				if err := os.Remove(pidfile); err != nil {
+					log.WarnErrorf(err, "remove pidfile = '%s' failed", pidfile)
+				}
+			}()
+			log.Warnf("option --pidfile = %s", pidfile)
+		}
+	}
 
 	go func() {
 		defer s.Close()
