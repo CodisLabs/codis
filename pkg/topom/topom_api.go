@@ -108,6 +108,7 @@ func newApiServer(t *Topom) http.Handler {
 			})
 			r.Put("/assign/:xauth", binding.Json([]*models.SlotMapping{}), api.SlotsAssignGroup)
 			r.Put("/assign/:xauth/offline", binding.Json([]*models.SlotMapping{}), api.SlotsAssignOffline)
+			r.Put("/rebalance/:xauth/:confirm", api.SlotsRebalance)
 		})
 		r.Group("/sentinels", func(r martini.Router) {
 			r.Put("/add/:xauth/:addr", api.AddSentinel)
@@ -687,6 +688,25 @@ func (s *apiServer) SlotsAssignOffline(slots []*models.SlotMapping, params marti
 	return rpc.ApiResponseJson("OK")
 }
 
+func (s *apiServer) SlotsRebalance(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	confirm, err := s.parseInteger(params, "confirm")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if plans, err := s.topom.SlotsRebalance(confirm != 0); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		m := make(map[string]int)
+		for sid, gid := range plans {
+			m[strconv.Itoa(sid)] = gid
+		}
+		return rpc.ApiResponseJson(m)
+	}
+}
+
 type ApiClient struct {
 	addr  string
 	xauth string
@@ -894,4 +914,26 @@ func (c *ApiClient) SlotsAssignGroup(slots []*models.SlotMapping) error {
 func (c *ApiClient) SlotsAssignOffline(slots []*models.SlotMapping) error {
 	url := c.encodeURL("/api/topom/slots/assign/%s/offline", c.xauth)
 	return rpc.ApiPutJson(url, slots, nil)
+}
+
+func (c *ApiClient) SlotsRebalance(confirm bool) (map[int]int, error) {
+	var value int
+	if confirm {
+		value = 1
+	}
+	url := c.encodeURL("/api/topom/slots/rebalance/%s/%d", c.xauth, value)
+	var plans = make(map[string]int)
+	if err := rpc.ApiPutJson(url, nil, &plans); err != nil {
+		return nil, err
+	} else {
+		var m = make(map[int]int)
+		for sid, gid := range plans {
+			n, err := strconv.Atoi(sid)
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+			m[n] = gid
+		}
+		return m, nil
+	}
 }

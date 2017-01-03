@@ -341,3 +341,68 @@ func (s *Topom) SlotsAssignOffline(slots []*models.SlotMapping) error {
 	}
 	return s.resyncSlotMappings(ctx, slots...)
 }
+
+func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return nil, err
+	}
+
+	var count = make(map[int]int)
+	for _, g := range ctx.group {
+		if len(g.Servers) != 0 {
+			count[g.Id] = 0
+		}
+	}
+	if len(count) == 0 {
+		return nil, errors.Errorf("no valid group could be found")
+	}
+
+	var bound = (len(ctx.slots) + len(count) - 1) / len(count)
+	var pending []int
+	for _, m := range ctx.slots {
+		if m.Action.State != models.ActionNothing {
+			count[m.Action.TargetId]++
+		}
+	}
+	for _, m := range ctx.slots {
+		if m.Action.State != models.ActionNothing {
+			continue
+		}
+		if gid := m.GroupId; gid != 0 && count[gid] < bound {
+			count[gid]++
+		} else {
+			pending = append(pending, m.Id)
+		}
+	}
+
+	var plans = make(map[int]int)
+	for _, g := range ctx.group {
+		if len(g.Servers) != 0 {
+			for count[g.Id] < bound && len(pending) != 0 {
+				count[g.Id]++
+				plans[pending[0]], pending = g.Id, pending[1:]
+			}
+		}
+	}
+	if !confirm {
+		return plans, nil
+	}
+	for sid, gid := range plans {
+		m, err := ctx.getSlotMapping(sid)
+		if err != nil {
+			return nil, err
+		}
+		defer s.dirtySlotsCache(m.Id)
+
+		m.Action.State = models.ActionPending
+		m.Action.Index = ctx.maxSlotActionIndex() + 1
+		m.Action.TargetId = gid
+		if err := s.storeUpdateSlotMapping(m); err != nil {
+			return nil, err
+		}
+	}
+	return plans, nil
+}
