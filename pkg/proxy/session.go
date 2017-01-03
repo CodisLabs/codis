@@ -15,6 +15,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
@@ -103,6 +104,8 @@ func (s *Session) CloseWithError(err error) error {
 var (
 	ErrTooManySessions = errors.New("too many sessions")
 	ErrRouterNotOnline = errors.New("router is not online")
+
+	ErrTooManyPipelinedRequests = errors.New("too many pipelined requests")
 )
 
 var RespOK = redis.NewString([]byte("OK"))
@@ -127,7 +130,7 @@ func (s *Session) Start(d *Router) {
 			return
 		}
 
-		tasks := make(chan *Request, s.config.SessionMaxPipeline)
+		tasks := make(chan *Request, math2.MaxInt(1, s.config.SessionMaxPipeline))
 
 		go func() {
 			s.loopWriter(tasks)
@@ -163,6 +166,10 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		r.Multi = multi
 		r.Start = start.UnixNano()
 		r.Batch = &sync.WaitGroup{}
+
+		if len(tasks) == cap(tasks) {
+			return ErrTooManyPipelinedRequests
+		}
 		if err := s.handleRequest(r, d); err != nil {
 			r.Resp = redis.NewErrorf("ERR handle request, %s", err)
 			tasks <- r
