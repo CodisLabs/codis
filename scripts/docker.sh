@@ -10,6 +10,14 @@ fi
 mkdir -p log
 
 case "$1" in
+zookeeper)
+    docker rm -f      "Codis-Z2181" &> /dev/null
+    docker run --name "Codis-Z2181" -d \
+            --read-only \
+            -p 2181:2181 \
+            jplock/zookeeper
+    ;;
+    
 dashboard)
     docker rm -f      "Codis-D28080" &> /dev/null
     docker run --name "Codis-D28080" -d \
@@ -46,11 +54,9 @@ fe)
     docker rm -f      "Codis-F8080" &> /dev/null
     docker run --name "Codis-F8080" -d \
          -v `realpath log`:/codis/log \
-         -v `realpath ../config/codis.json`:/codis/codis.json \
          -p 8080:8080 \
-     --privileged=true \
-     sxiong/codis \
-     codis-fe -l log/fe.log --dashboard-list=/codis/codis.json --listen=0.0.0.0:8080 --assets=/gopath/src/github.com/CodisLabs/codis/bin/assets
+     codis-image \
+     codis-fe -l log/fe.log --zookeeper ${hostip}:2181 --listen=0.0.0.0:8080 --assets=/gopath/src/github.com/CodisLabs/codis/bin/assets
     ;;
 
 cleanup)
