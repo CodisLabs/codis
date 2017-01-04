@@ -5,14 +5,58 @@ package utils
 
 import (
 	"net"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
 
-func isZeroIPAddr(addr *net.TCPAddr) bool {
-	if ipv4 := addr.IP.To4(); ipv4 != nil {
+var Hostname, _ = os.Hostname()
+
+var GlobalIPAddrs struct {
+	Hosts, Interfaces []string
+}
+
+func init() {
+	if ifAddrs, _ := net.InterfaceAddrs(); len(ifAddrs) != 0 {
+		for i := range ifAddrs {
+			var ip net.IP
+			switch in := ifAddrs[i].(type) {
+			case *net.IPNet:
+				ip = in.IP
+			case *net.IPAddr:
+				ip = in.IP
+			}
+			if ip.IsGlobalUnicast() {
+				GlobalIPAddrs.Interfaces = append(GlobalIPAddrs.Interfaces, ip.String())
+			}
+		}
+	}
+
+	resolver := make(chan []net.IP, 1)
+	go func() {
+		defer close(resolver)
+		if ipAddrs, _ := net.LookupIP(Hostname); len(ipAddrs) != 0 {
+			resolver <- ipAddrs
+		}
+	}()
+
+	select {
+	case ipAddrs := <-resolver:
+		for _, ip := range ipAddrs {
+			if ip.IsGlobalUnicast() {
+				GlobalIPAddrs.Hosts = append(GlobalIPAddrs.Hosts, ip.String())
+			}
+		}
+	case <-time.After(time.Millisecond * 30):
+	}
+}
+
+func isZeroIPAddr(ip net.IP) bool {
+	if ipv4 := ip.To4(); ipv4 != nil {
 		return net.IPv4zero.Equal(ipv4)
-	} else if ipv6 := addr.IP.To16(); ipv6 != nil {
+	} else if ipv6 := ip.To16(); ipv6 != nil {
 		return net.IPv6zero.Equal(ipv6)
 	}
 	return false
@@ -20,6 +64,7 @@ func isZeroIPAddr(addr *net.TCPAddr) bool {
 
 func resolveAddr(network string, address string, replaceZeroAddr bool) (string, error) {
 	switch network {
+
 	default:
 		return "", errors.Errorf("invalid network '%s'", network)
 
@@ -27,37 +72,31 @@ func resolveAddr(network string, address string, replaceZeroAddr bool) (string, 
 		return address, nil
 
 	case "tcp", "tcp4", "tcp6":
-		addr, err := net.ResolveTCPAddr(network, address)
+		tcpAddr, err := net.ResolveTCPAddr(network, address)
 		if err != nil {
 			return "", errors.Trace(err)
 		}
-		if addr.Port != 0 {
-			if !isZeroIPAddr(addr) {
-				return addr.String(), nil
+		if tcpAddr.Port != 0 {
+			if !isZeroIPAddr(tcpAddr.IP) {
+				return address, nil
 			}
 			if replaceZeroAddr {
-				ifaddrs, err := net.InterfaceAddrs()
-				if err != nil {
-					return "", errors.Trace(err)
+				if len(GlobalIPAddrs.Hosts) != 0 {
+					return net.JoinHostPort(Hostname, strconv.Itoa(tcpAddr.Port)), nil
 				}
-				for _, ifaddr := range ifaddrs {
-					switch in := ifaddr.(type) {
-					case *net.IPNet:
-						if in.IP.IsGlobalUnicast() {
-							addr.IP = in.IP
-							return addr.String(), nil
-						}
-					}
+				for _, ipAddr := range GlobalIPAddrs.Interfaces {
+					return net.JoinHostPort(ipAddr, strconv.Itoa(tcpAddr.Port)), nil
 				}
 			}
 		}
-		return "", errors.Errorf("invalid address '%s'", addr.String())
+		return "", errors.Errorf("resolve address '%s' to '%s'", address, tcpAddr.String())
 	}
 }
 
-func ResolveAddr(network string, locAddr, hostbndAddr string) (string, error) {
-	if hostbndAddr == "" {
-		return resolveAddr(network, locAddr, true)
+func ResolveAddr(network string, listenAddr, globalAddr string) (string, error) {
+	if globalAddr == "" {
+		return resolveAddr(network, listenAddr, true)
+	} else {
+		return resolveAddr(network, globalAddr, false)
 	}
-	return resolveAddr(network, hostbndAddr, false)
 }

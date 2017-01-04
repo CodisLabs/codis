@@ -82,7 +82,7 @@ func New(config *Config) (*Proxy, error) {
 	} else {
 		s.model.Sys = strings.TrimSpace(string(b))
 	}
-	s.model.Hostname, _ = os.Hostname()
+	s.model.Hostname = utils.Hostname
 
 	if err := s.setup(config); err != nil {
 		s.Close()
