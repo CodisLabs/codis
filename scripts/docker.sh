@@ -17,7 +17,7 @@ zookeeper)
             -p 2181:2181 \
             jplock/zookeeper
     ;;
-    
+
 dashboard)
     docker rm -f      "Codis-D28080" &> /dev/null
     docker run --name "Codis-D28080" -d \
@@ -68,7 +68,7 @@ cleanup)
     done
     docker rm -f      "Codis-Z2181" &> /dev/null
     ;;
-    
+
 *)
     echo "wrong argument(s)"
     ;;
