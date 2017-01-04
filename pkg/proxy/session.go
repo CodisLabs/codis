@@ -277,7 +277,9 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 	case "MSET":
 		return s.handleRequestMSet(r, d)
 	case "DEL":
-		return s.handleRequestMDel(r, d)
+		return s.handleRequestDel(r, d)
+	case "EXISTS":
+		return s.handleRequestExists(r, d)
 	case "SLOTSINFO":
 		return s.handleRequestSlotsInfo(r, d)
 	case "SLOTSSCAN":
@@ -446,7 +448,7 @@ func (s *Session) handleRequestMSet(r *Request, d *Router) error {
 	return nil
 }
 
-func (s *Session) handleRequestMDel(r *Request, d *Router) error {
+func (s *Session) handleRequestDel(r *Request, d *Router) error {
 	var nkeys = len(r.Multi) - 1
 	switch {
 	case nkeys == 0:
@@ -479,7 +481,49 @@ func (s *Session) handleRequestMDel(r *Request, d *Router) error {
 					n++
 				}
 			default:
-				return fmt.Errorf("bad mdel resp: %s value.len = %d", resp.Type, len(resp.Value))
+				return fmt.Errorf("bad del resp: %s value.len = %d", resp.Type, len(resp.Value))
+			}
+		}
+		r.Resp = redis.NewInt(strconv.AppendInt(nil, int64(n), 10))
+		return nil
+	}
+	return nil
+}
+
+func (s *Session) handleRequestExists(r *Request, d *Router) error {
+	var nkeys = len(r.Multi) - 1
+	switch {
+	case nkeys == 0:
+		r.Resp = redis.NewErrorf("ERR wrong number of arguments for 'EXISTS' command")
+		return nil
+	case nkeys == 1:
+		return d.dispatch(r)
+	}
+	var sub = r.MakeSubRequest(nkeys)
+	for i := range sub {
+		sub[i].Multi = []*redis.Resp{
+			r.Multi[0],
+			r.Multi[i+1],
+		}
+		if err := d.dispatch(&sub[i]); err != nil {
+			return err
+		}
+	}
+	r.Coalesce = func() error {
+		var n int
+		for i := range sub {
+			if err := sub[i].Err; err != nil {
+				return err
+			}
+			switch resp := sub[i].Resp; {
+			case resp == nil:
+				return ErrRespIsRequired
+			case resp.IsInt() && len(resp.Value) == 1:
+				if resp.Value[0] != '0' {
+					n++
+				}
+			default:
+				return fmt.Errorf("bad exists resp: %s value.len = %d", resp.Type, len(resp.Value))
 			}
 		}
 		r.Resp = redis.NewInt(strconv.AppendInt(nil, int64(n), 10))
