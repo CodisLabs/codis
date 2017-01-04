@@ -21,7 +21,7 @@ func TestProxyStats(x *testing.T) {
 	defer t.Close()
 
 	check := func(succ, fail []string) {
-		w, err := t.RefreshProxyStats(time.Second)
+		w, err := t.RefreshProxyStats(time.Second * 5)
 		assert.MustNoError(err)
 		m := w.Wait()
 		assert.Must(len(m) == len(succ)+len(fail))
@@ -69,7 +69,7 @@ func TestRedisStats(x *testing.T) {
 	defer t.Close()
 
 	check := func(succ, fail []string) {
-		w, err := t.RefreshRedisStats(time.Second)
+		w, err := t.RefreshRedisStats(time.Second * 5)
 		assert.MustNoError(err)
 		m := w.Wait()
 		assert.Must(len(m) == len(succ)+len(fail))
