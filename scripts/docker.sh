@@ -66,8 +66,9 @@ cleanup)
         let port="26379 + i"
         docker rm -f      "Codis-S${port}" &> /dev/null
     done
+    docker rm -f      "Codis-Z2181" &> /dev/null
     ;;
-
+    
 *)
     echo "wrong argument(s)"
     ;;
