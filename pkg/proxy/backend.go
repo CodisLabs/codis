@@ -21,8 +21,11 @@ type BackendConn struct {
 	addr string
 
 	input chan *Request
-	delay time.Duration
 	ready atomic2.Bool
+	retry struct {
+		fails int
+		delay int
+	}
 
 	closed atomic2.Bool
 	config *Config
@@ -145,7 +148,7 @@ func (bc *BackendConn) run() {
 	for k := 0; !bc.closed.Get(); k++ {
 		log.Warnf("backend conn [%p] to %s, rounds-[%d]", bc, bc.addr, k)
 		if err := bc.loopWriter(k); err != nil {
-			bc.failWriter()
+			bc.delayBeforeRetry()
 		}
 	}
 	log.Warnf("backend conn [%p] to %s, stop and exit", bc, bc.addr)
@@ -169,11 +172,14 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 	return nil
 }
 
-func (bc *BackendConn) failWriter() {
-	bc.ready.Set(false)
-	bc.delay = math2.MinMaxDuration(bc.delay*2, time.Millisecond*50, time.Second*5)
-	timeout := time.After(bc.delay)
-	for {
+func (bc *BackendConn) delayBeforeRetry() {
+	bc.retry.fails += 1
+	if bc.retry.fails <= 10 {
+		return
+	}
+	bc.retry.delay = math2.MinMaxInt(bc.retry.delay*2, 50, 5000)
+	timeout := time.After(time.Millisecond * time.Duration(bc.retry.delay))
+	for !bc.closed.Get() {
 		select {
 		case <-timeout:
 			return
@@ -200,8 +206,11 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 	}
 	defer close(tasks)
 
+	defer bc.ready.Set(false)
+
 	bc.ready.Set(true)
-	bc.delay = 0
+	bc.retry.fails = 0
+	bc.retry.delay = 0
 
 	p := c.FlushEncoder()
 	p.MaxInterval = time.Millisecond
