@@ -24,7 +24,7 @@ type BackendConn struct {
 	ready atomic2.Bool
 	retry struct {
 		fails int
-		delay int
+		delay Delay
 	}
 
 	closed atomic2.Bool
@@ -36,6 +36,10 @@ func NewBackendConn(addr string, config *Config) *BackendConn {
 		addr: addr, config: config,
 	}
 	bc.input = make(chan *Request, 1024)
+	bc.retry.delay = &DelayExp2{
+		Min: 50, Max: 5000,
+		Unit: time.Millisecond,
+	}
 
 	go bc.run()
 
@@ -177,8 +181,7 @@ func (bc *BackendConn) delayBeforeRetry() {
 	if bc.retry.fails <= 10 {
 		return
 	}
-	bc.retry.delay = math2.MinMaxInt(bc.retry.delay*2, 50, 5000)
-	timeout := time.After(time.Millisecond * time.Duration(bc.retry.delay))
+	timeout := bc.retry.delay.After()
 	for !bc.closed.Get() {
 		select {
 		case <-timeout:
@@ -210,7 +213,7 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 
 	bc.ready.Set(true)
 	bc.retry.fails = 0
-	bc.retry.delay = 0
+	bc.retry.delay.Reset()
 
 	p := c.FlushEncoder()
 	p.MaxInterval = time.Millisecond

@@ -11,7 +11,6 @@ import (
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
-	"github.com/CodisLabs/codis/pkg/utils/math2"
 )
 
 var ErrClosedJodis = errors.New("use of closed jodis")
@@ -100,18 +99,18 @@ func (j *Jodis) Rewatch() (<-chan struct{}, error) {
 
 func (j *Jodis) Start() {
 	go func() {
-		var delay int
+		var delay = &DelayExp2{
+			Min: 1, Max: 30,
+			Unit: time.Second,
+		}
 		for !j.IsClosed() {
 			w, err := j.Rewatch()
 			if err != nil {
 				log.WarnErrorf(err, "jodis watch node %s failed", j.path)
-				delay = math2.MinMaxInt(delay*2, 2, 30)
-				for i := 0; i < delay && !j.IsClosed(); i++ {
-					time.Sleep(time.Second)
-				}
+				delay.SleepWithCancel(j.IsClosed)
 			} else {
-				delay = 0
 				<-w
+				delay.Reset()
 			}
 		}
 	}()
