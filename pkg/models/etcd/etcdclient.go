@@ -4,11 +4,10 @@
 package etcdclient
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/coreos/etcd/client"
 

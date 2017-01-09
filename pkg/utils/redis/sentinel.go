@@ -4,13 +4,12 @@
 package redis
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
