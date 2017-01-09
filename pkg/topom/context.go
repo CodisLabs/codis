@@ -6,8 +6,10 @@ package topom
 import (
 	"net"
 	"sync"
+	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
+	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
@@ -112,17 +114,17 @@ func (ctx *context) toSlot(m *models.SlotMapping, p *models.Proxy) *models.Slot 
 	return slot
 }
 
-func (ctx *context) resolveIPAddr(addr string) net.IP {
+func (ctx *context) lookupIPAddr(addr string) net.IP {
 	ctx.hosts.Lock()
 	defer ctx.hosts.Unlock()
 	ip, ok := ctx.hosts.m[addr]
 	if !ok {
-		t, err := net.ResolveTCPAddr("tcp", addr)
-		if err != nil {
-			ctx.hosts.m[addr] = nil
+		if tcpAddr := utils.ResolveTCPAddrTimeout(addr, 50*time.Millisecond); tcpAddr != nil {
+			ctx.hosts.m[addr] = tcpAddr.IP
+			return tcpAddr.IP
 		} else {
-			ctx.hosts.m[addr] = t.IP
-			return t.IP
+			ctx.hosts.m[addr] = nil
+			return nil
 		}
 	}
 	return ip
@@ -142,13 +144,13 @@ func (ctx *context) toReplicaGroups(gid int, p *models.Proxy) [][]string {
 	var ip net.IP
 	if p != nil {
 		dc = p.DataCenter
-		ip = ctx.resolveIPAddr(p.AdminAddr)
+		ip = ctx.lookupIPAddr(p.AdminAddr)
 	}
 	getPriority := func(s *models.GroupServer) int {
 		if ip == nil || dc != s.DataCenter {
 			return 2
 		}
-		if ip.Equal(ctx.resolveIPAddr(s.Addr)) {
+		if ip.Equal(ctx.lookupIPAddr(s.Addr)) {
 			return 0
 		} else {
 			return 1

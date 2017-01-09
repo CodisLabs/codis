@@ -109,7 +109,7 @@ func (s *Proxy) setup(config *Config) error {
 	} else {
 		s.lproxy = l
 
-		x, err := utils.ResolveAddr(proto, l.Addr().String(), config.HostProxy)
+		x, err := utils.ReplaceUnspecifiedIP(proto, l.Addr().String(), config.HostProxy)
 		if err != nil {
 			return err
 		}
@@ -123,7 +123,7 @@ func (s *Proxy) setup(config *Config) error {
 	} else {
 		s.ladmin = l
 
-		x, err := utils.ResolveAddr(proto, l.Addr().String(), config.HostAdmin)
+		x, err := utils.ReplaceUnspecifiedIP(proto, l.Addr().String(), config.HostAdmin)
 		if err != nil {
 			return err
 		}

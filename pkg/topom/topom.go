@@ -125,7 +125,7 @@ func (s *Topom) setup(config *Config) error {
 	} else {
 		s.ladmin = l
 
-		x, err := utils.ResolveAddr("tcp", l.Addr().String(), s.config.HostAdmin)
+		x, err := utils.ReplaceUnspecifiedIP("tcp", l.Addr().String(), s.config.HostAdmin)
 		if err != nil {
 			return err
 		}
