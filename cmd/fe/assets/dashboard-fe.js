@@ -840,6 +840,44 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
+        $scope.resyncGroupAll = function() {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name)) {
+                var ha_real_master = -1;
+                var gids = [];
+                for (var i = 0; i < $scope.group_array.length; i ++) {
+                    var group = $scope.group_array[i];
+                    for (var j = 0; j < group.servers.length; j++) {
+                        if (group.servers[j].ha_status == "ha_real_master") {
+                            ha_real_master = j;
+                        }
+                    }
+                    gids.push(group.id);
+                }
+                if (ha_real_master < 0) {
+                    alertAction("Resync All Groups: group-[" + gids + "]", function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/group/resync-all/" + xauth, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
+                    });
+                } else {
+                    alertAction2("Resync All Groups: group-[" + gids + "] (in conflict with HA)", function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/group/resync-all/" + xauth, codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
+                    });
+                }
+            }
+        }
+
         $scope.resyncSentinels = function () {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
@@ -1045,6 +1083,19 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
+        $scope.enableReplicaGroupsAll = function (value) {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name)) {
+                var xauth = genXAuth(codis_name);
+                var url = concatUrl("/api/topom/group/replica-groups-all/" + xauth + "/" + value, codis_name);
+                $http.put(url).then(function () {
+                    $scope.refreshStats();
+                }, function (failedResp) {
+                    alertErrorResp(failedResp);
+                });
+            }
+        }
+
         $scope.createSyncAction = function (server_addr) {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name) && isValidInput(server_addr)) {
@@ -1134,6 +1185,51 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 var url = concatUrl("/api/topom/slots/action/interval/" + xauth + "/" + value, codis_name);
                 $http.put(url).then(function () {
                     $scope.refreshStats();
+                }, function (failedResp) {
+                    alertErrorResp(failedResp);
+                });
+            }
+        }
+
+        $scope.rebalanceAllSlots = function() {
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name)) {
+                var xauth = genXAuth(codis_name);
+                var url = concatUrl("/api/topom/slots/rebalance/" + xauth + "/0", codis_name);
+                $http.put(url).then(function (resp) {
+                    var actions = []
+                    for (var i = 0; i < $scope.group_array.length; i ++) {
+                        var g = $scope.group_array[i];
+                        var slots = [], beg = 0, end = -1;
+                        for (var sid = 0; sid < 1024; sid ++) {
+                            if (resp.data[sid] == g.id) {
+                                if (beg > end) {
+                                    beg = sid; end = sid;
+                                } else if (end == sid - 1) {
+                                    end = sid;
+                                } else {
+                                    slots.push("[" + beg + "," + end + "]");
+                                    beg = sid; end = sid;
+                                }
+                            }
+                        }
+                        if (beg <= end) {
+                            slots.push("[" + beg + "," + end + "]");
+                        }
+                        if (slots.length == 0) {
+                            continue;
+                        }
+                        actions.push("group-[" + g.id + "] <== " + slots);
+                    }
+                    alertAction("Preview of Auto-Rebalance: " + toJsonHtml(actions), function () {
+                        var xauth = genXAuth(codis_name);
+                        var url = concatUrl("/api/topom/slots/rebalance/" + xauth + "/1", codis_name);
+                        $http.put(url).then(function () {
+                            $scope.refreshStats();
+                        }, function (failedResp) {
+                            alertErrorResp(failedResp);
+                        });
+                    });
                 }, function (failedResp) {
                     alertErrorResp(failedResp);
                 });

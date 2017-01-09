@@ -254,15 +254,15 @@
                                     </span>
                                 </td>
 
-                                <td ng-switch="slots_action_disabled">
-                                    <span ng-switch-when="true">
+                                <td>
+                                    <span class="btn-group">
                                         <button class="btn btn-success btn-xs active" style="width: 120px;"
+                                                ng-disabled="!slots_action_disabled"
                                                 ng-click="updateSlotActionDisabled(0)">
                                             Enable
                                         </button>
-                                    </span>
-                                    <span ng-switch-when="false">
                                         <button class="btn btn-danger btn-xs active" style="width: 120px;"
+                                                ng-disabled="slots_action_disabled"
                                                 ng-click="updateSlotActionDisabled(1)">
                                             Disable
                                         </button>
@@ -302,6 +302,17 @@
                                 <td>Show Actions</td>
                                 <td>
                                     <input type="checkbox" ng-model="show_slots_actions">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Auto-Rebalance</td>
+                                <td>
+                                    <span>
+                                        <button class="btn btn-danger btn-xs active" style="width: 240px;"
+                                                ng-click="rebalanceAllSlots()">
+                                            Rebalance All Slots
+                                        </button>
+                                    </span>
                                 </td>
                             </tr>
                             </tbody>
@@ -366,16 +377,16 @@
                                pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
                                class="form-control" placeholder="Group [1,9999]"
                                ng-model="new_group">
-                        </span>
+                    </span>
                 </form>
-                <form class="form-inline">
+                <form class="form-inline" style="padding-bottom: 5px">
                     <span ng-if="codis_addr != 'NA'">
                         <button class="btn btn-warning btn-sm active" style="width: 120px; font-size: 14px; padding: 2px;"
                                 ng-click="addGroupServer(new_server_group, new_server_datacenter, new_server_addr)"
                                 ng-disabled="!new_server_group || !new_server_addr">Add Server
                         </button>
                         <input style="height: 28px; width: 140px; " type="text" class="form-control"
-                               class="form-control" placeholder="DataCenter"
+                               class="form-control" placeholder="Data Center"
                                ng-model="new_server_datacenter">
                         <input style="height: 28px; width: 250px; " type="text" class="form-control"
                                placeholder="Codis Server Address"
@@ -385,6 +396,19 @@
                                pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
                                class="form-control" placeholder="Group [1,9999]"
                                ng-model="new_server_group">
+                    </span>
+                </form>
+                <form class="form-inline">
+                    <span ng-if="group_array.length != 0" class="btn-group">
+                        <button class="btn btn-primary btn-xs active" style="width: 160px; font-size: 14px; padding: 2px;"
+                                ng-click="resyncGroupAll()">GROUPS: SYNC ALL
+                        </button>
+                        <button class="btn btn-success btn-xs active" style="width: 200px; font-size: 14px; padding: 2px;"
+                                ng-click="enableReplicaGroupsAll(1)">REPLICA(S): ENABLE ALL
+                        </button>
+                        <button class="btn btn-danger btn-xs active" style="width: 200px; font-size: 14px; padding: 2px;"
+                                ng-click="enableReplicaGroupsAll(0)">REPLICA(S): DISABLE ALL
+                        </button>
                     </span>
                 </form>
             </div>
