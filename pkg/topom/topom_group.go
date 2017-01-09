@@ -230,7 +230,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 
 		defer s.dirtyGroupCache(g.Id)
 
-		log.Warnf("group-[%d] will promote index = %s", g.Id, index)
+		log.Warnf("group-[%d] will promote index = %d", g.Id, index)
 
 		g.Promoting.Index = index
 		g.Promoting.State = models.ActionPreparing
@@ -274,6 +274,9 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 			sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
 			if err := sentinel.Unmonitor(groupIds, time.Second*5, p.Servers...); err != nil {
 				log.WarnErrorf(err, "group-[%d] unmonitor sentinels failed", g.Id)
+			}
+			if s.ha.masters != nil {
+				delete(s.ha.masters, gid)
 			}
 		}
 
