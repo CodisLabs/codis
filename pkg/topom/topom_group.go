@@ -190,7 +190,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 
 	if g.Promoting.State != models.ActionNothing {
 		if index != g.Promoting.Index {
-			return errors.Errorf("group-[%d] is promoting index = %d", g.Id, index)
+			return errors.Errorf("group-[%d] is promoting index = %d", g.Id, g.Promoting.Index)
 		}
 	} else {
 		if index == 0 {
@@ -314,6 +314,46 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 		return errors.Errorf("group-[%d] action state is invalid", gid)
 
 	}
+}
+
+func (s *Topom) trySwitchGroupMaster(gid int, master string, cache *redis.InfoCache) error {
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+	g, err := ctx.getGroup(gid)
+	if err != nil {
+		return err
+	}
+
+	var index = func() int {
+		for i, x := range g.Servers {
+			if x.Addr == master {
+				return i
+			}
+		}
+		for i, x := range g.Servers {
+			rid1 := cache.GetRunId(master)
+			rid2 := cache.GetRunId(x.Addr)
+			if rid1 != "" && rid1 == rid2 {
+				return i
+			}
+		}
+		return -1
+	}()
+	if index == -1 {
+		return errors.Errorf("group-[%d] doesn't have server %s with runid = '%s'", g.Id, master, cache.GetRunId(master))
+	}
+	if index == 0 {
+		return nil
+	}
+	defer s.dirtyGroupCache(g.Id)
+
+	log.Warnf("group-[%d] will switch master to server[%d] = %s", g.Id, index, g.Servers[index].Addr)
+
+	g.Servers[0], g.Servers[index] = g.Servers[index], g.Servers[0]
+	g.OutOfSync = true
+	return s.storeUpdateGroup(g)
 }
 
 func (s *Topom) EnableReplicaGroups(gid int, addr string, value bool) error {

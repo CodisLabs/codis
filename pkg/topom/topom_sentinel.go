@@ -9,6 +9,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/redis"
 	"github.com/CodisLabs/codis/pkg/utils/sync2"
 )
@@ -91,6 +92,17 @@ func (s *Topom) SwitchMasters(masters map[int]string) error {
 		return ErrClosedTopom
 	}
 	s.ha.masters = masters
+
+	if len(masters) != 0 {
+		cache := &redis.InfoCache{
+			Auth: s.config.ProductAuth, Timeout: time.Millisecond * 100,
+		}
+		for gid, master := range masters {
+			if err := s.trySwitchGroupMaster(gid, master, cache); err != nil {
+				log.WarnErrorf(err, "sentinel switch group master failed")
+			}
+		}
+	}
 	return nil
 }
 
@@ -114,39 +126,53 @@ func (s *Topom) rewatchSentinels(servers []string) {
 		s.ha.masters = nil
 	} else {
 		s.ha.monitor = redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
+		s.ha.monitor.LogFunc = log.Warnf
+		s.ha.monitor.ErrFunc = log.WarnErrorf
 		go func(p *redis.Sentinel) {
-			refetch := make(chan time.Duration)
+			var trigger = make(chan struct{}, 1)
+			delayUntil := func(deadline time.Time) {
+				for !p.IsCanceled() {
+					var d = deadline.Sub(time.Now())
+					if d <= 0 {
+						return
+					}
+					time.Sleep(math2.MinDuration(d, time.Second))
+				}
+			}
 			go func() {
-				defer func() {
-					close(refetch)
-				}()
-				for !p.IsCancelled() {
-					refetch <- 0
-					refetch <- time.Second * 10
-					timeout := time.Minute * 5
-					retryAt := time.Now().Add(time.Second * 30)
-					if !p.Subscribe(timeout, servers...) {
-						for time.Now().Before(retryAt) && !p.IsCancelled() {
-							time.Sleep(time.Second)
-						}
+				defer close(trigger)
+				callback := func() {
+					select {
+					case trigger <- struct{}{}:
+					default:
+					}
+				}
+				for !p.IsCanceled() {
+					timeout := time.Minute * 15
+					retryAt := time.Now().Add(time.Second * 10)
+					if !p.Subscribe(timeout, callback, servers...) {
+						delayUntil(retryAt)
+					} else {
+						callback()
 					}
 				}
 			}()
 			go func() {
-				defer func() {
-					for _ = range refetch {
+				for _ = range trigger {
+					var success int
+					for i := 0; i != 10 && !p.IsCanceled() && success != 2; i++ {
+						timeout := time.Second * 5
+						masters, err := p.Masters(getGroupIds(), timeout, servers...)
+						if err != nil {
+							log.WarnErrorf(err, "fetch group masters failed")
+						} else {
+							if !p.IsCanceled() {
+								s.SwitchMasters(masters)
+							}
+							success += 1
+						}
+						delayUntil(time.Now().Add(time.Second * 5))
 					}
-				}()
-				for d := range refetch {
-					if d != 0 {
-						time.Sleep(d)
-					}
-					timeout := time.Second * 10
-					masters := p.Masters(getGroupIds(), timeout, servers...)
-					if p.IsCancelled() {
-						return
-					}
-					s.SwitchMasters(masters)
 				}
 			}()
 		}(s.ha.monitor)

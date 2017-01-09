@@ -517,7 +517,7 @@ func (s *apiServer) InfoSentinelMonitored(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	}
 	sentinel := redis.NewSentinel(s.topom.Config().ProductName, s.topom.Config().ProductAuth)
-	if info, err := sentinel.InfoMonitored(addr, time.Second); err != nil {
+	if info, err := sentinel.MastersAndSlaves(addr, time.Second); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson(info)
