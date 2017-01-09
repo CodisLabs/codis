@@ -194,7 +194,8 @@ func (s *Topom) Start(routines bool) error {
 	go func() {
 		for !s.IsClosed() {
 			if s.IsOnline() {
-				if w, _ := s.RefreshRedisStats(time.Second * 5); w != nil {
+				w, _ := s.RefreshRedisStats(time.Second)
+				if w != nil {
 					w.Wait()
 				}
 			}
@@ -205,7 +206,8 @@ func (s *Topom) Start(routines bool) error {
 	go func() {
 		for !s.IsClosed() {
 			if s.IsOnline() {
-				if w, _ := s.RefreshProxyStats(time.Second * 5); w != nil {
+				w, _ := s.RefreshProxyStats(time.Second)
+				if w != nil {
 					w.Wait()
 				}
 			}
