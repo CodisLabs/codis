@@ -87,11 +87,13 @@ func newApiServer(t *Topom) http.Handler {
 			r.Put("/create/:xauth/:gid", api.CreateGroup)
 			r.Put("/remove/:xauth/:gid", api.RemoveGroup)
 			r.Put("/resync/:xauth/:gid", api.ResyncGroup)
+			r.Put("/resync-all/:xauth", api.ResyncGroupAll)
 			r.Put("/add/:xauth/:gid/:addr", api.GroupAddServer)
 			r.Put("/add/:xauth/:gid/:addr/:datacenter", api.GroupAddServer)
 			r.Put("/del/:xauth/:gid/:addr", api.GroupDelServer)
 			r.Put("/promote/:xauth/:gid/:addr", api.GroupPromoteServer)
 			r.Put("/replica-groups/:xauth/:gid/:addr/:value", api.EnableReplicaGroups)
+			r.Put("/replica-groups-all/:xauth/:value", api.EnableReplicaGroupsAll)
 			r.Group("/action", func(r martini.Router) {
 				r.Put("/create/:xauth/:addr", api.SyncCreateAction)
 				r.Put("/remove/:xauth/:addr", api.SyncRemoveAction)
@@ -339,6 +341,17 @@ func (s *apiServer) ResyncGroup(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) ResyncGroupAll(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.ResyncGroupAll(); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
 func (s *apiServer) GroupAddServer(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -424,6 +437,21 @@ func (s *apiServer) EnableReplicaGroups(params martini.Params) (int, string) {
 		return rpc.ApiResponseError(err)
 	}
 	if err := s.topom.EnableReplicaGroups(gid, addr, n != 0); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) EnableReplicaGroupsAll(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	n, err := s.parseInteger(params, "value")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.EnableReplicaGroupsAll(n != 0); err != nil {
 		return rpc.ApiResponseError(err)
 	} else {
 		return rpc.ApiResponseJson("OK")
@@ -819,6 +847,11 @@ func (c *ApiClient) ResyncGroup(gid int) error {
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
+func (c *ApiClient) ResyncGroupAll() error {
+	url := c.encodeURL("/api/topom/group/resync-all/%s", c.xauth)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
 func (c *ApiClient) GroupAddServer(gid int, dc, addr string) error {
 	var url string
 	if dc != "" {
@@ -845,6 +878,15 @@ func (c *ApiClient) EnableReplicaGroups(gid int, addr string, value bool) error 
 		n = 1
 	}
 	url := c.encodeURL("/api/topom/group/replica-groups/%s/%d/%s/%d", c.xauth, gid, addr, n)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) EnableReplicaGroupsAll(value bool) error {
+	var n int
+	if value {
+		n = 1
+	}
+	url := c.encodeURL("/api/topom/group/replica-groups-all/%s/%d", c.xauth, n)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 

@@ -78,6 +78,29 @@ func (s *Topom) ResyncGroup(gid int) error {
 	return s.storeUpdateGroup(g)
 }
 
+func (s *Topom) ResyncGroupAll() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+
+	for _, g := range ctx.group {
+		if err := s.resyncSlotMappingsByGroupId(ctx, g.Id); err != nil {
+			log.Warnf("group-[%d] resync-group failed", g.Id)
+			return err
+		}
+		defer s.dirtyGroupCache(g.Id)
+
+		g.OutOfSync = false
+		if err := s.storeUpdateGroup(g); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Topom) GroupAddServer(gid int, dc, addr string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -384,6 +407,40 @@ func (s *Topom) EnableReplicaGroups(gid int, addr string, value bool) error {
 	g.Servers[index].ReplicaGroup = value
 
 	return s.storeUpdateGroup(g)
+}
+
+func (s *Topom) EnableReplicaGroupsAll(value bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+
+	for _, g := range ctx.group {
+		if g.Promoting.State != models.ActionNothing {
+			return errors.Errorf("group-[%d] is promoting", g.Id)
+		}
+		defer s.dirtyGroupCache(g.Id)
+
+		var dirty bool
+		for _, x := range g.Servers {
+			if x.ReplicaGroup != value {
+				x.ReplicaGroup = value
+				dirty = true
+			}
+		}
+		if !dirty {
+			continue
+		}
+		if len(g.Servers) != 1 && ctx.isGroupInUse(g.Id) {
+			g.OutOfSync = true
+		}
+		if err := s.storeUpdateGroup(g); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Topom) SyncCreateAction(addr string) error {
