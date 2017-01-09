@@ -41,9 +41,9 @@ func (d *DelayExp2) Sleep() {
 	time.Sleep(d.Unit * time.Duration(total))
 }
 
-func (d *DelayExp2) SleepWithCancel(cancelled func() bool) {
+func (d *DelayExp2) SleepWithCancel(canceled func() bool) {
 	total := d.NextValue()
-	for i := 0; i != total && !cancelled(); i++ {
+	for i := 0; i != total && !canceled(); i++ {
 		time.Sleep(d.Unit)
 	}
 }
