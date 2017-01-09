@@ -12,14 +12,15 @@ import (
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 
 	redigo "github.com/garyburd/redigo/redis"
 )
 
 type Client struct {
 	conn redigo.Conn
-	addr string
-	auth string
+	Addr string
+	Auth string
 
 	LastUse time.Time
 	Timeout time.Duration
@@ -31,16 +32,15 @@ func NewClientNoAuth(addr string, timeout time.Duration) (*Client, error) {
 
 func NewClient(addr string, auth string, timeout time.Duration) (*Client, error) {
 	c, err := redigo.Dial("tcp", addr, []redigo.DialOption{
-		redigo.DialConnectTimeout(time.Second),
+		redigo.DialConnectTimeout(math2.MinDuration(time.Second, timeout)),
 		redigo.DialPassword(auth),
-		redigo.DialReadTimeout(timeout),
-		redigo.DialWriteTimeout(time.Second * 5),
+		redigo.DialReadTimeout(timeout), redigo.DialWriteTimeout(timeout),
 	}...)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 	return &Client{
-		conn: c, addr: addr, auth: auth,
+		conn: c, Addr: addr, Auth: auth,
 		LastUse: time.Now(), Timeout: timeout,
 	}, nil
 }
@@ -74,15 +74,12 @@ func (c *Client) Receive() (interface{}, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	c.LastUse = time.Now()
 	return r, nil
 }
 
 func (c *Client) Info() (map[string]string, error) {
-	r, err := c.Do("INFO")
-	if err != nil {
-		return nil, err
-	}
-	text, err := redigo.String(r, nil)
+	text, err := redigo.String(c.Do("INFO"))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -135,7 +132,7 @@ func (c *Client) SetMaster(master string) error {
 		if err != nil {
 			return errors.Trace(err)
 		}
-		if _, err := c.Do("CONFIG", "set", "masterauth", c.auth); err != nil {
+		if _, err := c.Do("CONFIG", "set", "masterauth", c.Auth); err != nil {
 			return err
 		}
 		if _, err := c.Do("SLAVEOF", host, port); err != nil {
@@ -206,8 +203,9 @@ var ErrClosedPool = errors.New("use of closed redis pool")
 type Pool struct {
 	mu sync.Mutex
 
-	auth    string
-	pool    map[string]*list.List
+	auth string
+	pool map[string]*list.List
+
 	timeout time.Duration
 
 	exit struct {
@@ -324,10 +322,10 @@ func (p *Pool) PutClient(c *Client) {
 	if p.closed || !p.isRecyclable(c) {
 		c.Close()
 	} else {
-		cache := p.pool[c.addr]
+		cache := p.pool[c.Addr]
 		if cache == nil {
 			cache = list.New()
-			p.pool[c.addr] = cache
+			p.pool[c.Addr] = cache
 		}
 		cache.PushFront(c)
 	}
@@ -358,4 +356,58 @@ func (p *Pool) MigrateSlot(slot int, from, dest string) (int, error) {
 	}
 	defer p.PutClient(c)
 	return c.MigrateSlot(slot, dest)
+}
+
+type InfoCache struct {
+	mu sync.Mutex
+
+	Auth string
+	data map[string]map[string]string
+
+	Timeout time.Duration
+}
+
+func (s *InfoCache) load(addr string) map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data != nil {
+		return s.data[addr]
+	}
+	return nil
+}
+
+func (s *InfoCache) store(addr string, info map[string]string) map[string]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.data == nil {
+		s.data = make(map[string]map[string]string)
+	}
+	if info != nil {
+		s.data[addr] = info
+	} else if s.data[addr] == nil {
+		s.data[addr] = make(map[string]string)
+	}
+	return s.data[addr]
+}
+
+func (s *InfoCache) Get(addr string) map[string]string {
+	info := s.load(addr)
+	if info != nil {
+		return info
+	}
+	info, _ = s.getSlow(addr)
+	return s.store(addr, info)
+}
+
+func (s *InfoCache) GetRunId(addr string) string {
+	return s.Get(addr)["run_id"]
+}
+
+func (s *InfoCache) getSlow(addr string) (map[string]string, error) {
+	c, err := NewClient(addr, s.Auth, s.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+	return c.Info()
 }
