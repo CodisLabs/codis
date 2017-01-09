@@ -4,6 +4,7 @@
 package proxy
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"sync"
@@ -16,16 +17,21 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
+const (
+	stateConnected = 1
+	stateDataStale = 2
+)
+
 type BackendConn struct {
 	stop sync.Once
 	addr string
 
 	input chan *Request
-	ready atomic2.Bool
 	retry struct {
 		fails int
 		delay Delay
 	}
+	state atomic2.Int64
 
 	closed atomic2.Bool
 	config *Config
@@ -58,7 +64,7 @@ func (bc *BackendConn) Close() {
 }
 
 func (bc *BackendConn) IsConnected() bool {
-	return bc.ready.Get()
+	return bc.state.Get() == stateConnected
 }
 
 func (bc *BackendConn) PushBack(r *Request) {
@@ -69,6 +75,9 @@ func (bc *BackendConn) PushBack(r *Request) {
 }
 
 func (bc *BackendConn) KeepAlive() bool {
+	if bc.state.CompareAndSwap(stateDataStale, stateConnected) {
+		log.Warnf("backend conn [%p] to %s, state = Connected (keepalive)", bc, bc.addr)
+	}
 	if len(bc.input) != 0 {
 		return false
 	}
@@ -158,6 +167,8 @@ func (bc *BackendConn) run() {
 	log.Warnf("backend conn [%p] to %s, stop and exit", bc, bc.addr)
 }
 
+var errMasterDown = []byte("MASTERDOWN")
+
 func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round int) (err error) {
 	defer func() {
 		c.Close()
@@ -170,6 +181,14 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 		resp, err := c.Decode()
 		if err != nil {
 			return bc.setResponse(r, nil, fmt.Errorf("backend conn failure, %s", err))
+		}
+		if resp != nil && resp.IsError() {
+			switch {
+			case bytes.HasPrefix(resp.Value, errMasterDown):
+				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
+					log.Warnf("backend conn [%p] to %s, state = DataStale, caused by 'MASTERDOWN'", bc, bc.addr)
+				}
+			}
 		}
 		bc.setResponse(r, resp, nil)
 	}
@@ -209,9 +228,9 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 	}
 	defer close(tasks)
 
-	defer bc.ready.Set(false)
+	defer bc.state.Set(0)
 
-	bc.ready.Set(true)
+	bc.state.Set(stateConnected)
 	bc.retry.fails = 0
 	bc.retry.delay.Reset()
 

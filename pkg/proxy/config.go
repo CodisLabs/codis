@@ -50,7 +50,7 @@ proxy_max_offheap_size = "1024mb"
 # Set heap placeholder to reduce GC frequency.
 proxy_heap_placeholder = "256mb"
 
-# Proxy will ping backend redis in a predefined interval. (0 to disable)
+# Proxy will ping backend redis (and clear 'MASTERDOWN' state) in a predefined interval. (0 to disable)
 backend_ping_period = "5s"
 
 # Set backend recv buffer size & timeout.
