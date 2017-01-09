@@ -33,7 +33,7 @@ func init() {
 	var dials atomic2.Int64
 	tr := &http.Transport{}
 	tr.Dial = func(network, addr string) (net.Conn, error) {
-		c, err := net.DialTimeout(network, addr, time.Second*10)
+		c, err := net.DialTimeout(network, addr, time.Second)
 		if err == nil {
 			log.Debugf("rpc: dial new connection to [%d] %s - %s",
 				dials.Incr()-1, network, addr)
