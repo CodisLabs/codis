@@ -4,11 +4,12 @@
 package utils
 
 import (
-	"context"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
