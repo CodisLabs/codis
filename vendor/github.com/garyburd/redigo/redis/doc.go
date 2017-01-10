@@ -99,7 +99,7 @@
 //
 // Concurrency
 //
-// Connections support one concurrent caller to the Recieve method and one
+// Connections support one concurrent caller to the Receive method and one
 // concurrent caller to the Send and Flush methods. No other concurrency is
 // supported including concurrent calls to the Do method.
 //
@@ -165,4 +165,13 @@
 //   if _, err := redis.Scan(reply, &value1, &value2); err != nil {
 //      // handle error
 //  }
+//
+// Errors
+//
+// Connection methods return error replies from the server as type redis.Error.
+//
+// Call the connection Err() method to determine if the connection encountered
+// non-recoverable error such as a network error or protocol parsing error. If
+// Err() returns a non-nil value, then the connection is not usable and should
+// be closed.
 package redis

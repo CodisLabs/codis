@@ -17,29 +17,19 @@
 			"Rev": "33e0aa1cb7c019ccc3fbe049a8262a6403d30504"
 		},
 		{
-			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/github.com/ugorji/go/codec",
-			"Comment": "v2.3.7",
-			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
-		},
-		{
-			"ImportPath": "github.com/coreos/etcd/Godeps/_workspace/src/golang.org/x/net/context",
-			"Comment": "v2.3.7",
-			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
-		},
-		{
 			"ImportPath": "github.com/coreos/etcd/client",
-			"Comment": "v2.3.7",
-			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
+			"Comment": "v3.0.15",
+			"Rev": "fc00305a2e59b4c2d4a53c9fbb4d30741a96ea67"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
-			"Comment": "v2.3.7",
-			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
+			"Comment": "v3.0.15",
+			"Rev": "fc00305a2e59b4c2d4a53c9fbb4d30741a96ea67"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v2.3.7",
-			"Rev": "fd17c9101d94703f6f4c3d8d6cfb72b62b894cd7"
+			"Comment": "v3.0.15",
+			"Rev": "fc00305a2e59b4c2d4a53c9fbb4d30741a96ea67"
 		},
 		{
 			"ImportPath": "github.com/docopt/docopt-go",
@@ -48,33 +38,33 @@
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/internal",
-			"Comment": "v1.0.0-1-gb8dc900",
-			"Rev": "b8dc90050f24c1a73a52f107f3f575be67b21b7c"
+			"Comment": "v1.0.0-16-g8c052d8",
+			"Rev": "8c052d82153967815d9093a7e9d3e7fd2e554861"
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Comment": "v1.0.0-1-gb8dc900",
-			"Rev": "b8dc90050f24c1a73a52f107f3f575be67b21b7c"
+			"Comment": "v1.0.0-16-g8c052d8",
+			"Rev": "8c052d82153967815d9093a7e9d3e7fd2e554861"
 		},
 		{
 			"ImportPath": "github.com/go-martini/martini",
-			"Comment": "v1.0-185-gc257c41",
-			"Rev": "c257c412d547ac70fcaf5596c1a50a7cb832c1fc"
+			"Comment": "v1.0-186-gfe605b5",
+			"Rev": "fe605b5cd210047ae3bb73d2b69a5b912a9b423d"
 		},
 		{
 			"ImportPath": "github.com/influxdata/influxdb/client/v2",
-			"Comment": "v0.13.0",
-			"Rev": "e57fb88a051ee40fd9277094345fbd47bb4783ce"
+			"Comment": "v1.1.0-223-g8c2cfd14",
+			"Rev": "8c2cfd14af2511580277ddfd7a834b6aaa5f19ab"
 		},
 		{
 			"ImportPath": "github.com/influxdata/influxdb/models",
-			"Comment": "v0.13.0",
-			"Rev": "e57fb88a051ee40fd9277094345fbd47bb4783ce"
+			"Comment": "v1.1.0-223-g8c2cfd14",
+			"Rev": "8c2cfd14af2511580277ddfd7a834b6aaa5f19ab"
 		},
 		{
 			"ImportPath": "github.com/influxdata/influxdb/pkg/escape",
-			"Comment": "v0.13.0",
-			"Rev": "e57fb88a051ee40fd9277094345fbd47bb4783ce"
+			"Comment": "v1.1.0-223-g8c2cfd14",
+			"Rev": "8c2cfd14af2511580277ddfd7a834b6aaa5f19ab"
 		},
 		{
 			"ImportPath": "github.com/martini-contrib/binding",
@@ -94,15 +84,19 @@
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
-			"Rev": "e64db453f3512cade908163702045e0f31137843"
+			"Rev": "1d7be4effb13d2d908342d349d71a284a7542693"
 		},
 		{
 			"ImportPath": "github.com/spinlock/jemalloc-go",
 			"Rev": "c02d8364a3e58416d9de7be36db64ee0494eceb7"
 		},
 		{
+			"ImportPath": "github.com/ugorji/go/codec",
+			"Rev": "ded73eae5db7e7a0ef6f55aace87a2873c5d2b74"
+		},
+		{
 			"ImportPath": "golang.org/x/net/context",
-			"Rev": "4d38db76854b199960801a1734443fd02870d7e1"
+			"Rev": "60c41d1de8da134c05b7b40154a9a82bf5b7edb9"
 		}
 	]
 }

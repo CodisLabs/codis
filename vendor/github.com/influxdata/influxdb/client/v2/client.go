@@ -1,3 +1,4 @@
+// Package client (v2) is the current official Go client for InfluxDB.
 package client
 
 import (
@@ -7,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -15,32 +15,26 @@ import (
 	"github.com/influxdata/influxdb/models"
 )
 
-// UDPPayloadSize is a reasonable default payload size for UDP packets that
-// could be travelling over the internet.
-const (
-	UDPPayloadSize = 512
-)
-
-// HTTPConfig is the config data needed to create an HTTP Client
+// HTTPConfig is the config data needed to create an HTTP Client.
 type HTTPConfig struct {
 	// Addr should be of the form "http://host:port"
 	// or "http://[ipv6-host%zone]:port".
 	Addr string
 
-	// Username is the influxdb username, optional
+	// Username is the influxdb username, optional.
 	Username string
 
-	// Password is the influxdb password, optional
+	// Password is the influxdb password, optional.
 	Password string
 
-	// UserAgent is the http User Agent, defaults to "InfluxDBClient"
+	// UserAgent is the http User Agent, defaults to "InfluxDBClient".
 	UserAgent string
 
-	// Timeout for influxdb writes, defaults to no timeout
+	// Timeout for influxdb writes, defaults to no timeout.
 	Timeout time.Duration
 
 	// InsecureSkipVerify gets passed to the http client, if true, it will
-	// skip https certificate verification. Defaults to false
+	// skip https certificate verification. Defaults to false.
 	InsecureSkipVerify bool
 
 	// TLSConfig allows the user to set their own TLS config for the HTTP
@@ -48,35 +42,25 @@ type HTTPConfig struct {
 	TLSConfig *tls.Config
 }
 
-// UDPConfig is the config data needed to create a UDP Client
-type UDPConfig struct {
-	// Addr should be of the form "host:port"
-	// or "[ipv6-host%zone]:port".
-	Addr string
-
-	// PayloadSize is the maximum size of a UDP client message, optional
-	// Tune this based on your network. Defaults to UDPBufferSize.
-	PayloadSize int
-}
-
-// BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct
+// BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct.
 type BatchPointsConfig struct {
-	// Precision is the write precision of the points, defaults to "ns"
+	// Precision is the write precision of the points, defaults to "ns".
 	Precision string
 
-	// Database is the database to write points to
+	// Database is the database to write points to.
 	Database string
 
-	// RetentionPolicy is the retention policy of the points
+	// RetentionPolicy is the retention policy of the points.
 	RetentionPolicy string
 
-	// Write consistency is the number of servers required to confirm write
+	// Write consistency is the number of servers required to confirm write.
 	WriteConsistency string
 }
 
-// Client is a client interface for writing & querying the database
+// Client is a client interface for writing & querying the database.
 type Client interface {
-	// Ping checks that status of cluster
+	// Ping checks that status of cluster, and will always return 0 time and no
+	// error for UDP clients.
 	Ping(timeout time.Duration) (time.Duration, string, error)
 
 	// Write takes a BatchPoints object and writes all Points to InfluxDB.
@@ -177,42 +161,6 @@ func (c *client) Close() error {
 	return nil
 }
 
-// NewUDPClient returns a client interface for writing to an InfluxDB UDP
-// service from the given config.
-func NewUDPClient(conf UDPConfig) (Client, error) {
-	var udpAddr *net.UDPAddr
-	udpAddr, err := net.ResolveUDPAddr("udp", conf.Addr)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.DialUDP("udp", nil, udpAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	payloadSize := conf.PayloadSize
-	if payloadSize == 0 {
-		payloadSize = UDPPayloadSize
-	}
-
-	return &udpclient{
-		conn:        conn,
-		payloadSize: payloadSize,
-	}, nil
-}
-
-// Ping will check to see if the server is up with an optional timeout on waiting for leader.
-// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
-func (uc *udpclient) Ping(timeout time.Duration) (time.Duration, string, error) {
-	return 0, "", nil
-}
-
-// Close releases the udpclient's resources.
-func (uc *udpclient) Close() error {
-	return uc.conn.Close()
-}
-
 // client is safe for concurrent use as the fields are all read-only
 // once the client is instantiated.
 type client struct {
@@ -226,40 +174,35 @@ type client struct {
 	transport  *http.Transport
 }
 
-type udpclient struct {
-	conn        *net.UDPConn
-	payloadSize int
-}
-
 // BatchPoints is an interface into a batched grouping of points to write into
 // InfluxDB together. BatchPoints is NOT thread-safe, you must create a separate
 // batch for each goroutine.
 type BatchPoints interface {
-	// AddPoint adds the given point to the Batch of points
+	// AddPoint adds the given point to the Batch of points.
 	AddPoint(p *Point)
-	// AddPoints adds the given points to the Batch of points
+	// AddPoints adds the given points to the Batch of points.
 	AddPoints(ps []*Point)
-	// Points lists the points in the Batch
+	// Points lists the points in the Batch.
 	Points() []*Point
 
-	// Precision returns the currently set precision of this Batch
+	// Precision returns the currently set precision of this Batch.
 	Precision() string
 	// SetPrecision sets the precision of this batch.
 	SetPrecision(s string) error
 
-	// Database returns the currently set database of this Batch
+	// Database returns the currently set database of this Batch.
 	Database() string
-	// SetDatabase sets the database of this Batch
+	// SetDatabase sets the database of this Batch.
 	SetDatabase(s string)
 
-	// WriteConsistency returns the currently set write consistency of this Batch
+	// WriteConsistency returns the currently set write consistency of this Batch.
 	WriteConsistency() string
-	// SetWriteConsistency sets the write consistency of this Batch
+	// SetWriteConsistency sets the write consistency of this Batch.
 	SetWriteConsistency(s string)
 
-	// RetentionPolicy returns the currently set retention policy of this Batch
+	// RetentionPolicy returns the currently set retention policy of this Batch.
 	RetentionPolicy() string
-	// SetRetentionPolicy sets the retention policy of this Batch
+	// SetRetentionPolicy sets the retention policy of this Batch.
 	SetRetentionPolicy(s string)
 }
 
@@ -336,7 +279,7 @@ func (bp *batchpoints) SetRetentionPolicy(rp string) {
 	bp.retentionPolicy = rp
 }
 
-// Point represents a single data point
+// Point represents a single data point.
 type Point struct {
 	pt models.Point
 }
@@ -356,7 +299,7 @@ func NewPoint(
 		T = t[0]
 	}
 
-	pt, err := models.NewPoint(name, tags, fields, T)
+	pt, err := models.NewPoint(name, models.NewTags(tags), fields, T)
 	if err != nil {
 		return nil, err
 	}
@@ -365,69 +308,45 @@ func NewPoint(
 	}, nil
 }
 
-// String returns a line-protocol string of the Point
+// String returns a line-protocol string of the Point.
 func (p *Point) String() string {
 	return p.pt.String()
 }
 
-// PrecisionString returns a line-protocol string of the Point, at precision
+// PrecisionString returns a line-protocol string of the Point,
+// with the timestamp formatted for the given precision.
 func (p *Point) PrecisionString(precison string) string {
 	return p.pt.PrecisionString(precison)
 }
 
-// Name returns the measurement name of the point
+// Name returns the measurement name of the point.
 func (p *Point) Name() string {
 	return p.pt.Name()
 }
 
-// Tags returns the tags associated with the point
+// Tags returns the tags associated with the point.
 func (p *Point) Tags() map[string]string {
-	return p.pt.Tags()
+	return p.pt.Tags().Map()
 }
 
-// Time return the timestamp for the point
+// Time return the timestamp for the point.
 func (p *Point) Time() time.Time {
 	return p.pt.Time()
 }
 
-// UnixNano returns the unix nano time of the point
+// UnixNano returns timestamp of the point in nanoseconds since Unix epoch.
 func (p *Point) UnixNano() int64 {
 	return p.pt.UnixNano()
 }
 
-// Fields returns the fields for the point
-func (p *Point) Fields() map[string]interface{} {
+// Fields returns the fields for the point.
+func (p *Point) Fields() (map[string]interface{}, error) {
 	return p.pt.Fields()
 }
 
 // NewPointFrom returns a point from the provided models.Point.
 func NewPointFrom(pt models.Point) *Point {
 	return &Point{pt: pt}
-}
-
-func (uc *udpclient) Write(bp BatchPoints) error {
-	var b bytes.Buffer
-	var d time.Duration
-	d, _ = time.ParseDuration("1" + bp.Precision())
-
-	for _, p := range bp.Points() {
-		pointstring := p.pt.RoundedString(d) + "\n"
-
-		// Write and reset the buffer if we reach the max size
-		if b.Len()+len(pointstring) >= uc.payloadSize {
-			if _, err := uc.conn.Write(b.Bytes()); err != nil {
-				return err
-			}
-			b.Reset()
-		}
-
-		if _, err := b.WriteString(pointstring); err != nil {
-			return err
-		}
-	}
-
-	_, err := uc.conn.Write(b.Bytes())
-	return err
 }
 
 func (c *client) Write(bp BatchPoints) error {
@@ -481,21 +400,34 @@ func (c *client) Write(bp BatchPoints) error {
 	return nil
 }
 
-// Query defines a query to send to the server
+// Query defines a query to send to the server.
 type Query struct {
-	Command   string
-	Database  string
-	Precision string
+	Command    string
+	Database   string
+	Precision  string
+	Parameters map[string]interface{}
 }
 
-// NewQuery returns a query object
-// database and precision strings can be empty strings if they are not needed
-// for the query.
+// NewQuery returns a query object.
+// The database and precision arguments can be empty strings if they are not needed for the query.
 func NewQuery(command, database, precision string) Query {
 	return Query{
-		Command:   command,
-		Database:  database,
-		Precision: precision,
+		Command:    command,
+		Database:   database,
+		Precision:  precision,
+		Parameters: make(map[string]interface{}),
+	}
+}
+
+// NewQueryWithParameters returns a query object.
+// The database and precision arguments can be empty strings if they are not needed for the query.
+// parameters is a map of the parameter names used in the command to their values.
+func NewQueryWithParameters(command, database, precision string, parameters map[string]interface{}) Query {
+	return Query{
+		Command:    command,
+		Database:   database,
+		Precision:  precision,
+		Parameters: parameters,
 	}
 }
 
@@ -506,7 +438,7 @@ type Response struct {
 }
 
 // Error returns the first error from any statement.
-// Returns nil if no errors occurred on any statements.
+// It returns nil if no errors occurred on any statements.
 func (r *Response) Error() error {
 	if r.Err != "" {
 		return fmt.Errorf(r.Err)
@@ -532,21 +464,25 @@ type Result struct {
 	Err      string `json:"error,omitempty"`
 }
 
-func (uc *udpclient) Query(q Query) (*Response, error) {
-	return nil, fmt.Errorf("Querying via UDP is not supported")
-}
-
-// Query sends a command to the server and returns the Response
+// Query sends a command to the server and returns the Response.
 func (c *client) Query(q Query) (*Response, error) {
 	u := c.url
 	u.Path = "query"
+
+	jsonParameters, err := json.Marshal(q.Parameters)
+
+	if err != nil {
+		return nil, err
+	}
 
 	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Content-Type", "")
 	req.Header.Set("User-Agent", c.useragent)
+
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
@@ -554,6 +490,8 @@ func (c *client) Query(q Query) (*Response, error) {
 	params := req.URL.Query()
 	params.Set("q", q.Command)
 	params.Set("db", q.Database)
+	params.Set("params", string(jsonParameters))
+
 	if q.Precision != "" {
 		params.Set("epoch", q.Precision)
 	}
