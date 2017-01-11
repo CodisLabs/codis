@@ -55,7 +55,7 @@ func init() {
 func main() {
 	const usage = `
 Usage:
-	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] (--dashboard-list=FILE|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT) --listen=ADDR
+	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] (--dashboard-list=FILE|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--db=ADDR) --listen=ADDR
 	codis-fe  --version
 
 Options:
@@ -145,6 +145,10 @@ Options:
 		case d["--filesystem"] != nil:
 			coordinator.name = "filesystem"
 			coordinator.addr = utils.ArgumentMust(d, "--filesystem")
+
+		case d["--db"] != nil:
+			coordinator.name = "db"
+			coordinator.addr = utils.ArgumentMust(d, "--db")
 
 		default:
 			log.Panicf("invalid coordinator")
