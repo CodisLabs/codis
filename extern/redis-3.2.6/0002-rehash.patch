@@ -1,0 +1,35 @@
+diff --git a/extern/redis-3.2.4/src/server.c b/extern/redis-3.2.4/src/server.c
+index 1854c09..4c9979c 100644
+--- a/extern/redis-3.2.4/src/server.c
++++ b/extern/redis-3.2.4/src/server.c
+@@ -714,10 +714,16 @@ int incrementallyRehash(int dbid) {
+     /* Keys dictionary */
+     if (dictIsRehashing(server.db[dbid].dict)) {
+         dictRehashMilliseconds(server.db[dbid].dict,1);
++
++        long long start = timeInMilliseconds();
+         for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
+-            dict *d = server.db[dbid].hash_slots[i];
++            int idx = ((i + start) & HASH_SLOTS_MASK);
++            dict *d = server.db[dbid].hash_slots[idx];
+             if (dictIsRehashing(d)) {
+                 dictRehashMilliseconds(d, 1);
++                if (timeInMilliseconds() != start) {
++                    break;
++                }
+             }
+         }
+         return 1; /* already used our millisecond for this loop... */
+diff --git a/extern/redis-3.2.4/src/server.h b/extern/redis-3.2.4/src/server.h
+index fc476ea..22c6551 100644
+--- a/extern/redis-3.2.4/src/server.h
++++ b/extern/redis-3.2.4/src/server.h
+@@ -501,6 +501,8 @@ struct evictionPoolEntry {
+ void crc32_init();
+ uint32_t crc32_checksum(const char *buf, int len);
+ 
++long long timeInMilliseconds(void);
++
+ #define HASH_SLOTS_MASK 0x000003ff
+ #define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
+ 

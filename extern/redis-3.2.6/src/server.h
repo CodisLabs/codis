@@ -498,6 +498,16 @@ struct evictionPoolEntry {
     sds key;                    /* Key name. */
 };
 
+void crc32_init();
+uint32_t crc32_checksum(const char *buf, int len);
+
+long long timeInMilliseconds(void);
+
+#define HASH_SLOTS_MASK 0x000003ff
+#define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
+
+struct zskiplist;
+
 /* Redis database representation. There are multiple databases identified
  * by integers from 0 (the default database) up to the max configured
  * database. The database number is the 'id' field in the structure. */
@@ -507,6 +517,8 @@ typedef struct redisDb {
     dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP) */
     dict *ready_keys;           /* Blocked keys that received a PUSH */
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
+    dict *hash_slots[HASH_SLOTS_SIZE];
+    struct zskiplist *tagged_keys;
     struct evictionPoolEntry *eviction_pool;    /* Eviction pool of keys */
     int id;                     /* Database ID */
     long long avg_ttl;          /* Average TTL, just for stats */
@@ -741,6 +753,7 @@ struct redisServer {
     int clients_paused;         /* True if clients are currently paused */
     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
+    dict *slotsmgrt_cached_sockfds;
     dict *migrate_cached_sockets;/* MIGRATE cached sockets */
     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
     int protected_mode;         /* Don't accept external connections. */
@@ -1645,6 +1658,20 @@ void pfcountCommand(client *c);
 void pfmergeCommand(client *c);
 void pfdebugCommand(client *c);
 void latencyCommand(client *c);
+void slotsinfoCommand(client *c);
+void slotsscanCommand(client *c);
+void slotsdelCommand(client *c);
+void slotsmgrtslotCommand(client *c);
+void slotsmgrtoneCommand(client *c);
+void slotsmgrttagslotCommand(client *c);
+void slotsmgrttagoneCommand(client *c);
+void slotshashkeyCommand(client *c);
+void slotscheckCommand(client *c);
+void slotsrestoreCommand(client *c);
+
+void slotsmgrt_cleanup();
+int slots_num(const sds s, uint32_t *pcrc, int *phastag);
+
 
 #if defined(__GNUC__)
 void *calloc(size_t count, size_t size) __attribute__ ((deprecated));

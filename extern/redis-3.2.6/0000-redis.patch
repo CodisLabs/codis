@@ -1,0 +1,292 @@
+diff --git a/extern/redis-3.2.6/src/Makefile b/extern/redis-3.2.6/src/Makefile
+index fdbe36a..68af785 100644
+--- a/extern/redis-3.2.6/src/Makefile
++++ b/extern/redis-3.2.6/src/Makefile
+@@ -127,7 +127,7 @@ endif
+ 
+ REDIS_SERVER_NAME=redis-server
+ REDIS_SENTINEL_NAME=redis-sentinel
+-REDIS_SERVER_OBJ=adlist.o quicklist.o ae.o anet.o dict.o server.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o pubsub.o multi.o debug.o sort.o intset.o syncio.o cluster.o crc16.o endianconv.o slowlog.o scripting.o bio.o rio.o rand.o memtest.o crc64.o bitops.o sentinel.o notify.o setproctitle.o blocked.o hyperloglog.o latency.o sparkline.o redis-check-rdb.o geo.o
++REDIS_SERVER_OBJ=adlist.o quicklist.o ae.o anet.o dict.o server.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o pubsub.o multi.o debug.o sort.o intset.o syncio.o cluster.o crc16.o endianconv.o slowlog.o scripting.o bio.o rio.o rand.o memtest.o crc64.o bitops.o sentinel.o notify.o setproctitle.o blocked.o hyperloglog.o latency.o sparkline.o redis-check-rdb.o geo.o slots.o crc32.o
+ REDIS_GEOHASH_OBJ=../deps/geohash-int/geohash.o ../deps/geohash-int/geohash_helper.o
+ REDIS_CLI_NAME=redis-cli
+ REDIS_CLI_OBJ=anet.o adlist.o redis-cli.o zmalloc.o release.o anet.o ae.o crc64.o
+diff --git a/extern/redis-3.2.6/src/Makefile.dep b/extern/redis-3.2.6/src/Makefile.dep
+index 9af8331..ddedf6a 100644
+--- a/extern/redis-3.2.6/src/Makefile.dep
++++ b/extern/redis-3.2.6/src/Makefile.dep
+@@ -67,6 +67,8 @@ latency.o: latency.c server.h fmacros.h config.h solarisfixes.h \
+ lzf_c.o: lzf_c.c lzfP.h
+ lzf_d.o: lzf_d.c lzfP.h
+ memtest.o: memtest.c config.h
++crc32.o: crc32.c
++slots.o: slots.c server.h
+ multi.o: multi.c server.h fmacros.h config.h solarisfixes.h \
+  ../deps/lua/src/lua.h ../deps/lua/src/luaconf.h ae.h sds.h dict.h \
+  adlist.h zmalloc.h anet.h ziplist.h intset.h version.h util.h latency.h \
+diff --git a/extern/redis-3.2.6/src/db.c b/extern/redis-3.2.6/src/db.c
+index fba731c..fa79e54 100644
+--- a/extern/redis-3.2.6/src/db.c
++++ b/extern/redis-3.2.6/src/db.c
+@@ -158,6 +158,17 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
+     sds copy = sdsdup(key->ptr);
+     int retval = dictAdd(db->dict, copy, val);
+ 
++    do {
++        uint32_t crc;
++        int hastag;
++        int slot = slots_num(key->ptr, &crc, &hastag);
++        dictAdd(db->hash_slots[slot], copy, (void *)(long)crc);
++        if (hastag) {
++            incrRefCount(key);
++            zslInsert(db->tagged_keys, (double)crc, key);
++        }
++    } while (0);
++
+     serverAssertWithInfo(NULL,key,retval == DICT_OK);
+     if (val->type == OBJ_LIST) signalListAsReady(db, key);
+     if (server.cluster_enabled) slotToKeyAdd(key);
+@@ -227,6 +238,18 @@ int dbDelete(redisDb *db, robj *key) {
+     /* Deleting an entry from the expires dict will not free the sds of
+      * the key, because it is shared with the main dictionary. */
+     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
++
++    do {
++        uint32_t crc;
++        int hastag;
++        int slot = slots_num(key->ptr, &crc, &hastag);
++        if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK) {
++            if (hastag) {
++                zslDelete(db->tagged_keys, (double)crc, key);
++            }
++        }
++    } while (0);
++
+     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
+         if (server.cluster_enabled) slotToKeyDel(key);
+         return 1;
+@@ -274,11 +297,18 @@ robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
+ }
+ 
+ long long emptyDb(void(callback)(void*)) {
+-    int j;
++    int i, j;
+     long long removed = 0;
+ 
+     for (j = 0; j < server.dbnum; j++) {
+         removed += dictSize(server.db[j].dict);
++        for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
++            dictEmpty(server.db[j].hash_slots[i], NULL);
++        }
++        if (server.db[j].tagged_keys->length != 0) {
++            zslFree(server.db[j].tagged_keys);
++            server.db[j].tagged_keys = zslCreate();
++        }
+         dictEmpty(server.db[j].dict,callback);
+         dictEmpty(server.db[j].expires,callback);
+     }
+@@ -315,8 +345,16 @@ void signalFlushedDb(int dbid) {
+  *----------------------------------------------------------------------------*/
+ 
+ void flushdbCommand(client *c) {
++    int i;
+     server.dirty += dictSize(c->db->dict);
+     signalFlushedDb(c->db->id);
++    for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
++        dictEmpty(c->db->hash_slots[i], NULL);
++    }
++    if (c->db->tagged_keys->length != 0) {
++        zslFree(c->db->tagged_keys);
++        c->db->tagged_keys = zslCreate();
++    }
+     dictEmpty(c->db->dict,NULL);
+     dictEmpty(c->db->expires,NULL);
+     if (server.cluster_enabled) slotToKeyFlush();
+@@ -724,7 +762,15 @@ void shutdownCommand(client *c) {
+      * Also when in Sentinel mode clear the SAVE flag and force NOSAVE. */
+     if (server.loading || server.sentinel_mode)
+         flags = (flags & ~SHUTDOWN_SAVE) | SHUTDOWN_NOSAVE;
+-    if (prepareForShutdown(flags) == C_OK) exit(0);
++    if (prepareForShutdown(flags) == C_OK) {
++        for (int j = 0; j < server.dbnum; j ++) {
++            for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
++                dictRelease(server.db[j].hash_slots[i]);
++            }
++            zslFree(server.db[j].tagged_keys);
++        }
++        exit(0);
++    }
+     addReplyError(c,"Errors trying to SHUTDOWN. Check logs.");
+ }
+ 
+diff --git a/extern/redis-3.2.6/src/server.c b/extern/redis-3.2.6/src/server.c
+index 408d03f..6ce92a1 100644
+--- a/extern/redis-3.2.6/src/server.c
++++ b/extern/redis-3.2.6/src/server.c
+@@ -294,7 +294,16 @@ struct redisCommand redisCommandTable[] = {
+     {"pfcount",pfcountCommand,-2,"r",0,NULL,1,-1,1,0,0},
+     {"pfmerge",pfmergeCommand,-2,"wm",0,NULL,1,-1,1,0,0},
+     {"pfdebug",pfdebugCommand,-3,"w",0,NULL,0,0,0,0,0},
+-    {"latency",latencyCommand,-2,"aslt",0,NULL,0,0,0,0,0}
++    {"latency",latencyCommand,-2,"aslt",0,NULL,0,0,0,0,0},
++    {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
++    {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
++    {"slotsmgrtslot",slotsmgrtslotCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsmgrtone",slotsmgrtoneCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotshashkey",slotshashkeyCommand,-1,"rF",0,NULL,0,0,0,0,0},
++    {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
++    {"slotsrestore",slotsrestoreCommand,-4,"awm",0,NULL,1,1,1,0,0},
+ };
+ 
+ struct evictionPoolEntry *evictionPoolAlloc(void);
+@@ -562,6 +571,15 @@ dictType dbDictType = {
+     dictObjectDestructor   /* val destructor */
+ };
+ 
++dictType hashSlotType = {
++    dictSdsHash,                /* hash function */
++    NULL,                       /* key dup */
++    NULL,                       /* val dup */
++    dictSdsKeyCompare,          /* key compare */
++    NULL,                       /* key destructor */
++    NULL                        /* val destructor */
++};
++
+ /* server.lua_scripts sha (as sds string) -> scripts (as robj) cache. */
+ dictType shaScriptObjectDictType = {
+     dictSdsCaseHash,            /* hash function */
+@@ -671,8 +689,15 @@ int htNeedsResize(dict *dict) {
+ /* If the percentage of used slots in the HT reaches HASHTABLE_MIN_FILL
+  * we resize the hash table to save memory */
+ void tryResizeHashTables(int dbid) {
+-    if (htNeedsResize(server.db[dbid].dict))
++    if (htNeedsResize(server.db[dbid].dict)) {
+         dictResize(server.db[dbid].dict);
++        for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
++            dict *d = server.db[dbid].hash_slots[i];
++            if (htNeedsResize(d)) {
++                dictResize(d);
++            }
++        }
++    }
+     if (htNeedsResize(server.db[dbid].expires))
+         dictResize(server.db[dbid].expires);
+ }
+@@ -688,6 +713,12 @@ int incrementallyRehash(int dbid) {
+     /* Keys dictionary */
+     if (dictIsRehashing(server.db[dbid].dict)) {
+         dictRehashMilliseconds(server.db[dbid].dict,1);
++        for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
++            dict *d = server.db[dbid].hash_slots[i];
++            if (dictIsRehashing(d)) {
++                dictRehashMilliseconds(d, 1);
++            }
++        }
+         return 1; /* already used our millisecond for this loop... */
+     }
+     /* Expires */
+@@ -1281,6 +1312,10 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
+         if (server.sentinel_mode) sentinelTimer();
+     }
+ 
++    run_with_period(1000) {
++        slotsmgrt_cleanup();
++    }
++
+     /* Cleanup expired MIGRATE cached sockets. */
+     run_with_period(1000) {
+         migrateCloseTimedoutSockets();
+@@ -1532,6 +1567,8 @@ void initServerConfig(void) {
+     server.next_client_id = 1; /* Client IDs, start from 1 .*/
+     server.loading_process_events_interval_bytes = (1024*1024*2);
+ 
++    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
++
+     server.lruclock = getLRUClock();
+     resetServerSaveParams();
+ 
+@@ -1858,12 +1895,14 @@ void resetServerStats(void) {
+ }
+ 
+ void initServer(void) {
+-    int j;
++    int i, j;
+ 
+     signal(SIGHUP, SIG_IGN);
+     signal(SIGPIPE, SIG_IGN);
+     setupSignalHandlers();
+ 
++    crc32_init();
++
+     if (server.syslog_enabled) {
+         openlog(server.syslog_ident, LOG_PID | LOG_NDELAY | LOG_NOWAIT,
+             server.syslog_facility);
+@@ -1922,6 +1961,10 @@ void initServer(void) {
+         server.db[j].eviction_pool = evictionPoolAlloc();
+         server.db[j].id = j;
+         server.db[j].avg_ttl = 0;
++        for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
++            server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
++        }
++        server.db[j].tagged_keys = zslCreate();
+     }
+     server.pubsub_channels = dictCreate(&keylistDictType,NULL);
+     server.pubsub_patterns = listCreate();
+diff --git a/extern/redis-3.2.6/src/server.h b/extern/redis-3.2.6/src/server.h
+index 1a26ec4..f811000 100644
+--- a/extern/redis-3.2.6/src/server.h
++++ b/extern/redis-3.2.6/src/server.h
+@@ -498,6 +498,14 @@ struct evictionPoolEntry {
+     sds key;                    /* Key name. */
+ };
+ 
++void crc32_init();
++uint32_t crc32_checksum(const char *buf, int len);
++
++#define HASH_SLOTS_MASK 0x000003ff
++#define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
++
++struct zskiplist;
++
+ /* Redis database representation. There are multiple databases identified
+  * by integers from 0 (the default database) up to the max configured
+  * database. The database number is the 'id' field in the structure. */
+@@ -507,6 +515,8 @@ typedef struct redisDb {
+     dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP) */
+     dict *ready_keys;           /* Blocked keys that received a PUSH */
+     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
++    dict *hash_slots[HASH_SLOTS_SIZE];
++    struct zskiplist *tagged_keys;
+     struct evictionPoolEntry *eviction_pool;    /* Eviction pool of keys */
+     int id;                     /* Database ID */
+     long long avg_ttl;          /* Average TTL, just for stats */
+@@ -741,6 +751,7 @@ struct redisServer {
+     int clients_paused;         /* True if clients are currently paused */
+     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
+     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
++    dict *slotsmgrt_cached_sockfds;
+     dict *migrate_cached_sockets;/* MIGRATE cached sockets */
+     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
+     int protected_mode;         /* Don't accept external connections. */
+@@ -1645,6 +1656,19 @@ void pfcountCommand(client *c);
+ void pfmergeCommand(client *c);
+ void pfdebugCommand(client *c);
+ void latencyCommand(client *c);
++void slotsinfoCommand(client *c);
++void slotsdelCommand(client *c);
++void slotsmgrtslotCommand(client *c);
++void slotsmgrtoneCommand(client *c);
++void slotsmgrttagslotCommand(client *c);
++void slotsmgrttagoneCommand(client *c);
++void slotshashkeyCommand(client *c);
++void slotscheckCommand(client *c);
++void slotsrestoreCommand(client *c);
++
++void slotsmgrt_cleanup();
++int slots_num(const sds s, uint32_t *pcrc, int *phastag);
++
+ 
+ #if defined(__GNUC__)
+ void *calloc(size_t count, size_t size) __attribute__ ((deprecated));
