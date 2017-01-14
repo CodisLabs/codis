@@ -254,6 +254,8 @@ func (c *Client) Delete(path string) error {
 	}
 }
 
+var ErrPathNotExist = errors.New("path not exist")
+
 func (c *Client) Read(path string, must bool) ([]byte, error) {
 	c.Lock()
 	defer c.Unlock()
@@ -261,7 +263,9 @@ func (c *Client) Read(path string, must bool) ([]byte, error) {
 		return nil, errors.Trace(ErrClosedClient)
 	}
 	value, err := c.query(path)
-	if err == nil {
+	if must && value == nil {
+		return nil, ErrPathNotExist
+	} else if err == nil {
 		log.Debugf("db - read %s succ", path)
 		return value, nil
 	} else {
@@ -282,6 +286,8 @@ func (c *Client) List(path string, must bool) ([]string, error) {
 	if result, err = c.getchildren(path); err != nil {
 		log.Warnf("db - list %s fail", path)
 		return nil, errors.Trace(err)
+	} else if must && result == nil {
+		return nil, ErrPathNotExist
 	} else {
 		log.Warnf("db - list %s succ", path)
 		return result, nil
