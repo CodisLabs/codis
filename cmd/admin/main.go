@@ -51,11 +51,11 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --sentinel-add   --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --sentinel-del   --addr=ADDR [--force]
 	codis-admin [-v] --dashboard=ADDR            --sentinel-resync
-	codis-admin [-v] --remove-lock               --product=NAME (--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT)
-	codis-admin [-v] --config-dump               --product=NAME (--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT) [-1]
+	codis-admin [-v] --remove-lock               --product=NAME (--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--db=ADDR)
+	codis-admin [-v] --config-dump               --product=NAME (--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--db=ADDR) [-1]
 	codis-admin [-v] --config-convert=FILE
-	codis-admin [-v] --config-restore=FILE       --product=NAME (--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT) [--confirm]
-	codis-admin [-v] --dashboard-list                           (--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT)
+	codis-admin [-v] --config-restore=FILE       --product=NAME (--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--db=ADDR) [--confirm]
+	codis-admin [-v] --dashboard-list                           (--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--db=ADDR)
 
 Options:
 	-a AUTH, --auth=AUTH
