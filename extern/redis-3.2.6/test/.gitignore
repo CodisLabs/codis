@@ -1,0 +1,12 @@
+*.conf
+*.toml
+*.pyc
+*.log
+*.rdb
+*.tmp
+*.swp
+
+.idea
+__pycache__
+
+/rootfs
