@@ -152,7 +152,8 @@ slotsmgrtLazyReleaseCommand(client *c) {
     if (c->argc != 1) {
         if (getLongLongFromObject(c->argv[1], &step) != C_OK ||
                 !(step >= 1 && step <= INT_MAX)) {
-            addReplyErrorFormat(c, "invalid value of step (%s)", c->argv[1]->ptr);
+            addReplyErrorFormat(c, "invalid value of step (%s)",
+                    (char *)c->argv[1]->ptr);
             return;
         }
     }
@@ -668,7 +669,7 @@ unlinkSlotsmgrtAsyncCachedClient(client *c, const char *errmsg) {
 
     long long elapsed = mstime() - ac->lastuse;
     serverLog(LL_WARNING, "slotsmgrt_async: unlink client %s:%d (DB=%d): "
-            "pending_msgs = %d, batched_iter = %d, blocked_iter = %d, "
+            "pending_msgs = %d, batched_iter = %d, blocked_list = %d, "
             "timeout = %lld(ms), elapsed = %lld(ms) (%s)",
             ac->host, ac->port, c->db->id, ac->pending_msgs, it != NULL ? (int)listLength(it->list) : -1,
             (int)listLength(ac->blocked_list), ac->timeout, elapsed, errmsg);
@@ -839,7 +840,8 @@ slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
     long long timeout;
     if (getLongLongFromObject(c->argv[1], &timeout) != C_OK ||
             !(timeout >= 0 && timeout <= INT_MAX)) {
-        addReplyErrorFormat(c, "invalid value of timeout (%s)", c->argv[1]->ptr);
+        addReplyErrorFormat(c, "invalid value of timeout (%s)",
+                (char *)c->argv[1]->ptr);
         return;
     }
     if (timeout == 0) {
@@ -848,7 +850,8 @@ slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
     long long maxbulks;
     if (getLongLongFromObject(c->argv[2], &maxbulks) != C_OK ||
             !(maxbulks >= 0 && maxbulks <= INT_MAX)) {
-        addReplyErrorFormat(c, "invalid value of maxbulks (%s)", c->argv[2]->ptr);
+        addReplyErrorFormat(c, "invalid value of maxbulks (%s)",
+                (char *)c->argv[2]->ptr);
         return;
     }
     if (maxbulks == 0) {
@@ -857,7 +860,8 @@ slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
     long long maxbytes;
     if (getLongLongFromObject(c->argv[3], &maxbytes) != C_OK ||
             !(maxbytes >= 0 && maxbytes <= INT_MAX)) {
-        addReplyErrorFormat(c, "invalid value of maxbytes (%s)", c->argv[3]->ptr);
+        addReplyErrorFormat(c, "invalid value of maxbytes (%s)",
+                (char *)c->argv[3]->ptr);
         return;
     }
     if (maxbytes == 0) {
@@ -914,13 +918,15 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     long long port;
     if (getLongLongFromObject(c->argv[2], &port) != C_OK ||
             !(port >= 1 && port < 65536)) {
-        addReplyErrorFormat(c, "invalid value of port (%s)", c->argv[2]->ptr);
+        addReplyErrorFormat(c, "invalid value of port (%s)",
+                (char *)c->argv[2]->ptr);
         return;
     }
     long long timeout;
     if (getLongLongFromObject(c->argv[3], &timeout) != C_OK ||
             !(timeout >= 0 && timeout <= INT_MAX)) {
-        addReplyErrorFormat(c, "invalid value of timeout (%s)", c->argv[3]->ptr);
+        addReplyErrorFormat(c, "invalid value of timeout (%s)",
+                (char *)c->argv[3]->ptr);
         return;
     }
     if (timeout == 0) {
@@ -929,7 +935,8 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     long long maxbulks;
     if (getLongLongFromObject(c->argv[4], &maxbulks) != C_OK ||
             !(maxbulks >= 0 && maxbulks <= INT_MAX)) {
-        addReplyErrorFormat(c, "invalid value of maxbulks (%s)", c->argv[4]->ptr);
+        addReplyErrorFormat(c, "invalid value of maxbulks (%s)",
+                (char *)c->argv[4]->ptr);
         return;
     }
     if (maxbulks == 0) {
@@ -938,7 +945,8 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     long long maxbytes;
     if (getLongLongFromObject(c->argv[5], &maxbytes) != C_OK ||
             !(maxbytes >= 0 && maxbytes <= INT_MAX)) {
-        addReplyErrorFormat(c, "invalid value of maxbytes (%s)", c->argv[5]->ptr);
+        addReplyErrorFormat(c, "invalid value of maxbytes (%s)",
+                (char *)c->argv[5]->ptr);
         return;
     }
     if (maxbytes == 0) {
@@ -947,7 +955,8 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     long long pipeline;
     if (getLongLongFromObject(c->argv[6], &pipeline) != C_OK ||
             !(pipeline >= 0 && pipeline <= INT_MAX)) {
-        addReplyErrorFormat(c, "invalid value of pipeline (%s)", c->argv[6]->ptr);
+        addReplyErrorFormat(c, "invalid value of pipeline (%s)",
+                (char *)c->argv[6]->ptr);
         return;
     }
     if (pipeline == 0) {
@@ -960,13 +969,15 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
         long long slotnum;
         if (getLongLongFromObject(c->argv[7], &slotnum) != C_OK ||
                 !(slotnum >= 0 && slotnum < HASH_SLOTS_SIZE)) {
-            addReplyErrorFormat(c, "invalid value of slot (%s)", c->argv[7]->ptr);
+            addReplyErrorFormat(c, "invalid value of slot (%s)",
+                    (char *)c->argv[7]->ptr);
             return;
         }
         hash_slot = c->db->hash_slots[slotnum];
         if (getLongLongFromObject(c->argv[8], &numkeys) != C_OK ||
                 !(numkeys >= 0 && numkeys <= INT_MAX)) {
-            addReplyErrorFormat(c, "invalid value of numkeys (%s)", c->argv[8]->ptr);
+            addReplyErrorFormat(c, "invalid value of numkeys (%s)",
+                    (char *)c->argv[8]->ptr);
             return;
         }
         if (numkeys == 0) {
@@ -1105,12 +1116,14 @@ slotsmgrtExecWrapperCommand(client *c) {
     struct redisCommand *cmd = lookupCommand(c->argv[2]->ptr);
     if (cmd == NULL) {
         addReplyLongLong(c, -1);
-        addReplyErrorFormat(c,"invalid command specified (%s)", c->argv[2]->ptr);
+        addReplyErrorFormat(c,"invalid command specified (%s)",
+                (char *)c->argv[2]->ptr);
         return;
     }
     if ((cmd->arity > 0 && cmd->arity != c->argc - 2) || (c->argc - 2 < -cmd->arity)) {
         addReplyLongLong(c, -1);
-        addReplyErrorFormat(c, "wrong number of arguments for command (%s)", c->argv[2]->ptr);
+        addReplyErrorFormat(c, "wrong number of arguments for command (%s)",
+                (char *)c->argv[2]->ptr);
         return;
     }
     if (lookupKeyWrite(c->db, c->argv[1]) == NULL) {
@@ -1482,7 +1495,8 @@ slotsrestoreAsyncAckHandle(client *c) {
     }
     long long errcode;
     if (getLongLongFromObject(c->argv[1], &errcode) != C_OK) {
-        addReplyErrorFormat(c, "invalid errcode (%s)", c->argv[1]->ptr);
+        addReplyErrorFormat(c, "invalid errcode (%s)",
+                (char *)c->argv[1]->ptr);
         return C_ERR;
     }
     const char *errmsg = c->argv[2]->ptr;
