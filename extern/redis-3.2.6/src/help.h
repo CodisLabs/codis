@@ -1089,6 +1089,10 @@ struct commandHelp {
         "command [arg ...]",
         "", 14, "codis3.2"
     },
+    {"SLOTSMGRT-LAZY-RELEASE",
+        "[step]",
+        "", 14, "codis3.2"
+    },
     {"SLOTSRESTORE-ASYNC SELECT",
         "db",
         "", 14, "codis3.2"

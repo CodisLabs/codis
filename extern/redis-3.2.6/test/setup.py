@@ -14,8 +14,7 @@ class Redis(Process):
         self.port = port
 
         self.logfile = "{}.log".format(port)
-        # self.command = "valgrind --leak-check=full -v redis-server {}".format(self.config)
-        self.command = "redis-server {}".format(self.config)
+        self.command = "valgrind --leak-check=full -v redis-server {}".format(self.config)
         Process.__init__(self, self.command, self.logfile)
 
         dict = {"port": port, "pid": self.proc.pid}
@@ -45,7 +44,7 @@ if __name__ == "__main__":
 
     for port in range(2000, 2002):
         children.append(Redis(port, requirepass=passwd))
-        # children.append(Redis(port+10, master_port=port, requirepass=passwd))
+        children.append(Redis(port+10, master_port=port, requirepass=passwd))
 
     check_alive(children, 3)
 

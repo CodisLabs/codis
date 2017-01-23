@@ -314,6 +314,7 @@ struct redisCommand redisCommandTable[] = {
     {"slotsmgrt-async-flush",slotsmgrtAsyncFlushCommand,0,"F",0,NULL,0,0,0,0,0},
     {"slotsmgrt-async-cancel",slotsmgrtAsyncCancelCommand,0,"F",0,NULL,0,0,0,0,0},
     {"slotsmgrt-exec-wrapper",slotsmgrtExecWrapperCommand,-3,"wm",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-lazy-release",slotsmgrtLazyReleaseCommand,-1,"F",0,NULL,0,0,0,0,0},
     {"slotsrestore-async",slotsrestoreAsyncCommand,-2,"w",0,NULL,0,0,0,0,0},
     {"slotsrestore-async-auth",slotsrestoreAsyncAuthCommand,2,"F",0,NULL,0,0,0,0,0},
     {"slotsrestore-async-ack",slotsrestoreAsyncAckCommand,3,"w",0,NULL,0,0,0,0,0},
@@ -1593,6 +1594,7 @@ void initServerConfig(void) {
         slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
         memset(ac, 0, sizeof(*ac));
     }
+    server.slotsmgrt_lazy_release = listCreate();
 
     server.lruclock = getLRUClock();
     resetServerSaveParams();
@@ -2587,6 +2589,8 @@ int processCommand(client *c) {
         addReply(c, shared.slowscripterr);
         return C_OK;
     }
+
+    slotsmgrtLazyRelease(1);
 
     /* Exec the command */
     if (c->flags & CLIENT_MULTI &&

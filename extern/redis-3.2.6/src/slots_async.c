@@ -1,5 +1,176 @@
 #include "server.h"
 
+/* ============================ Iterator for Lazy Release ================================== */
+
+typedef struct {
+    robj *val;
+    long long cursor;
+} lazyReleaseIterator;
+
+static lazyReleaseIterator *
+createLazyReleaseIterator(robj *val) {
+    lazyReleaseIterator *it = zmalloc(sizeof(lazyReleaseIterator));
+    it->val = val;
+    incrRefCount(it->val);
+    it->cursor = 0;
+    return it;
+}
+
+static void
+freeLazyReleaseIterator(lazyReleaseIterator *it) {
+    if (it->val != NULL) {
+        decrRefCount(it->val);
+    }
+    zfree(it);
+}
+
+static int
+lazyReleaseIteratorHasNext(lazyReleaseIterator *it) {
+    return it->val != NULL;
+}
+
+static void
+lazyReleaseIteratorScanCallback(void *data, const dictEntry *de) {
+    void **pd = (void **)data;
+    list *l = pd[0];
+
+    robj *field = dictGetKey(de);
+    incrRefCount(field);
+    listAddNodeTail(l, field);
+}
+
+static void
+lazyReleaseIteratorNext(lazyReleaseIterator *it) {
+    robj *val = it->val;
+    serverAssert(val != NULL);
+
+    if (val->type == OBJ_LIST) {
+        if (listTypeLength(val) <= 1024) {
+            decrRefCount(val);
+            it->val = NULL;
+        } else {
+            for (int i = 0; i < 512; i ++) {
+                robj *value = listTypePop(val, LIST_HEAD);
+                decrRefCount(value);
+            }
+        }
+        return;
+    }
+
+    if (val->type == OBJ_HASH || val->type == OBJ_SET) {
+        dict *ht = val->ptr;
+        if (dictSize(ht) <= 1024) {
+            decrRefCount(val);
+            it->val = NULL;
+        } else {
+            list *ll = listCreate();
+            listSetFreeMethod(ll, decrRefCountVoid);
+            void *pd[] = {ll};
+            int loop = 128;
+            do {
+                it->cursor = dictScan(ht, it->cursor, lazyReleaseIteratorScanCallback, pd);
+            } while (it->cursor != 0 && (-- loop) >= 0);
+
+            while (listLength(ll) != 0) {
+                listNode *head = listFirst(ll);
+                robj *field = listNodeValue(head);
+                dictDelete(ht, field);
+                listDelNode(ll, head);
+            }
+            listRelease(ll);
+        }
+        return;
+    }
+
+    if (val->type == OBJ_ZSET) {
+        zset *zs = val->ptr;
+        dict *ht = zs->dict;
+        if (dictSize(ht) <= 1024) {
+            decrRefCount(val);
+            it->val = NULL;
+        } else {
+            zskiplist *zsl = zs->zsl;
+            for (int i = 0; i < 512; i ++) {
+                zskiplistNode *node = zsl->header->level[0].forward;
+                robj *field = node->obj;
+                incrRefCount(field);
+                zslDelete(zsl, node->score, field);
+                dictDelete(ht, field);
+                decrRefCount(field);
+            }
+        }
+        return;
+    }
+
+    serverPanic("unknown object type");
+}
+
+static int
+lazyReleaseIteratorRemains(lazyReleaseIterator *it) {
+    robj *val = it->val;
+    if (val == NULL) {
+        return 0;
+    }
+    if (val->type == OBJ_LIST) {
+        return listTypeLength(val);
+    }
+    if (val->type == OBJ_HASH) {
+        return hashTypeLength(val);
+    }
+    if (val->type == OBJ_SET) {
+        return setTypeSize(val);
+    }
+    if (val->type == OBJ_ZSET) {
+        return zsetLength(val);
+    }
+    return -1;
+}
+
+void
+slotsmgrtLazyRelease(long long step) {
+    list *ll = server.slotsmgrt_lazy_release;
+    while (listLength(ll) != 0 && step != 0) {
+        listNode *head = listFirst(ll);
+        lazyReleaseIterator *it = listNodeValue(head);
+        if (lazyReleaseIteratorHasNext(it)) {
+            lazyReleaseIteratorNext(it);
+        } else {
+            freeLazyReleaseIterator(it);
+            listDelNode(ll, head);
+        }
+        step --;
+    }
+}
+
+void
+slotsmgrtLazyReleaseCommand(client *c) {
+    if (c->argc != 1 && c->argc != 2) {
+        addReplyError(c, "wrong number of arguments for SLOTSMGRT-LAZY-RELEASE");
+        return;
+    }
+    long long step = 1;
+    if (c->argc != 1) {
+        if (getLongLongFromObject(c->argv[1], &step) != C_OK ||
+                !(step >= 1 && step <= INT_MAX)) {
+            addReplyErrorFormat(c, "invalid value of step (%s)", c->argv[1]->ptr);
+            return;
+        }
+    }
+    slotsmgrtLazyRelease(step);
+
+    list *ll = server.slotsmgrt_lazy_release;
+
+    addReplyMultiBulkLen(c, 2);
+    addReplyLongLong(c, listLength(ll));
+
+    if (listLength(ll) != 0) {
+        lazyReleaseIterator *it = listNodeValue(listFirst(ll));
+        addReplyLongLong(c, lazyReleaseIteratorRemains(it));
+    } else {
+        addReplyLongLong(c, 0);
+    }
+}
+
 /* ============================ Iterator for Data Migration ================================ */
 
 #define STAGE_PREPARE 0
@@ -10,25 +181,25 @@
 
 typedef struct {
     int stage;
-    int fired;
     robj *key;
     robj *val;
     long long expire;
     unsigned long cursor;
     listTypeIterator *li;
+    int chunked;
 } singleObjectIterator;
 
 static singleObjectIterator *
 createSingleObjectIterator(robj *key) {
     singleObjectIterator *it = zmalloc(sizeof(singleObjectIterator));
     it->stage = STAGE_PREPARE;
-    it->fired = 0;
     it->key = key;
     incrRefCount(it->key);
     it->val = NULL;
     it->expire = 0;
     it->cursor = 0;
     it->li = NULL;
+    it->chunked = 0;
     return it;
 }
 
@@ -151,28 +322,26 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         addReplyBulkCString(c, "del");
         addReplyBulk(c, key);
 
-        int chunked = 0;
         switch (val->type) {
         case OBJ_LIST:
-            chunked = (val->encoding == OBJ_ENCODING_QUICKLIST)
+            it->chunked = (val->encoding == OBJ_ENCODING_QUICKLIST)
                 && (maxbulks < listTypeLength(val));
             break;
         case OBJ_HASH:
-            chunked = (val->encoding == OBJ_ENCODING_HT)
+            it->chunked = (val->encoding == OBJ_ENCODING_HT)
                 && (maxbulks < hashTypeLength(val) * 2);
             break;
         case OBJ_ZSET:
-            chunked = (val->encoding == OBJ_ENCODING_SKIPLIST)
+            it->chunked = (val->encoding == OBJ_ENCODING_SKIPLIST)
                 && (maxbulks < zsetLength(val) * 2);
             break;
         case OBJ_SET:
-            chunked = (val->encoding == OBJ_ENCODING_HT)
+            it->chunked = (val->encoding == OBJ_ENCODING_HT)
                 && (maxbulks < setTypeSize(val));
             break;
         }
 
-        it->stage = chunked ? STAGE_CHUNKED : STAGE_PAYLOAD;
-        it->fired = 1;
+        it->stage = it->chunked ? STAGE_CHUNKED : STAGE_PAYLOAD;
         return 1 + extra_msgs;
     }
 
@@ -242,8 +411,9 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         long long size = 0;
         if (scan) {
             void *pd[] = {ll, val, &size};
+            dict *ht = (val->type != OBJ_ZSET) ? val->ptr : ((zset *)val->ptr)->dict;
             do {
-                it->cursor = dictScan(val->ptr, it->cursor, singleObjectIteratorScanCallback, pd);
+                it->cursor = dictScan(ht, it->cursor, singleObjectIteratorScanCallback, pd);
                 if (it->cursor == 0) {
                     more = 0;
                 }
@@ -310,7 +480,8 @@ typedef struct {
     long int maxbulks;
     long int maxbytes;
     long int pipeline;
-    long int fired;
+    list *removed_keys;
+    list *chunked_vals;
 } batchedObjectIterator;
 
 static batchedObjectIterator *
@@ -327,7 +498,10 @@ createBatchedObjectIterator(dict *hash_slot, struct zskiplist *hash_tags,
     it->maxbulks = maxbulks;
     it->maxbytes = maxbytes;
     it->pipeline = pipeline;
-    it->fired = 0;
+    it->removed_keys = listCreate();
+    listSetFreeMethod(it->removed_keys, decrRefCountVoid);
+    it->chunked_vals = listCreate();
+    listSetFreeMethod(it->chunked_vals, decrRefCountVoid);
     return it;
 }
 
@@ -336,6 +510,8 @@ freeBatchedObjectIterator(batchedObjectIterator *it) {
     zslFree(it->tags);
     dictRelease(it->keys);
     listRelease(it->list);
+    listRelease(it->removed_keys);
+    listRelease(it->chunked_vals);
     zfree(it);
 }
 
@@ -347,8 +523,13 @@ batchedObjectIteratorHasNext(batchedObjectIterator *it) {
         if (singleObjectIteratorHasNext(sp)) {
             return 1;
         }
-        if (sp->fired) {
-            it->fired += 1;
+        if (sp->val != NULL) {
+            incrRefCount(sp->key);
+            listAddNodeTail(it->removed_keys, sp->key);
+            if (sp->chunked) {
+                incrRefCount(sp->val);
+                listAddNodeTail(it->chunked_vals, sp->val);
+            }
         }
         listDelNode(it->list, head);
     }
@@ -441,23 +622,6 @@ batchedObjectIteratorAddKeyCallback(void *data, const dictEntry *de) {
     batchedObjectIteratorAddKey(pd[0], dictGetKey(de));
 }
 
-static void
-batchedObjectIteratorGetKeysCallback(void *data, const dictEntry *de) {
-    void **pd = (void **)data;
-    listAddNodeTail(pd[0], dictGetKey(de));
-}
-
-static list *
-batchedObjectIteratorGetKeys(batchedObjectIterator *it) {
-    list *ll = listCreate();
-    unsigned long cursor = 0;
-    void *pd[] = {ll};
-    do {
-        cursor = dictScan(it->keys, cursor, batchedObjectIteratorGetKeysCallback, pd);
-    } while (cursor != 0);
-    return ll;
-}
-
 /* ============================ Clients ==================================================== */
 
 static slotsmgrtAsyncClient *
@@ -478,10 +642,10 @@ notifySlotsmgrtAsyncClient(slotsmgrtAsyncClient *ac, const char *errmsg) {
             } else if (it == NULL) {
                 addReplyError(c, "invalid iterator (NULL)");
             } else if (it->hash_slot == NULL) {
-                addReplyLongLong(c, it->fired);
+                addReplyLongLong(c, listLength(it->removed_keys));
             } else {
                 addReplyMultiBulkLen(c, 2);
-                addReplyLongLong(c, it->fired);
+                addReplyLongLong(c, listLength(it->removed_keys));
                 addReplyLongLong(c, dictSize(it->hash_slot));
             }
         }
@@ -632,8 +796,10 @@ slotsmgrtAsyncCleanup() {
         if (elapsed <= timeout) {
             continue;
         }
-        releaseSlotsmgrtAsyncClient(i, "interrupted: operation timeout");
+        releaseSlotsmgrtAsyncClient(i, ac->batched_iter != NULL ?
+                "interrupted: migration timeout" : "interrupted: idle timeout");
     }
+    slotsmgrtLazyRelease(1);
 }
 
 static int
@@ -1070,7 +1236,7 @@ slotsrestoreAsyncHandle(client *c) {
         goto success_common;
     }
 
-    /* sub-command: xxx object key ttl payload */
+    /* SLOTSRESTORE-ASYNC object key ttl payload */
     if (!strcasecmp(cmd, "object")) {
         if (c->argc != 5) {
             goto bad_arguments_number;
@@ -1348,16 +1514,16 @@ slotsrestoreAsyncAckHandle(client *c) {
         return C_OK;
     }
 
-    list *keys = batchedObjectIteratorGetKeys(ac->batched_iter);
-    if (listLength(keys) != 0) {
+    if (listLength(it->removed_keys) != 0) {
+        list *ll = it->removed_keys;
         for (int i = 0; i < c->argc; i ++) {
             decrRefCount(c->argv[i]);
         }
         zfree(c->argv);
-        c->argc = 1 + listLength(keys);
+        c->argc = 1 + listLength(ll);
         c->argv = zmalloc(sizeof(robj *) * c->argc);
         for (int i = 1; i < c->argc; i ++) {
-            listNode *head = listFirst(keys);
+            listNode *head = listFirst(ll);
             robj *key = listNodeValue(head);
             if (dbDelete(c->db, key)) {
                 signalModifiedKey(c->db, key);
@@ -1365,11 +1531,20 @@ slotsrestoreAsyncAckHandle(client *c) {
             }
             c->argv[i] = key;
             incrRefCount(key);
-            listDelNode(keys, head);
+            listDelNode(ll, head);
         }
         c->argv[0] = createStringObject("DEL", 3);
     }
-    listRelease(keys);
+
+    if (listLength(it->chunked_vals) != 0) {
+        list *ll = it->chunked_vals;
+        while (listLength(ll) != 0) {
+            listNode *head = listFirst(ll);
+            robj *val = listNodeValue(head);
+            listAddNodeTail(server.slotsmgrt_lazy_release, createLazyReleaseIterator(val));
+            listDelNode(ll, head);
+        }
+    }
 
     notifySlotsmgrtAsyncClient(ac, NULL);
 
