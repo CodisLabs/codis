@@ -28,13 +28,15 @@ codis-fe: codis-deps
 
 codis-server:
 	@mkdir -p bin
-	make -j4 -C extern/redis-2.8.21/
 	@rm -f bin/codis-server*
+	make -j4 -C extern/redis-2.8.21/
 	@cp -f extern/redis-2.8.21/src/redis-server bin/codis-server-2.8.21
 	make -j4 -C extern/redis-3.2.4/
-	@cp -f extern/redis-3.2.4/src/redis-server bin/codis-server
-	@cp -f extern/redis-3.2.4/src/redis-benchmark bin/
-	@cp -f extern/redis-3.2.4/src/redis-cli bin/
+	@cp -f extern/redis-3.2.4/src/redis-server  bin/codis-server-3.2.4
+	make -j4 -C extern/redis-3.2.6/
+	@cp -f extern/redis-3.2.6/src/redis-server  bin/codis-server
+	@cp -f extern/redis-3.2.6/src/redis-benchmark bin/
+	@cp -f extern/redis-3.2.6/src/redis-cli bin/
 
 clean-gotest:
 	@rm -rf ./pkg/topom/gotest.tmp
@@ -46,6 +48,7 @@ clean: clean-gotest
 distclean: clean
 	@make --no-print-directory --quiet -C extern/redis-2.8.21 distclean
 	@make --no-print-directory --quiet -C extern/redis-3.2.4  distclean
+	@make --no-print-directory --quiet -C extern/redis-3.2.6  distclean
 	@make --no-print-directory --quiet -C vendor/github.com/spinlock/jemalloc-go/ distclean
 
 gotest: codis-deps
