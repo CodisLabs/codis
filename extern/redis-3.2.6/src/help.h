@@ -18,7 +18,7 @@ static char *commandGroups[] = {
     "hyperloglog",
     "cluster",
     "geo",
-    "slotsmgrt",
+    "codis",
 };
 
 struct commandHelp {
@@ -1077,7 +1077,7 @@ struct commandHelp {
         "timeout maxbulks maxbytes key [key...]",
         "", 14, "codis3.2"
     },
-    {"SLOTSMGRT-ASYNC-FLUSH",
+    {"SLOTSMGRT-ASYNC-FENCE",
         "-",
         "", 14, "codis3.2"
     },

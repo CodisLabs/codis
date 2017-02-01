@@ -311,7 +311,7 @@ struct redisCommand redisCommandTable[] = {
     {"slotsmgrtone-async-dump",slotsmgrtOneAsyncDumpCommand,-5,"rm",0,NULL,0,0,0,0,0},
     {"slotsmgrttagone-async",slotsmgrtTagOneAsyncCommand,-8,"w",0,NULL,0,0,0,0,0},
     {"slotsmgrttagone-async-dump",slotsmgrtTagOneAsyncDumpCommand,-5,"rm",0,NULL,0,0,0,0,0},
-    {"slotsmgrt-async-flush",slotsmgrtAsyncFlushCommand,0,"F",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-async-fence",slotsmgrtAsyncFenceCommand,0,"F",0,NULL,0,0,0,0,0},
     {"slotsmgrt-async-cancel",slotsmgrtAsyncCancelCommand,0,"F",0,NULL,0,0,0,0,0},
     {"slotsmgrt-exec-wrapper",slotsmgrtExecWrapperCommand,-3,"wm",0,NULL,0,0,0,0,0},
     {"slotsmgrt-lazy-release",slotsmgrtLazyReleaseCommand,-1,"F",0,NULL,0,0,0,0,0},
@@ -2590,7 +2590,7 @@ int processCommand(client *c) {
         return C_OK;
     }
 
-    slotsmgrtLazyRelease(1);
+    slotsmgrtLazyReleaseIncrementally();
 
     /* Exec the command */
     if (c->flags & CLIENT_MULTI &&

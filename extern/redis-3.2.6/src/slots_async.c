@@ -126,10 +126,10 @@ lazyReleaseIteratorRemains(lazyReleaseIterator *it) {
     return -1;
 }
 
-void
-slotsmgrtLazyRelease(long long step) {
+static void
+slotsmgrtLazyRelease(int step) {
     list *ll = server.slotsmgrt_lazy_release;
-    while (listLength(ll) != 0 && step != 0) {
+    for (int i = 0; i < step && listLength(ll) != 0; i ++) {
         listNode *head = listFirst(ll);
         lazyReleaseIterator *it = listNodeValue(head);
         if (lazyReleaseIteratorHasNext(it)) {
@@ -138,8 +138,12 @@ slotsmgrtLazyRelease(long long step) {
             freeLazyReleaseIterator(it);
             listDelNode(ll, head);
         }
-        step --;
     }
+}
+
+void
+slotsmgrtLazyReleaseIncrementally() {
+    slotsmgrtLazyRelease(1);
 }
 
 void
@@ -151,7 +155,7 @@ slotsmgrtLazyReleaseCommand(client *c) {
     long long step = 1;
     if (c->argc != 1) {
         if (getLongLongFromObject(c->argv[1], &step) != C_OK ||
-                !(step >= 1 && step <= INT_MAX)) {
+                !(step >= 0 && step <= INT_MAX)) {
             addReplyErrorFormat(c, "invalid value of step (%s)",
                     (char *)c->argv[1]->ptr);
             return;
@@ -804,7 +808,7 @@ slotsmgrtAsyncCleanup() {
 }
 
 static int
-isSlotsmgrtAsyncClientMigratingOrBlock(client *c, robj *key, int block) {
+getSlotsmgrtAsyncClientMigrationStatusOrBlock(client *c, robj *key, int block) {
     slotsmgrtAsyncClient *ac = getSlotsmgrtAsyncClient(c->db->id);
     if (ac->c == NULL || ac->batched_iter == NULL) {
         return 0;
@@ -985,7 +989,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
         }
     }
 
-    if (isSlotsmgrtAsyncClientMigratingOrBlock(c, NULL, 0) != 0) {
+    if (getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 0) != 0) {
         addReplyError(c, "the specified DB is being migrated");
         return;
     }
@@ -1024,7 +1028,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     while (batchedObjectIteratorHasNext(it) && ac->pending_msgs <= 3) {
         ac->pending_msgs += batchedObjectIteratorNext(ac->c, it);
     }
-    isSlotsmgrtAsyncClientMigratingOrBlock(c, NULL, 1);
+    getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 1);
 
     if (ac->pending_msgs != 0) {
         return;
@@ -1080,15 +1084,15 @@ void slotsmgrtTagSlotAsyncCommand(client *c) {
 }
 
 /* *
- * SLOTSMGRT-ASYNC-FLUSH
+ * SLOTSMGRT-ASYNC-FENCE
  * */
 void
-slotsmgrtAsyncFlushCommand(client *c) {
-    int ret = isSlotsmgrtAsyncClientMigratingOrBlock(c, NULL, 1);
+slotsmgrtAsyncFenceCommand(client *c) {
+    int ret = getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 1);
     if (ret == 0) {
         addReply(c, shared.ok);
     } else if (ret != 1) {
-        addReplyError(c, "flush on multiple DBs");
+        addReplyError(c, "wait on multiple DBs");
     }
 }
 
@@ -1131,7 +1135,7 @@ slotsmgrtExecWrapperCommand(client *c) {
         addReplyError(c, "the specified key doesn't exist");
         return;
     }
-    if (!(cmd->flags & CMD_READONLY) && isSlotsmgrtAsyncClientMigratingOrBlock(c, c->argv[1], 0) != 0) {
+    if (!(cmd->flags & CMD_READONLY) && getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, c->argv[1], 0) != 0) {
         addReplyLongLong(c, 1);
         addReplyError(c, "the specified key is being migrated");
         return;
@@ -1172,7 +1176,7 @@ extern int verifyDumpPayload(unsigned char *p, size_t len);
 
 static int
 slotsrestoreAsyncHandle(client *c) {
-    if (isSlotsmgrtAsyncClientMigratingOrBlock(c, NULL, 0) != 0) {
+    if (getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 0) != 0) {
         slotsrestoreReplyAck(c, -1, "the specified DB is being migrated");
         return C_ERR;
     }
@@ -1520,13 +1524,14 @@ slotsrestoreAsyncAckHandle(client *c) {
     ac->pending_msgs -= 1;
 
     batchedObjectIterator *it = ac->batched_iter;
-    while (batchedObjectIteratorHasNext(it) && ac->pending_msgs <= it->pipeline) {
+    while (batchedObjectIteratorHasNext(it) && ac->pending_msgs < it->pipeline) {
         ac->pending_msgs += batchedObjectIteratorNext(ac->c, it);
     }
 
     if (ac->pending_msgs != 0) {
         return C_OK;
     }
+    notifySlotsmgrtAsyncClient(ac, NULL);
 
     if (listLength(it->removed_keys) != 0) {
         list *ll = it->removed_keys;
@@ -1559,8 +1564,6 @@ slotsrestoreAsyncAckHandle(client *c) {
             listDelNode(ll, head);
         }
     }
-
-    notifySlotsmgrtAsyncClient(ac, NULL);
 
     ac->batched_iter = NULL;
     freeBatchedObjectIterator(it);

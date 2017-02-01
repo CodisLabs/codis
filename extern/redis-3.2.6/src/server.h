@@ -1696,7 +1696,7 @@ void slotsmgrtOneAsyncCommand(client *c);
 void slotsmgrtOneAsyncDumpCommand(client *c);
 void slotsmgrtTagOneAsyncCommand(client *c);
 void slotsmgrtTagOneAsyncDumpCommand(client *c);
-void slotsmgrtAsyncFlushCommand(client *c);
+void slotsmgrtAsyncFenceCommand(client *c);
 void slotsmgrtAsyncCancelCommand(client *c);
 void slotsmgrtExecWrapperCommand(client *c);
 void slotsmgrtLazyReleaseCommand(client *c);
@@ -1706,7 +1706,7 @@ void slotsrestoreAsyncAckCommand(client *c);
 
 void slotsmgrtAsyncCleanup();
 void slotsmgrtAsyncUnlinkClient(client *c);
-void slotsmgrtLazyRelease(long long step);
+void slotsmgrtLazyReleaseIncrementally();
 
 void slotsmgrt_cleanup();
 int slots_num(const sds s, uint32_t *pcrc, int *phastag);
