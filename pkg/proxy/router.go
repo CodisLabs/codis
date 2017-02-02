@@ -35,6 +35,7 @@ func NewRouter(config *Config) *Router {
 	s.pool.replica = newSharedBackendConnPool(config.BackendReplicaParallel)
 	for i := range s.slots {
 		s.slots[i].id = i
+		s.slots[i].method = &forwardSync{}
 	}
 	return s
 }
@@ -57,7 +58,7 @@ func (s *Router) Close() {
 	s.closed = true
 
 	for i := range s.slots {
-		s.fillSlot(&models.Slot{Id: i}, false)
+		s.fillSlot(&models.Slot{Id: i}, false, nil)
 	}
 }
 
@@ -110,6 +111,7 @@ func (s *Router) HasSwitched() bool {
 var (
 	ErrClosedRouter  = errors.New("use of closed router")
 	ErrInvalidSlotId = errors.New("use of invalid slot id")
+	ErrInvalidMethod = errors.New("use of invalid forwarder method")
 )
 
 func (s *Router) FillSlot(m *models.Slot) error {
@@ -121,7 +123,14 @@ func (s *Router) FillSlot(m *models.Slot) error {
 	if m.Id < 0 || m.Id >= MaxSlotNum {
 		return ErrInvalidSlotId
 	}
-	s.fillSlot(m, false)
+	var method forwardMethod
+	switch m.ForwardMethod {
+	default:
+		return ErrInvalidMethod
+	case models.ForwardSync:
+		method = &forwardSync{}
+	}
+	s.fillSlot(m, false, method)
 	return nil
 }
 
@@ -170,7 +179,7 @@ func (s *Router) dispatchAddr(r *Request, addr string) bool {
 	return false
 }
 
-func (s *Router) fillSlot(m *models.Slot, switched bool) {
+func (s *Router) fillSlot(m *models.Slot, switched bool, method forwardMethod) {
 	slot := &s.slots[m.Id]
 	slot.blockAndWait()
 
@@ -208,6 +217,9 @@ func (s *Router) fillSlot(m *models.Slot, switched bool) {
 			}
 			slot.replicaGroups = append(slot.replicaGroups, group)
 		}
+	}
+	if method != nil {
+		slot.method = method
 	}
 
 	if !m.Locked {
@@ -273,6 +285,6 @@ func (s *Router) trySwitchMaster(id int, masters map[int]string, cache *redis.In
 		}
 	}
 	if switched {
-		s.fillSlot(m, true)
+		s.fillSlot(m, true, nil)
 	}
 }

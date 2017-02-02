@@ -3,6 +3,11 @@
 
 package models
 
+const (
+	ForwardSync = iota
+	ForwardSemiAsync
+)
+
 const MaxSlotNum = 1024
 
 type Slot struct {
@@ -13,6 +18,8 @@ type Slot struct {
 	BackendAddrGroupId int    `json:"backend_addr_group_id,omitempty"`
 	MigrateFrom        string `json:"migrate_from,omitempty"`
 	MigrateFromGroupId int    `json:"migrate_from_group_id,omitempty"`
+
+	ForwardMethod int `json:"forward_method"`
 
 	ReplicaGroups [][]string `json:"replica_groups,omitempty"`
 }
