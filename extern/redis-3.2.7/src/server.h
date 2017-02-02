@@ -273,6 +273,9 @@ typedef long long mstime_t; /* millisecond time type. */
 #define CLIENT_LUA_DEBUG (1<<25)  /* Run EVAL in debug mode. */
 #define CLIENT_LUA_DEBUG_SYNC (1<<26)  /* EVAL debugging without fork() */
 
+#define CLIENT_SLOTSMGRT_ASYNC_CACHED_CLIENT (1 << 0)
+#define CLIENT_SLOTSMGRT_ASYNC_NORMAL_CLIENT (1 << 1)
+
 /* Client block type (btype field in client structure)
  * if CLIENT_BLOCKED flag is set. */
 #define BLOCKED_NONE 0    /* Not blocked, no CLIENT_BLOCKED flag set. */
@@ -622,6 +625,10 @@ typedef struct client {
     list *pubsub_patterns;  /* patterns a client is interested in (SUBSCRIBE) */
     sds peerid;             /* Cached peer ID. */
 
+    long slotsmgrt_flags;
+    long slotsmgrt_block_m;
+    list *slotsmgrt_block_l;
+
     /* Response buffer */
     int bufpos;
     char buf[PROTO_REPLY_CHUNK_BYTES];
@@ -713,6 +720,18 @@ struct clusterState;
 #undef hz
 #endif
 
+typedef struct {
+    client *c;
+    int used;
+    sds host;
+    int port;
+    long long timeout;
+    long long lastuse;
+    int pending_msgs;
+    void *batched_iter;
+    list *blocked_list;
+} slotsmgrtAsyncClient;
+
 struct redisServer {
     /* General */
     pid_t pid;                  /* Main process pid. */
@@ -754,6 +773,8 @@ struct redisServer {
     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
     dict *slotsmgrt_cached_sockfds;
+    list *slotsmgrt_lazy_release;
+    slotsmgrtAsyncClient *slotsmgrt_cached_clients;
     dict *migrate_cached_sockets;/* MIGRATE cached sockets */
     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
     int protected_mode;         /* Don't accept external connections. */
@@ -1670,6 +1691,24 @@ void slotsmgrttagoneCommand(client *c);
 void slotshashkeyCommand(client *c);
 void slotscheckCommand(client *c);
 void slotsrestoreCommand(client *c);
+
+void slotsmgrtSlotAsyncCommand(client *c);
+void slotsmgrtTagSlotAsyncCommand(client *c);
+void slotsmgrtOneAsyncCommand(client *c);
+void slotsmgrtOneAsyncDumpCommand(client *c);
+void slotsmgrtTagOneAsyncCommand(client *c);
+void slotsmgrtTagOneAsyncDumpCommand(client *c);
+void slotsmgrtAsyncFenceCommand(client *c);
+void slotsmgrtAsyncCancelCommand(client *c);
+void slotsmgrtExecWrapperCommand(client *c);
+void slotsmgrtLazyReleaseCommand(client *c);
+void slotsrestoreAsyncCommand(client *c);
+void slotsrestoreAsyncAuthCommand(client *c);
+void slotsrestoreAsyncAckCommand(client *c);
+
+void slotsmgrtAsyncCleanup();
+void slotsmgrtAsyncUnlinkClient(client *c);
+void slotsmgrtLazyReleaseIncrementally();
 
 void slotsmgrt_cleanup();
 int slots_num(const sds s, uint32_t *pcrc, int *phastag);

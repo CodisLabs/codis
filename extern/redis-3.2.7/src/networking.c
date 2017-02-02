@@ -123,6 +123,9 @@ client *createClient(int fd) {
     c->pubsub_channels = dictCreate(&setDictType,NULL);
     c->pubsub_patterns = listCreate();
     c->peerid = NULL;
+    c->slotsmgrt_flags = 0;
+    c->slotsmgrt_block_m = 0;
+    c->slotsmgrt_block_l = NULL;
     listSetFreeMethod(c->pubsub_patterns,decrRefCountVoid);
     listSetMatchMethod(c->pubsub_patterns,listMatchObjects);
     if (fd != -1) listAddNodeTail(server.clients,c);
@@ -808,6 +811,8 @@ void freeClient(client *c) {
         serverLog(LL_WARNING,"Connection with slave %s lost.",
             replicationGetSlaveName(c));
     }
+
+    slotsmgrtAsyncUnlinkClient(c);
 
     /* Free the query buffer */
     sdsfree(c->querybuf);

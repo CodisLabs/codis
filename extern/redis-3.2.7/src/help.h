@@ -17,7 +17,8 @@ static char *commandGroups[] = {
     "scripting",
     "hyperloglog",
     "cluster",
-    "geo"
+    "geo",
+    "codis",
 };
 
 struct commandHelp {
@@ -1011,7 +1012,131 @@ struct commandHelp {
     "destination numkeys key [key ...] [WEIGHTS weight] [AGGREGATE SUM|MIN|MAX]",
     "Add multiple sorted sets and store the resulting sorted set in a new key",
     4,
-    "2.0.0" }
+    "2.0.0" },
+    {"SLOTSINFO",
+        "-",
+        "", 14, "codis1.9"
+    },
+    {"SLOTSSCAN",
+        "slotnum cursor [COUNT count]",
+        "", 14, "codis3.1"
+    },
+    {"SLOTSDEL",
+        "slot [slot ...]",
+        "", 14, "codis1.9"
+    },
+    {"SLOTSMGRTSLOT",
+        "host port timeout slot",
+        "", 14, "codis1.9"
+    },
+    {"SLOTSMGRTTAGSLOT",
+        "host port timeout slot",
+        "", 14, "codis1.9"
+    },
+    {"SLOTSMGRTONE",
+        "host port timeout key",
+        "", 14, "codis1.9"
+    },
+    {"SLOTSMGRTTAGONE",
+        "host port timeout key",
+        "", 14, "codis1.9"
+    },
+    {"SLOTSHASHKEY",
+        "key [key...]",
+        "", 14, "codis1.9"
+    },
+    {"SLOTSCHECK",
+        "-",
+        "", 14, "codis1.9"
+    },
+    {"SLOTSRESTORE",
+        "key ttl val [key ttl val ...]",
+        "", 14, "codis1.9"
+    },
+    {"SLOTSMGRTSLOT-ASYNC",
+        "host port timeout maxbulks maxbytes pipeline slot [slot...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRTTAGSLOT-ASYNC",
+        "host port timeout maxbulks maxbytes pipeline slot [slot...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRTONE-ASYNC",
+        "host port timeout maxbulks maxbytes pipeline key [key...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRTONE-ASYNC-DUMP",
+        "timeout maxbulks maxbytes key [key...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRTTAGONE-ASYNC",
+        "host port timeout maxbulks maxbytes pipeline key [key...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRTTAGONE-ASYNC-DUMP",
+        "timeout maxbulks maxbytes key [key...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRT-ASYNC-FENCE",
+        "-",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRT-ASYNC-CANCEL",
+        "-",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRT-EXEC-WRAPPER",
+        "command [arg ...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRT-LAZY-RELEASE",
+        "[step]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC SELECT",
+        "db",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC DEL",
+        "key",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC EXPIRE",
+        "key ttl",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC OBJECT",
+        "key ttl payload",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC STRING",
+        "key ttl content",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC LIST",
+        "key ttl [elem ...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC HASH",
+        "key ttl [field value ...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC DICT",
+        "key ttl [elem ...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC ZSET",
+        "key ttl [field score ...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC-AUTH",
+        "passwd",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSRESTORE-ASYNC-ACK",
+        "errno message",
+        "", 14, "codis3.2"
+    },
 };
 
 #endif

@@ -300,13 +300,26 @@ struct redisCommand redisCommandTable[] = {
     {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
     {"slotsscan",slotsscanCommand,-3,"rR",0,NULL,0,0,0,0,0},
     {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
-    {"slotsmgrtslot",slotsmgrtslotCommand,5,"aw",0,NULL,0,0,0,0,0},
-    {"slotsmgrtone",slotsmgrtoneCommand,5,"aw",0,NULL,0,0,0,0,0},
-    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"aw",0,NULL,0,0,0,0,0},
-    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"aw",0,NULL,0,0,0,0,0},
+    {"slotsmgrtslot",slotsmgrtslotCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone",slotsmgrtoneCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"w",0,NULL,0,0,0,0,0},
     {"slotshashkey",slotshashkeyCommand,-1,"rF",0,NULL,0,0,0,0,0},
     {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
-    {"slotsrestore",slotsrestoreCommand,-4,"awm",0,NULL,1,1,1,0,0},
+    {"slotsrestore",slotsrestoreCommand,-4,"wm",0,NULL,0,0,0,0,0},
+    {"slotsmgrtslot-async",slotsmgrtSlotAsyncCommand,9,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagslot-async",slotsmgrtTagSlotAsyncCommand,9,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone-async",slotsmgrtOneAsyncCommand,-8,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone-async-dump",slotsmgrtOneAsyncDumpCommand,-5,"rm",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone-async",slotsmgrtTagOneAsyncCommand,-8,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone-async-dump",slotsmgrtTagOneAsyncDumpCommand,-5,"rm",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-async-fence",slotsmgrtAsyncFenceCommand,0,"F",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-async-cancel",slotsmgrtAsyncCancelCommand,0,"F",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-exec-wrapper",slotsmgrtExecWrapperCommand,-3,"wm",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-lazy-release",slotsmgrtLazyReleaseCommand,-1,"F",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async",slotsrestoreAsyncCommand,-2,"w",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async-auth",slotsrestoreAsyncAuthCommand,2,"F",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async-ack",slotsrestoreAsyncAckCommand,3,"w",0,NULL,0,0,0,0,0},
 };
 
 struct evictionPoolEntry *evictionPoolAlloc(void);
@@ -1323,6 +1336,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     run_with_period(1000) {
         slotsmgrt_cleanup();
+        slotsmgrtAsyncCleanup();
     }
 
     /* Cleanup expired MIGRATE cached sockets. */
@@ -1577,6 +1591,12 @@ void initServerConfig(void) {
     server.loading_process_events_interval_bytes = (1024*1024*2);
 
     server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
+    server.slotsmgrt_cached_clients = zmalloc(sizeof(slotsmgrtAsyncClient) * server.dbnum);
+    for (j = 0; j < server.dbnum; j ++) {
+        slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
+        memset(ac, 0, sizeof(*ac));
+    }
+    server.slotsmgrt_lazy_release = listCreate();
 
     server.lruclock = getLRUClock();
     resetServerSaveParams();
@@ -2428,7 +2448,9 @@ int processCommand(client *c) {
     }
 
     /* Check if the user is authenticated */
-    if (server.requirepass && !c->authenticated && c->cmd->proc != authCommand)
+    if (server.requirepass && !c->authenticated
+            && c->cmd->proc != authCommand
+            && c->cmd->proc != slotsrestoreAsyncAuthCommand)
     {
         flagTransaction(c);
         addReply(c,shared.noautherr);
@@ -2569,6 +2591,8 @@ int processCommand(client *c) {
         addReply(c, shared.slowscripterr);
         return C_OK;
     }
+
+    slotsmgrtLazyReleaseIncrementally();
 
     /* Exec the command */
     if (c->flags & CLIENT_MULTI &&

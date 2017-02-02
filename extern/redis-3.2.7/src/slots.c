@@ -502,17 +502,17 @@ slotsdelCommand(client *c) {
         unsigned long cursor = 0;
         do {
             cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, l);
-        } while (cursor != 0);
-        while (1) {
-            listNode *head = listFirst(l);
-            if (head == NULL) {
-                break;
+            while (1) {
+                listNode *head = listFirst(l);
+                if (head == NULL) {
+                    break;
+                }
+                robj *key = listNodeValue(head);
+                robj *keys[] = {key};
+                slotsremove(c, keys, 1, 0);
+                listDelNode(l, head);
             }
-            robj *key = listNodeValue(head);
-            robj *keys[] = {key};
-            slotsremove(c, keys, 1, 0);
-            listDelNode(l, head);
-        }
+        } while (cursor != 0);
         listRelease(l);
     }
     addReplyMultiBulkLen(c, n);
