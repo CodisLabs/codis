@@ -232,17 +232,11 @@ singleObjectIteratorHasNext(singleObjectIterator *it) {
     return it->stage != STAGE_DONE;
 }
 
-static size_t
-sdslenOrElse(robj *o, size_t len) {
-    return sdsEncodedObject(o) ? sdslen(o->ptr) : len;
-}
-
 static void
 singleObjectIteratorScanCallback(void *data, const dictEntry *de) {
     void **pd = (void **)data;
     list *l = pd[0];
     robj *o = pd[1];
-    long long *n = pd[2];
 
     robj *objs[2] = {NULL, NULL};
     switch (o->type) {
@@ -265,7 +259,6 @@ singleObjectIteratorScanCallback(void *data, const dictEntry *de) {
     for (int i = 0; i < 2; i ++) {
         if (objs[i] != NULL) {
             listAddNodeTail(l, objs[i]);
-            *n += sdslenOrElse(objs[i], 8);
         }
     }
 }
@@ -276,7 +269,7 @@ static slotsmgrtAsyncClient *getSlotsmgrtAsyncClient(int db);
 
 static int
 singleObjectIteratorNext(client *c, singleObjectIterator *it,
-        long long timeout, unsigned int maxbulks, unsigned int maxbytes) {
+        long long timeout, unsigned int maxbulks) {
     /* *
      * STAGE_PREPARE ---> STAGE_PAYLOAD ---> STAGE_DONE
      *     |                                      A
@@ -331,20 +324,20 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
 
         switch (val->type) {
         case OBJ_LIST:
-            it->chunked = (val->encoding == OBJ_ENCODING_QUICKLIST)
-                && (maxbulks < listTypeLength(val));
+            it->chunked = (val->encoding == OBJ_ENCODING_QUICKLIST) &&
+                (maxbulks < listTypeLength(val));
             break;
         case OBJ_HASH:
-            it->chunked = (val->encoding == OBJ_ENCODING_HT)
-                && (maxbulks < hashTypeLength(val) * 2);
+            it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
+                (maxbulks < hashTypeLength(val) * 2);
             break;
         case OBJ_ZSET:
-            it->chunked = (val->encoding == OBJ_ENCODING_SKIPLIST)
-                && (maxbulks < zsetLength(val) * 2);
+            it->chunked = (val->encoding == OBJ_ENCODING_SKIPLIST) &&
+                (maxbulks < zsetLength(val) * 2);
             break;
         case OBJ_SET:
-            it->chunked = (val->encoding == OBJ_ENCODING_HT)
-                && (maxbulks < setTypeSize(val));
+            it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
+                (maxbulks < setTypeSize(val));
             break;
         }
 
@@ -414,9 +407,8 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         list *ll = listCreate();
         listSetFreeMethod(ll, decrRefCountVoid);
         int more = 1;
-        long long size = 0;
         if (scan) {
-            void *pd[] = {ll, val, &size};
+            void *pd[] = {ll, val};
             dict *ht = (val->type != OBJ_ZSET) ? val->ptr : ((zset *)val->ptr)->dict;
             int loop = maxbulks * 10;
             if (loop < 128) {
@@ -427,7 +419,7 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
                 if (it->cursor == 0) {
                     more = 0;
                 }
-            } while (more && listLength(ll) < maxbulks && size < maxbytes && (-- loop) >= 0);
+            } while (more && listLength(ll) < maxbulks && (-- loop) >= 0);
         } else {
             if (it->li == NULL) {
                 it->li = listTypeInitIterator(val, 0, LIST_TAIL);
@@ -443,11 +435,10 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
                         obj = createStringObjectFromLongLong(e->longval);
                     }
                     listAddNodeTail(ll, obj);
-                    size += sdslenOrElse(obj->ptr, 8);
                 } else {
                     more = 0;
                 }
-            } while (more && listLength(ll) < maxbulks && size < maxbytes);
+            } while (more && listLength(ll) < maxbulks);
         }
 
         /* SLOTSRESTORE-ASYNC list/hash/zset/dict $key $ttl [$arg1 ...] */
@@ -487,16 +478,15 @@ typedef struct {
     dict *hash_slot;
     struct zskiplist *hash_tags;
     long long timeout;
-    long int maxbulks;
-    long int maxbytes;
-    long int pipeline;
+    long long maxbulks;
+    long long maxbytes;
     list *removed_keys;
     list *chunked_vals;
 } batchedObjectIterator;
 
 static batchedObjectIterator *
 createBatchedObjectIterator(dict *hash_slot, struct zskiplist *hash_tags,
-        long long timeout, unsigned int maxbulks, unsigned int maxbytes, unsigned int pipeline) {
+        long long timeout, unsigned int maxbulks, unsigned int maxbytes) {
     batchedObjectIterator *it = zmalloc(sizeof(batchedObjectIterator));
     it->tags = zslCreate();
     it->keys = dictCreate(&setDictType, NULL);
@@ -507,7 +497,6 @@ createBatchedObjectIterator(dict *hash_slot, struct zskiplist *hash_tags,
     it->timeout = timeout;
     it->maxbulks = maxbulks;
     it->maxbytes = maxbytes;
-    it->pipeline = pipeline;
     it->removed_keys = listCreate();
     listSetFreeMethod(it->removed_keys, decrRefCountVoid);
     it->chunked_vals = listCreate();
@@ -551,7 +540,7 @@ batchedObjectIteratorNext(client *c, batchedObjectIterator *it) {
     if (listLength(it->list) != 0) {
         listNode *head = listFirst(it->list);
         singleObjectIterator *sp = listNodeValue(head);
-        return singleObjectIteratorNext(c, sp, it->timeout, it->maxbulks, it->maxbytes);
+        return singleObjectIteratorNext(c, sp, it->timeout, it->maxbulks);
     }
     serverPanic("use of empty iterator");
 }
@@ -677,7 +666,7 @@ unlinkSlotsmgrtAsyncCachedClient(client *c, const char *errmsg) {
 
     long long elapsed = mstime() - ac->lastuse;
     serverLog(LL_WARNING, "slotsmgrt_async: unlink client %s:%d (DB=%d): "
-            "pending_msgs = %d, batched_iter = %d, blocked_list = %d, "
+            "pending_msgs = %ld, batched_iter = %d, blocked_list = %d, "
             "timeout = %lld(ms), elapsed = %lld(ms) (%s)",
             ac->host, ac->port, c->db->id, ac->pending_msgs, it != NULL ? (int)listLength(it->list) : -1,
             (int)listLength(ac->blocked_list), ac->timeout, elapsed, errmsg);
@@ -834,8 +823,8 @@ getSlotsmgrtAsyncClientMigrationStatusOrBlock(client *c, robj *key, int block) {
 
 /* ============================ Slotsmgrt{One,TagOne}AsyncDumpCommand ====================== */
 
-/* SLOTSMGRTONE-ASYNC-DUMP    $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
-/* SLOTSMGRTTAGONE-ASYNC-DUMP $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
+/* SLOTSMGRTONE-ASYNC-DUMP    $timeout $maxbulks $key1 [$key2 ...] */
+/* SLOTSMGRTTAGONE-ASYNC-DUMP $timeout $maxbulks $key1 [$key2 ...] */
 static void
 slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
     long long timeout;
@@ -858,20 +847,10 @@ slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
     if (maxbulks == 0) {
         maxbulks = 512;
     }
-    long long maxbytes;
-    if (getLongLongFromObject(c->argv[3], &maxbytes) != C_OK ||
-            !(maxbytes >= 0 && maxbytes <= INT_MAX)) {
-        addReplyErrorFormat(c, "invalid value of maxbytes (%s)",
-                (char *)c->argv[3]->ptr);
-        return;
-    }
-    if (maxbytes == 0) {
-        maxbytes = 256 * 1024;
-    }
 
     batchedObjectIterator *it = createBatchedObjectIterator(NULL,
-            usetag ? c->db->tagged_keys : NULL, timeout, maxbulks, maxbytes, 1);
-    for (int i = 4; i < c->argc; i ++) {
+            usetag ? c->db->tagged_keys : NULL, timeout, maxbulks, INT_MAX);
+    for (int i = 3; i < c->argc; i ++) {
         batchedObjectIteratorAddKey(it, c->argv[i]);
     }
 
@@ -885,10 +864,10 @@ slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
 }
 
 /* *
- * SLOTSMGRTONE-ASYNC-DUMP    $timeout $maxbulks $maxbytes $key1 [$key2 ...]
+ * SLOTSMGRTONE-ASYNC-DUMP    $timeout $maxbulks $key1 [$key2 ...]
  * */
 void slotsmgrtOneAsyncDumpCommand(client *c) {
-    if (c->argc <= 4) {
+    if (c->argc <= 3) {
         addReplyError(c, "wrong number of arguments for SLOTSMGRTONE-ASYNC-DUMP");
         return;
     }
@@ -896,11 +875,11 @@ void slotsmgrtOneAsyncDumpCommand(client *c) {
 }
 
 /* *
- * SLOTSMGRTTAGONE-ASYNC-DUMP $timeout $maxbulks $maxbytes $key1 [$key2 ...]
+ * SLOTSMGRTTAGONE-ASYNC-DUMP $timeout $maxbulks $key1 [$key2 ...]
  * */
 void
 slotsmgrtTagOneAsyncDumpCommand(client *c) {
-    if (c->argc <= 4) {
+    if (c->argc <= 3) {
         addReplyError(c, "wrong number of arguments for SLOTSMGRTTAGONE-ASYNC-DUMP");
         return;
     }
@@ -909,10 +888,10 @@ slotsmgrtTagOneAsyncDumpCommand(client *c) {
 
 /* ============================ Slotsmgrt{One,TagOne,Slot,TagSlot}AsyncCommand ============= */
 
-/* SLOTSMGRTONE-ASYNC     $host $port $timeout $maxbulks $maxbytes $pipeline $key1 [$key2 ...] */
-/* SLOTSMGRTTAGONE-ASYNC  $host $port $timeout $maxbulks $maxbytes $pipeline $key1 [$key2 ...] */
-/* SLOTSMGRTSLOT-ASYNC    $host $port $timeout $maxbulks $maxbytes $pipeline $slot $numkeys    */
-/* SLOTSMGRTTAGSLOT-ASYNC $host $port $timeout $maxbulks $maxbytes $pipeline $slot $numkeys    */
+/* SLOTSMGRTONE-ASYNC     $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
+/* SLOTSMGRTTAGONE-ASYNC  $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
+/* SLOTSMGRTSLOT-ASYNC    $host $port $timeout $maxbulks $maxbytes $slot $numkeys    */
+/* SLOTSMGRTTAGSLOT-ASYNC $host $port $timeout $maxbulks $maxbytes $slot $numkeys    */
 static void
 slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     char *host = c->argv[1]->ptr;
@@ -953,32 +932,22 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     if (maxbytes == 0) {
         maxbytes = 256 * 1024;
     }
-    long long pipeline;
-    if (getLongLongFromObject(c->argv[6], &pipeline) != C_OK ||
-            !(pipeline >= 0 && pipeline <= INT_MAX)) {
-        addReplyErrorFormat(c, "invalid value of pipeline (%s)",
-                (char *)c->argv[6]->ptr);
-        return;
-    }
-    if (pipeline == 0) {
-        pipeline = 10;
-    }
 
     dict *hash_slot = NULL;
     long long numkeys = 0;
     if (!usekey) {
         long long slotnum;
-        if (getLongLongFromObject(c->argv[7], &slotnum) != C_OK ||
+        if (getLongLongFromObject(c->argv[6], &slotnum) != C_OK ||
                 !(slotnum >= 0 && slotnum < HASH_SLOTS_SIZE)) {
             addReplyErrorFormat(c, "invalid value of slot (%s)",
-                    (char *)c->argv[7]->ptr);
+                    (char *)c->argv[6]->ptr);
             return;
         }
         hash_slot = c->db->hash_slots[slotnum];
-        if (getLongLongFromObject(c->argv[8], &numkeys) != C_OK ||
+        if (getLongLongFromObject(c->argv[7], &numkeys) != C_OK ||
                 !(numkeys >= 0 && numkeys <= INT_MAX)) {
             addReplyErrorFormat(c, "invalid value of numkeys (%s)",
-                    (char *)c->argv[8]->ptr);
+                    (char *)c->argv[7]->ptr);
             return;
         }
         if (numkeys == 0) {
@@ -1002,7 +971,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     }
 
     batchedObjectIterator *it = createBatchedObjectIterator(hash_slot,
-            usetag ? c->db->tagged_keys : NULL, timeout, maxbulks, maxbytes, pipeline);
+            usetag ? c->db->tagged_keys : NULL, timeout, maxbulks, maxbytes);
     if (!usekey) {
         if (dictIsRehashing(hash_slot)) {
             dictRehash(hash_slot, 1);
@@ -1019,10 +988,10 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
             }
             do {
                 cursor = dictScan(hash_slot, cursor, batchedObjectIteratorAddKeyCallback, pd);
-            } while (cursor != 0 && dictSize(it->keys) < (unsigned int)numkeys && (-- loop) >= 0);
+            } while (cursor != 0 && (long)dictSize(it->keys) < numkeys && (-- loop) >= 0);
         }
     } else {
-        for (int i = 7; i < c->argc; i ++) {
+        for (int i = 6; i < c->argc; i ++) {
             batchedObjectIteratorAddKey(it, c->argv[i]);
         }
     }
@@ -1033,7 +1002,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     ac->lastuse = mstime();
     ac->batched_iter = it;
 
-    while (batchedObjectIteratorHasNext(it) && ac->pending_msgs <= 3) {
+    while (batchedObjectIteratorHasNext(it) && (long)getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
         ac->pending_msgs += batchedObjectIteratorNext(ac->c, it);
     }
     getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 1);
@@ -1048,10 +1017,10 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
 }
 
 /* *
- * SLOTSMGRTONE-ASYNC     $host $port $timeout $maxbulks $maxbytes $pipeline $key1 [$key2 ...]
+ * SLOTSMGRTONE-ASYNC     $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...]
  * */
 void slotsmgrtOneAsyncCommand(client *c) {
-    if (c->argc <= 7) {
+    if (c->argc <= 6) {
         addReplyError(c, "wrong number of arguments for SLOTSMGRTONE-ASYNC");
         return;
     }
@@ -1059,10 +1028,10 @@ void slotsmgrtOneAsyncCommand(client *c) {
 }
 
 /* *
- * SLOTSMGRTTAGONE-ASYNC  $host $port $timeout $maxbulks $maxbytes $pipeline $key1 [$key2 ...]
+ * SLOTSMGRTTAGONE-ASYNC  $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...]
  * */
 void slotsmgrtTagOneAsyncCommand(client *c) {
-    if (c->argc <= 7) {
+    if (c->argc <= 6) {
         addReplyError(c, "wrong number of arguments for SLOTSMGRTTAGONE-ASYNC");
         return;
     }
@@ -1070,10 +1039,10 @@ void slotsmgrtTagOneAsyncCommand(client *c) {
 }
 
 /* *
- * SLOTSMGRTSLOT-ASYNC    $host $port $timeout $maxbulks $maxbytes $pipeline $slot $numkeys
+ * SLOTSMGRTSLOT-ASYNC    $host $port $timeout $maxbulks $maxbytes $slot $numkeys
  * */
 void slotsmgrtSlotAsyncCommand(client *c) {
-    if (c->argc != 9) {
+    if (c->argc != 8) {
         addReplyError(c, "wrong number of arguments for SLOTSMGRTSLOT-ASYNC");
         return;
     }
@@ -1081,10 +1050,10 @@ void slotsmgrtSlotAsyncCommand(client *c) {
 }
 
 /* *
- * SLOTSMGRTTAGSLOT-ASYNC $host $port $timeout $maxbulks $maxbytes $pipeline $slot $numkeys
+ * SLOTSMGRTTAGSLOT-ASYNC $host $port $timeout $maxbulks $maxbytes $slot $numkeys
  * */
 void slotsmgrtTagSlotAsyncCommand(client *c) {
-    if (c->argc != 9) {
+    if (c->argc != 8) {
         addReplyError(c, "wrong number of arguments for SLOTSMGRTSLOT-ASYNC");
         return;
     }
@@ -1529,7 +1498,7 @@ slotsrestoreAsyncAckHandle(client *c) {
     ac->pending_msgs -= 1;
 
     batchedObjectIterator *it = ac->batched_iter;
-    while (batchedObjectIteratorHasNext(it) && ac->pending_msgs < it->pipeline) {
+    while (batchedObjectIteratorHasNext(it) && (long)getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
         ac->pending_msgs += batchedObjectIteratorNext(ac->c, it);
     }
 

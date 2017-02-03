@@ -1054,27 +1054,27 @@ struct commandHelp {
         "", 14, "codis1.9"
     },
     {"SLOTSMGRTSLOT-ASYNC",
-        "host port timeout maxbulks maxbytes pipeline slot numkeys",
+        "host port timeout maxbulks maxbytes slot numkeys",
         "", 14, "codis3.2"
     },
     {"SLOTSMGRTTAGSLOT-ASYNC",
-        "host port timeout maxbulks maxbytes pipeline slot numkeys",
+        "host port timeout maxbulks maxbytes slot numkeys",
         "", 14, "codis3.2"
     },
     {"SLOTSMGRTONE-ASYNC",
-        "host port timeout maxbulks maxbytes pipeline key [key...]",
-        "", 14, "codis3.2"
-    },
-    {"SLOTSMGRTONE-ASYNC-DUMP",
-        "timeout maxbulks maxbytes key [key...]",
+        "host port timeout maxbulks maxbytes key [key...]",
         "", 14, "codis3.2"
     },
     {"SLOTSMGRTTAGONE-ASYNC",
-        "host port timeout maxbulks maxbytes pipeline key [key...]",
+        "host port timeout maxbulks maxbytes key [key...]",
+        "", 14, "codis3.2"
+    },
+    {"SLOTSMGRTONE-ASYNC-DUMP",
+        "timeout maxbulks key [key...]",
         "", 14, "codis3.2"
     },
     {"SLOTSMGRTTAGONE-ASYNC-DUMP",
-        "timeout maxbulks maxbytes key [key...]",
+        "timeout maxbulks key [key...]",
         "", 14, "codis3.2"
     },
     {"SLOTSMGRT-ASYNC-FENCE",
