@@ -1054,11 +1054,11 @@ struct commandHelp {
         "", 14, "codis1.9"
     },
     {"SLOTSMGRTSLOT-ASYNC",
-        "host port timeout maxbulks maxbytes pipeline slot [slot...]",
+        "host port timeout maxbulks maxbytes pipeline slot numkeys",
         "", 14, "codis3.2"
     },
     {"SLOTSMGRTTAGSLOT-ASYNC",
-        "host port timeout maxbulks maxbytes pipeline slot [slot...]",
+        "host port timeout maxbulks maxbytes pipeline slot numkeys",
         "", 14, "codis3.2"
     },
     {"SLOTSMGRTONE-ASYNC",
