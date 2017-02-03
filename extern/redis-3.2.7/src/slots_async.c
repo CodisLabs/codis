@@ -4,7 +4,7 @@
 
 typedef struct {
     robj *val;
-    long long cursor;
+    unsigned long cursor;
 } lazyReleaseIterator;
 
 static lazyReleaseIterator *
@@ -1004,15 +1004,23 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     batchedObjectIterator *it = createBatchedObjectIterator(hash_slot,
             usetag ? c->db->tagged_keys : NULL, timeout, maxbulks, maxbytes, pipeline);
     if (!usekey) {
-        void *pd[] = {it};
-        unsigned long cursor = 0;
-        int loop = numkeys * 3;
-        if (loop < 128) {
-            loop = 128;
+        if (dictIsRehashing(hash_slot)) {
+            dictRehash(hash_slot, 1);
+        } else if (htNeedsResize(hash_slot)) {
+            dictResize(hash_slot);
         }
-        do {
-            cursor = dictScan(hash_slot, cursor, batchedObjectIteratorAddKeyCallback, pd);
-        } while (cursor != 0 && dictSize(it->keys) < (unsigned int)numkeys && (-- loop) >= 0);
+        const int round = 2;
+        void *pd[] = {it};
+        for (int i = 0; i < round && dictSize(it->keys) == 0; i ++) {
+            unsigned long cursor = (i != round - 1) ? random() : 0;
+            int loop = numkeys * 5;
+            if (loop < 32) {
+                loop = 32;
+            }
+            do {
+                cursor = dictScan(hash_slot, cursor, batchedObjectIteratorAddKeyCallback, pd);
+            } while (cursor != 0 && dictSize(it->keys) < (unsigned int)numkeys && (-- loop) >= 0);
+        }
     } else {
         for (int i = 7; i < c->argc; i ++) {
             batchedObjectIteratorAddKey(it, c->argv[i]);
