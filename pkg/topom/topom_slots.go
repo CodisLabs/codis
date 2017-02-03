@@ -250,7 +250,6 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 						Timeout:  time.Second * 5,
 						MaxBulks: s.config.MigrateAsyncMaxBulks,
 						MaxBytes: int(s.config.MigrateAsyncMaxBytes),
-						Pipeline: s.config.MigrateAsyncPipeline,
 						NumKeys:  s.config.MigrateAsyncNumKeys,
 					}
 					return s.redisp.MigrateSlotAsync(sid, from, dest, option)

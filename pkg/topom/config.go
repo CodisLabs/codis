@@ -36,8 +36,7 @@ admin_addr = "0.0.0.0:18080"
 # Set arguments for data migration (only accept 'sync' & 'semi-async').
 forward_method = "semi-async"
 migrate_async_maxbulks = 1000
-migrate_async_maxbytes = "32k"
-migrate_async_pipeline = 64
+migrate_async_maxbytes = "256k"
 migrate_async_numkeys = 128
 
 # Set configs for redis sentinel.
@@ -63,7 +62,6 @@ type Config struct {
 	ForwardMethod        string         `toml:"forward_method" json:"forward_method"`
 	MigrateAsyncMaxBulks int            `toml:"migrate_async_maxbulks" json:"migrate_async_maxbulks"`
 	MigrateAsyncMaxBytes bytesize.Int64 `toml:"migrate_async_maxbytes" json:"migrate_async_maxbytes"`
-	MigrateAsyncPipeline int            `toml:"migrate_async_pipeline" json:"migrate_async_pipeline"`
 	MigrateAsyncNumKeys  int            `toml:"migrate_async_numkeys" json:"migrate_async_numkeys"`
 
 	SentinelQuorum               int               `toml:"sentinel_quorum" json:"sentinel_quorum"`
@@ -122,9 +120,6 @@ func (c *Config) Validate() error {
 	}
 	if c.MigrateAsyncMaxBytes <= 0 {
 		return errors.New("invalid migrate_async_maxbytes")
-	}
-	if c.MigrateAsyncPipeline <= 0 {
-		return errors.New("invalid migrate_async_pipeline")
 	}
 	if c.MigrateAsyncNumKeys <= 0 {
 		return errors.New("invalid migrate_async_numkeys")

@@ -163,7 +163,6 @@ type MigrateSlotAsyncOption struct {
 	Timeout  time.Duration
 	MaxBulks int
 	MaxBytes int
-	Pipeline int
 	NumKeys  int
 }
 
@@ -173,7 +172,7 @@ func (c *Client) MigrateSlotAsync(slot int, target string, option *MigrateSlotAs
 		return 0, errors.Trace(err)
 	}
 	if reply, err := c.Do("SLOTSMGRTTAGSLOT-ASYNC", host, port, int(option.Timeout/time.Millisecond),
-		option.MaxBulks, option.MaxBytes, option.Pipeline, slot, option.NumKeys); err != nil {
+		option.MaxBulks, option.MaxBytes, slot, option.NumKeys); err != nil {
 		return 0, err
 	} else {
 		p, err := redigo.Ints(redigo.Values(reply, nil))
