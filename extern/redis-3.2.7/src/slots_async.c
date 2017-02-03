@@ -624,7 +624,12 @@ out:
 static void
 batchedObjectIteratorAddKeyCallback(void *data, const dictEntry *de) {
     void **pd = (void **)data;
-    batchedObjectIteratorAddKey(pd[0], dictGetKey(de));
+    batchedObjectIterator *it = pd[0];
+
+    sds skey = dictGetKey(de);
+    robj *key = createStringObject(skey, sdslen(skey));
+    batchedObjectIteratorAddKey(it, key);
+    decrRefCount(key);
 }
 
 /* ============================ Clients ==================================================== */
