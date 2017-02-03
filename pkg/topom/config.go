@@ -36,9 +36,9 @@ admin_addr = "0.0.0.0:18080"
 # Set arguments for data migration (only accept 'sync' & 'semi-async').
 forward_method = "semi-async"
 migrate_async_maxbulks = 1000
-migrate_async_maxbytes = "128k"
-migrate_async_pipeline = 8
-migrate_async_numkeys = 32
+migrate_async_maxbytes = "32k"
+migrate_async_pipeline = 64
+migrate_async_numkeys = 128
 
 # Set configs for redis sentinel.
 sentinel_quorum = 2
