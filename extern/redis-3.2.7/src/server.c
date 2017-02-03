@@ -729,7 +729,10 @@ int incrementallyRehash(int dbid) {
     /* Keys dictionary */
     if (dictIsRehashing(server.db[dbid].dict)) {
         dictRehashMilliseconds(server.db[dbid].dict,1);
-
+        server.db[dbid].hash_slots_rehashing = 1;
+        return 1; /* already used our millisecond for this loop... */
+    }
+    if (server.db[dbid].hash_slots_rehashing) {
         long long start = timeInMilliseconds();
         for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
             int idx = ((i + start) & HASH_SLOTS_MASK);
@@ -737,10 +740,11 @@ int incrementallyRehash(int dbid) {
             if (dictIsRehashing(d)) {
                 dictRehashMilliseconds(d, 1);
                 if (timeInMilliseconds() != start) {
-                    break;
+                    return 1; /* already used our millisecond for this loop... */
                 }
             }
         }
+        server.db[dbid].hash_slots_rehashing = 0;
         return 1; /* already used our millisecond for this loop... */
     }
     /* Expires */
@@ -1993,6 +1997,7 @@ void initServer(void) {
         for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
             server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
         }
+        server.db[j].hash_slots_rehashing = 0;
         server.db[j].tagged_keys = zslCreate();
     }
     server.pubsub_channels = dictCreate(&keylistDictType,NULL);

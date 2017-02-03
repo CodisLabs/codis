@@ -521,6 +521,7 @@ typedef struct redisDb {
     dict *ready_keys;           /* Blocked keys that received a PUSH */
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
     dict *hash_slots[HASH_SLOTS_SIZE];
+    int hash_slots_rehashing;
     struct zskiplist *tagged_keys;
     struct evictionPoolEntry *eviction_pool;    /* Eviction pool of keys */
     int id;                     /* Database ID */
