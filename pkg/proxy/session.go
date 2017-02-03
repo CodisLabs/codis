@@ -477,9 +477,7 @@ func (s *Session) handleRequestDel(r *Request, d *Router) error {
 			case resp == nil:
 				return ErrRespIsRequired
 			case resp.IsInt() && len(resp.Value) == 1:
-				if resp.Value[0] != '0' {
-					n++
-				}
+				n += int(resp.Value[0] - '0')
 			default:
 				return fmt.Errorf("bad del resp: %s value.len = %d", resp.Type, len(resp.Value))
 			}

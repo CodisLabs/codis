@@ -129,6 +129,8 @@ func (s *Router) FillSlot(m *models.Slot) error {
 		return ErrInvalidMethod
 	case models.ForwardSync:
 		method = &forwardSync{}
+	case models.ForwardSemiAsync:
+		method = &forwardSemiAsync{}
 	}
 	s.fillSlot(m, false, method)
 	return nil
