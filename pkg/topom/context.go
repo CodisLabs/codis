@@ -28,6 +28,7 @@ type context struct {
 		sync.Mutex
 		m map[string]net.IP
 	}
+	method int
 }
 
 func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {
@@ -89,6 +90,8 @@ func (ctx *context) toSlot(m *models.SlotMapping, p *models.Proxy) *models.Slot 
 	slot := &models.Slot{
 		Id:     m.Id,
 		Locked: ctx.isSlotLocked(m),
+
+		ForwardMethod: ctx.method,
 	}
 	switch m.Action.State {
 	case models.ActionNothing, models.ActionPending:

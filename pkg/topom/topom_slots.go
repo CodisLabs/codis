@@ -4,9 +4,12 @@
 package topom
 
 import (
+	"time"
+
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/redis"
 )
 
 func (s *Topom) SlotCreateAction(sid int, gid int) error {
@@ -238,7 +241,22 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 		return func() (int, error) {
 			defer s.action.executor.Decr()
 			if from != "" {
-				return s.redisp.MigrateSlot(sid, from, dest)
+				method, _ := models.ParseForwardMethod(s.config.ForwardMethod)
+				switch method {
+				case models.ForwardSync:
+					return s.redisp.MigrateSlot(sid, from, dest)
+				case models.ForwardSemiAsync:
+					var option = &redis.MigrateSlotAsyncOption{
+						Timeout:  time.Second * 5,
+						MaxBulks: s.config.MigrateAsyncMaxBulks,
+						MaxBytes: int(s.config.MigrateAsyncMaxBytes),
+						Pipeline: s.config.MigrateAsyncPipeline,
+						NumKeys:  s.config.MigrateAsyncNumKeys,
+					}
+					return s.redisp.MigrateSlotAsync(sid, from, dest, option)
+				default:
+					log.Panicf("unknown forward method %d", int(method))
+				}
 			}
 			return 0, nil
 		}, nil

@@ -8,6 +8,8 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/CodisLabs/codis/pkg/models"
+	"github.com/CodisLabs/codis/pkg/utils/bytesize"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/timesize"
@@ -31,6 +33,13 @@ product_auth = ""
 # Set bind address for admin(rpc), tcp only.
 admin_addr = "0.0.0.0:18080"
 
+# Set arguments for data migration (only accept 'sync' & 'semi-async').
+forward_method = "semi-async"
+migrate_async_maxbulks = 1000
+migrate_async_maxbytes = "128k"
+migrate_async_pipeline = 8
+migrate_async_numkeys = 32
+
 # Set configs for redis sentinel.
 sentinel_quorum = 2
 sentinel_parallel_syncs = 1
@@ -50,6 +59,12 @@ type Config struct {
 
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
+
+	ForwardMethod        string         `toml:"forward_method" json:"forward_method"`
+	MigrateAsyncMaxBulks int            `toml:"migrate_async_maxbulks" json:"migrate_async_maxbulks"`
+	MigrateAsyncMaxBytes bytesize.Int64 `toml:"migrate_async_maxbytes" json:"migrate_async_maxbytes"`
+	MigrateAsyncPipeline int            `toml:"migrate_async_pipeline" json:"migrate_async_pipeline"`
+	MigrateAsyncNumKeys  int            `toml:"migrate_async_numkeys" json:"migrate_async_numkeys"`
 
 	SentinelQuorum               int               `toml:"sentinel_quorum" json:"sentinel_quorum"`
 	SentinelParallelSyncs        int               `toml:"sentinel_parallel_syncs" json:"sentinel_parallel_syncs"`
@@ -98,6 +113,21 @@ func (c *Config) Validate() error {
 	}
 	if c.ProductName == "" {
 		return errors.New("invalid product_name")
+	}
+	if _, ok := models.ParseForwardMethod(c.ForwardMethod); !ok {
+		return errors.New("invalid forward_method")
+	}
+	if c.MigrateAsyncMaxBulks <= 0 {
+		return errors.New("invalid migrate_async_maxbulks")
+	}
+	if c.MigrateAsyncMaxBytes <= 0 {
+		return errors.New("invalid migrate_async_maxbytes")
+	}
+	if c.MigrateAsyncPipeline <= 0 {
+		return errors.New("invalid migrate_async_pipeline")
+	}
+	if c.MigrateAsyncNumKeys <= 0 {
+		return errors.New("invalid migrate_async_numkeys")
 	}
 	if c.SentinelQuorum <= 0 {
 		return errors.New("invalid sentinel_quorum")

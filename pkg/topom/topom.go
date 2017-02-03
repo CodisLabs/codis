@@ -266,6 +266,7 @@ func (s *Topom) newContext() (*context, error) {
 			ctx.proxy = s.cache.proxy
 			ctx.sentinel = s.cache.sentinel
 			ctx.hosts.m = make(map[string]net.IP)
+			ctx.method, _ = models.ParseForwardMethod(s.config.ForwardMethod)
 			return ctx, nil
 		}
 	} else {

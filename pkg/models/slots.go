@@ -3,6 +3,8 @@
 
 package models
 
+import "strings"
+
 const (
 	ForwardSync = iota
 	ForwardSemiAsync
@@ -22,6 +24,17 @@ type Slot struct {
 	ForwardMethod int `json:"forward_method"`
 
 	ReplicaGroups [][]string `json:"replica_groups,omitempty"`
+}
+
+func ParseForwardMethod(s string) (int, bool) {
+	switch strings.ToUpper(s) {
+	default:
+		return ForwardSync, false
+	case "SYNC":
+		return ForwardSync, true
+	case "SEMI-ASYNC":
+		return ForwardSemiAsync, true
+	}
 }
 
 type SlotMapping struct {

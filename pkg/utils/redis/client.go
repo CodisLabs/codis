@@ -159,6 +159,31 @@ func (c *Client) MigrateSlot(slot int, target string) (int, error) {
 	}
 }
 
+type MigrateSlotAsyncOption struct {
+	Timeout  time.Duration
+	MaxBulks int
+	MaxBytes int
+	Pipeline int
+	NumKeys  int
+}
+
+func (c *Client) MigrateSlotAsync(slot int, target string, option *MigrateSlotAsyncOption) (int, error) {
+	host, port, err := net.SplitHostPort(target)
+	if err != nil {
+		return 0, errors.Trace(err)
+	}
+	if reply, err := c.Do("SLOTSMGRTTAGSLOT-ASYNC", host, port, int(option.Timeout/time.Millisecond),
+		option.MaxBulks, option.MaxBytes, option.Pipeline, slot, option.NumKeys); err != nil {
+		return 0, err
+	} else {
+		p, err := redigo.Ints(redigo.Values(reply, nil))
+		if err != nil || len(p) != 2 {
+			return 0, errors.Errorf("invalid response = %v", reply)
+		}
+		return p[1], nil
+	}
+}
+
 func (c *Client) SlotsInfo() (map[int]int, error) {
 	if reply, err := c.Do("SLOTSINFO"); err != nil {
 		return nil, err
@@ -356,6 +381,15 @@ func (p *Pool) MigrateSlot(slot int, from, dest string) (int, error) {
 	}
 	defer p.PutClient(c)
 	return c.MigrateSlot(slot, dest)
+}
+
+func (p *Pool) MigrateSlotAsync(slot int, from, dest string, option *MigrateSlotAsyncOption) (int, error) {
+	c, err := p.GetClient(from)
+	if err != nil {
+		return 0, err
+	}
+	defer p.PutClient(c)
+	return c.MigrateSlotAsync(slot, dest, option)
 }
 
 type InfoCache struct {
