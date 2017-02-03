@@ -626,8 +626,7 @@ typedef struct client {
     sds peerid;             /* Cached peer ID. */
 
     long slotsmgrt_flags;
-    long slotsmgrt_block_m;
-    list *slotsmgrt_block_l;
+    list *slotsmgrt_fenceq;
 
     /* Response buffer */
     int bufpos;

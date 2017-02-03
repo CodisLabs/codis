@@ -124,8 +124,7 @@ client *createClient(int fd) {
     c->pubsub_patterns = listCreate();
     c->peerid = NULL;
     c->slotsmgrt_flags = 0;
-    c->slotsmgrt_block_m = 0;
-    c->slotsmgrt_block_l = NULL;
+    c->slotsmgrt_fenceq = NULL;
     listSetFreeMethod(c->pubsub_patterns,decrRefCountVoid);
     listSetMatchMethod(c->pubsub_patterns,listMatchObjects);
     if (fd != -1) listAddNodeTail(server.clients,c);

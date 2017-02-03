@@ -641,22 +641,19 @@ notifySlotsmgrtAsyncClient(slotsmgrtAsyncClient *ac, const char *errmsg) {
     while (listLength(ll) != 0) {
         listNode *head = listFirst(ll);
         client *c = listNodeValue(head);
-        for (int i = 0; i < c->slotsmgrt_block_m; i ++) {
-            if (errmsg != NULL) {
-                addReplyError(c, errmsg);
-            } else if (it == NULL) {
-                addReplyError(c, "invalid iterator (NULL)");
-            } else if (it->hash_slot == NULL) {
-                addReplyLongLong(c, listLength(it->removed_keys));
-            } else {
-                addReplyMultiBulkLen(c, 2);
-                addReplyLongLong(c, listLength(it->removed_keys));
-                addReplyLongLong(c, dictSize(it->hash_slot));
-            }
+        if (errmsg != NULL) {
+            addReplyError(c, errmsg);
+        } else if (it == NULL) {
+            addReplyError(c, "invalid iterator (NULL)");
+        } else if (it->hash_slot == NULL) {
+            addReplyLongLong(c, listLength(it->removed_keys));
+        } else {
+            addReplyMultiBulkLen(c, 2);
+            addReplyLongLong(c, listLength(it->removed_keys));
+            addReplyLongLong(c, dictSize(it->hash_slot));
         }
         c->slotsmgrt_flags &= ~CLIENT_SLOTSMGRT_ASYNC_NORMAL_CLIENT;
-        c->slotsmgrt_block_m = 0;
-        c->slotsmgrt_block_l = NULL;
+        c->slotsmgrt_fenceq = NULL;
         listDelNode(ll, head);
     }
 }
@@ -692,13 +689,13 @@ unlinkSlotsmgrtAsyncCachedClient(client *c, const char *errmsg) {
 static int
 releaseSlotsmgrtAsyncClient(int db, const char *errmsg) {
     slotsmgrtAsyncClient *ac = getSlotsmgrtAsyncClient(db);
-    if (ac->c != NULL) {
-        client *c = ac->c;
-        unlinkSlotsmgrtAsyncCachedClient(c, errmsg);
-        freeClient(c);
-        return 1;
+    if (ac->c == NULL) {
+        return 0;
     }
-    return 0;
+    client *c = ac->c;
+    unlinkSlotsmgrtAsyncCachedClient(c, errmsg);
+    freeClient(c);
+    return 1;
 }
 
 static int
@@ -766,16 +763,14 @@ getOrCreateSlotsmgrtAsyncClient(int db, char *host, int port, long timeout) {
 static void
 unlinkSlotsmgrtAsyncNormalClient(client *c) {
     serverAssert(c->slotsmgrt_flags & CLIENT_SLOTSMGRT_ASYNC_NORMAL_CLIENT);
-    serverAssert(c->slotsmgrt_block_m != 0);
-    serverAssert(c->slotsmgrt_block_l != NULL);
+    serverAssert(c->slotsmgrt_fenceq != NULL);
 
-    list *ll = c->slotsmgrt_block_l;
+    list *ll = c->slotsmgrt_fenceq;
     listNode *node = listSearchKey(ll, c);
     serverAssert(node != NULL);
 
     c->slotsmgrt_flags &= ~CLIENT_SLOTSMGRT_ASYNC_NORMAL_CLIENT;
-    c->slotsmgrt_block_m = 0;
-    c->slotsmgrt_block_l = NULL;
+    c->slotsmgrt_fenceq = NULL;
     listDelNode(ll, node);
 }
 
@@ -820,18 +815,13 @@ getSlotsmgrtAsyncClientMigrationStatusOrBlock(client *c, robj *key, int block) {
     if (!block) {
         return 1;
     }
-    list *ll = ac->blocked_list;
     if (c->slotsmgrt_flags & CLIENT_SLOTSMGRT_ASYNC_NORMAL_CLIENT) {
-        if (c->slotsmgrt_block_l != ll) {
-            return -1;
-        }
-        c->slotsmgrt_block_m ++;
-    } else {
-        c->slotsmgrt_flags |= CLIENT_SLOTSMGRT_ASYNC_NORMAL_CLIENT;
-        c->slotsmgrt_block_l = ll;
-        c->slotsmgrt_block_m ++;
-        listAddNodeTail(ll, c);
+        return -1;
     }
+    list *ll = ac->blocked_list;
+    c->slotsmgrt_flags |= CLIENT_SLOTSMGRT_ASYNC_NORMAL_CLIENT;
+    c->slotsmgrt_fenceq = ll;
+    listAddNodeTail(ll, c);
     return 1;
 }
 
@@ -1092,7 +1082,7 @@ slotsmgrtAsyncFenceCommand(client *c) {
     if (ret == 0) {
         addReply(c, shared.ok);
     } else if (ret != 1) {
-        addReplyError(c, "wait on multiple DBs");
+        addReplyError(c, "previous operation has not finished (call fence again)");
     }
 }
 
