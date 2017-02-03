@@ -44,12 +44,14 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
     robj *val = it->val;
     serverAssert(val != NULL);
 
+    const int step = 4096;
+
     if (val->type == OBJ_LIST) {
-        if (listTypeLength(val) <= 1024) {
+        if (listTypeLength(val) <= step * 2) {
             decrRefCount(val);
             it->val = NULL;
         } else {
-            for (int i = 0; i < 512; i ++) {
+            for (int i = 0; i < step; i ++) {
                 robj *value = listTypePop(val, LIST_HEAD);
                 decrRefCount(value);
             }
@@ -59,17 +61,17 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
 
     if (val->type == OBJ_HASH || val->type == OBJ_SET) {
         dict *ht = val->ptr;
-        if (dictSize(ht) <= 1024) {
+        if (dictSize(ht) <= step * 2) {
             decrRefCount(val);
             it->val = NULL;
         } else {
             list *ll = listCreate();
             listSetFreeMethod(ll, decrRefCountVoid);
             void *pd[] = {ll};
-            int loop = 128;
+            int loop = step * 10;
             do {
                 it->cursor = dictScan(ht, it->cursor, lazyReleaseIteratorScanCallback, pd);
-            } while (it->cursor != 0 && (-- loop) >= 0);
+            } while (it->cursor != 0 && listLength(ll) < step && (-- loop) >= 0);
 
             while (listLength(ll) != 0) {
                 listNode *head = listFirst(ll);
@@ -85,12 +87,12 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
     if (val->type == OBJ_ZSET) {
         zset *zs = val->ptr;
         dict *ht = zs->dict;
-        if (dictSize(ht) <= 1024) {
+        if (dictSize(ht) <= step * 2) {
             decrRefCount(val);
             it->val = NULL;
         } else {
             zskiplist *zsl = zs->zsl;
-            for (int i = 0; i < 512; i ++) {
+            for (int i = 0; i < step; i ++) {
                 zskiplistNode *node = zsl->header->level[0].forward;
                 robj *field = node->obj;
                 incrRefCount(field);
@@ -412,11 +414,14 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         list *ll = listCreate();
         listSetFreeMethod(ll, decrRefCountVoid);
         int more = 1;
-        int loop = maxbulks * 3;
         long long size = 0;
         if (scan) {
             void *pd[] = {ll, val, &size};
             dict *ht = (val->type != OBJ_ZSET) ? val->ptr : ((zset *)val->ptr)->dict;
+            int loop = maxbulks * 10;
+            if (loop < 128) {
+                loop = 128;
+            }
             do {
                 it->cursor = dictScan(ht, it->cursor, singleObjectIteratorScanCallback, pd);
                 if (it->cursor == 0) {
