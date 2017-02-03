@@ -620,9 +620,6 @@ batchedObjectIteratorAddKey(batchedObjectIterator *it, robj *key) {
     }
 
 out:
-    if (htNeedsResize(it->keys)) {
-        dictResize(it->keys);
-    }
     return 1 + dictSize(it->keys) - size;
 }
 
@@ -1009,7 +1006,10 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     if (!usekey) {
         void *pd[] = {it};
         unsigned long cursor = 0;
-        long loop = numkeys * 3;
+        int loop = numkeys * 3;
+        if (loop < 128) {
+            loop = 128;
+        }
         do {
             cursor = dictScan(hash_slot, cursor, batchedObjectIteratorAddKeyCallback, pd);
         } while (cursor != 0 && dictSize(it->keys) < (unsigned int)numkeys && (-- loop) >= 0);
@@ -1440,9 +1440,6 @@ slotsrestoreAsyncHandle(client *c) {
             incrRefCount(elem);
             dictAdd(zset->dict, elem, &(znode->score));
             incrRefCount(elem);
-        }
-        if (htNeedsResize(zset->dict)) {
-            dictResize(zset->dict);
         }
         zfree(scores);
         slotsrestoreReplyAck(c, 0, "%d", zsetLength(val));
