@@ -71,7 +71,7 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
             void *pd[] = {ll};
             do {
                 it->cursor = dictScan(ht, it->cursor, lazyReleaseIteratorScanCallback, pd);
-            } while (it->cursor != 0 && listLength(ll) < step && (-- loop) >= 0);
+            } while (it->cursor != 0 && (int)listLength(ll) < step && (-- loop) >= 0);
 
             while (listLength(ll) != 0) {
                 listNode *head = listFirst(ll);
@@ -226,11 +226,17 @@ singleObjectIteratorHasNext(singleObjectIterator *it) {
     return it->stage != STAGE_DONE;
 }
 
+static size_t
+sdslenOrElse(robj *o, size_t len) {
+    return sdsEncodedObject(o) ? sdslen(o->ptr) : len;
+}
+
 static void
 singleObjectIteratorScanCallback(void *data, const dictEntry *de) {
     void **pd = (void **)data;
     list *l = pd[0];
     robj *o = pd[1];
+    long long *n = pd[2];
 
     robj *objs[2] = {NULL, NULL};
     switch (o->type) {
@@ -252,6 +258,7 @@ singleObjectIteratorScanCallback(void *data, const dictEntry *de) {
     }
     for (int i = 0; i < 2; i ++) {
         if (objs[i] != NULL) {
+            *n += sdslenOrElse(objs[i], 8);
             listAddNodeTail(l, objs[i]);
         }
     }
@@ -263,7 +270,7 @@ static slotsmgrtAsyncClient *getSlotsmgrtAsyncClient(int db);
 
 static int
 singleObjectIteratorNext(client *c, singleObjectIterator *it,
-        long long timeout, unsigned int maxbulks) {
+        long long timeout, unsigned int maxbulks, unsigned int maxbytes) {
     /* *
      * STAGE_PREPARE ---> STAGE_PAYLOAD ---> STAGE_DONE
      *     |                                      A
@@ -401,18 +408,19 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         list *ll = listCreate();
         listSetFreeMethod(ll, decrRefCountVoid);
         int more = 1;
+        long long len = 0;
         if (ht != NULL) {
             int loop = maxbulks * 10;
             if (loop < 128) {
                 loop = 128;
             }
-            void *pd[] = {ll, val};
+            void *pd[] = {ll, val, &len};
             do {
                 it->cursor = dictScan(ht, it->cursor, singleObjectIteratorScanCallback, pd);
                 if (it->cursor == 0) {
                     more = 0;
                 }
-            } while (more && listLength(ll) < maxbulks && (-- loop) >= 0);
+            } while (more && listLength(ll) < maxbulks && len < maxbytes && (-- loop) >= 0);
         } else {
             listTypeIterator *li = listTypeInitIterator(val, it->lindex, LIST_TAIL);
             do {
@@ -426,11 +434,12 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
                         obj = createStringObjectFromLongLong(e->longval);
                     }
                     listAddNodeTail(ll, obj);
+                    len += sdslenOrElse(obj, 8);
                     it->lindex ++;
                 } else {
                     more = 0;
                 }
-            } while (more && listLength(ll) < maxbulks);
+            } while (more && listLength(ll) < maxbulks && len < maxbytes);
             listTypeReleaseIterator(li);
         }
 
@@ -471,8 +480,8 @@ typedef struct {
     dict *hash_slot;
     struct zskiplist *hash_tags;
     long long timeout;
-    long long maxbulks;
-    long long maxbytes;
+    unsigned int maxbulks;
+    unsigned int maxbytes;
     list *removed_keys;
     list *chunked_vals;
 } batchedObjectIterator;
@@ -533,7 +542,8 @@ batchedObjectIteratorNext(client *c, batchedObjectIterator *it) {
     if (listLength(it->list) != 0) {
         listNode *head = listFirst(it->list);
         singleObjectIterator *sp = listNodeValue(head);
-        return singleObjectIteratorNext(c, sp, it->timeout, it->maxbulks);
+        long long maxbytes = (long long)it->maxbytes - getClientOutputBufferMemoryUsage(c);
+        return singleObjectIteratorNext(c, sp, it->timeout, it->maxbulks, maxbytes > 0 ? maxbytes : 0);
     }
     serverPanic("use of empty iterator");
 }
@@ -996,7 +1006,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     ac->lastuse = mstime();
     ac->batched_iter = it;
 
-    while (batchedObjectIteratorHasNext(it) && (long)getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
+    while (batchedObjectIteratorHasNext(it) && getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
         ac->pending_msgs += batchedObjectIteratorNext(ac->c, it);
     }
     getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 1);
@@ -1475,7 +1485,7 @@ slotsrestoreAsyncAckHandle(client *c) {
     ac->pending_msgs -= 1;
 
     batchedObjectIterator *it = ac->batched_iter;
-    while (batchedObjectIteratorHasNext(it) && (long)getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
+    while (batchedObjectIteratorHasNext(it) && getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
         ac->pending_msgs += batchedObjectIteratorNext(ac->c, it);
     }
 
