@@ -103,7 +103,6 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	}
 	s.store = models.NewStore(client, config.ProductName)
 
-	s.action.interval.Set(1000 * 10)
 	s.stats.servers = make(map[string]*RedisStats)
 	s.stats.proxies = make(map[string]*ProxyStats)
 
