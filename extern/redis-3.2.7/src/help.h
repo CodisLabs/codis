@@ -1086,7 +1086,7 @@ struct commandHelp {
         "", 14, "codis3.2"
     },
     {"SLOTSMGRT-EXEC-WRAPPER",
-        "command [arg ...]",
+        "hashkey command [arg ...]",
         "", 14, "codis3.2"
     },
     {"SLOTSMGRT-LAZY-RELEASE",
@@ -1109,10 +1109,6 @@ struct commandHelp {
         "key ttl payload",
         "", 14, "codis3.2"
     },
-    {"SLOTSRESTORE-ASYNC STRING",
-        "key ttl content",
-        "", 14, "codis3.2"
-    },
     {"SLOTSRESTORE-ASYNC LIST",
         "key ttl [elem ...]",
         "", 14, "codis3.2"
@@ -1131,10 +1127,6 @@ struct commandHelp {
     },
     {"SLOTSRESTORE-ASYNC-AUTH",
         "passwd",
-        "", 14, "codis3.2"
-    },
-    {"SLOTSRESTORE-ASYNC-ACK",
-        "errno message",
         "", 14, "codis3.2"
     },
 };

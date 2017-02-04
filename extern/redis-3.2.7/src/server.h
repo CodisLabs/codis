@@ -1708,7 +1708,7 @@ void slotsrestoreAsyncAckCommand(client *c);
 
 void slotsmgrtAsyncCleanup();
 void slotsmgrtAsyncUnlinkClient(client *c);
-void slotsmgrtLazyReleaseIncrementally();
+int slotsmgrtLazyReleaseIncrementally();
 
 void slotsmgrt_cleanup();
 int slots_num(const sds s, uint32_t *pcrc, int *phastag);

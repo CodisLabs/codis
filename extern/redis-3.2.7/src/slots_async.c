@@ -128,10 +128,10 @@ lazyReleaseIteratorRemains(lazyReleaseIterator *it) {
     return -1;
 }
 
-static void
-slotsmgrtLazyRelease(int step) {
+int
+slotsmgrtLazyReleaseIncrementally() {
     list *ll = server.slotsmgrt_lazy_release;
-    for (int i = 0; i < step && listLength(ll) != 0; i ++) {
+    if (listLength(ll) != 0) {
         listNode *head = listFirst(ll);
         lazyReleaseIterator *it = listNodeValue(head);
         if (lazyReleaseIteratorHasNext(it)) {
@@ -140,12 +140,9 @@ slotsmgrtLazyRelease(int step) {
             freeLazyReleaseIterator(it);
             listDelNode(ll, head);
         }
+        return 1;
     }
-}
-
-void
-slotsmgrtLazyReleaseIncrementally() {
-    slotsmgrtLazyRelease(1);
+    return 0;
 }
 
 void
@@ -163,7 +160,7 @@ slotsmgrtLazyReleaseCommand(client *c) {
             return;
         }
     }
-    slotsmgrtLazyRelease(step);
+    while (step != 0 && slotsmgrtLazyReleaseIncrementally()) { step --; }
 
     list *ll = server.slotsmgrt_lazy_release;
 
@@ -792,7 +789,7 @@ slotsmgrtAsyncCleanup() {
         releaseSlotsmgrtAsyncClient(i, ac->batched_iter != NULL ?
                 "interrupted: migration timeout" : "interrupted: idle timeout");
     }
-    slotsmgrtLazyRelease(1);
+    slotsmgrtLazyReleaseIncrementally();
 }
 
 static int
