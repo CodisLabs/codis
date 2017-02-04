@@ -32,6 +32,12 @@ class CodisDashboard(Process):
             if product_auth is not None:
                 f.write('product_auth = "{}"\n'.format(product_auth))
             f.write('admin_addr = ":{}"\n'.format(admin_port))
+            f.write('forward_method = "semi-async"\n')
+            f.write('migrate_async_maxbulks = 1000\n')
+            f.write('migrate_async_maxbytes = "256k"\n')
+            f.write('migrate_async_numkeys = 128\n')
+            f.write('sentinel_quorum = 2\n')
+            f.write('sentinel_parallel_syncs = 1\n')
             f.write('sentinel_down_after = "5s"\n')
             f.write('sentinel_failover_timeout = "10m"\n')
             path = os.getcwd()
