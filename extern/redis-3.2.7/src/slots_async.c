@@ -67,8 +67,8 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
         } else {
             list *ll = listCreate();
             listSetFreeMethod(ll, decrRefCountVoid);
-            void *pd[] = {ll};
             int loop = step * 10;
+            void *pd[] = {ll};
             do {
                 it->cursor = dictScan(ht, it->cursor, lazyReleaseIteratorScanCallback, pd);
             } while (it->cursor != 0 && listLength(ll) < step && (-- loop) >= 0);
@@ -246,13 +246,13 @@ singleObjectIteratorScanCallback(void *data, const dictEntry *de) {
         incrRefCount(objs[0]);
         incrRefCount(objs[1]);
         break;
+    case OBJ_SET:
+        objs[0] = dictGetKey(de);
+        incrRefCount(objs[0]);
+        break;
     case OBJ_ZSET:
         objs[0] = dictGetKey(de);
         objs[1] = createStringObjectFromLongDouble(*(double *)dictGetVal(de), 0);
-        incrRefCount(objs[0]);
-        break;
-    case OBJ_SET:
-        objs[0] = dictGetKey(de);
         incrRefCount(objs[0]);
         break;
     }
@@ -331,13 +331,13 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
             it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
                 (maxbulks < hashTypeLength(val) * 2);
             break;
-        case OBJ_ZSET:
-            it->chunked = (val->encoding == OBJ_ENCODING_SKIPLIST) &&
-                (maxbulks < zsetLength(val) * 2);
-            break;
         case OBJ_SET:
             it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
                 (maxbulks < setTypeSize(val));
+            break;
+        case OBJ_ZSET:
+            it->chunked = (val->encoding == OBJ_ENCODING_SKIPLIST) &&
+                (maxbulks < zsetLength(val) * 2);
             break;
         }
 
@@ -386,19 +386,19 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
 
     if (it->stage == STAGE_CHUNKED) {
         const char *cmd = NULL;
-        int scan = 0;
+        dict *ht = NULL;
         switch (val->type) {
         case OBJ_LIST:
             cmd = "list";
             break;
         case OBJ_HASH:
-            cmd = "hash", scan = 1;
-            break;
-        case OBJ_ZSET:
-            cmd = "zset", scan = 1;
+            cmd = "hash", ht = val->ptr;
             break;
         case OBJ_SET:
-            cmd = "dict", scan = 1;
+            cmd = "dict", ht = val->ptr;
+            break;
+        case OBJ_ZSET:
+            cmd = "zset", ht = ((zset *)val->ptr)->dict;
             break;
         default:
             serverPanic("unknown object type");
@@ -407,13 +407,12 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         list *ll = listCreate();
         listSetFreeMethod(ll, decrRefCountVoid);
         int more = 1;
-        if (scan) {
-            void *pd[] = {ll, val};
-            dict *ht = (val->type != OBJ_ZSET) ? val->ptr : ((zset *)val->ptr)->dict;
+        if (ht != NULL) {
             int loop = maxbulks * 10;
             if (loop < 128) {
                 loop = 128;
             }
+            void *pd[] = {ll, val};
             do {
                 it->cursor = dictScan(ht, it->cursor, singleObjectIteratorScanCallback, pd);
                 if (it->cursor == 0) {
@@ -1179,9 +1178,9 @@ slotsrestoreAsyncHandle(client *c) {
         return C_OK;
     }
 
-    /* =================================================== */
-    /* SLOTSRESTORE-ASYNC cmd $key [$ttl $arg1, $arg2 ...] */
-    /* =================================================== */
+    /* ==================================================== */
+    /* SLOTSRESTORE-ASYNC $cmd $key [$ttl $arg1, $arg2 ...] */
+    /* ==================================================== */
 
     if (c->argc < 3) {
         goto bad_arguments_number;
@@ -1257,22 +1256,6 @@ slotsrestoreAsyncHandle(client *c) {
             return C_ERR;
         }
         dbAdd(c->db, key, val);
-        slotsrestoreReplyAck(c, 0, "1");
-        goto success_common;
-    }
-
-    /* SLOTSRESTORE-ASYNC string $key $ttl $content */
-    if (!strcasecmp(cmd, "string")) {
-        if (c->argc != 5) {
-            goto bad_arguments_number;
-        }
-        if (lookupKeyWrite(c->db, key) != NULL) {
-            slotsrestoreReplyAck(c, -1, "the specified key already exists (%s)", key->ptr);
-            return C_ERR;
-        }
-        robj *val = c->argv[4] = tryObjectEncoding(c->argv[4]);
-        dbAdd(c->db, key, val);
-        incrRefCount(val);
         slotsrestoreReplyAck(c, 0, "1");
         goto success_common;
     }
@@ -1447,7 +1430,6 @@ success_common:
  *                    del    $key
  *                    expire $key $ttl
  *                    object $key $ttl $payload
- *                    string $key $ttl $content
  *                    list   $key $ttl [$elem1 ...]
  *                    hash   $key $ttl [$hkey1 $hval1 ...]
  *                    dict   $key $ttl [$elem1 ...]
