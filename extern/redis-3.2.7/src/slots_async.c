@@ -192,7 +192,7 @@ typedef struct {
     robj *val;
     long long expire;
     unsigned long cursor;
-    listTypeIterator *li;
+    unsigned long lindex;
     int chunked;
 } singleObjectIterator;
 
@@ -205,16 +205,13 @@ createSingleObjectIterator(robj *key) {
     it->val = NULL;
     it->expire = 0;
     it->cursor = 0;
-    it->li = NULL;
+    it->lindex = 0;
     it->chunked = 0;
     return it;
 }
 
 static void
 freeSingleObjectIterator(singleObjectIterator *it) {
-    if (it->li != NULL) {
-        listTypeReleaseIterator(it->li);
-    }
     if (it->val != NULL) {
         decrRefCount(it->val);
     }
@@ -420,13 +417,11 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
                 }
             } while (more && listLength(ll) < maxbulks && (-- loop) >= 0);
         } else {
-            if (it->li == NULL) {
-                it->li = listTypeInitIterator(val, 0, LIST_TAIL);
-            }
-            listTypeEntry entry;
+            listTypeIterator *li = listTypeInitIterator(val, it->lindex, LIST_TAIL);
             do {
-                if (listTypeNext(it->li, &entry)) {
-                    quicklistEntry *e = &entry.entry;
+                listTypeEntry entry;
+                if (listTypeNext(li, &entry)) {
+                    quicklistEntry *e = &(entry.entry);
                     robj *obj;
                     if (e->value) {
                         obj = createStringObject((const char *)e->value, e->sz);
@@ -434,10 +429,12 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
                         obj = createStringObjectFromLongLong(e->longval);
                     }
                     listAddNodeTail(ll, obj);
+                    it->lindex ++;
                 } else {
                     more = 0;
                 }
             } while (more && listLength(ll) < maxbulks);
+            listTypeReleaseIterator(li);
         }
 
         /* SLOTSRESTORE-ASYNC list/hash/zset/dict $key $ttl [$arg1 ...] */
