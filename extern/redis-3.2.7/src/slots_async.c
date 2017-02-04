@@ -723,6 +723,7 @@ createSlotsmgrtAsyncClient(int db, char *host, int port, long timeout) {
         return C_ERR;
     }
     c->slotsmgrt_flags |= CLIENT_SLOTSMGRT_ASYNC_CACHED_CLIENT;
+    c->authenticated = 1;
 
     releaseSlotsmgrtAsyncClient(db, "interrupted: build new connection");
 
