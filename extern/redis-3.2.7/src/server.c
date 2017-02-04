@@ -313,10 +313,10 @@ struct redisCommand redisCommandTable[] = {
     {"slotsmgrttagone-async",slotsmgrtTagOneAsyncCommand,-7,"w",0,NULL,0,0,0,0,0},
     {"slotsmgrtone-async-dump",slotsmgrtOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
     {"slotsmgrttagone-async-dump",slotsmgrtTagOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
-    {"slotsmgrt-async-fence",slotsmgrtAsyncFenceCommand,0,"F",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-async-fence",slotsmgrtAsyncFenceCommand,0,"r",0,NULL,0,0,0,0,0},
     {"slotsmgrt-async-cancel",slotsmgrtAsyncCancelCommand,0,"F",0,NULL,0,0,0,0,0},
     {"slotsmgrt-exec-wrapper",slotsmgrtExecWrapperCommand,-3,"wm",0,NULL,0,0,0,0,0},
-    {"slotsmgrt-lazy-release",slotsmgrtLazyReleaseCommand,-1,"F",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-lazy-release",slotsmgrtLazyReleaseCommand,-1,"r",0,NULL,0,0,0,0,0},
     {"slotsrestore-async",slotsrestoreAsyncCommand,-2,"w",0,NULL,0,0,0,0,0},
     {"slotsrestore-async-auth",slotsrestoreAsyncAuthCommand,2,"F",0,NULL,0,0,0,0,0},
     {"slotsrestore-async-ack",slotsrestoreAsyncAckCommand,3,"w",0,NULL,0,0,0,0,0},
@@ -2598,6 +2598,10 @@ int processCommand(client *c) {
     }
 
     slotsmgrtLazyReleaseIncrementally();
+    if (slotsmgrtPrecheckCommandOrReply(c) != C_OK) {
+        flagTransaction(c);
+        return C_OK;
+    }
 
     /* Exec the command */
     if (c->flags & CLIENT_MULTI &&
