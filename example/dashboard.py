@@ -34,7 +34,7 @@ class CodisDashboard(Process):
             f.write('admin_addr = ":{}"\n'.format(admin_port))
             f.write('forward_method = "semi-async"\n')
             f.write('migrate_async_maxbulks = 1000\n')
-            f.write('migrate_async_maxbytes = "256k"\n')
+            f.write('migrate_async_maxbytes = "2mb"\n')
             f.write('migrate_async_numkeys = 128\n')
             f.write('sentinel_quorum = 2\n')
             f.write('sentinel_parallel_syncs = 1\n')
