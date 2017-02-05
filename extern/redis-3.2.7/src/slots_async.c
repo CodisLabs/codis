@@ -1561,19 +1561,3 @@ slotsrestoreAsyncAuthCommand(client *c) {
     }
 }
 
-int
-slotsmgrtPrecheckCommandOrReply(client *c) {
-    int readonly = (c->cmd->flags & CMD_WRITE) == 0;
-    if (readonly || c->cmd->proc == slotsmgrtExecWrapperCommand) {
-        return C_OK;
-    }
-    if (getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 0) == 0) {
-        return C_OK;
-    }
-    if (c->slotsmgrt_flags & CLIENT_SLOTSMGRT_ASYNC_CACHED_CLIENT) {
-        return C_OK;
-    }
-    addReplyError(c, "the specified DB is being migrated, only readonly command allowed in this context");
-    return C_ERR;
-}
-

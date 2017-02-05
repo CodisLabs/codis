@@ -2598,10 +2598,6 @@ int processCommand(client *c) {
     }
 
     slotsmgrtLazyReleaseIncrementally();
-    if (slotsmgrtPrecheckCommandOrReply(c) != C_OK) {
-        flagTransaction(c);
-        return C_OK;
-    }
 
     /* Exec the command */
     if (c->flags & CLIENT_MULTI &&
