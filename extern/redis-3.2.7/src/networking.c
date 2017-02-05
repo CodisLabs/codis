@@ -1798,6 +1798,10 @@ int checkClientOutputBufferLimits(client *c) {
     int soft = 0, hard = 0, class;
     unsigned long used_mem = getClientOutputBufferMemoryUsage(c);
 
+    if (c->slotsmgrt_flags & CLIENT_SLOTSMGRT_ASYNC_CACHED_CLIENT) {
+        return 0;
+    }
+
     class = getClientType(c);
     /* For the purpose of output buffer limiting, masters are handled
      * like normal clients. */

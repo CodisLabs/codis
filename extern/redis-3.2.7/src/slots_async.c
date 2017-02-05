@@ -71,7 +71,7 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
             void *pd[] = {ll};
             do {
                 it->cursor = dictScan(ht, it->cursor, lazyReleaseIteratorScanCallback, pd);
-            } while (it->cursor != 0 && (int)listLength(ll) < step && (-- loop) >= 0);
+            } while (it->cursor != 0 && listLength(ll) < (unsigned long)step && (-- loop) >= 0);
 
             while (listLength(ll) != 0) {
                 listNode *head = listFirst(ll);
@@ -669,10 +669,10 @@ unlinkSlotsmgrtAsyncCachedClient(client *c, const char *errmsg) {
 
     long long elapsed = mstime() - ac->lastuse;
     serverLog(LL_WARNING, "slotsmgrt_async: unlink client %s:%d (DB=%d): "
-            "pending_msgs = %ld, batched_iter = %d, blocked_list = %d, "
+            "pending_msgs = %ld, batched_iter = %ld, blocked_list = %ld, "
             "timeout = %lld(ms), elapsed = %lld(ms) (%s)",
-            ac->host, ac->port, c->db->id, ac->pending_msgs, it != NULL ? (int)listLength(it->list) : -1,
-            (int)listLength(ac->blocked_list), ac->timeout, elapsed, errmsg);
+            ac->host, ac->port, c->db->id, ac->pending_msgs, it != NULL ? (long)listLength(it->list) : -1,
+            (long)listLength(ac->blocked_list), ac->timeout, elapsed, errmsg);
 
     sdsfree(ac->host);
     if (it != NULL) {
@@ -892,6 +892,19 @@ slotsmgrtTagOneAsyncDumpCommand(client *c) {
 
 /* ============================ Slotsmgrt{One,TagOne,Slot,TagSlot}AsyncCommand ============= */
 
+static unsigned int
+slotsmgrtAsyncMaxBufferLimit(unsigned int maxbytes) {
+    clientBufferLimitsConfig *config = &server.client_obuf_limits[CLIENT_TYPE_NORMAL];
+    unsigned long long obuf_limit = INT_MAX / 2;
+    if (config->soft_limit_bytes != 0 && config->soft_limit_bytes < obuf_limit) {
+        obuf_limit = config->soft_limit_bytes;
+    }
+    if (config->hard_limit_bytes != 0 && config->hard_limit_bytes < obuf_limit) {
+        obuf_limit = config->hard_limit_bytes;
+    }
+    return maxbytes < obuf_limit ? maxbytes : obuf_limit;
+}
+
 /* SLOTSMGRTONE-ASYNC     $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
 /* SLOTSMGRTTAGONE-ASYNC  $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
 /* SLOTSMGRTSLOT-ASYNC    $host $port $timeout $maxbulks $maxbytes $slot $numkeys    */
@@ -936,6 +949,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     if (maxbytes == 0) {
         maxbytes = 256 * 1024;
     }
+    maxbytes = slotsmgrtAsyncMaxBufferLimit(maxbytes);
 
     dict *hash_slot = NULL;
     long long numkeys = 0;
@@ -992,7 +1006,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
             }
             do {
                 cursor = dictScan(hash_slot, cursor, batchedObjectIteratorAddKeyCallback, pd);
-            } while (cursor != 0 && (long)dictSize(it->keys) < numkeys && (-- loop) >= 0);
+            } while (cursor != 0 && dictSize(it->keys) < (unsigned long)numkeys && (-- loop) >= 0);
         }
     } else {
         for (int i = 6; i < c->argc; i ++) {
