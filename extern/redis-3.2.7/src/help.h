@@ -1110,19 +1110,19 @@ struct commandHelp {
         "", 14, "codis3.2"
     },
     {"SLOTSRESTORE-ASYNC LIST",
-        "key ttl [elem ...]",
+        "key ttl hint [elem ...]",
         "", 14, "codis3.2"
     },
     {"SLOTSRESTORE-ASYNC HASH",
-        "key ttl [field value ...]",
+        "key ttl hint [field value ...]",
         "", 14, "codis3.2"
     },
     {"SLOTSRESTORE-ASYNC DICT",
-        "key ttl [elem ...]",
+        "key ttl hint [elem ...]",
         "", 14, "codis3.2"
     },
     {"SLOTSRESTORE-ASYNC ZSET",
-        "key ttl [field score ...]",
+        "key ttl hint [field score ...]",
         "", 14, "codis3.2"
     },
     {"SLOTSRESTORE-ASYNC-AUTH",

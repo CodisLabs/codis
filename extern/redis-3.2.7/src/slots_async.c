@@ -407,13 +407,14 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
 
         list *ll = listCreate();
         listSetFreeMethod(ll, decrRefCountVoid);
-        int more = 1;
+        long long more = 1, hint = 0;
         long long len = 0;
         if (ht != NULL) {
             int loop = maxbulks * 10;
             if (loop < 128) {
                 loop = 128;
             }
+            hint = dictSize(ht);
             void *pd[] = {ll, val, &len};
             do {
                 it->cursor = dictScan(ht, it->cursor, singleObjectIteratorScanCallback, pd);
@@ -422,6 +423,7 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
                 }
             } while (more && listLength(ll) < maxbulks && len < maxbytes && (-- loop) >= 0);
         } else {
+            hint = listTypeLength(val);
             listTypeIterator *li = listTypeInitIterator(val, it->lindex, LIST_TAIL);
             do {
                 listTypeEntry entry;
@@ -443,12 +445,13 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
             listTypeReleaseIterator(li);
         }
 
-        /* SLOTSRESTORE-ASYNC list/hash/zset/dict $key $ttl [$arg1 ...] */
-        addReplyMultiBulkLen(c, 4 + listLength(ll));
+        /* SLOTSRESTORE-ASYNC list/hash/zset/dict $key $ttl $hint [$arg1 ...] */
+        addReplyMultiBulkLen(c, 5 + listLength(ll));
         addReplyBulkCString(c, "SLOTSRESTORE-ASYNC");
         addReplyBulkCString(c, cmd);
         addReplyBulk(c, key);
         addReplyBulkLongLong(c, ttl);
+        addReplyBulkLongLong(c, hint);
 
         while (listLength(ll) != 0) {
             listNode *head = listFirst(ll);
@@ -1221,9 +1224,9 @@ slotsrestoreAsyncHandle(client *c) {
         return C_OK;
     }
 
-    /* =================================================== */
-    /* SLOTSRESTORE-ASYNC cmd $key $ttl [$arg1, $arg2 ...] */
-    /* =================================================== */
+    /* ==================================================== */
+    /* SLOTSRESTORE-ASYNC $cmd $key $ttl [$arg1, $arg2 ...] */
+    /* ==================================================== */
 
     if (c->argc < 4) {
         goto bad_arguments_number;
@@ -1279,11 +1282,25 @@ slotsrestoreAsyncHandle(client *c) {
         goto success_common;
     }
 
-    /* SLOTSRESTORE-ASYNC list $key $ttl [$elem1 ...] */
+    /* ========================================================== */
+    /* SLOTSRESTORE-ASYNC $cmd $key $ttl $hint [$arg1, $arg2 ...] */
+    /* ========================================================== */
+
+    if (c->argc < 5) {
+        goto bad_arguments_number;
+    }
+
+    long long hint;
+    if (getLongLongFromObject(c->argv[4], &hint) != C_OK || hint < 0) {
+        slotsrestoreReplyAck(c, -1, "invalid Hint value (Hint=%s)", c->argv[4]->ptr);
+        return C_ERR;
+    }
+
+    int xargc = c->argc - 5;
+    robj **xargv = &c->argv[5];
+
+    /* SLOTSRESTORE-ASYNC list $key $ttl $hint [$elem1 ...] */
     if (!strcasecmp(cmd, "list")) {
-        if (c->argc < 4) {
-            goto bad_arguments_number;
-        }
         robj *val = lookupKeyWrite(c->db, key);
         if (val != NULL) {
             if (val->type != OBJ_LIST || val->encoding != OBJ_ENCODING_QUICKLIST) {
@@ -1292,7 +1309,7 @@ slotsrestoreAsyncHandle(client *c) {
                 return C_ERR;
             }
         } else {
-            if (c->argc == 4) {
+            if (xargc == 0) {
                 slotsrestoreReplyAck(c, -1, "the specified key doesn't exist (%s)", key->ptr);
                 return C_ERR;
             }
@@ -1301,17 +1318,17 @@ slotsrestoreAsyncHandle(client *c) {
                     server.list_compress_depth);
             dbAdd(c->db, key, val);
         }
-        for (int i = 4; i < c->argc; i ++) {
-            c->argv[i] = tryObjectEncoding(c->argv[i]);
-            listTypePush(val, c->argv[i], LIST_TAIL);
+        for (int i = 0; i < xargc; i ++) {
+            xargv[i] = tryObjectEncoding(xargv[i]);
+            listTypePush(val, xargv[i], LIST_TAIL);
         }
         slotsrestoreReplyAck(c, 0, "%d", listTypeLength(val));
         goto success_common;
     }
 
-    /* SLOTSRESTORE-ASYNC hash $key $ttl [$hkey1 $hval1 ...] */
+    /* SLOTSRESTORE-ASYNC hash $key $ttl $hint [$hkey1 $hval1 ...] */
     if (!strcasecmp(cmd, "hash")) {
-        if (c->argc < 4 || (c->argc - 4) % 2 != 0) {
+        if (xargc % 2 != 0) {
             goto bad_arguments_number;
         }
         robj *val = lookupKeyWrite(c->db, key);
@@ -1322,7 +1339,7 @@ slotsrestoreAsyncHandle(client *c) {
                 return C_ERR;
             }
         } else {
-            if (c->argc == 4) {
+            if (xargc == 0) {
                 slotsrestoreReplyAck(c, -1, "the specified key doesn't exist (%s)", key->ptr);
                 return C_ERR;
             }
@@ -1332,19 +1349,20 @@ slotsrestoreAsyncHandle(client *c) {
             }
             dbAdd(c->db, key, val);
         }
-        for (int i = 4; i < c->argc; i += 2) {
-            hashTypeTryObjectEncoding(val, &c->argv[i], &c->argv[i + 1]);
-            hashTypeSet(val, c->argv[i], c->argv[i + 1]);
+        if (hint != 0) {
+            dict *ht = val->ptr;
+            dictExpand(ht, hint);
+        }
+        for (int i = 0; i < xargc; i += 2) {
+            hashTypeTryObjectEncoding(val, &xargv[i], &xargv[i + 1]);
+            hashTypeSet(val, xargv[i], xargv[i + 1]);
         }
         slotsrestoreReplyAck(c, 0, "%d", hashTypeLength(val));
         goto success_common;
     }
 
-    /* SLOTSRESTORE-ASYNC dict $key $ttl [$elem1 ...] */
+    /* SLOTSRESTORE-ASYNC dict $key $ttl $hint [$elem1 ...] */
     if (!strcasecmp(cmd, "dict")) {
-        if (c->argc < 4) {
-            goto bad_arguments_number;
-        }
         robj *val = lookupKeyWrite(c->db, key);
         if (val != NULL) {
             if (val->type != OBJ_SET || val->encoding != OBJ_ENCODING_HT) {
@@ -1353,7 +1371,7 @@ slotsrestoreAsyncHandle(client *c) {
                 return C_ERR;
             }
         } else {
-            if (c->argc == 4) {
+            if (xargc == 0) {
                 slotsrestoreReplyAck(c, -1, "the specified key doesn't exist (%s)", key->ptr);
                 return C_ERR;
             }
@@ -1363,25 +1381,29 @@ slotsrestoreAsyncHandle(client *c) {
             }
             dbAdd(c->db, key, val);
         }
-        for (int i = 4; i < c->argc; i ++) {
-            c->argv[i] = tryObjectEncoding(c->argv[i]);
-            setTypeAdd(val, c->argv[i]);
+        if (hint != 0) {
+            dict *ht = val->ptr;
+            dictExpand(ht, hint);
+        }
+        for (int i = 0; i < xargc; i ++) {
+            xargv[i] = tryObjectEncoding(xargv[i]);
+            setTypeAdd(val, xargv[i]);
         }
         slotsrestoreReplyAck(c, 0, "%d", setTypeSize(val));
         goto success_common;
     }
 
-    /* SLOTSRESTORE-ASYNC zset $key $ttl [$elem1 $score1 ...] */
+    /* SLOTSRESTORE-ASYNC zset $key $ttl $hint [$elem1 $score1 ...] */
     if (!strcasecmp(cmd, "zset")) {
-        if (c->argc < 4 || (c->argc - 4) % 2 != 0) {
+        if (xargc % 2 != 0) {
             goto bad_arguments_number;
         }
-        double *scores = zmalloc(sizeof(double) * (c->argc - 4) / 2);
-        for (int i = 5, j = 0; i < c->argc; i += 2, j ++) {
+        double *scores = zmalloc(sizeof(double) * xargc / 2);
+        for (int i = 1, j = 0; i < xargc; i += 2, j ++) {
             long double score;
-            if (getLongDoubleFromObject(c->argv[i], &score) != C_OK) {
+            if (getLongDoubleFromObject(xargv[i], &score) != C_OK) {
                 zfree(scores);
-                slotsrestoreReplyAck(c, -1, "invalid zset score ([%d]=%s)", i, c->argv[i]->ptr);
+                slotsrestoreReplyAck(c, -1, "invalid zset score ([%d]=%s)", j, xargv[i]->ptr);
                 return C_ERR;
             }
             scores[j] = score;
@@ -1395,7 +1417,7 @@ slotsrestoreAsyncHandle(client *c) {
                 return C_ERR;
             }
         } else {
-            if (c->argc == 4) {
+            if (xargc == 0) {
                 zfree(scores);
                 slotsrestoreReplyAck(c, -1, "the specified key doesn't exist (%s)", key->ptr);
                 return C_ERR;
@@ -1407,8 +1429,12 @@ slotsrestoreAsyncHandle(client *c) {
             dbAdd(c->db, key, val);
         }
         zset *zset = val->ptr;
-        for (int i = 4, j = 0; i < c->argc; i += 2, j ++) {
-            robj *elem = c->argv[i] = tryObjectEncoding(c->argv[i]);
+        if (hint != 0) {
+            dict *ht = zset->dict;
+            dictExpand(ht, hint);
+        }
+        for (int i = 0, j = 0; i < xargc; i += 2, j ++) {
+            robj *elem = xargv[i] = tryObjectEncoding(xargv[i]);
             dictEntry *de = dictFind(zset->dict, elem);
             if (de != NULL) {
                 double score = *(double *)dictGetVal(de);
@@ -1449,10 +1475,10 @@ success_common:
  *                    del    $key
  *                    expire $key $ttl
  *                    object $key $ttl $payload
- *                    list   $key $ttl [$elem1 ...]
- *                    hash   $key $ttl [$hkey1 $hval1 ...]
- *                    dict   $key $ttl [$elem1 ...]
- *                    zset   $key $ttl [$elem1 $score1 ...]
+ *                    list   $key $ttl $hint [$elem1 ...]
+ *                    hash   $key $ttl $hint [$hkey1 $hval1 ...]
+ *                    dict   $key $ttl $hint [$elem1 ...]
+ *                    zset   $key $ttl $hint [$elem1 $score1 ...]
  * */
 void
 slotsrestoreAsyncCommand(client *c) {
