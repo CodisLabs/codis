@@ -842,7 +842,7 @@ slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
         return;
     }
     if (timeout == 0) {
-        timeout = 3000;
+        timeout = 1000 * 30;
     }
     long long maxbulks;
     if (getLongLongFromObject(c->argv[2], &maxbulks) != C_OK ||
@@ -852,7 +852,7 @@ slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
         return;
     }
     if (maxbulks == 0) {
-        maxbulks = 512;
+        maxbulks = 1000;
     }
 
     batchedObjectIterator *it = createBatchedObjectIterator(NULL,
@@ -898,14 +898,13 @@ slotsmgrtTagOneAsyncDumpCommand(client *c) {
 static unsigned int
 slotsmgrtAsyncMaxBufferLimit(unsigned int maxbytes) {
     clientBufferLimitsConfig *config = &server.client_obuf_limits[CLIENT_TYPE_NORMAL];
-    unsigned long long obuf_limit = INT_MAX / 2;
-    if (config->soft_limit_bytes != 0 && config->soft_limit_bytes < obuf_limit) {
-        obuf_limit = config->soft_limit_bytes;
+    if (config->soft_limit_bytes != 0 && config->soft_limit_bytes < maxbytes) {
+        maxbytes = config->soft_limit_bytes;
     }
-    if (config->hard_limit_bytes != 0 && config->hard_limit_bytes < obuf_limit) {
-        obuf_limit = config->hard_limit_bytes;
+    if (config->hard_limit_bytes != 0 && config->hard_limit_bytes < maxbytes) {
+        maxbytes = config->hard_limit_bytes;
     }
-    return maxbytes < obuf_limit ? maxbytes : obuf_limit;
+    return maxbytes;
 }
 
 /* SLOTSMGRTONE-ASYNC     $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
@@ -930,7 +929,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
         return;
     }
     if (timeout == 0) {
-        timeout = 30;
+        timeout = 1000 * 30;
     }
     long long maxbulks;
     if (getLongLongFromObject(c->argv[4], &maxbulks) != C_OK ||
@@ -940,7 +939,10 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
         return;
     }
     if (maxbulks == 0) {
-        maxbulks = 512;
+        maxbulks = 1000;
+    }
+    if (maxbulks > 1024 * 512) {
+        maxbulks = 1024 * 512;
     }
     long long maxbytes;
     if (getLongLongFromObject(c->argv[5], &maxbytes) != C_OK ||
@@ -950,7 +952,10 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
         return;
     }
     if (maxbytes == 0) {
-        maxbytes = 256 * 1024;
+        maxbytes = 1024 * 256;
+    }
+    if (maxbytes > INT_MAX / 2) {
+        maxbytes = INT_MAX / 2;
     }
     maxbytes = slotsmgrtAsyncMaxBufferLimit(maxbytes);
 
@@ -972,7 +977,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
             return;
         }
         if (numkeys == 0) {
-            numkeys = 32;
+            numkeys = 128;
         }
     }
 
