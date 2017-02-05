@@ -190,6 +190,7 @@ typedef struct {
     long long expire;
     unsigned long cursor;
     unsigned long lindex;
+    unsigned long zindex;
     int chunked;
 } singleObjectIterator;
 
@@ -203,6 +204,7 @@ createSingleObjectIterator(robj *key) {
     it->expire = 0;
     it->cursor = 0;
     it->lindex = 0;
+    it->zindex = 0;
     it->chunked = 0;
     return it;
 }
@@ -243,21 +245,14 @@ singleObjectIteratorScanCallback(void *data, const dictEntry *de) {
     case OBJ_HASH:
         objs[0] = dictGetKey(de);
         objs[1] = dictGetVal(de);
-        incrRefCount(objs[0]);
-        incrRefCount(objs[1]);
         break;
     case OBJ_SET:
         objs[0] = dictGetKey(de);
-        incrRefCount(objs[0]);
-        break;
-    case OBJ_ZSET:
-        objs[0] = dictGetKey(de);
-        objs[1] = createStringObjectFromLongDouble(*(double *)dictGetVal(de), 0);
-        incrRefCount(objs[0]);
         break;
     }
     for (int i = 0; i < 2; i ++) {
         if (objs[i] != NULL) {
+            incrRefCount(objs[i]);
             *n += sdslenOrElse(objs[i], 8);
             listAddNodeTail(l, objs[i]);
         }
@@ -265,6 +260,7 @@ singleObjectIteratorScanCallback(void *data, const dictEntry *de) {
 }
 
 extern void createDumpPayload(rio *payload, robj *o);
+extern zskiplistNode* zslGetElementByRank(zskiplist *zsl, unsigned long rank);
 
 static slotsmgrtAsyncClient *getSlotsmgrtAsyncClient(int db);
 
@@ -323,22 +319,24 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         addReplyBulkCString(c, "del");
         addReplyBulk(c, key);
 
+        unsigned long limits = maxbulks * 2;
+
         switch (val->type) {
         case OBJ_LIST:
             it->chunked = (val->encoding == OBJ_ENCODING_QUICKLIST) &&
-                (maxbulks < listTypeLength(val));
+                (limits < listTypeLength(val));
             break;
         case OBJ_HASH:
             it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
-                (maxbulks < hashTypeLength(val) * 2);
+                (limits < hashTypeLength(val));
             break;
         case OBJ_SET:
             it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
-                (maxbulks < setTypeSize(val));
+                (limits < setTypeSize(val));
             break;
         case OBJ_ZSET:
             it->chunked = (val->encoding == OBJ_ENCODING_SKIPLIST) &&
-                (maxbulks < zsetLength(val) * 2);
+                (limits < zsetLength(val));
             break;
         }
 
@@ -387,43 +385,30 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
 
     if (it->stage == STAGE_CHUNKED) {
         const char *cmd = NULL;
-        dict *ht = NULL;
         switch (val->type) {
         case OBJ_LIST:
             cmd = "list";
             break;
         case OBJ_HASH:
-            cmd = "hash", ht = val->ptr;
+            cmd = "hash";
             break;
         case OBJ_SET:
-            cmd = "dict", ht = val->ptr;
+            cmd = "dict";
             break;
         case OBJ_ZSET:
-            cmd = "zset", ht = ((zset *)val->ptr)->dict;
+            cmd = "zset";
             break;
         default:
             serverPanic("unknown object type");
         }
 
+        int more = 1;
+
         list *ll = listCreate();
         listSetFreeMethod(ll, decrRefCountVoid);
-        long long more = 1, hint = 0;
-        long long len = 0;
-        if (ht != NULL) {
-            int loop = maxbulks * 10;
-            if (loop < 128) {
-                loop = 128;
-            }
-            hint = dictSize(ht);
-            void *pd[] = {ll, val, &len};
-            do {
-                it->cursor = dictScan(ht, it->cursor, singleObjectIteratorScanCallback, pd);
-                if (it->cursor == 0) {
-                    more = 0;
-                }
-            } while (more && listLength(ll) < maxbulks && len < maxbytes && (-- loop) >= 0);
-        } else {
-            hint = listTypeLength(val);
+        long long hint = 0, len = 0;
+
+        if (val->type == OBJ_LIST) {
             listTypeIterator *li = listTypeInitIterator(val, it->lindex, LIST_TAIL);
             do {
                 listTypeEntry entry;
@@ -435,14 +420,54 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
                     } else {
                         obj = createStringObjectFromLongLong(e->longval);
                     }
-                    listAddNodeTail(ll, obj);
                     len += sdslenOrElse(obj, 8);
+                    listAddNodeTail(ll, obj);
                     it->lindex ++;
                 } else {
                     more = 0;
                 }
             } while (more && listLength(ll) < maxbulks && len < maxbytes);
             listTypeReleaseIterator(li);
+            hint = listTypeLength(val);
+        }
+
+        if (val->type == OBJ_HASH || val->type == OBJ_SET) {
+            int loop = maxbulks * 10;
+            if (loop < 128) {
+                loop = 128;
+            }
+            dict *ht = val->ptr;
+            void *pd[] = {ll, val, &len};
+            do {
+                it->cursor = dictScan(ht, it->cursor, singleObjectIteratorScanCallback, pd);
+                if (it->cursor == 0) {
+                    more = 0;
+                }
+            } while (more && listLength(ll) < maxbulks && len < maxbytes && (-- loop) >= 0);
+            hint = dictSize(ht);
+        }
+
+        if (val->type == OBJ_ZSET) {
+            zset *zs = val->ptr;
+            dict *ht = zs->dict;
+            long long rank = (long long)zsetLength(val) - it->zindex;
+            zskiplistNode *node = (rank >= 1) ? zslGetElementByRank(zs->zsl, rank) : NULL;
+            do {
+                if (node != NULL) {
+                    robj *field = node->obj;
+                    incrRefCount(field);
+                    len += sdslenOrElse(field, 8);
+                    listAddNodeTail(ll, field);
+                    robj *score = createStringObjectFromLongDouble(node->score, 0);
+                    len += sdslenOrElse(score, 8);
+                    listAddNodeTail(ll, score);
+                    node = node->backward;
+                    it->zindex ++;
+                } else {
+                    more = 0;
+                }
+            } while (more && listLength(ll) < maxbulks && len < maxbytes);
+            hint = dictSize(ht);
         }
 
         /* SLOTSRESTORE-ASYNC list/hash/zset/dict $key $ttl $hint [$arg1 ...] */
