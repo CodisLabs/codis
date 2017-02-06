@@ -44,7 +44,7 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
     robj *val = it->val;
     serverAssert(val != NULL);
 
-    const int step = 4096;
+    const int step = 1000;
 
     if (val->type == OBJ_LIST) {
         if (listTypeLength(val) <= step * 2) {
