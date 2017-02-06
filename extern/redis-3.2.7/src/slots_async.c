@@ -259,6 +259,26 @@ singleObjectIteratorScanCallback(void *data, const dictEntry *de) {
     }
 }
 
+static uint64_t
+convertDoubleToRawBits(double value) {
+    union {
+        double d;
+        uint64_t u;
+    } fp;
+    fp.d = value;
+    return fp.u;
+}
+
+static double
+convertRawBitsToDouble(uint64_t value) {
+    union {
+        double d;
+        uint64_t u;
+    } fp;
+    fp.u = value;
+    return fp.d;
+}
+
 extern void createDumpPayload(rio *payload, robj *o);
 extern zskiplistNode* zslGetElementByRank(zskiplist *zsl, unsigned long rank);
 
@@ -458,7 +478,8 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
                     incrRefCount(field);
                     len += sdslenOrElse(field, 8);
                     listAddNodeTail(ll, field);
-                    robj *score = createStringObjectFromLongDouble(node->score, 0);
+                    uint64_t bits = convertDoubleToRawBits(node->score);
+                    robj *score = createStringObjectFromLongLong(bits);
                     len += sdslenOrElse(score, 8);
                     listAddNodeTail(ll, score);
                     node = node->backward;
@@ -1430,13 +1451,13 @@ slotsrestoreAsyncHandle(client *c) {
         }
         double *scores = zmalloc(sizeof(double) * xargc / 2);
         for (int i = 1, j = 0; i < xargc; i += 2, j ++) {
-            long double score;
-            if (getLongDoubleFromObject(xargv[i], &score) != C_OK) {
+            long long bits;
+            if (getLongLongFromObject(xargv[i], &bits) != C_OK) {
                 zfree(scores);
                 slotsrestoreReplyAck(c, -1, "invalid zset score ([%d]=%s)", j, xargv[i]->ptr);
                 return C_ERR;
             }
-            scores[j] = score;
+            scores[j] = convertRawBitsToDouble(bits);
         }
         robj *val = lookupKeyWrite(c->db, key);
         if (val != NULL) {
