@@ -21,7 +21,7 @@ type Slot struct {
 	MigrateFrom        string `json:"migrate_from,omitempty"`
 	MigrateFromGroupId int    `json:"migrate_from_group_id,omitempty"`
 
-	ForwardMethod int `json:"forward_method"`
+	ForwardMethod int `json:"forward_method,omitempty"`
 
 	ReplicaGroups [][]string `json:"replica_groups,omitempty"`
 }
