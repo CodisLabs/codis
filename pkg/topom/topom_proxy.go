@@ -21,12 +21,12 @@ func (s *Topom) CreateProxy(addr string) error {
 
 	p, err := proxy.NewApiClient(addr).Model()
 	if err != nil {
-		return errors.Errorf("proxy@%s fetch model failed", addr)
+		return errors.Errorf("proxy@%s fetch model failed, %s", addr, err)
 	}
 	c := s.newProxyClient(p)
 
 	if err := c.XPing(); err != nil {
-		return errors.Errorf("proxy@%s check xauth failed", addr)
+		return errors.Errorf("proxy@%s check xauth failed, %s", addr, err)
 	}
 	if ctx.proxy[p.Token] != nil {
 		return errors.Errorf("proxy-[%s] already exists", p.Token)
