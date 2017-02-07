@@ -968,6 +968,20 @@ slotsmgrtAsyncMaxBufferLimit(unsigned int maxbytes) {
     return maxbytes;
 }
 
+static long
+slotsmgrtAsyncNextMessagesMicroseconds(slotsmgrtAsyncClient *ac, long long usecs, long atleast) {
+    batchedObjectIterator *it = ac->batched_iter;
+    long long deadline = ustime() + usecs;
+    long msgs = 0;
+    while (batchedObjectIteratorHasNext(it) && getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
+        msgs += batchedObjectIteratorNext(ac->c, it);
+        if (msgs >= atleast && deadline <= ustime()) {
+            break;
+        }
+    }
+    return msgs;
+}
+
 /* SLOTSMGRTONE-ASYNC     $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
 /* SLOTSMGRTTAGONE-ASYNC  $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
 /* SLOTSMGRTSLOT-ASYNC    $host $port $timeout $maxbulks $maxbytes $slot $numkeys    */
@@ -1088,10 +1102,8 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     ac->timeout = timeout;
     ac->lastuse = mstime();
     ac->batched_iter = it;
+    ac->pending_msgs = slotsmgrtAsyncNextMessagesMicroseconds(ac, 500, 3);
 
-    while (batchedObjectIteratorHasNext(it) && getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
-        ac->pending_msgs += batchedObjectIteratorNext(ac->c, it);
-    }
     getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 1);
 
     if (ac->pending_msgs != 0) {
@@ -1589,17 +1601,14 @@ slotsrestoreAsyncAckHandle(client *c) {
 
     ac->lastuse = mstime();
     ac->pending_msgs -= 1;
-
-    batchedObjectIterator *it = ac->batched_iter;
-    while (batchedObjectIteratorHasNext(it) && getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
-        ac->pending_msgs += batchedObjectIteratorNext(ac->c, it);
-    }
+    ac->pending_msgs += slotsmgrtAsyncNextMessagesMicroseconds(ac, 500, 3);
 
     if (ac->pending_msgs != 0) {
         return C_OK;
     }
     notifySlotsmgrtAsyncClient(ac, NULL);
 
+    batchedObjectIterator *it = ac->batched_iter;
     if (listLength(it->removed_keys) != 0) {
         list *ll = it->removed_keys;
         for (int i = 0; i < c->argc; i ++) {
