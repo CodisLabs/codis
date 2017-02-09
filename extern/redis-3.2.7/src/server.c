@@ -2597,7 +2597,9 @@ int processCommand(client *c) {
         return C_OK;
     }
 
-    slotsmgrtLazyReleaseIncrementally();
+    if (c->cmd->proc != slotsrestoreAsyncAckCommand) {
+        slotsmgrtLazyReleaseIncrementally();
+    }
 
     /* Exec the command */
     if (c->flags & CLIENT_MULTI &&

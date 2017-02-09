@@ -44,7 +44,7 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
     robj *val = it->val;
     serverAssert(val != NULL);
 
-    const int step = 1000;
+    const int step = 100;
 
     if (val->type == OBJ_LIST) {
         if (listTypeLength(val) <= step * 2) {
@@ -354,24 +354,22 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         addReplyBulkCString(c, "del");
         addReplyBulk(c, key);
 
-        unsigned long limits = maxbulks * 2;
-
         switch (val->type) {
         case OBJ_LIST:
             it->chunked = (val->encoding == OBJ_ENCODING_QUICKLIST) &&
-                (limits < listTypeLength(val));
+                (maxbulks < listTypeLength(val));
             break;
         case OBJ_HASH:
             it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
-                (limits < hashTypeLength(val));
+                (maxbulks < hashTypeLength(val) * 2);
             break;
         case OBJ_SET:
             it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
-                (limits < setTypeSize(val));
+                (maxbulks < setTypeSize(val));
             break;
         case OBJ_ZSET:
             it->chunked = (val->encoding == OBJ_ENCODING_SKIPLIST) &&
-                (limits < zsetLength(val));
+                (maxbulks < zsetLength(val) * 2);
             break;
         }
 
@@ -863,7 +861,8 @@ slotsmgrtAsyncCleanup() {
         releaseSlotsmgrtAsyncClient(i, ac->batched_iter != NULL ?
                 "interrupted: migration timeout" : "interrupted: idle timeout");
     }
-    slotsmgrtLazyReleaseIncrementally();
+    long long deadline = mstime() + 1;
+    while (slotsmgrtLazyReleaseIncrementally() && mstime() < deadline) {}
 }
 
 static int
