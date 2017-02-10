@@ -263,6 +263,7 @@ type sharedBackendConn struct {
 	owner *sharedBackendConnPool
 	conns []*BackendConn
 
+	single *BackendConn
 	refcnt int
 }
 
@@ -279,6 +280,9 @@ func newSharedBackendConn(addr string, config *Config, pool *sharedBackendConnPo
 	s.conns = make([]*BackendConn, pool.parallel)
 	for i := range s.conns {
 		s.conns[i] = NewBackendConn(addr, config)
+	}
+	if len(s.conns) == 1 {
+		s.single = s.conns[0]
 	}
 	s.refcnt = 1
 	return s
@@ -334,6 +338,15 @@ func (s *sharedBackendConn) BackendConn(seed uint, must bool) *BackendConn {
 	if s == nil {
 		return nil
 	}
+
+	if bc := s.single; bc != nil {
+		if must || bc.IsConnected() {
+			return bc
+		} else {
+			return nil
+		}
+	}
+
 	var i = seed
 	for _ = range s.conns {
 		i = (i + 1) % uint(len(s.conns))

@@ -208,7 +208,7 @@ func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, seed uint, mu
 }
 
 func (d *forwardHelper) forward2(s *Slot, r *Request, seed uint) *BackendConn {
-	if s.migrate.bc == nil && r.IsReadOnly() {
+	if s.migrate.bc == nil && r.IsReadOnly() && len(s.replicaGroups) != 0 {
 		for _, group := range s.replicaGroups {
 			var i = seed
 			for _ = range group {
