@@ -70,61 +70,65 @@ func (d *forwardSemiAsync) GetId() int {
 }
 
 func (d *forwardSemiAsync) Forward(s *Slot, r *Request, hkey []byte) error {
-	s.lock.RLock()
-	bc, done, err := d.process(s, r, hkey)
-	s.lock.RUnlock()
-	if err != nil || done {
-		return err
+	var loop int
+	for {
+		s.lock.RLock()
+		bc, retry, err := d.process(s, r, hkey)
+		s.lock.RUnlock()
+
+		switch {
+		case err != nil:
+			return err
+		case !retry:
+			if bc != nil {
+				bc.PushBack(r)
+			}
+			return nil
+		}
+
+		var delay time.Duration
+		switch {
+		case loop < 5:
+			delay = 0
+		case loop < 20:
+			delay = time.Millisecond * time.Duration(loop)
+		default:
+			delay = time.Millisecond * 20
+		}
+		time.Sleep(delay)
+
+		if r.IsBroken() {
+			return ErrRequestIsBroken
+		}
+		loop += 1
 	}
-	bc.PushBack(r)
-	return nil
 }
 
-func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte) (*BackendConn, bool, error) {
+func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte) (_ *BackendConn, retry bool, _ error) {
 	if s.backend.bc == nil {
 		log.Debugf("slot-%04d is not ready: hash key = '%s'",
 			s.id, hkey)
 		return nil, false, ErrSlotIsNotReady
 	}
 	if s.migrate.bc != nil && len(hkey) != 0 {
-		if done, err := d.slotsmgrtExecWrapperUntil(s, hkey, r); err != nil {
+		resp, moved, err := d.slotsmgrtExecWrapper(s, hkey, r.Seed16(), r.Multi)
+		switch {
+		case err != nil:
 			log.Debugf("slot-%04d migrate from = %s to %s failed: hash key = '%s', error = %s",
 				s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, err)
 			return nil, false, err
-		} else if done {
+		case !moved:
+			switch {
+			case resp != nil:
+				r.Resp = resp
+				return nil, false, nil
+			}
 			return nil, true, nil
 		}
 	}
 	r.Group = &s.refs
 	r.Group.Add(1)
 	return d.forward2(s, r, r.Seed16()), false, nil
-}
-
-func (d *forwardSemiAsync) slotsmgrtExecWrapperUntil(s *Slot, hkey []byte, r *Request) (bool, error) {
-	for i := 0; !r.IsBroken(); i++ {
-		resp, redirect, err := d.slotsmgrtExecWrapper(s, hkey, r.Seed16(), r.Multi)
-		switch {
-		case err != nil || redirect:
-			return false, err
-		case resp != nil:
-			r.Resp = resp
-			return true, nil
-		}
-		if i < 5 {
-			continue
-		}
-		var d time.Duration
-		switch {
-		case i < 10:
-			d = time.Millisecond * 10
-		case i < 50:
-			d = time.Millisecond * time.Duration(i)
-		default:
-			d = time.Millisecond * 100
-		}
-		time.Sleep(d)
-	}
-	return false, ErrRequestIsBroken
 }
 
 type forwardHelper struct {
@@ -162,7 +166,7 @@ func (d *forwardHelper) slotsmgrt(s *Slot, hkey []byte, seed uint) error {
 	}
 }
 
-func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, seed uint, multi []*redis.Resp) (_ *redis.Resp, redirect bool, _ error) {
+func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, seed uint, multi []*redis.Resp) (_ *redis.Resp, moved bool, _ error) {
 	m := &Request{}
 	m.Multi = make([]*redis.Resp, 0, 2+len(multi))
 	m.Multi = append(m.Multi,
