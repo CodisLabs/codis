@@ -34,10 +34,11 @@ product_auth = ""
 admin_addr = "0.0.0.0:18080"
 
 # Set arguments for data migration (only accept 'sync' & 'semi-async').
-forward_method = "semi-async"
-migrate_async_maxbulks = 2000
-migrate_async_maxbytes = "32mb"
-migrate_async_numkeys = 256
+migration_method = "semi-async"
+migration_async_maxbulks = 2000
+migration_async_maxbytes = "32mb"
+migration_async_numkeys = 256
+migration_timeout = "5m"
 
 # Set configs for redis sentinel.
 sentinel_quorum = 2
@@ -59,10 +60,11 @@ type Config struct {
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
 
-	ForwardMethod        string         `toml:"forward_method" json:"forward_method"`
-	MigrateAsyncMaxBulks int            `toml:"migrate_async_maxbulks" json:"migrate_async_maxbulks"`
-	MigrateAsyncMaxBytes bytesize.Int64 `toml:"migrate_async_maxbytes" json:"migrate_async_maxbytes"`
-	MigrateAsyncNumKeys  int            `toml:"migrate_async_numkeys" json:"migrate_async_numkeys"`
+	MigrationMethod        string            `toml:"migration_method" json:"migration_method"`
+	MigrationAsyncMaxBulks int               `toml:"migration_async_maxbulks" json:"migration_async_maxbulks"`
+	MigrationAsyncMaxBytes bytesize.Int64    `toml:"migration_async_maxbytes" json:"migration_async_maxbytes"`
+	MigrationAsyncNumKeys  int               `toml:"migration_async_numkeys" json:"migration_async_numkeys"`
+	MigrationTimeout       timesize.Duration `toml:"migration_timeout" json:"migration_timeout"`
 
 	SentinelQuorum               int               `toml:"sentinel_quorum" json:"sentinel_quorum"`
 	SentinelParallelSyncs        int               `toml:"sentinel_parallel_syncs" json:"sentinel_parallel_syncs"`
@@ -112,17 +114,20 @@ func (c *Config) Validate() error {
 	if c.ProductName == "" {
 		return errors.New("invalid product_name")
 	}
-	if _, ok := models.ParseForwardMethod(c.ForwardMethod); !ok {
-		return errors.New("invalid forward_method")
+	if _, ok := models.ParseForwardMethod(c.MigrationMethod); !ok {
+		return errors.New("invalid migration_method")
 	}
-	if c.MigrateAsyncMaxBulks <= 0 {
-		return errors.New("invalid migrate_async_maxbulks")
+	if c.MigrationAsyncMaxBulks <= 0 {
+		return errors.New("invalid migration_async_maxbulks")
 	}
-	if c.MigrateAsyncMaxBytes <= 0 {
-		return errors.New("invalid migrate_async_maxbytes")
+	if c.MigrationAsyncMaxBytes <= 0 {
+		return errors.New("invalid migration_async_maxbytes")
 	}
-	if c.MigrateAsyncNumKeys <= 0 {
-		return errors.New("invalid migrate_async_numkeys")
+	if c.MigrationAsyncNumKeys <= 0 {
+		return errors.New("invalid migration_async_numkeys")
+	}
+	if c.MigrationTimeout <= 0 {
+		return errors.New("invalid migration_timeout")
 	}
 	if c.SentinelQuorum <= 0 {
 		return errors.New("invalid sentinel_quorum")

@@ -48,9 +48,10 @@ type Topom struct {
 	closed bool
 
 	ladmin net.Listener
-	redisp *redis.Pool
 
 	action struct {
+		redisp *redis.Pool
+
 		interval atomic2.Int64
 		disabled atomic2.Bool
 
@@ -62,6 +63,8 @@ type Topom struct {
 	}
 
 	stats struct {
+		redisp *redis.Pool
+
 		servers map[string]*RedisStats
 		proxies map[string]*ProxyStats
 	}
@@ -86,7 +89,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	s := &Topom{}
 	s.config = config
 	s.exit.C = make(chan struct{})
-	s.redisp = redis.NewPool(config.ProductAuth, time.Second*10)
+	s.action.redisp = redis.NewPool(config.ProductAuth, config.MigrationTimeout.Get())
 
 	s.ha.redisp = redis.NewPool("", time.Second*5)
 
@@ -103,6 +106,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	}
 	s.store = models.NewStore(client, config.ProductName)
 
+	s.stats.redisp = redis.NewPool(config.ProductAuth, time.Second*5)
 	s.stats.servers = make(map[string]*RedisStats)
 	s.stats.proxies = make(map[string]*ProxyStats)
 
@@ -152,11 +156,14 @@ func (s *Topom) Close() error {
 	if s.ladmin != nil {
 		s.ladmin.Close()
 	}
-	if s.redisp != nil {
-		s.redisp.Close()
+	var pools = []*redis.Pool{
+		s.action.redisp,
+		s.stats.redisp, s.ha.redisp,
 	}
-	if s.ha.redisp != nil {
-		s.ha.redisp.Close()
+	for _, p := range pools {
+		if p != nil {
+			p.Close()
+		}
 	}
 
 	defer s.store.Close()
@@ -265,7 +272,7 @@ func (s *Topom) newContext() (*context, error) {
 			ctx.proxy = s.cache.proxy
 			ctx.sentinel = s.cache.sentinel
 			ctx.hosts.m = make(map[string]net.IP)
-			ctx.method, _ = models.ParseForwardMethod(s.config.ForwardMethod)
+			ctx.method, _ = models.ParseForwardMethod(s.config.MigrationMethod)
 			return ctx, nil
 		}
 	} else {

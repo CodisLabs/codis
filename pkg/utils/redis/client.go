@@ -160,10 +160,10 @@ func (c *Client) MigrateSlot(slot int, target string) (int, error) {
 }
 
 type MigrateSlotAsyncOption struct {
-	Timeout  time.Duration
 	MaxBulks int
 	MaxBytes int
 	NumKeys  int
+	Timeout  time.Duration
 }
 
 func (c *Client) MigrateSlotAsync(slot int, target string, option *MigrateSlotAsyncOption) (int, error) {
