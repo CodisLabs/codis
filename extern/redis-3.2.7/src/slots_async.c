@@ -294,6 +294,37 @@ getUint64FromRawStringObject(robj *o, uint64_t *p) {
     return C_ERR;
 }
 
+static long
+numberOfRestoreCommandsFromObject(robj *val, long long maxbulks) {
+    long long numbulks = 0;
+    switch (val->type) {
+    case OBJ_LIST:
+        if (val->encoding == OBJ_ENCODING_QUICKLIST) {
+            numbulks = listTypeLength(val);
+        }
+        break;
+    case OBJ_HASH:
+        if (val->encoding == OBJ_ENCODING_HT) {
+            numbulks = hashTypeLength(val) * 2;
+        }
+        break;
+    case OBJ_SET:
+        if (val->encoding == OBJ_ENCODING_HT) {
+            numbulks = setTypeSize(val);
+        }
+        break;
+    case OBJ_ZSET:
+        if (val->encoding == OBJ_ENCODING_SKIPLIST) {
+            numbulks = zsetLength(val) * 2;
+        }
+        break;
+    }
+    if (numbulks <= maxbulks) {
+        return 1;
+    }
+    return (numbulks + maxbulks - 1) / maxbulks;
+}
+
 extern void createDumpPayload(rio *payload, robj *o);
 extern zskiplistNode* zslGetElementByRank(zskiplist *zsl, unsigned long rank);
 
@@ -354,26 +385,12 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         addReplyBulkCString(c, "del");
         addReplyBulk(c, key);
 
-        switch (val->type) {
-        case OBJ_LIST:
-            it->chunked = (val->encoding == OBJ_ENCODING_QUICKLIST) &&
-                (maxbulks < listTypeLength(val));
-            break;
-        case OBJ_HASH:
-            it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
-                (maxbulks < hashTypeLength(val) * 2);
-            break;
-        case OBJ_SET:
-            it->chunked = (val->encoding == OBJ_ENCODING_HT) &&
-                (maxbulks < setTypeSize(val));
-            break;
-        case OBJ_ZSET:
-            it->chunked = (val->encoding == OBJ_ENCODING_SKIPLIST) &&
-                (maxbulks < zsetLength(val) * 2);
-            break;
+        if (numberOfRestoreCommandsFromObject(val, maxbulks) != 1) {
+            it->stage = STAGE_CHUNKED;
+            it->chunked = 1;
+        } else {
+            it->stage = STAGE_PAYLOAD;
         }
-
-        it->stage = it->chunked ? STAGE_CHUNKED : STAGE_PAYLOAD;
         return 1 + extra_msgs;
     }
 
