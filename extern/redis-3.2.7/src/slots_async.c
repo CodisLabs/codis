@@ -325,6 +325,15 @@ numberOfRestoreCommandsFromObject(robj *val, long long maxbulks) {
     return (numbulks + maxbulks - 1) / maxbulks;
 }
 
+static long
+estimateNumberOfRestoreCommands(redisDb *db, robj *key, long long maxbulks) {
+    robj *val = lookupKeyWrite(db, key);
+    if (val != NULL) {
+        return numberOfRestoreCommandsFromObject(val, maxbulks);
+    }
+    return 0;
+}
+
 extern void createDumpPayload(rio *payload, robj *o);
 extern zskiplistNode* zslGetElementByRank(zskiplist *zsl, unsigned long rank);
 
@@ -563,6 +572,7 @@ typedef struct {
     unsigned int maxbytes;
     list *removed_keys;
     list *chunked_vals;
+    long estimate_msgs;
 } batchedObjectIterator;
 
 static batchedObjectIterator *
@@ -582,6 +592,7 @@ createBatchedObjectIterator(dict *hash_slot, struct zskiplist *hash_tags,
     listSetFreeMethod(it->removed_keys, decrRefCountVoid);
     it->chunked_vals = listCreate();
     listSetFreeMethod(it->chunked_vals, decrRefCountVoid);
+    it->estimate_msgs = 0;
     return it;
 }
 
@@ -650,12 +661,13 @@ batchedObjectIteratorContains(batchedObjectIterator *it, robj *key, int usetag) 
 }
 
 static int
-batchedObjectIteratorAddKey(batchedObjectIterator *it, robj *key) {
+batchedObjectIteratorAddKey(redisDb *db, batchedObjectIterator *it, robj *key) {
     if (dictAdd(it->keys, key, NULL) != C_OK) {
         return 0;
     }
     incrRefCount(key);
     listAddNodeTail(it->list, createSingleObjectIterator(key));
+    it->estimate_msgs += estimateNumberOfRestoreCommands(db, key, it->maxbulks);
 
     int size = dictSize(it->keys);
 
@@ -688,6 +700,7 @@ batchedObjectIteratorAddKey(batchedObjectIterator *it, robj *key) {
         }
         incrRefCount(key);
         listAddNodeTail(it->list, createSingleObjectIterator(key));
+        it->estimate_msgs += estimateNumberOfRestoreCommands(db, key, it->maxbulks);
     }
 
 out:
@@ -698,10 +711,18 @@ static void
 batchedObjectIteratorAddKeyCallback(void *data, const dictEntry *de) {
     void **pd = (void **)data;
     batchedObjectIterator *it = pd[0];
+    redisDb *db = pd[1];
+    long long numkeys = *(long long *)pd[2];
 
+    if (it->estimate_msgs >= numkeys) {
+        return;
+    }
     sds skey = dictGetKey(de);
     robj *key = createStringObject(skey, sdslen(skey));
-    batchedObjectIteratorAddKey(it, key);
+    long msgs = estimateNumberOfRestoreCommands(db, key, it->maxbulks);
+    if (it->estimate_msgs == 0 || it->estimate_msgs + msgs <= numkeys * 2) {
+        batchedObjectIteratorAddKey(db, it, key);
+    }
     decrRefCount(key);
 }
 
@@ -935,7 +956,7 @@ slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
     batchedObjectIterator *it = createBatchedObjectIterator(NULL,
             usetag ? c->db->tagged_keys : NULL, timeout, maxbulks, INT_MAX);
     for (int i = 3; i < c->argc; i ++) {
-        batchedObjectIteratorAddKey(it, c->argv[i]);
+        batchedObjectIteratorAddKey(c->db, it, c->argv[i]);
     }
 
     void *ptr = addDeferredMultiBulkLength(c);
@@ -1095,21 +1116,21 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
         } else if (htNeedsResize(hash_slot)) {
             dictResize(hash_slot);
         }
-        const int round = 2;
-        void *pd[] = {it};
-        for (int i = 0; i < round && dictSize(it->keys) == 0; i ++) {
-            unsigned long cursor = (i != round - 1) ? random() : 0;
+        void *pd[] = {it, c->db, &numkeys};
+        for (int i = 2; i != 0 && dictSize(it->keys) == 0; i --) {
+            unsigned long cursor = (i != 1) ? random() : 0;
             int loop = numkeys * 5;
             if (loop < 32) {
                 loop = 32;
             }
             do {
                 cursor = dictScan(hash_slot, cursor, batchedObjectIteratorAddKeyCallback, pd);
-            } while (cursor != 0 && dictSize(it->keys) < (unsigned long)numkeys && (-- loop) >= 0);
+            } while (cursor != 0 && it->estimate_msgs < numkeys &&
+                    dictSize(it->keys) < (unsigned long)numkeys && (-- loop) >= 0);
         }
     } else {
         for (int i = 6; i < c->argc; i ++) {
-            batchedObjectIteratorAddKey(it, c->argv[i]);
+            batchedObjectIteratorAddKey(c->db, it, c->argv[i]);
         }
     }
     serverAssert(ac->pending_msgs == 0);
