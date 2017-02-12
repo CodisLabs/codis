@@ -156,11 +156,9 @@ func (s *Topom) Close() error {
 	if s.ladmin != nil {
 		s.ladmin.Close()
 	}
-	var pools = []*redis.Pool{
-		s.action.redisp,
-		s.stats.redisp, s.ha.redisp,
-	}
-	for _, p := range pools {
+	for _, p := range []*redis.Pool{
+		s.action.redisp, s.stats.redisp, s.ha.redisp,
+	} {
 		if p != nil {
 			p.Close()
 		}
