@@ -727,7 +727,7 @@ typedef struct {
     int port;
     long long timeout;
     long long lastuse;
-    long pending_msgs;
+    long sending_msgs;
     void *batched_iter;
     list *blocked_list;
 } slotsmgrtAsyncClient;

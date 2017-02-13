@@ -769,9 +769,9 @@ unlinkSlotsmgrtAsyncCachedClient(client *c, const char *errmsg) {
 
     long long elapsed = mstime() - ac->lastuse;
     serverLog(LL_WARNING, "slotsmgrt_async: unlink client %s:%d (DB=%d): "
-            "pending_msgs = %ld, batched_iter = %ld, blocked_list = %ld, "
+            "sending_msgs = %ld, batched_iter = %ld, blocked_list = %ld, "
             "timeout = %lld(ms), elapsed = %lld(ms) (%s)",
-            ac->host, ac->port, c->db->id, ac->pending_msgs, it != NULL ? (long)listLength(it->list) : -1,
+            ac->host, ac->port, c->db->id, ac->sending_msgs, it != NULL ? (long)listLength(it->list) : -1,
             (long)listLength(ac->blocked_list), ac->timeout, elapsed, errmsg);
 
     sdsfree(ac->host);
@@ -843,7 +843,7 @@ createSlotsmgrtAsyncClient(int db, char *host, int port, long timeout) {
     ac->port = port;
     ac->timeout = timeout;
     ac->lastuse = mstime();
-    ac->pending_msgs = 0;
+    ac->sending_msgs = 0;
     ac->batched_iter = NULL;
     ac->blocked_list = listCreate();
     return C_OK;
@@ -1133,17 +1133,17 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
             batchedObjectIteratorAddKey(c->db, it, c->argv[i]);
         }
     }
-    serverAssert(ac->pending_msgs == 0);
+    serverAssert(ac->sending_msgs == 0);
     serverAssert(ac->batched_iter == NULL && listLength(ac->blocked_list) == 0);
 
     ac->timeout = timeout;
     ac->lastuse = mstime();
     ac->batched_iter = it;
-    ac->pending_msgs = slotsmgrtAsyncNextMessagesMicroseconds(ac, 500, 3);
+    ac->sending_msgs = slotsmgrtAsyncNextMessagesMicroseconds(ac, 500, 3);
 
     getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 1);
 
-    if (ac->pending_msgs != 0) {
+    if (ac->sending_msgs != 0) {
         return;
     }
     notifySlotsmgrtAsyncClient(ac, NULL);
@@ -1630,17 +1630,17 @@ slotsrestoreAsyncAckHandle(client *c) {
         addReplyError(c, "invalid iterator (NULL)");
         return C_ERR;
     }
-    if (ac->pending_msgs == 0) {
+    if (ac->sending_msgs == 0) {
         serverLog(LL_WARNING, "slotsmgrt_async: invalid message counter");
         addReplyError(c, "invalid pending messages");
         return C_ERR;
     }
 
     ac->lastuse = mstime();
-    ac->pending_msgs -= 1;
-    ac->pending_msgs += slotsmgrtAsyncNextMessagesMicroseconds(ac, 500, 3);
+    ac->sending_msgs -= 1;
+    ac->sending_msgs += slotsmgrtAsyncNextMessagesMicroseconds(ac, 500, 3);
 
-    if (ac->pending_msgs != 0) {
+    if (ac->sending_msgs != 0) {
         return C_OK;
     }
     notifySlotsmgrtAsyncClient(ac, NULL);
