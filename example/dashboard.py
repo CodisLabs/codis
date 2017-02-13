@@ -35,7 +35,7 @@ class CodisDashboard(Process):
             f.write('migration_method = "semi-async"\n')
             f.write('migration_async_maxbulks = 2000\n')
             f.write('migration_async_maxbytes = "32mb"\n')
-            f.write('migration_async_numkeys = 256\n')
+            f.write('migration_async_numkeys = 100\n')
             f.write('migration_timeout = "5m"\n')
             f.write('sentinel_quorum = 2\n')
             f.write('sentinel_parallel_syncs = 1\n')

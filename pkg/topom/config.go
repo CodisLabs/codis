@@ -37,7 +37,7 @@ admin_addr = "0.0.0.0:18080"
 migration_method = "semi-async"
 migration_async_maxbulks = 2000
 migration_async_maxbytes = "32mb"
-migration_async_numkeys = 256
+migration_async_numkeys = 100
 migration_timeout = "5m"
 
 # Set configs for redis sentinel.
