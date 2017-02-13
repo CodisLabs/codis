@@ -426,7 +426,7 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         return 1;
     }
 
-    if (it->stage == STAGE_PAYLOAD) {
+    if (it->stage == STAGE_PAYLOAD && val->type != OBJ_STRING) {
         rio payload;
         createDumpPayload(&payload, val);
 
@@ -437,6 +437,19 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         addReplyBulk(c, key);
         addReplyBulkLongLong(c, ttl);
         addReplyBulkSds(c, payload.io.buffer.ptr);
+
+        it->stage = STAGE_DONE;
+        return 1;
+    }
+
+    if (it->stage == STAGE_PAYLOAD && val->type == OBJ_STRING) {
+        /* SLOTSRESTORE-ASYNC string $key $ttl $payload */
+        addReplyMultiBulkLen(c, 5);
+        addReplyBulkCString(c, "SLOTSRESTORE-ASYNC");
+        addReplyBulkCString(c, "string");
+        addReplyBulk(c, key);
+        addReplyBulkLongLong(c, ttl);
+        addReplyBulk(c, val);
 
         it->stage = STAGE_DONE;
         return 1;
@@ -1366,7 +1379,23 @@ slotsrestoreAsyncHandle(client *c) {
         goto success_common;
     }
 
-    /* SLOTSRESTORE-ASYNC object key ttl payload */
+    /* SLOTSRESTORE-ASYNC string $key $ttl $payload */
+    if (!strcasecmp(cmd, "string")) {
+        if (c->argc != 5) {
+            goto bad_arguments_number;
+        }
+        if (lookupKeyWrite(c->db, key) != NULL) {
+            slotsrestoreReplyAck(c, -1, "the specified key already exists (%s)", key->ptr);
+            return C_ERR;
+        }
+        robj *val = c->argv[4] = tryObjectEncoding(c->argv[4]);
+        dbAdd(c->db, key, val);
+        incrRefCount(val);
+        slotsrestoreReplyAck(c, 0, "1");
+        goto success_common;
+    }
+
+    /* SLOTSRESTORE-ASYNC object $key $ttl $payload */
     if (!strcasecmp(cmd, "object")) {
         if (c->argc != 5) {
             goto bad_arguments_number;
@@ -1590,6 +1619,7 @@ success_common:
  *                    del    $key
  *                    expire $key $ttl
  *                    object $key $ttl $payload
+ *                    string $key $ttl $payload
  *                    list   $key $ttl $hint [$elem1 ...]
  *                    hash   $key $ttl $hint [$hkey1 $hval1 ...]
  *                    dict   $key $ttl $hint [$elem1 ...]
