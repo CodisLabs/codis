@@ -1,0 +1,92 @@
+diff -Pur redis-3.2.7/src/cluster.c redis-3.2.8/src/cluster.c
+--- redis-3.2.7/src/cluster.c	2017-02-14 11:20:20.000000000 +0800
++++ redis-3.2.8/src/cluster.c	2017-02-14 11:14:09.000000000 +0800
+@@ -4658,6 +4658,7 @@
+     rio cmd, payload;
+     int may_retry = 1;
+     int write_error = 0;
++    int argv_rewritten = 0;
+ 
+     /* To support the KEYS option we need the following additional state. */
+     int first_key = 3; /* Argument index of the first key. */
+@@ -4841,12 +4842,20 @@
+         goto socket_err; /* A retry is guaranteed because of tested conditions.*/
+     }
+ 
++    /* On socket errors, close the migration socket now that we still have
++     * the original host/port in the ARGV. Later the original command may be
++     * rewritten to DEL and will be too later. */
++    if (socket_error) migrateCloseSocket(c->argv[1],c->argv[2]);
++
+     if (!copy) {
+-        /* Translate MIGRATE as DEL for replication/AOF. */
++        /* Translate MIGRATE as DEL for replication/AOF. Note that we do
++         * this only for the keys for which we received an acknowledgement
++         * from the receiving Redis server, by using the del_idx index. */
+         if (del_idx > 1) {
+             newargv[0] = createStringObject("DEL",3);
+             /* Note that the following call takes ownership of newargv. */
+             replaceClientCommandVector(c,del_idx,newargv);
++            argv_rewritten = 1;
+         } else {
+             /* No key transfer acknowledged, no need to rewrite as DEL. */
+             zfree(newargv);
+@@ -4855,8 +4864,8 @@
+     }
+ 
+     /* If we are here and a socket error happened, we don't want to retry.
+-     * Just signal the problem to the client, but only do it if we don't
+-     * already queued a different error reported by the destination server. */
++     * Just signal the problem to the client, but only do it if we did not
++     * already queue a different error reported by the destination server. */
+     if (!error_from_target && socket_error) {
+         may_retry = 0;
+         goto socket_err;
+@@ -4864,7 +4873,11 @@
+ 
+     if (!error_from_target) {
+         /* Success! Update the last_dbid in migrateCachedSocket, so that we can
+-         * avoid SELECT the next time if the target DB is the same. Reply +OK. */
++         * avoid SELECT the next time if the target DB is the same. Reply +OK.
++         *
++         * Note: If we reached this point, even if socket_error is true
++         * still the SELECT command succeeded (otherwise the code jumps to
++         * socket_err label. */
+         cs->last_dbid = dbid;
+         addReply(c,shared.ok);
+     } else {
+@@ -4874,7 +4887,6 @@
+ 
+     sdsfree(cmd.io.buffer.ptr);
+     zfree(ov); zfree(kv); zfree(newargv);
+-    if (socket_error) migrateCloseSocket(c->argv[1],c->argv[2]);
+     return;
+ 
+ /* On socket errors we try to close the cached socket and try again.
+@@ -4884,7 +4896,12 @@
+     /* Cleanup we want to perform in both the retry and no retry case.
+      * Note: Closing the migrate socket will also force SELECT next time. */
+     sdsfree(cmd.io.buffer.ptr);
+-    migrateCloseSocket(c->argv[1],c->argv[2]);
++
++    /* If the command was rewritten as DEL and there was a socket error,
++     * we already closed the socket earlier. While migrateCloseSocket()
++     * is idempotent, the host/port arguments are now gone, so don't do it
++     * again. */
++    if (!argv_rewritten) migrateCloseSocket(c->argv[1],c->argv[2]);
+     zfree(newargv);
+     newargv = NULL; /* This will get reallocated on retry. */
+ 
+diff -Pur redis-3.2.7/src/release.h redis-3.2.8/src/release.h
+--- redis-3.2.7/src/release.h	1970-01-01 08:00:00.000000000 +0800
++++ redis-3.2.8/src/release.h	2017-02-14 11:17:46.000000000 +0800
+@@ -0,0 +1,3 @@
++#define REDIS_GIT_SHA1 "e76a7f54"
++#define REDIS_GIT_DIRTY "210708"
++#define REDIS_BUILD_ID "spinlock9-macbook.local-1487042266"
+diff -Pur redis-3.2.7/src/version.h redis-3.2.8/src/version.h
+--- redis-3.2.7/src/version.h	2017-02-14 11:20:20.000000000 +0800
++++ redis-3.2.8/src/version.h	2017-02-14 11:14:09.000000000 +0800
+@@ -1 +1 @@
+-#define REDIS_VERSION "3.2.7"
++#define REDIS_VERSION "3.2.8"
