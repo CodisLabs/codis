@@ -67,6 +67,8 @@ latency.o: latency.c server.h fmacros.h config.h solarisfixes.h \
 lzf_c.o: lzf_c.c lzfP.h
 lzf_d.o: lzf_d.c lzfP.h
 memtest.o: memtest.c config.h
+crc32.o: crc32.c
+slots.o: slots.c server.h
 multi.o: multi.c server.h fmacros.h config.h solarisfixes.h \
  ../deps/lua/src/lua.h ../deps/lua/src/luaconf.h ae.h sds.h dict.h \
  adlist.h zmalloc.h anet.h ziplist.h intset.h version.h util.h latency.h \
