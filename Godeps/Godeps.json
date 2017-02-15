@@ -1,7 +1,7 @@
 {
 	"ImportPath": "github.com/CodisLabs/codis",
 	"GoVersion": "go1.7",
-	"GodepVersion": "v74",
+	"GodepVersion": "v79",
 	"Packages": [
 		"./..."
 	],
@@ -18,18 +18,18 @@
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/client",
-			"Comment": "v3.0.15",
-			"Rev": "fc00305a2e59b4c2d4a53c9fbb4d30741a96ea67"
+			"Comment": "v3.0.17",
+			"Rev": "cc198e22d3b8fd7ec98304c95e68ee375be54589"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/pathutil",
-			"Comment": "v3.0.15",
-			"Rev": "fc00305a2e59b4c2d4a53c9fbb4d30741a96ea67"
+			"Comment": "v3.0.17",
+			"Rev": "cc198e22d3b8fd7ec98304c95e68ee375be54589"
 		},
 		{
 			"ImportPath": "github.com/coreos/etcd/pkg/types",
-			"Comment": "v3.0.15",
-			"Rev": "fc00305a2e59b4c2d4a53c9fbb4d30741a96ea67"
+			"Comment": "v3.0.17",
+			"Rev": "cc198e22d3b8fd7ec98304c95e68ee375be54589"
 		},
 		{
 			"ImportPath": "github.com/docopt/docopt-go",
@@ -38,13 +38,13 @@
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/internal",
-			"Comment": "v1.0.0-16-g8c052d8",
-			"Rev": "8c052d82153967815d9093a7e9d3e7fd2e554861"
+			"Comment": "v1.0.0-20-g4854517",
+			"Rev": "48545177e92ae3e7bcdbd50b42f7a139e6a268da"
 		},
 		{
 			"ImportPath": "github.com/garyburd/redigo/redis",
-			"Comment": "v1.0.0-16-g8c052d8",
-			"Rev": "8c052d82153967815d9093a7e9d3e7fd2e554861"
+			"Comment": "v1.0.0-20-g4854517",
+			"Rev": "48545177e92ae3e7bcdbd50b42f7a139e6a268da"
 		},
 		{
 			"ImportPath": "github.com/go-martini/martini",
@@ -96,7 +96,7 @@
 		},
 		{
 			"ImportPath": "golang.org/x/net/context",
-			"Rev": "60c41d1de8da134c05b7b40154a9a82bf5b7edb9"
+			"Rev": "242b6b35177ec3909636b6cf6a47e8c2c6324b5d"
 		}
 	]
 }
