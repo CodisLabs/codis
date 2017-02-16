@@ -50,14 +50,11 @@ go version go1.5.2 linux/amd64
 
 **注意 `$GOPATH` 是本机所有第三方库 go 项目所在目录，Codis 仅是其中之一。**
 
-添加 `$GOPATH/bin` 到 `$PATH`，例如：`PATH=$PATH:$GOPATH/bin`，并安装 godep 工具。
+添加 `$GOPATH/bin` 到 `$PATH`，例如：`PATH=$PATH:$GOPATH/bin`。
 
 ```bash
 $ go env GOPATH
 /home/codis/gopath
-
-$ go get -u github.com/tools/godep && which godep
-/home/codis/gopath/bin/godep
 ```
 
 #### 3. 下载 Codis 源代码
@@ -71,7 +68,6 @@ $ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.1
 
 #### 4. 编译 Codis 源代码
 
-* Codis 编译过程使用了 godep，请确定编译之前 godep 能正常工作。
 * 直接通过 make 进行编译，会看到如下输出：
 
 ```bash
@@ -101,12 +97,6 @@ $ cat bin/version
 version = 2016-01-03 14:53:22 +0800 @51f06ae3b58a256a58f857f590430977638846a3
 compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 ```
-
-#### 离线安装 godep 方法：
-
-1. 运行 `git clone https://github.com/tools/godep.git` 下载 godep 源码；
-2. 将 godep 目录移动到 `$GOPATH/src/github.com/tools/godep`，并进入该目录；
-3. 运行命令 `go install ./`，该命令会将 godep 生成到 `$GOPATH/bin` 下。
 
 ## 1. 快速启动
 
