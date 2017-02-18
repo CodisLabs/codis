@@ -29,10 +29,10 @@ if __name__ == "__main__":
 
     # step 1. codis-server & codis-sentinel
 
-    # codis-server [master 16380+i <== following == 17380+i slave]
-    for port in range(16380, 16384):
-        children.append(CodisServer(port, requirepass=product_auth))
-        children.append(CodisServer(port + 1000, port, requirepass=product_auth))
+    # codis-server [master 2000+i <== following == 3000+i slave]
+    for i in range(0, 4):
+        children.append(CodisServer(2000 + i, requirepass=product_auth))
+        children.append(CodisServer(3000 + i, 2000 + i, requirepass=product_auth))
 
     for port in range(26380, 26385):
         children.append(CodisSentinel(port))
@@ -56,8 +56,8 @@ if __name__ == "__main__":
     for i in range(0, 4):
         gid = i + 1
         codis_admin_dashboard(18080, "--create-group --gid={}".format(gid))
-        codis_admin_dashboard(18080, "--group-add --gid={} --addr=127.0.0.1:{} --datacenter=localhost".format(gid, 16380+i))
-        codis_admin_dashboard(18080, "--group-add --gid={} --addr=127.0.0.1:{} --datacenter=localhost".format(gid, 17380+i))
+        codis_admin_dashboard(18080, "--group-add --gid={} --addr=127.0.0.1:{} --datacenter=localhost".format(gid, 2000+i))
+        codis_admin_dashboard(18080, "--group-add --gid={} --addr=127.0.0.1:{} --datacenter=localhost".format(gid, 3000+i))
         beg, end = i * 256, (i + 1) * 256 - 1
         codis_admin_dashboard(18080, "--slots-assign --beg={} --end={} --gid={} --confirm".format(beg, end, gid))
         codis_admin_dashboard(18080, "--resync-group --gid={}".format(gid))
