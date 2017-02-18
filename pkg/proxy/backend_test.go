@@ -30,7 +30,7 @@ func newConnPair(config *Config) (*redis.Conn, *BackendConn) {
 		cc <- redis.NewConn(c, bufsize, bufsize)
 	}()
 
-	bc := NewBackendConn(l.Addr().String(), config)
+	bc := NewBackendConn(l.Addr().String(), 0, config)
 	return <-cc, bc
 }
 

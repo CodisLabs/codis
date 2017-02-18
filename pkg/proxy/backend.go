@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -35,11 +36,13 @@ type BackendConn struct {
 
 	closed atomic2.Bool
 	config *Config
+
+	database int
 }
 
-func NewBackendConn(addr string, config *Config) *BackendConn {
+func NewBackendConn(addr string, database int, config *Config) *BackendConn {
 	bc := &BackendConn{
-		addr: addr, config: config,
+		addr: addr, config: config, database: database,
 	}
 	bc.input = make(chan *Request, 1024)
 	bc.retry.delay = &DelayExp2{
@@ -104,6 +107,10 @@ func (bc *BackendConn) newBackendReader(round int, config *Config) (*redis.Conn,
 		c.Close()
 		return nil, nil, err
 	}
+	if err := bc.selectDatabase(c, bc.database); err != nil {
+		c.Close()
+		return nil, nil, err
+	}
 
 	tasks := make(chan *Request, config.BackendMaxPipeline)
 	go bc.loopReader(tasks, c, round)
@@ -119,6 +126,35 @@ func (bc *BackendConn) verifyAuth(c *redis.Conn, auth string) error {
 	multi := []*redis.Resp{
 		redis.NewBulkBytes([]byte("AUTH")),
 		redis.NewBulkBytes([]byte(auth)),
+	}
+
+	if err := c.EncodeMultiBulk(multi, true); err != nil {
+		return err
+	}
+
+	resp, err := c.Decode()
+	switch {
+	case err != nil:
+		return err
+	case resp == nil:
+		return ErrRespIsRequired
+	case resp.IsError():
+		return fmt.Errorf("error resp: %s", resp.Value)
+	case resp.IsString():
+		return nil
+	default:
+		return fmt.Errorf("error resp: should be string, but got %s", resp.Type)
+	}
+}
+
+func (bc *BackendConn) selectDatabase(c *redis.Conn, database int) error {
+	if database == 0 {
+		return nil
+	}
+
+	multi := []*redis.Resp{
+		redis.NewBulkBytes([]byte("SELECT")),
+		redis.NewBulkBytes([]byte(strconv.Itoa(database))),
 	}
 
 	if err := c.EncodeMultiBulk(multi, true); err != nil {
@@ -157,14 +193,17 @@ var (
 )
 
 func (bc *BackendConn) run() {
-	log.Warnf("backend conn [%p] to %s, start service", bc, bc.addr)
-	for k := 0; !bc.closed.Get(); k++ {
-		log.Warnf("backend conn [%p] to %s, rounds-[%d]", bc, bc.addr, k)
-		if err := bc.loopWriter(k); err != nil {
+	log.Warnf("backend conn [%p] to %s, db-%d start service",
+		bc, bc.addr, bc.database)
+	for round := 0; !bc.closed.Get(); round++ {
+		log.Warnf("backend conn [%p] to %s, db-%d round-[%d]",
+			bc, bc.addr, bc.database, round)
+		if err := bc.loopWriter(round); err != nil {
 			bc.delayBeforeRetry()
 		}
 	}
-	log.Warnf("backend conn [%p] to %s, stop and exit", bc, bc.addr)
+	log.Warnf("backend conn [%p] to %s, db-%d stop and exit",
+		bc, bc.addr, bc.database)
 }
 
 var errMasterDown = []byte("MASTERDOWN")
@@ -175,7 +214,8 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 		for r := range tasks {
 			bc.setResponse(r, nil, ErrBackendConnReset)
 		}
-		log.WarnErrorf(err, "backend conn [%p] to %s, reader-[%d] exit", bc, bc.addr, round)
+		log.WarnErrorf(err, "backend conn [%p] to %s, db-%d reader-[%d] exit",
+			bc, bc.addr, bc.database, round)
 	}()
 	for r := range tasks {
 		resp, err := c.Decode()
@@ -186,7 +226,8 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 			switch {
 			case bytes.HasPrefix(resp.Value, errMasterDown):
 				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
-					log.Warnf("backend conn [%p] to %s, state = DataStale, caused by 'MASTERDOWN'", bc, bc.addr)
+					log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'MASTERDOWN'",
+						bc, bc.addr, bc.database)
 				}
 			}
 		}
@@ -220,7 +261,8 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 			r := <-bc.input
 			bc.setResponse(r, nil, ErrBackendConnReset)
 		}
-		log.WarnErrorf(err, "backend conn [%p] to %s, writer-[%d] exit", bc, bc.addr, round)
+		log.WarnErrorf(err, "backend conn [%p] to %s, db-%d writer-[%d] exit",
+			bc, bc.addr, bc.database, round)
 	}()
 	c, tasks, err := bc.newBackendReader(round, bc.config)
 	if err != nil {
@@ -261,13 +303,14 @@ type sharedBackendConn struct {
 	port []byte
 
 	owner *sharedBackendConnPool
-	conns []*BackendConn
+	conns [][]*BackendConn
 
-	single *BackendConn
+	single []*BackendConn
+
 	refcnt int
 }
 
-func newSharedBackendConn(addr string, config *Config, pool *sharedBackendConnPool) *sharedBackendConn {
+func newSharedBackendConn(addr string, pool *sharedBackendConnPool) *sharedBackendConn {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		log.ErrorErrorf(err, "split host-port failed, address = %s", addr)
@@ -277,12 +320,19 @@ func newSharedBackendConn(addr string, config *Config, pool *sharedBackendConnPo
 		host: []byte(host), port: []byte(port),
 	}
 	s.owner = pool
-	s.conns = make([]*BackendConn, pool.parallel)
-	for i := range s.conns {
-		s.conns[i] = NewBackendConn(addr, config)
+	s.conns = make([][]*BackendConn, pool.config.BackendNumberDatabases)
+	for database := range s.conns {
+		parallel := make([]*BackendConn, pool.parallel)
+		for i := range parallel {
+			parallel[i] = NewBackendConn(addr, database, pool.config)
+		}
+		s.conns[database] = parallel
 	}
-	if len(s.conns) == 1 {
-		s.single = s.conns[0]
+	if pool.parallel == 1 {
+		s.single = make([]*BackendConn, len(s.conns))
+		for database := range s.conns {
+			s.single[database] = s.conns[database][0]
+		}
 	}
 	s.refcnt = 1
 	return s
@@ -307,8 +357,10 @@ func (s *sharedBackendConn) Release() {
 	if s.refcnt != 0 {
 		return
 	}
-	for i := range s.conns {
-		s.conns[i].Close()
+	for _, parallel := range s.conns {
+		for _, bc := range parallel {
+			bc.Close()
+		}
 	}
 	delete(s.owner.pool, s.addr)
 }
@@ -329,17 +381,20 @@ func (s *sharedBackendConn) KeepAlive() {
 	if s == nil {
 		return
 	}
-	for i := range s.conns {
-		s.conns[i].KeepAlive()
+	for _, parallel := range s.conns {
+		for _, bc := range parallel {
+			bc.KeepAlive()
+		}
 	}
 }
 
-func (s *sharedBackendConn) BackendConn(seed uint, must bool) *BackendConn {
+func (s *sharedBackendConn) BackendConn(database int, seed uint, must bool) *BackendConn {
 	if s == nil {
 		return nil
 	}
 
-	if bc := s.single; bc != nil {
+	if s.single != nil {
+		bc := s.single[database]
 		if must || bc.IsConnected() {
 			return bc
 		} else {
@@ -347,28 +402,32 @@ func (s *sharedBackendConn) BackendConn(seed uint, must bool) *BackendConn {
 		}
 	}
 
+	var parallel = s.conns[database]
+
 	var i = seed
-	for _ = range s.conns {
-		i = (i + 1) % uint(len(s.conns))
-		if bc := s.conns[i]; bc.IsConnected() {
+	for _ = range parallel {
+		i = (i + 1) % uint(len(parallel))
+		if bc := parallel[i]; bc.IsConnected() {
 			return bc
 		}
 	}
 	if !must {
 		return nil
 	}
-	return s.conns[0]
+	return parallel[0]
 }
 
 type sharedBackendConnPool struct {
+	config   *Config
 	parallel int
 
 	pool map[string]*sharedBackendConn
 }
 
-func newSharedBackendConnPool(parallel int) *sharedBackendConnPool {
-	p := &sharedBackendConnPool{}
-	p.parallel = math2.MaxInt(1, parallel)
+func newSharedBackendConnPool(config *Config, parallel int) *sharedBackendConnPool {
+	p := &sharedBackendConnPool{
+		config: config, parallel: math2.MaxInt(1, parallel),
+	}
 	p.pool = make(map[string]*sharedBackendConn)
 	return p
 }
@@ -383,11 +442,11 @@ func (p *sharedBackendConnPool) Get(addr string) *sharedBackendConn {
 	return p.pool[addr]
 }
 
-func (p *sharedBackendConnPool) Retain(addr string, config *Config) *sharedBackendConn {
+func (p *sharedBackendConnPool) Retain(addr string) *sharedBackendConn {
 	if bc := p.pool[addr]; bc != nil {
 		return bc.Retain()
 	} else {
-		bc = newSharedBackendConn(addr, config, p)
+		bc = newSharedBackendConn(addr, p)
 		p.pool[addr] = bc
 		return bc
 	}
