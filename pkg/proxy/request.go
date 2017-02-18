@@ -19,7 +19,9 @@ type Request struct {
 
 	OpStr string
 	OpFlag
-	Broken *atomic2.Bool
+
+	Database int32
+	Broken   *atomic2.Bool
 
 	*redis.Resp
 	Err error
@@ -39,6 +41,7 @@ func (r *Request) MakeSubRequest(n int) []Request {
 		x.Batch = r.Batch
 		x.OpStr = r.OpStr
 		x.OpFlag = r.OpFlag
+		x.Database = r.Database
 		x.Broken = r.Broken
 	}
 	return sub

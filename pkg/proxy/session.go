@@ -27,6 +27,8 @@ type Session struct {
 	CreateUnix int64
 	LastOpUnix int64
 
+	database int32
+
 	quit bool
 	exit sync.Once
 
@@ -166,6 +168,7 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 		r.Multi = multi
 		r.Start = start.UnixNano()
 		r.Batch = &sync.WaitGroup{}
+		r.Database = s.database
 
 		if len(tasks) == cap(tasks) {
 			return ErrTooManyPipelinedRequests
@@ -323,10 +326,11 @@ func (s *Session) handleSelect(r *Request) error {
 	switch db, err := strconv.Atoi(string(r.Multi[1].Value)); {
 	case err != nil:
 		r.Resp = redis.NewErrorf("ERR invalid DB index")
-	case db != 0:
-		r.Resp = redis.NewErrorf("ERR invalid DB index, only accept DB 0")
+	case db < 0 || db >= int(s.config.BackendNumberDatabases):
+		r.Resp = redis.NewErrorf("ERR invalid DB index, only accept DB [0,%d)", s.config.BackendNumberDatabases)
 	default:
 		r.Resp = RespOK
+		s.database = int32(db)
 	}
 	return nil
 }
