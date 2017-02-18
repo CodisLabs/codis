@@ -50,15 +50,15 @@ func (d *forwardSync) process(s *Slot, r *Request, hkey []byte) (*BackendConn, e
 		return nil, ErrSlotIsNotReady
 	}
 	if s.migrate.bc != nil && len(hkey) != 0 {
-		if err := d.slotsmgrt(s, hkey, r.Seed16()); err != nil {
-			log.Debugf("slot-%04d migrate from = %s to %s failed: hash key = '%s', error = %s",
-				s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, err)
+		if err := d.slotsmgrt(s, hkey, r.Database, r.Seed16()); err != nil {
+			log.Debugf("slot-%04d migrate from = %s to %s failed: hash key = '%s', database = %d, error = %s",
+				s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, r.Database, err)
 			return nil, err
 		}
 	}
 	r.Group = &s.refs
 	r.Group.Add(1)
-	return d.forward2(s, r, r.Seed16()), nil
+	return d.forward2(s, r), nil
 }
 
 type forwardSemiAsync struct {
@@ -111,7 +111,7 @@ func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte) (_ *Backend
 		return nil, false, ErrSlotIsNotReady
 	}
 	if s.migrate.bc != nil && len(hkey) != 0 {
-		resp, moved, err := d.slotsmgrtExecWrapper(s, hkey, r.Seed16(), r.Multi)
+		resp, moved, err := d.slotsmgrtExecWrapper(s, hkey, r.Database, r.Seed16(), r.Multi)
 		switch {
 		case err != nil:
 			log.Debugf("slot-%04d migrate from = %s to %s failed: hash key = '%s', error = %s",
@@ -128,13 +128,13 @@ func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte) (_ *Backend
 	}
 	r.Group = &s.refs
 	r.Group.Add(1)
-	return d.forward2(s, r, r.Seed16()), false, nil
+	return d.forward2(s, r), false, nil
 }
 
 type forwardHelper struct {
 }
 
-func (d *forwardHelper) slotsmgrt(s *Slot, hkey []byte, seed uint) error {
+func (d *forwardHelper) slotsmgrt(s *Slot, hkey []byte, database int32, seed uint) error {
 	m := &Request{}
 	m.Multi = []*redis.Resp{
 		redis.NewBulkBytes([]byte("SLOTSMGRTTAGONE")),
@@ -145,7 +145,7 @@ func (d *forwardHelper) slotsmgrt(s *Slot, hkey []byte, seed uint) error {
 	}
 	m.Batch = &sync.WaitGroup{}
 
-	s.migrate.bc.BackendConn(seed, true).PushBack(m)
+	s.migrate.bc.BackendConn(database, seed, true).PushBack(m)
 
 	m.Batch.Wait()
 
@@ -158,15 +158,15 @@ func (d *forwardHelper) slotsmgrt(s *Slot, hkey []byte, seed uint) error {
 	case resp.IsError():
 		return fmt.Errorf("bad slotsmgrt resp: %s", resp.Value)
 	case resp.IsInt():
-		log.Debugf("slot-%04d migrate from %s to %s: hash key = %s, resp = %s",
-			s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, resp.Value)
+		log.Debugf("slot-%04d migrate from %s to %s: hash key = %s, database = %d, resp = %s",
+			s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, database, resp.Value)
 		return nil
 	default:
 		return fmt.Errorf("bad slotsmgrt resp: should be integer, but got %s", resp.Type)
 	}
 }
 
-func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, seed uint, multi []*redis.Resp) (_ *redis.Resp, moved bool, _ error) {
+func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, database int32, seed uint, multi []*redis.Resp) (_ *redis.Resp, moved bool, _ error) {
 	m := &Request{}
 	m.Multi = make([]*redis.Resp, 0, 2+len(multi))
 	m.Multi = append(m.Multi,
@@ -176,7 +176,7 @@ func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, seed uint, mu
 	m.Multi = append(m.Multi, multi...)
 	m.Batch = &sync.WaitGroup{}
 
-	s.migrate.bc.BackendConn(seed, true).PushBack(m)
+	s.migrate.bc.BackendConn(database, seed, true).PushBack(m)
 
 	m.Batch.Wait()
 
@@ -211,17 +211,18 @@ func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, seed uint, mu
 	}
 }
 
-func (d *forwardHelper) forward2(s *Slot, r *Request, seed uint) *BackendConn {
+func (d *forwardHelper) forward2(s *Slot, r *Request) *BackendConn {
+	var database, seed = r.Database, r.Seed16()
 	if s.migrate.bc == nil && r.IsReadOnly() && len(s.replicaGroups) != 0 {
 		for _, group := range s.replicaGroups {
 			var i = seed
 			for _ = range group {
 				i = (i + 1) % uint(len(group))
-				if bc := group[i].BackendConn(seed, false); bc != nil {
+				if bc := group[i].BackendConn(database, seed, false); bc != nil {
 					return bc
 				}
 			}
 		}
 	}
-	return s.backend.bc.BackendConn(seed, true)
+	return s.backend.bc.BackendConn(database, seed, true)
 }

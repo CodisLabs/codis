@@ -388,7 +388,7 @@ func (s *sharedBackendConn) KeepAlive() {
 	}
 }
 
-func (s *sharedBackendConn) BackendConn(database int, seed uint, must bool) *BackendConn {
+func (s *sharedBackendConn) BackendConn(database int32, seed uint, must bool) *BackendConn {
 	if s == nil {
 		return nil
 	}
