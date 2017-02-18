@@ -591,7 +591,17 @@
                             <span ng-switch-when="ERROR" class="status_label_error">[[server.status]]</span>
                             <span ng-switch-when="TIMEOUT" class="status_label_warning">[[server.status]]</span>
                             <span ng-switch-when="PENDING" class="status_label_pending">[[server.status]]</span>
-                            <span ng-switch-default>[[server.keys]]</span>
+                            <span ng-switch-default>
+                                <span ng-switch="server.keys.length">
+                                    <span ng-switch-when="0">NA</span>
+                                    <span ng-switch-default>
+                                        <span ng-repeat="keys in server.keys">
+                                            <br ng-if="$index!=0">
+                                            [[keys]]
+                                        </span>
+                                    </span>
+                                </span>
+                            </span>
                         </td>
                         <td class="button_tight_column" ng-switch="group.ispromoting" style="text-align: center">
                             <span ng-switch-when="true" ng-switch="server.canremove">
