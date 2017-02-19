@@ -632,8 +632,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             $scope.slots_actions = [];
             $scope.slots_action_interval = codis_stats.slot_action.interval;
             $scope.slots_action_disabled = codis_stats.slot_action.disabled;
-            $scope.slots_action_failed = codis_stats.slot_action.progress.failed;
-            $scope.slots_action_remain = codis_stats.slot_action.progress.remain;
+            $scope.slots_action_progress = codis_stats.slot_action.progress.status;
             $scope.sentinel_servers = merge($scope.sentinel_servers, sentinel.servers);
             $scope.sentinel_out_of_sync = sentinel.out_of_sync;
 

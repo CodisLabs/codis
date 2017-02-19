@@ -289,12 +289,9 @@
                             </tr>
                             <tr>
                                 <td>Action Status</td>
-                                <td ng-switch="slots_action_failed">
-                                    <span ng-switch-when="true" class="status_label_error">
-                                        ERROR
-                                    </span>
-                                    <span ng-switch-default>
-                                        [[slots_action_remain]]
+                                <td>
+                                    <span>
+                                        [[slots_action_status]]
                                     </span>
                                 </td>
                             </tr>
