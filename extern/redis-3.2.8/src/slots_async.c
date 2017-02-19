@@ -505,8 +505,8 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
 
         if (val->type == OBJ_HASH || val->type == OBJ_SET) {
             int loop = maxbulks * 10;
-            if (loop < 128) {
-                loop = 128;
+            if (loop < 100) {
+                loop = 100;
             }
             dict *ht = val->ptr;
             void *pd[] = {ll, val, &len};
@@ -784,8 +784,9 @@ unlinkSlotsmgrtAsyncCachedClient(client *c, const char *errmsg) {
     serverLog(LL_WARNING, "slotsmgrt_async: unlink client %s:%d (DB=%d): "
             "sending_msgs = %ld, batched_iter = %ld, blocked_list = %ld, "
             "timeout = %lld(ms), elapsed = %lld(ms) (%s)",
-            ac->host, ac->port, c->db->id, ac->sending_msgs, it != NULL ? (long)listLength(it->list) : -1,
-            (long)listLength(ac->blocked_list), ac->timeout, elapsed, errmsg);
+            ac->host, ac->port, c->db->id, ac->sending_msgs,
+            it != NULL ? (long)listLength(it->list) : -1, (long)listLength(ac->blocked_list),
+            ac->timeout, elapsed, errmsg);
 
     sdsfree(ac->host);
     if (it != NULL) {
@@ -1019,7 +1020,7 @@ slotsmgrtAsyncMaxBufferLimit(unsigned int maxbytes) {
 }
 
 static long
-slotsmgrtAsyncNextMessagesMicroseconds(slotsmgrtAsyncClient *ac, long long usecs, long atleast) {
+slotsmgrtAsyncNextMessagesMicroseconds(slotsmgrtAsyncClient *ac, long atleast, long long usecs) {
     batchedObjectIterator *it = ac->batched_iter;
     long long deadline = ustime() + usecs;
     long msgs = 0;
@@ -1064,10 +1065,10 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
         return;
     }
     if (maxbulks == 0) {
-        maxbulks = 1000;
+        maxbulks = 200;
     }
-    if (maxbulks > 1024 * 512) {
-        maxbulks = 1024 * 512;
+    if (maxbulks > 512 * 1024) {
+        maxbulks = 512 * 1024;
     }
     long long maxbytes;
     if (getLongLongFromObject(c->argv[5], &maxbytes) != C_OK ||
@@ -1077,7 +1078,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
         return;
     }
     if (maxbytes == 0) {
-        maxbytes = 1024 * 256;
+        maxbytes = 512 * 1024;
     }
     if (maxbytes > INT_MAX / 2) {
         maxbytes = INT_MAX / 2;
@@ -1102,7 +1103,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
             return;
         }
         if (numkeys == 0) {
-            numkeys = 128;
+            numkeys = 100;
         }
     }
 
@@ -1124,17 +1125,22 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     batchedObjectIterator *it = createBatchedObjectIterator(hash_slot,
             usetag ? c->db->tagged_keys : NULL, timeout, maxbulks, maxbytes);
     if (!usekey) {
-        if (dictIsRehashing(hash_slot)) {
-            dictRehash(hash_slot, 1);
-        } else if (htNeedsResize(hash_slot)) {
-            dictResize(hash_slot);
-        }
         void *pd[] = {it, c->db, &numkeys};
-        for (int i = 2; i != 0 && dictSize(it->keys) == 0; i --) {
-            unsigned long cursor = (i != 1) ? random() : 0;
-            int loop = numkeys * 5;
-            if (loop < 32) {
-                loop = 32;
+        for (int i = 2; i >= 0 && it->estimate_msgs < numkeys; i --) {
+            unsigned long cursor = 0;
+            if (i != 0) {
+                cursor = random();
+            } else {
+                if (htNeedsResize(hash_slot)) {
+                    dictResize(hash_slot);
+                }
+            }
+            if (dictIsRehashing(hash_slot)) {
+                dictRehash(hash_slot, 50);
+            }
+            int loop = numkeys * 10;
+            if (loop < 100) {
+                loop = 100;
             }
             do {
                 cursor = dictScan(hash_slot, cursor, batchedObjectIteratorAddKeyCallback, pd);
@@ -1152,7 +1158,7 @@ slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     ac->timeout = timeout;
     ac->lastuse = mstime();
     ac->batched_iter = it;
-    ac->sending_msgs = slotsmgrtAsyncNextMessagesMicroseconds(ac, 500, 3);
+    ac->sending_msgs = slotsmgrtAsyncNextMessagesMicroseconds(ac, 3, 500);
 
     getSlotsmgrtAsyncClientMigrationStatusOrBlock(c, NULL, 1);
 
@@ -1668,7 +1674,7 @@ slotsrestoreAsyncAckHandle(client *c) {
 
     ac->lastuse = mstime();
     ac->sending_msgs -= 1;
-    ac->sending_msgs += slotsmgrtAsyncNextMessagesMicroseconds(ac, 500, 3);
+    ac->sending_msgs += slotsmgrtAsyncNextMessagesMicroseconds(ac, 2, 10);
 
     if (ac->sending_msgs != 0) {
         return C_OK;
