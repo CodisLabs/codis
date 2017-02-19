@@ -40,14 +40,17 @@ lazyReleaseIteratorScanCallback(void *data, const dictEntry *de) {
 }
 
 static void
-lazyReleaseIteratorNext(lazyReleaseIterator *it) {
+lazyReleaseIteratorNext(lazyReleaseIterator *it, int step) {
     robj *val = it->val;
     serverAssert(val != NULL);
 
-    const int step = 100;
+    unsigned int limit = step * 2;
+    if (limit < 100) {
+        limit = 100;
+    }
 
     if (val->type == OBJ_LIST) {
-        if (listTypeLength(val) <= step * 2) {
+        if (listTypeLength(val) <= limit) {
             decrRefCount(val);
             it->val = NULL;
         } else {
@@ -61,7 +64,7 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
 
     if (val->type == OBJ_HASH || val->type == OBJ_SET) {
         dict *ht = val->ptr;
-        if (dictSize(ht) <= step * 2) {
+        if (dictSize(ht) <= limit) {
             decrRefCount(val);
             it->val = NULL;
         } else {
@@ -87,7 +90,7 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it) {
     if (val->type == OBJ_ZSET) {
         zset *zs = val->ptr;
         dict *ht = zs->dict;
-        if (dictSize(ht) <= step * 2) {
+        if (dictSize(ht) <= limit) {
             decrRefCount(val);
             it->val = NULL;
         } else {
@@ -128,14 +131,14 @@ lazyReleaseIteratorRemains(lazyReleaseIterator *it) {
     return -1;
 }
 
-int
-slotsmgrtLazyReleaseIncrementally() {
+static int
+slotsmgrtLazyReleaseStep(int step) {
     list *ll = server.slotsmgrt_lazy_release;
     if (listLength(ll) != 0) {
         listNode *head = listFirst(ll);
         lazyReleaseIterator *it = listNodeValue(head);
         if (lazyReleaseIteratorHasNext(it)) {
-            lazyReleaseIteratorNext(it);
+            lazyReleaseIteratorNext(it, step);
         } else {
             freeLazyReleaseIterator(it);
             listDelNode(ll, head);
@@ -143,6 +146,11 @@ slotsmgrtLazyReleaseIncrementally() {
         return 1;
     }
     return 0;
+}
+
+int
+slotsmgrtLazyReleaseIncrementally() {
+    return slotsmgrtLazyReleaseStep(1);
 }
 
 void
@@ -160,7 +168,7 @@ slotsmgrtLazyReleaseCommand(client *c) {
             return;
         }
     }
-    while (step != 0 && slotsmgrtLazyReleaseIncrementally()) { step --; }
+    while (step != 0 && slotsmgrtLazyReleaseStep(100)) { step --; }
 
     list *ll = server.slotsmgrt_lazy_release;
 
