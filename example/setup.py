@@ -65,7 +65,7 @@ if __name__ == "__main__":
     for i in range(0, 5):
         codis_admin_dashboard(18080, "--sentinel-add --addr=127.0.0.1:{}".format(26380+i))
 
-    codis_admin_dashboard(18080, "--slot-action --interval=100")
+    codis_admin_dashboard(18080, "--slot-action --interval=0")
     codis_admin_dashboard(18080, "--sentinel-resync")
 
     check_alive(children, 3)
