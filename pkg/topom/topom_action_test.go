@@ -39,7 +39,7 @@ func TestSlotAction(x *testing.T) {
 	assert.MustNoError(err)
 	assert.Must(t.action.executor.Get() != 0)
 	assert.Must(exec1 != nil)
-	exec1()
+	exec1(0)
 	assert.Must(t.action.executor.Get() == 0)
 
 	reset()
