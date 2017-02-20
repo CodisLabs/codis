@@ -159,29 +159,35 @@ slotsmgrtLazyReleaseMicroseconds(long long usecs) {
 }
 
 static struct {
-    long long ops;
+    long long last_numcommands;
     int step;
-} lazy_release_stat = {
-    .ops = 0,
+} lazy_release_options = {
+    .last_numcommands = 0,
     .step = 1,
 };
 
 void
 slotsmgrtLazyReleaseCleanup() {
-    long long ops = lazy_release_stat.ops;
-    if (ops > 100) {
-        lazy_release_stat.step = 1 + 2000 / ops;
-    } else {
-        lazy_release_stat.step = 20;
-        slotsmgrtLazyReleaseMicroseconds(500);
+    long long ops = server.stat_numcommands - lazy_release_options.last_numcommands;
+    if (ops < 0) {
+        ops = 0;
     }
-    lazy_release_stat.ops = 0;
+    if (ops > 30) {
+        lazy_release_options.step = 1 + (1000 / ops) * 3;
+    } else {
+        lazy_release_options.step = 100;
+    }
+    lazy_release_options.last_numcommands = server.stat_numcommands;
+
+    long long usecs = lazy_release_options.step / 10 * 100;
+    if (usecs != 0) {
+        slotsmgrtLazyReleaseMicroseconds(usecs);
+    }
 }
 
 void
 slotsmgrtLazyReleaseIncrementally() {
-    slotsmgrtLazyReleaseStep(lazy_release_stat.step);
-    lazy_release_stat.ops ++;
+    slotsmgrtLazyReleaseStep(lazy_release_options.step);
 }
 
 /* *
