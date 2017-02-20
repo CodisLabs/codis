@@ -1343,6 +1343,10 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
         slotsmgrtAsyncCleanup();
     }
 
+    run_with_period(100) {
+        slotsmgrtLazyReleaseCleanup();
+    }
+
     /* Cleanup expired MIGRATE cached sockets. */
     run_with_period(1000) {
         migrateCloseTimedoutSockets();

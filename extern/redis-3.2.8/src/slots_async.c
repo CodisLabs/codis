@@ -70,7 +70,7 @@ lazyReleaseIteratorNext(lazyReleaseIterator *it, int step) {
         } else {
             list *ll = listCreate();
             listSetFreeMethod(ll, decrRefCountVoid);
-            int loop = step * 10;
+            int loop = step;
             void *pd[] = {ll};
             do {
                 it->cursor = dictScan(ht, it->cursor, lazyReleaseIteratorScanCallback, pd);
@@ -148,27 +148,47 @@ slotsmgrtLazyReleaseStep(int step) {
     return 0;
 }
 
-int
-slotsmgrtLazyReleaseIncrementally() {
-    return slotsmgrtLazyReleaseStep(1);
+static void
+slotsmgrtLazyReleaseMicroseconds(long long usecs) {
+    long long deadline = ustime() + usecs;
+    while (slotsmgrtLazyReleaseStep(50)) {
+        if (ustime() >= deadline) {
+            return;
+        }
+    }
 }
 
+void
+slotsmgrtLazyReleaseCleanup() {
+    slotsmgrtLazyReleaseMicroseconds(500);
+}
+
+void
+slotsmgrtLazyReleaseIncrementally() {
+    slotsmgrtLazyReleaseStep(1);
+}
+
+/* *
+ * SLOTSMGRT-LAZY-RELEASE $microseconds
+ * */
 void
 slotsmgrtLazyReleaseCommand(client *c) {
     if (c->argc != 1 && c->argc != 2) {
         addReplyError(c, "wrong number of arguments for SLOTSMGRT-LAZY-RELEASE");
         return;
     }
-    long long step = 1;
+    long long usecs = 1;
     if (c->argc != 1) {
-        if (getLongLongFromObject(c->argv[1], &step) != C_OK ||
-                !(step >= 0 && step <= INT_MAX)) {
-            addReplyErrorFormat(c, "invalid value of step (%s)",
+        if (getLongLongFromObject(c->argv[1], &usecs) != C_OK ||
+                !(usecs >= 0 && usecs <= INT_MAX)) {
+            addReplyErrorFormat(c, "invalid value of usecs (%s)",
                     (char *)c->argv[1]->ptr);
             return;
         }
     }
-    while (step != 0 && slotsmgrtLazyReleaseStep(100)) { step --; }
+    if (usecs != 0) {
+        slotsmgrtLazyReleaseMicroseconds(usecs);
+    }
 
     list *ll = server.slotsmgrt_lazy_release;
 
@@ -921,8 +941,6 @@ slotsmgrtAsyncCleanup() {
         releaseSlotsmgrtAsyncClient(i, ac->batched_iter != NULL ?
                 "interrupted: migration timeout" : "interrupted: idle timeout");
     }
-    long long deadline = mstime() + 1;
-    while (slotsmgrtLazyReleaseIncrementally() && mstime() < deadline) {}
 }
 
 static int
@@ -1033,9 +1051,11 @@ slotsmgrtAsyncNextMessagesMicroseconds(slotsmgrtAsyncClient *ac, long atleast, l
     long long deadline = ustime() + usecs;
     long msgs = 0;
     while (batchedObjectIteratorHasNext(it) && getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
-        msgs += batchedObjectIteratorNext(ac->c, it);
-        if (msgs >= atleast && deadline <= ustime()) {
-            break;
+        if ((msgs += batchedObjectIteratorNext(ac->c, it)) < atleast) {
+            continue;
+        }
+        if (ustime() >= deadline) {
+            return msgs;
         }
     }
     return msgs;

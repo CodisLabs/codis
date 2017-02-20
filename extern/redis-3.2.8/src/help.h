@@ -1090,7 +1090,7 @@ struct commandHelp {
         "", 14, "codis3.2"
     },
     {"SLOTSMGRT-LAZY-RELEASE",
-        "[step]",
+        "[microseconds]",
         "", 14, "codis3.2"
     },
     {"SLOTSRESTORE-ASYNC SELECT",
