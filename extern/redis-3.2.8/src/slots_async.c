@@ -158,14 +158,30 @@ slotsmgrtLazyReleaseMicroseconds(long long usecs) {
     }
 }
 
+static struct {
+    long long ops;
+    int step;
+} lazy_release_stat = {
+    .ops = 0,
+    .step = 1,
+};
+
 void
 slotsmgrtLazyReleaseCleanup() {
-    slotsmgrtLazyReleaseMicroseconds(500);
+    long long ops = lazy_release_stat.ops;
+    if (ops > 100) {
+        lazy_release_stat.step = 1 + 2000 / ops;
+    } else {
+        lazy_release_stat.step = 20;
+        slotsmgrtLazyReleaseMicroseconds(500);
+    }
+    lazy_release_stat.ops = 0;
 }
 
 void
 slotsmgrtLazyReleaseIncrementally() {
-    slotsmgrtLazyReleaseStep(1);
+    slotsmgrtLazyReleaseStep(lazy_release_stat.step);
+    lazy_release_stat.ops ++;
 }
 
 /* *
