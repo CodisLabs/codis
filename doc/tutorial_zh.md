@@ -338,7 +338,7 @@ session_keepalive_period = 60
 
 ```bash
 $ nohup ./bin/codis-fe --ncpu=4 --log=fe.log --log-level=WARN \
-    --dashboard-list=codis.json --listen=127.0.0.1:8080 &
+    --zookeeper=127.0.0.1:2181 --listen=127.0.0.1:8080 &
 ```
 
 ##### 2.4.2 详细说明：
@@ -348,7 +348,7 @@ $ nohup ./bin/codis-fe --ncpu=4 --log=fe.log --log-level=WARN \
 ```bash
 $ ./bin/codis-fe -h
 Usage:
-	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] --dashboard-list=LIST --listen=ADDR
+	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] (--dashboard-list=FILE|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT) --listen=ADDR
 	codis-fe  --version
 
 Options:
@@ -398,6 +398,8 @@ Options:
 ##### 2.5.3 工作原理：
 
 **注意：Codis HA 工具仅仅是 Codis 集群 HA 的一部分，单独工作能力有限。**
+
+**注意：Codis 同时支持 sentinel 作为 HA，codis-ha 已经不推荐使用了。**
 
 + 默认以 5s 为周期，codis-ha 会从 codis-dashboard 中拉取集群状态，并进行主从切换；
 
