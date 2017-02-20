@@ -4,6 +4,7 @@
 package topom
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -26,34 +27,36 @@ func (s *Topom) ProcessSlotAction() error {
 func (s *Topom) processSlotAction(sid int) (err error) {
 	defer func() {
 		if err != nil {
-			s.action.progress.failed.Set(true)
+			s.action.progress.status.Store(fmt.Sprintf("[X] %s", err))
 		} else {
-			s.action.progress.remain.Set(0)
-			s.action.progress.failed.Set(false)
+			s.action.progress.status.Store("")
 		}
 	}()
 	log.Warnf("slot-[%d] process action", sid)
 
+	var db = 0
 	for s.IsOnline() {
 		if exec, err := s.newSlotActionExecutor(sid); err != nil {
 			return err
 		} else if exec == nil {
 			time.Sleep(time.Second)
 		} else {
-			n, err := exec()
+			n, nextdb, err := exec(db)
 			if err != nil {
 				return err
 			}
 			log.Debugf("slot-[%d] action executor %d", sid, n)
 
-			if n == 0 {
+			if n == 0 && nextdb == -1 {
 				return s.SlotActionComplete(sid)
 			}
-			s.action.progress.remain.Set(int64(n))
-			s.action.progress.failed.Set(false)
+			status := fmt.Sprintf("[O] SLOT[%04d]@[%d]: %d", sid, db, n)
+			s.action.progress.status.Store(status)
+
 			if us := s.GetSlotActionInterval(); us != 0 {
 				time.Sleep(time.Microsecond * time.Duration(us))
 			}
+			db = nextdb
 		}
 	}
 	return nil

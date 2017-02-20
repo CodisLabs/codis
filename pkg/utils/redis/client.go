@@ -22,6 +22,8 @@ type Client struct {
 	Addr string
 	Auth string
 
+	Database int
+
 	LastUse time.Time
 	Timeout time.Duration
 }
@@ -78,6 +80,18 @@ func (c *Client) Receive() (interface{}, error) {
 	return r, nil
 }
 
+func (c *Client) Select(database int) error {
+	if c.Database == database {
+		return nil
+	}
+	_, err := c.Do("SELECT", database)
+	if err != nil {
+		return err
+	}
+	c.Database = database
+	return nil
+}
+
 func (c *Client) Info() (map[string]string, error) {
 	text, err := redigo.String(c.Do("INFO"))
 	if err != nil {
@@ -91,6 +105,28 @@ func (c *Client) Info() (map[string]string, error) {
 		}
 		if key := strings.TrimSpace(kv[0]); key != "" {
 			info[key] = strings.TrimSpace(kv[1])
+		}
+	}
+	return info, nil
+}
+
+func (c *Client) InfoKeySpace() (map[int]string, error) {
+	text, err := redigo.String(c.Do("INFO", "keyspace"))
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	info := make(map[int]string)
+	for _, line := range strings.Split(text, "\n") {
+		kv := strings.SplitN(line, ":", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		if key := strings.TrimSpace(kv[0]); key != "" && strings.HasPrefix(key, "db") {
+			n, err := strconv.Atoi(key[2:])
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+			info[n] = strings.TrimSpace(kv[1])
 		}
 	}
 	return info, nil
@@ -371,24 +407,6 @@ func (p *Pool) InfoFull(addr string) (map[string]string, error) {
 	}
 	defer p.PutClient(c)
 	return c.InfoFull()
-}
-
-func (p *Pool) MigrateSlot(slot int, from, dest string) (int, error) {
-	c, err := p.GetClient(from)
-	if err != nil {
-		return 0, err
-	}
-	defer p.PutClient(c)
-	return c.MigrateSlot(slot, dest)
-}
-
-func (p *Pool) MigrateSlotAsync(slot int, from, dest string, option *MigrateSlotAsyncOption) (int, error) {
-	c, err := p.GetClient(from)
-	if err != nil {
-		return 0, err
-	}
-	defer p.PutClient(c)
-	return c.MigrateSlotAsync(slot, dest, option)
 }
 
 type InfoCache struct {

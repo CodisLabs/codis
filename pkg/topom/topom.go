@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
@@ -56,8 +57,7 @@ type Topom struct {
 		disabled atomic2.Bool
 
 		progress struct {
-			remain atomic2.Int64
-			failed atomic2.Bool
+			status atomic.Value
 		}
 		executor atomic2.Int64
 	}
@@ -90,6 +90,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	s.config = config
 	s.exit.C = make(chan struct{})
 	s.action.redisp = redis.NewPool(config.ProductAuth, config.MigrationTimeout.Get())
+	s.action.progress.status.Store("")
 
 	s.ha.redisp = redis.NewPool("", time.Second*5)
 
@@ -306,8 +307,7 @@ func (s *Topom) Stats() (*Stats, error) {
 
 	stats.SlotAction.Interval = s.action.interval.Get()
 	stats.SlotAction.Disabled = s.action.disabled.Get()
-	stats.SlotAction.Progress.Remain = s.action.progress.remain.Get()
-	stats.SlotAction.Progress.Failed = s.action.progress.failed.Get()
+	stats.SlotAction.Progress.Status = s.action.progress.status.Load().(string)
 	stats.SlotAction.Executor = s.action.executor.Get()
 
 	stats.HA.Model = ctx.sentinel
@@ -346,8 +346,7 @@ type Stats struct {
 		Disabled bool  `json:"disabled"`
 
 		Progress struct {
-			Remain int64 `json:"remain"`
-			Failed bool  `json:"failed"`
+			Status string `json:"status"`
 		} `json:"progress"`
 
 		Executor int64 `json:"executor"`

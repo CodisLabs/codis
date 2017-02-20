@@ -58,6 +58,9 @@ backend_replica_parallel = 1
 # Set backend tcp keepalive period. (0 to disable)
 backend_keepalive_period = "75s"
 
+# Set number of databases of backend.
+backend_number_databases = 16
+
 # If there is no request from client for a long time, the connection will be closed. (0 to disable)
 # Set session recv buffer size & timeout.
 session_recv_bufsize = "128kb"

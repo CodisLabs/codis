@@ -423,6 +423,7 @@ function processGroupStats(codis_stats) {
     var group_array = codis_stats.group.models;
     var group_stats = codis_stats.group.stats;
     var keys = 0, memory = 0;
+    var dbkeyRegexp = /db\d+/
     for (var i = 0; i < group_array.length; i++) {
         var g = group_array[i];
         if (g.promoting.state) {
@@ -440,7 +441,7 @@ function processGroupStats(codis_stats) {
         for (var j = 0; j < g.servers.length; j++) {
             var x = g.servers[j];
             var s = group_stats[x.server];
-            x.keys = "NA";
+            x.keys = [];
             x.memory = "NA";
             x.maxmem = "NA";
             x.master = "NA";
@@ -456,12 +457,14 @@ function processGroupStats(codis_stats) {
             } else if (s.error) {
                 x.status = "ERROR";
             } else {
-                if (s.stats["db0"]) {
-                    var v = parseInt(s.stats["db0"].split(",")[0].split("=")[1], 10);
-                    if (j == 0) {
-                        keys += v;
+                for (var field in s.stats) {
+                    if (dbkeyRegexp.test(field)) {
+                        var v = parseInt(s.stats[field].split(",")[0].split("=")[1], 10);
+                        if (j == 0) {
+                            keys += v;
+                        }
+                        x.keys.push(field+ ":" + s.stats[field]);
                     }
-                    x.keys = s.stats["db0"];
                 }
                 if (s.stats["used_memory"]) {
                     var v = parseInt(s.stats["used_memory"], 10);
@@ -629,8 +632,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             $scope.slots_actions = [];
             $scope.slots_action_interval = codis_stats.slot_action.interval;
             $scope.slots_action_disabled = codis_stats.slot_action.disabled;
-            $scope.slots_action_failed = codis_stats.slot_action.progress.failed;
-            $scope.slots_action_remain = codis_stats.slot_action.progress.remain;
+            $scope.slots_action_progress = codis_stats.slot_action.progress.status;
             $scope.sentinel_servers = merge($scope.sentinel_servers, sentinel.servers);
             $scope.sentinel_out_of_sync = sentinel.out_of_sync;
 

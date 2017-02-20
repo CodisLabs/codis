@@ -31,8 +31,8 @@ type Router struct {
 
 func NewRouter(config *Config) *Router {
 	s := &Router{config: config}
-	s.pool.primary = newSharedBackendConnPool(config.BackendPrimaryParallel)
-	s.pool.replica = newSharedBackendConnPool(config.BackendReplicaParallel)
+	s.pool.primary = newSharedBackendConnPool(config, config.BackendPrimaryParallel)
+	s.pool.replica = newSharedBackendConnPool(config, config.BackendReplicaParallel)
 	for i := range s.slots {
 		s.slots[i].id = i
 		s.slots[i].method = &forwardSync{}
@@ -169,12 +169,11 @@ func (s *Router) dispatchSlot(r *Request, id int) error {
 func (s *Router) dispatchAddr(r *Request, addr string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var seed = r.Seed16()
-	if bc := s.pool.primary.Get(addr).BackendConn(seed, false); bc != nil {
+	if bc := s.pool.primary.Get(addr).BackendConn(r.Database, r.Seed16(), false); bc != nil {
 		bc.PushBack(r)
 		return true
 	}
-	if bc := s.pool.replica.Get(addr).BackendConn(seed, false); bc != nil {
+	if bc := s.pool.replica.Get(addr).BackendConn(r.Database, r.Seed16(), false); bc != nil {
 		bc.PushBack(r)
 		return true
 	}
@@ -201,18 +200,18 @@ func (s *Router) fillSlot(m *models.Slot, switched bool, method forwardMethod) {
 	slot.switched = switched
 
 	if addr := m.BackendAddr; len(addr) != 0 {
-		slot.backend.bc = s.pool.primary.Retain(addr, s.config)
+		slot.backend.bc = s.pool.primary.Retain(addr)
 		slot.backend.id = m.BackendAddrGroupId
 	}
 	if from := m.MigrateFrom; len(from) != 0 {
-		slot.migrate.bc = s.pool.primary.Retain(from, s.config)
+		slot.migrate.bc = s.pool.primary.Retain(from)
 		slot.migrate.id = m.MigrateFromGroupId
 	}
 	if !s.config.BackendPrimaryOnly {
 		for i := range m.ReplicaGroups {
 			var group []*sharedBackendConn
 			for _, addr := range m.ReplicaGroups[i] {
-				group = append(group, s.pool.replica.Retain(addr, s.config))
+				group = append(group, s.pool.replica.Retain(addr))
 			}
 			if len(group) == 0 {
 				continue

@@ -205,7 +205,7 @@ func (s *Topom) SlotActionComplete(sid int) error {
 	}
 }
 
-func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
+func (s *Topom) newSlotActionExecutor(sid int) (func(db int) (remains int, nextdb int, err error), error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -236,32 +236,68 @@ func (s *Topom) newSlotActionExecutor(sid int) (func() (int, error), error) {
 		dest := ctx.getGroupMaster(m.Action.TargetId)
 
 		s.action.executor.Incr()
-		return func() (int, error) {
+
+		return func(db int) (int, int, error) {
 			defer s.action.executor.Decr()
-			if from != "" {
-				method, _ := models.ParseForwardMethod(s.config.MigrationMethod)
-				switch method {
-				case models.ForwardSync:
-					return s.action.redisp.MigrateSlot(sid, from, dest)
-				case models.ForwardSemiAsync:
-					var option = &redis.MigrateSlotAsyncOption{
-						MaxBulks: s.config.MigrationAsyncMaxBulks,
-						MaxBytes: s.config.MigrationAsyncMaxBytes.Int(),
-						NumKeys:  s.config.MigrationAsyncNumKeys,
-						Timeout:  s.config.MigrationTimeout.Get(),
-					}
-					return s.action.redisp.MigrateSlotAsync(sid, from, dest, option)
-				default:
-					log.Panicf("unknown forward method %d", int(method))
+			if from == "" {
+				return 0, -1, nil
+			}
+			c, err := s.action.redisp.GetClient(from)
+			if err != nil {
+				return 0, -1, err
+			}
+			defer s.action.redisp.PutClient(c)
+
+			if err := c.Select(db); err != nil {
+				return 0, -1, err
+			}
+			var do func() (int, error)
+
+			method, _ := models.ParseForwardMethod(s.config.MigrationMethod)
+			switch method {
+			case models.ForwardSync:
+				do = func() (int, error) {
+					return c.MigrateSlot(sid, dest)
+				}
+			case models.ForwardSemiAsync:
+				var option = &redis.MigrateSlotAsyncOption{
+					MaxBulks: s.config.MigrationAsyncMaxBulks,
+					MaxBytes: s.config.MigrationAsyncMaxBytes.Int(),
+					NumKeys:  s.config.MigrationAsyncNumKeys,
+					Timeout:  s.config.MigrationTimeout.Get(),
+				}
+				do = func() (int, error) {
+					return c.MigrateSlotAsync(sid, dest, option)
+				}
+			default:
+				log.Panicf("unknown forward method %d", int(method))
+			}
+
+			n, err := do()
+			if err != nil {
+				return 0, -1, err
+			} else if n != 0 {
+				return n, db, nil
+			}
+
+			nextdb := -1
+			m, err := c.InfoKeySpace()
+			if err != nil {
+				return 0, -1, err
+			}
+			for i := range m {
+				if (nextdb == -1 || i < nextdb) && db < i {
+					nextdb = i
 				}
 			}
-			return 0, nil
+			return 0, nextdb, nil
+
 		}, nil
 
 	case models.ActionFinished:
 
-		return func() (int, error) {
-			return 0, nil
+		return func(int) (int, int, error) {
+			return 0, -1, nil
 		}, nil
 
 	default:

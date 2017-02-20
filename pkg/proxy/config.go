@@ -74,6 +74,9 @@ backend_replica_parallel = 1
 # Set backend tcp keepalive period. (0 to disable)
 backend_keepalive_period = "75s"
 
+# Set number of databases of backend.
+backend_number_databases = 16
+
 # If there is no request from client for a long time, the connection will be closed. (0 to disable)
 # Set session recv buffer size & timeout.
 session_recv_bufsize = "128kb"
@@ -136,6 +139,7 @@ type Config struct {
 	BackendPrimaryParallel int               `toml:"backend_primary_parallel" json:"backend_primary_parallel"`
 	BackendReplicaParallel int               `toml:"backend_replica_parallel" json:"backend_replica_parallel"`
 	BackendKeepAlivePeriod timesize.Duration `toml:"backend_keepalive_period" json:"backend_keepalive_period"`
+	BackendNumberDatabases int32             `toml:"backend_number_databases" json:"backend_number_databases"`
 
 	SessionRecvBufsize     bytesize.Int64    `toml:"session_recv_bufsize" json:"session_recv_bufsize"`
 	SessionRecvTimeout     timesize.Duration `toml:"session_recv_timeout" json:"session_recv_timeout"`
@@ -241,6 +245,9 @@ func (c *Config) Validate() error {
 	}
 	if c.BackendKeepAlivePeriod < 0 {
 		return errors.New("invalid backend_keepalive_period")
+	}
+	if c.BackendNumberDatabases < 1 {
+		return errors.New("invalid backend_number_databases")
 	}
 
 	if d := c.SessionRecvBufsize; d < 0 || d > MaxInt {
