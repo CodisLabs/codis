@@ -100,7 +100,7 @@ compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 
 ## 1. 快速启动
 
-源码中提供了可供本地测试使用的脚本 `scripts/demo_test.py`，该脚本会生成一个本地集群。
+源码中提供了可供本地测试使用的脚本 `example/setup.py`，该脚本会生成一个本地集群。
 
 **注意：脚本依赖 etcd 作为外部存储，启动时会创建一个占用 2379 端口的 etcd 实例；如果本地已经存在该实例，会导致可能污染该实例（写入测试程序所需配置文件）并最终启动失败。**
 
@@ -109,7 +109,7 @@ compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 
 ```bash
 $ which etcd &>/dev/null || go get github.com/coreos/etcd
-$ python3 demo_test.py
+$ python3 setup.py
 init etcd, done
     >> server.port = 16379
     >> server.port = 16380
