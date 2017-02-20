@@ -21,7 +21,7 @@ index 68af785..27427e4 100644
  REDIS_CLI_NAME=redis-cli
  REDIS_CLI_OBJ=anet.o adlist.o redis-cli.o zmalloc.o release.o anet.o ae.o crc64.o
 diff --git a/extern/redis-3.2.8/src/help.h b/extern/redis-3.2.8/src/help.h
-index 5f927c3..03d184f 100644
+index 5f927c3..3d57430 100644
 --- a/extern/redis-3.2.8/src/help.h
 +++ b/extern/redis-3.2.8/src/help.h
 @@ -17,7 +17,8 @@ static char *commandGroups[] = {
@@ -117,7 +117,7 @@ index 5f927c3..03d184f 100644
 +        "", 14, "codis3.2"
 +    },
 +    {"SLOTSMGRT-LAZY-RELEASE",
-+        "[step]",
++        "[microseconds]",
 +        "", 14, "codis3.2"
 +    },
 +    {"SLOTSRESTORE-ASYNC SELECT",
@@ -193,7 +193,7 @@ index fb5341e..dff5225 100644
      /* For the purpose of output buffer limiting, masters are handled
       * like normal clients. */
 diff --git a/extern/redis-3.2.8/src/server.c b/extern/redis-3.2.8/src/server.c
-index f05763e..9d7250a 100644
+index f05763e..6c0c20e 100644
 --- a/extern/redis-3.2.8/src/server.c
 +++ b/extern/redis-3.2.8/src/server.c
 @@ -300,13 +300,26 @@ struct redisCommand redisCommandTable[] = {
@@ -253,15 +253,19 @@ index f05763e..9d7250a 100644
          return 1; /* already used our millisecond for this loop... */
      }
      /* Expires */
-@@ -1323,6 +1340,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
+@@ -1323,6 +1340,11 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
  
      run_with_period(1000) {
          slotsmgrt_cleanup();
 +        slotsmgrtAsyncCleanup();
++    }
++
++    run_with_period(100) {
++        slotsmgrtLazyReleaseCleanup();
      }
  
      /* Cleanup expired MIGRATE cached sockets. */
-@@ -1577,6 +1595,12 @@ void initServerConfig(void) {
+@@ -1577,6 +1599,12 @@ void initServerConfig(void) {
      server.loading_process_events_interval_bytes = (1024*1024*2);
  
      server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
@@ -274,7 +278,7 @@ index f05763e..9d7250a 100644
  
      server.lruclock = getLRUClock();
      resetServerSaveParams();
-@@ -1973,6 +1997,7 @@ void initServer(void) {
+@@ -1973,6 +2001,7 @@ void initServer(void) {
          for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
              server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
          }
@@ -282,7 +286,7 @@ index f05763e..9d7250a 100644
          server.db[j].tagged_keys = zslCreate();
      }
      server.pubsub_channels = dictCreate(&keylistDictType,NULL);
-@@ -2428,7 +2453,9 @@ int processCommand(client *c) {
+@@ -2428,7 +2457,9 @@ int processCommand(client *c) {
      }
  
      /* Check if the user is authenticated */
@@ -293,7 +297,7 @@ index f05763e..9d7250a 100644
      {
          flagTransaction(c);
          addReply(c,shared.noautherr);
-@@ -2570,6 +2597,10 @@ int processCommand(client *c) {
+@@ -2570,6 +2601,10 @@ int processCommand(client *c) {
          return C_OK;
      }
  
@@ -305,7 +309,7 @@ index f05763e..9d7250a 100644
      if (c->flags & CLIENT_MULTI &&
          c->cmd->proc != execCommand && c->cmd->proc != discardCommand &&
 diff --git a/extern/redis-3.2.8/src/server.h b/extern/redis-3.2.8/src/server.h
-index ebe34d7..2ee8a7f 100644
+index ebe34d7..d34ee4f 100644
 --- a/extern/redis-3.2.8/src/server.h
 +++ b/extern/redis-3.2.8/src/server.h
 @@ -273,6 +273,9 @@ typedef long long mstime_t; /* millisecond time type. */
@@ -364,7 +368,7 @@ index ebe34d7..2ee8a7f 100644
      dict *migrate_cached_sockets;/* MIGRATE cached sockets */
      uint64_t next_client_id;    /* Next client unique ID. Incremental. */
      int protected_mode;         /* Don't accept external connections. */
-@@ -1671,6 +1692,24 @@ void slotshashkeyCommand(client *c);
+@@ -1671,6 +1692,25 @@ void slotshashkeyCommand(client *c);
  void slotscheckCommand(client *c);
  void slotsrestoreCommand(client *c);
  
@@ -384,7 +388,8 @@ index ebe34d7..2ee8a7f 100644
 +
 +void slotsmgrtAsyncCleanup();
 +void slotsmgrtAsyncUnlinkClient(client *c);
-+int slotsmgrtLazyReleaseIncrementally();
++void slotsmgrtLazyReleaseCleanup();
++void slotsmgrtLazyReleaseIncrementally();
 +
  void slotsmgrt_cleanup();
  int slots_num(const sds s, uint32_t *pcrc, int *phastag);
@@ -423,10 +428,10 @@ index 90ff60a..afd2082 100644
      addReplyMultiBulkLen(c, n);
 diff --git a/extern/redis-3.2.8/src/slots_async.c b/extern/redis-3.2.8/src/slots_async.c
 new file mode 100644
-index 0000000..0d0f941
+index 0000000..de35346
 --- /dev/null
 +++ b/extern/redis-3.2.8/src/slots_async.c
-@@ -0,0 +1,1751 @@
+@@ -0,0 +1,1795 @@
 +#include "server.h"
 +
 +/* ============================ Iterator for Lazy Release ================================== */
@@ -469,14 +474,17 @@ index 0000000..0d0f941
 +}
 +
 +static void
-+lazyReleaseIteratorNext(lazyReleaseIterator *it) {
++lazyReleaseIteratorNext(lazyReleaseIterator *it, int step) {
 +    robj *val = it->val;
 +    serverAssert(val != NULL);
 +
-+    const int step = 100;
++    unsigned int limit = step * 2;
++    if (limit < 100) {
++        limit = 100;
++    }
 +
 +    if (val->type == OBJ_LIST) {
-+        if (listTypeLength(val) <= step * 2) {
++        if (listTypeLength(val) <= limit) {
 +            decrRefCount(val);
 +            it->val = NULL;
 +        } else {
@@ -490,13 +498,13 @@ index 0000000..0d0f941
 +
 +    if (val->type == OBJ_HASH || val->type == OBJ_SET) {
 +        dict *ht = val->ptr;
-+        if (dictSize(ht) <= step * 2) {
++        if (dictSize(ht) <= limit) {
 +            decrRefCount(val);
 +            it->val = NULL;
 +        } else {
 +            list *ll = listCreate();
 +            listSetFreeMethod(ll, decrRefCountVoid);
-+            int loop = step * 10;
++            int loop = step;
 +            void *pd[] = {ll};
 +            do {
 +                it->cursor = dictScan(ht, it->cursor, lazyReleaseIteratorScanCallback, pd);
@@ -516,7 +524,7 @@ index 0000000..0d0f941
 +    if (val->type == OBJ_ZSET) {
 +        zset *zs = val->ptr;
 +        dict *ht = zs->dict;
-+        if (dictSize(ht) <= step * 2) {
++        if (dictSize(ht) <= limit) {
 +            decrRefCount(val);
 +            it->val = NULL;
 +        } else {
@@ -557,14 +565,14 @@ index 0000000..0d0f941
 +    return -1;
 +}
 +
-+int
-+slotsmgrtLazyReleaseIncrementally() {
++static int
++slotsmgrtLazyReleaseStep(int step) {
 +    list *ll = server.slotsmgrt_lazy_release;
 +    if (listLength(ll) != 0) {
 +        listNode *head = listFirst(ll);
 +        lazyReleaseIterator *it = listNodeValue(head);
 +        if (lazyReleaseIteratorHasNext(it)) {
-+            lazyReleaseIteratorNext(it);
++            lazyReleaseIteratorNext(it, step);
 +        } else {
 +            freeLazyReleaseIterator(it);
 +            listDelNode(ll, head);
@@ -574,22 +582,63 @@ index 0000000..0d0f941
 +    return 0;
 +}
 +
++static void
++slotsmgrtLazyReleaseMicroseconds(long long usecs) {
++    long long deadline = ustime() + usecs;
++    while (slotsmgrtLazyReleaseStep(50)) {
++        if (ustime() >= deadline) {
++            return;
++        }
++    }
++}
++
++static struct {
++    long long ops;
++    int step;
++} lazy_release_stat = {
++    .ops = 0,
++    .step = 1,
++};
++
++void
++slotsmgrtLazyReleaseCleanup() {
++    long long ops = lazy_release_stat.ops;
++    if (ops > 100) {
++        lazy_release_stat.step = 1 + 2000 / ops;
++    } else {
++        lazy_release_stat.step = 20;
++        slotsmgrtLazyReleaseMicroseconds(500);
++    }
++    lazy_release_stat.ops = 0;
++}
++
++void
++slotsmgrtLazyReleaseIncrementally() {
++    slotsmgrtLazyReleaseStep(lazy_release_stat.step);
++    lazy_release_stat.ops ++;
++}
++
++/* *
++ * SLOTSMGRT-LAZY-RELEASE $microseconds
++ * */
 +void
 +slotsmgrtLazyReleaseCommand(client *c) {
 +    if (c->argc != 1 && c->argc != 2) {
 +        addReplyError(c, "wrong number of arguments for SLOTSMGRT-LAZY-RELEASE");
 +        return;
 +    }
-+    long long step = 1;
++    long long usecs = 1;
 +    if (c->argc != 1) {
-+        if (getLongLongFromObject(c->argv[1], &step) != C_OK ||
-+                !(step >= 0 && step <= INT_MAX)) {
-+            addReplyErrorFormat(c, "invalid value of step (%s)",
++        if (getLongLongFromObject(c->argv[1], &usecs) != C_OK ||
++                !(usecs >= 0 && usecs <= INT_MAX)) {
++            addReplyErrorFormat(c, "invalid value of usecs (%s)",
 +                    (char *)c->argv[1]->ptr);
 +            return;
 +        }
 +    }
-+    while (step != 0 && slotsmgrtLazyReleaseIncrementally()) { step --; }
++    if (usecs != 0) {
++        slotsmgrtLazyReleaseMicroseconds(usecs);
++    }
 +
 +    list *ll = server.slotsmgrt_lazy_release;
 +
@@ -1342,8 +1391,6 @@ index 0000000..0d0f941
 +        releaseSlotsmgrtAsyncClient(i, ac->batched_iter != NULL ?
 +                "interrupted: migration timeout" : "interrupted: idle timeout");
 +    }
-+    long long deadline = mstime() + 1;
-+    while (slotsmgrtLazyReleaseIncrementally() && mstime() < deadline) {}
 +}
 +
 +static int
@@ -1454,9 +1501,11 @@ index 0000000..0d0f941
 +    long long deadline = ustime() + usecs;
 +    long msgs = 0;
 +    while (batchedObjectIteratorHasNext(it) && getClientOutputBufferMemoryUsage(ac->c) < it->maxbytes) {
-+        msgs += batchedObjectIteratorNext(ac->c, it);
-+        if (msgs >= atleast && deadline <= ustime()) {
-+            break;
++        if ((msgs += batchedObjectIteratorNext(ac->c, it)) < atleast) {
++            continue;
++        }
++        if (ustime() >= deadline) {
++            return msgs;
 +        }
 +    }
 +    return msgs;
