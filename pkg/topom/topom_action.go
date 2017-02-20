@@ -27,7 +27,7 @@ func (s *Topom) ProcessSlotAction() error {
 func (s *Topom) processSlotAction(sid int) (err error) {
 	defer func() {
 		if err != nil {
-			s.action.progress.status.Store(fmt.Sprintf("[X] %s", err))
+			s.action.progress.status.Store(fmt.Sprintf("[ERROR] %s", err))
 		} else {
 			s.action.progress.status.Store("")
 		}
@@ -50,7 +50,7 @@ func (s *Topom) processSlotAction(sid int) (err error) {
 			if n == 0 && nextdb == -1 {
 				return s.SlotActionComplete(sid)
 			}
-			status := fmt.Sprintf("[O] SLOT[%04d]@[%d]: %d", sid, db, n)
+			status := fmt.Sprintf("[OK] Slot[%04d]@DB%d=%d", sid, db, n)
 			s.action.progress.status.Store(status)
 
 			if us := s.GetSlotActionInterval(); us != 0 {
