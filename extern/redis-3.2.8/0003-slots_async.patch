@@ -428,10 +428,10 @@ index 90ff60a..afd2082 100644
      addReplyMultiBulkLen(c, n);
 diff --git a/extern/redis-3.2.8/src/slots_async.c b/extern/redis-3.2.8/src/slots_async.c
 new file mode 100644
-index 0000000..de35346
+index 0000000..73b3205
 --- /dev/null
 +++ b/extern/redis-3.2.8/src/slots_async.c
-@@ -0,0 +1,1795 @@
+@@ -0,0 +1,1801 @@
 +#include "server.h"
 +
 +/* ============================ Iterator for Lazy Release ================================== */
@@ -593,29 +593,35 @@ index 0000000..de35346
 +}
 +
 +static struct {
-+    long long ops;
++    long long last_numcommands;
 +    int step;
-+} lazy_release_stat = {
-+    .ops = 0,
++} lazy_release_options = {
++    .last_numcommands = 0,
 +    .step = 1,
 +};
 +
 +void
 +slotsmgrtLazyReleaseCleanup() {
-+    long long ops = lazy_release_stat.ops;
-+    if (ops > 100) {
-+        lazy_release_stat.step = 1 + 2000 / ops;
-+    } else {
-+        lazy_release_stat.step = 20;
-+        slotsmgrtLazyReleaseMicroseconds(500);
++    long long ops = server.stat_numcommands - lazy_release_options.last_numcommands;
++    if (ops < 0) {
++        ops = 0;
 +    }
-+    lazy_release_stat.ops = 0;
++    if (ops > 30) {
++        lazy_release_options.step = 1 + (1000 / ops) * 3;
++    } else {
++        lazy_release_options.step = 100;
++    }
++    lazy_release_options.last_numcommands = server.stat_numcommands;
++
++    long long usecs = lazy_release_options.step / 10 * 100;
++    if (usecs != 0) {
++        slotsmgrtLazyReleaseMicroseconds(usecs);
++    }
 +}
 +
 +void
 +slotsmgrtLazyReleaseIncrementally() {
-+    slotsmgrtLazyReleaseStep(lazy_release_stat.step);
-+    lazy_release_stat.ops ++;
++    slotsmgrtLazyReleaseStep(lazy_release_options.step);
 +}
 +
 +/* *
