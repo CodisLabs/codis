@@ -50,7 +50,7 @@ func (s *Topom) processSlotAction(sid int) (err error) {
 			if n == 0 && nextdb == -1 {
 				return s.SlotActionComplete(sid)
 			}
-			status := fmt.Sprintf("[OK] Slot[%04d]@DB%d=%d", sid, db, n)
+			status := fmt.Sprintf("[OK] Slot[%04d]@DB[%d]=%d", sid, db, n)
 			s.action.progress.status.Store(status)
 
 			if us := s.GetSlotActionInterval(); us != 0 {

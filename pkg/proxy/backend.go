@@ -79,7 +79,8 @@ func (bc *BackendConn) PushBack(r *Request) {
 
 func (bc *BackendConn) KeepAlive() bool {
 	if bc.state.CompareAndSwap(stateDataStale, stateConnected) {
-		log.Warnf("backend conn [%p] to %s, state = Connected (keepalive)", bc, bc.addr)
+		log.Warnf("backend conn [%p] to %s, db-%d state = Connected (keepalive)",
+			bc, bc.addr, bc.database)
 	}
 	if len(bc.input) != 0 {
 		return false
