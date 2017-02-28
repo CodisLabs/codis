@@ -34,8 +34,8 @@ if __name__ == "__main__":
         children.append(CodisServer(2000 + i, requirepass=product_auth))
         children.append(CodisServer(3000 + i, 2000 + i, requirepass=product_auth))
 
-    for port in range(26380, 26385):
-        children.append(CodisSentinel(port))
+    for i in range(0, 5):
+        children.append(CodisSentinel(20000 + i))
 
     check_alive(children, 1)
     print("[OK] setup codis-server & codis-sentinel")
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         codis_admin_dashboard(18080, "--resync-group --gid={}".format(gid))
 
     for i in range(0, 5):
-        codis_admin_dashboard(18080, "--sentinel-add --addr=127.0.0.1:{}".format(26380+i))
+        codis_admin_dashboard(18080, "--sentinel-add --addr=127.0.0.1:{}".format(20000+i))
 
     codis_admin_dashboard(18080, "--slot-action --interval=0")
     codis_admin_dashboard(18080, "--sentinel-resync")
