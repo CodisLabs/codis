@@ -9,6 +9,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/proxy"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/redis"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
 	"github.com/CodisLabs/codis/pkg/utils/sync2"
 )
@@ -17,21 +18,23 @@ type RedisStats struct {
 	Stats map[string]string `json:"stats,omitempty"`
 	Error *rpc.RemoteError  `json:"error,omitempty"`
 
+	Sentinel map[string]*redis.SentinelGroup `json:"sentinel,omitempty"`
+
 	UnixTime int64 `json:"unixtime"`
 	Timeout  bool  `json:"timeout,omitempty"`
 }
 
-func (s *Topom) newRedisStats(addr string, timeout time.Duration, do func(addr string) (map[string]string, error)) *RedisStats {
+func (s *Topom) newRedisStats(addr string, timeout time.Duration, do func(addr string) (*RedisStats, error)) *RedisStats {
 	var ch = make(chan struct{})
 	stats := &RedisStats{}
 
 	go func() {
 		defer close(ch)
-		x, err := do(addr)
+		p, err := do(addr)
 		if err != nil {
 			stats.Error = rpc.NewRemoteError(err)
 		} else {
-			stats.Stats = x
+			stats.Stats, stats.Sentinel = p.Stats, p.Sentinel
 		}
 	}()
 
@@ -51,7 +54,7 @@ func (s *Topom) RefreshRedisStats(timeout time.Duration) (*sync2.Future, error) 
 		return nil, err
 	}
 	var fut sync2.Future
-	goStats := func(addr string, do func(addr string) (map[string]string, error)) {
+	goStats := func(addr string, do func(addr string) (*RedisStats, error)) {
 		fut.Add()
 		go func() {
 			stats := s.newRedisStats(addr, timeout, do)
@@ -61,11 +64,33 @@ func (s *Topom) RefreshRedisStats(timeout time.Duration) (*sync2.Future, error) 
 	}
 	for _, g := range ctx.group {
 		for _, x := range g.Servers {
-			goStats(x.Addr, s.redisp.InfoFull)
+			goStats(x.Addr, func(addr string) (*RedisStats, error) {
+				m, err := s.redisp.InfoFull(addr)
+				if err != nil {
+					return nil, err
+				}
+				return &RedisStats{Stats: m}, nil
+			})
 		}
 	}
 	for _, server := range ctx.sentinel.Servers {
-		goStats(server, s.ha.redisp.Info)
+		goStats(server, func(addr string) (*RedisStats, error) {
+			c, err := s.ha.redisp.GetClient(addr)
+			if err != nil {
+				return nil, err
+			}
+			defer s.ha.redisp.PutClient(c)
+			m, err := c.Info()
+			if err != nil {
+				return nil, err
+			}
+			sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
+			p, err := sentinel.MastersAndSlavesClient(c)
+			if err != nil {
+				return nil, err
+			}
+			return &RedisStats{Stats: m, Sentinel: p}, nil
+		})
 	}
 	go func() {
 		stats := make(map[string]*RedisStats)
