@@ -186,6 +186,8 @@ func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, database int3
 	switch resp := m.Resp; {
 	case resp == nil:
 		return nil, false, ErrRespIsRequired
+	case resp.IsError():
+		return nil, false, fmt.Errorf("bad slotsmgrt-exec-wrapper resp: %s", resp.Value)
 	case resp.IsArray():
 		if len(resp.Array) != 2 {
 			return nil, false, fmt.Errorf("bad slotsmgrt-exec-wrapper resp: array.len = %d",
