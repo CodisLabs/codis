@@ -587,22 +587,15 @@ type SentinelGroup struct {
 	Slaves []map[string]string `json:"slaves,omitempty"`
 }
 
-func (s *Sentinel) MastersAndSlaves(sentinel string, timeout time.Duration) (map[string]*SentinelGroup, error) {
-	c, err := NewClientNoAuth(sentinel, timeout)
+func (s *Sentinel) MastersAndSlavesClient(client *Client) (map[string]*SentinelGroup, error) {
+	masters, err := s.mastersCommand(client)
 	if err != nil {
 		return nil, err
 	}
-	defer c.Close()
-
-	masters, err := s.mastersCommand(c)
-	if err != nil {
-		return nil, err
-	}
-
-	var results = make(map[string]*SentinelGroup)
+	results := make(map[string]*SentinelGroup)
 	for _, master := range masters {
 		var name = master["name"]
-		slaves, err := s.slavesCommand(c, name)
+		slaves, err := s.slavesCommand(client, name)
 		if err != nil {
 			return nil, err
 		}
@@ -611,6 +604,15 @@ func (s *Sentinel) MastersAndSlaves(sentinel string, timeout time.Duration) (map
 		}
 	}
 	return results, nil
+}
+
+func (s *Sentinel) MastersAndSlaves(sentinel string, timeout time.Duration) (map[string]*SentinelGroup, error) {
+	c, err := NewClientNoAuth(sentinel, timeout)
+	if err != nil {
+		return nil, err
+	}
+	defer c.Close()
+	return s.MastersAndSlavesClient(c)
 }
 
 func (s *Sentinel) FlushConfig(sentinel string) error {
