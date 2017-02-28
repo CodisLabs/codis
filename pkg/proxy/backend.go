@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,18 +76,74 @@ func (bc *BackendConn) PushBack(r *Request) {
 }
 
 func (bc *BackendConn) KeepAlive() bool {
-	if bc.state.CompareAndSwap(stateDataStale, stateConnected) {
-		log.Warnf("backend conn [%p] to %s, state = Connected (keepalive)", bc, bc.addr)
-	}
 	if len(bc.input) != 0 {
 		return false
 	}
-	m := &Request{}
-	m.Multi = []*redis.Resp{
-		redis.NewBulkBytes([]byte("PING")),
+	switch bc.state.Get() {
+	default:
+		m := &Request{}
+		m.Multi = []*redis.Resp{
+			redis.NewBulkBytes([]byte("PING")),
+		}
+		bc.PushBack(m)
+
+	case stateDataStale:
+		m := &Request{}
+		m.Multi = []*redis.Resp{
+			redis.NewBulkBytes([]byte("INFO")),
+		}
+		m.Batch = &sync.WaitGroup{}
+		bc.PushBack(m)
+
+		keepAliveCallback <- func() {
+			m.Batch.Wait()
+			var err = func() error {
+				if err := m.Err; err != nil {
+					return err
+				}
+				switch resp := m.Resp; {
+				case resp == nil:
+					return ErrRespIsRequired
+				case resp.IsError():
+					return fmt.Errorf("bad info resp: %s", resp.Value)
+				case resp.IsBulkBytes():
+					var info = make(map[string]string)
+					for _, line := range strings.Split(string(resp.Value), "\n") {
+						kv := strings.SplitN(line, ":", 2)
+						if len(kv) != 2 {
+							continue
+						}
+						if key := strings.TrimSpace(kv[0]); key != "" {
+							info[key] = strings.TrimSpace(kv[1])
+						}
+					}
+					if info["master_link_status"] == "down" {
+						return nil
+					}
+					if bc.state.CompareAndSwap(stateDataStale, stateConnected) {
+						log.Warnf("backend conn [%p] to %s, state = Connected (keepalive)", bc, bc.addr)
+					}
+					return nil
+				default:
+					return fmt.Errorf("bad info resp: should be string, but got %s", resp.Type)
+				}
+			}()
+			if err != nil && !bc.closed.Get() {
+				log.WarnErrorf(err, "backend conn [%p] to %s, recover from DataStale failed", bc, bc.addr)
+			}
+		}
 	}
-	bc.PushBack(m)
 	return true
+}
+
+var keepAliveCallback = make(chan func(), 128)
+
+func init() {
+	go func() {
+		for fn := range keepAliveCallback {
+			fn()
+		}
+	}()
 }
 
 func (bc *BackendConn) newBackendReader(round int, config *Config) (*redis.Conn, chan<- *Request, error) {
