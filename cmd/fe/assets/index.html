@@ -682,9 +682,10 @@
                             </span>
                         </th>
                         <th style="min-width: 35px;"/>
-                        <th style="min-width: 560px;">
+                        <th style="min-width: 350px;">
                             Status
                         </th>
+                        <th style="min-width: 35px;"/>
                         <th style="min-width: 35px;"/>
                     </tr>
                     </thead>
@@ -710,6 +711,10 @@
                             <span ng-switch-when="TIMEOUT" class="status_label_warning">[[sentinel.status]]</span>
                             <span ng-switch-when="PENDING" class="status_label_pending">[[sentinel.status]]</span>
                             <span ng-switch-default>[[sentinel.status_text]]</span>
+                        </td>
+                        <td ng-switch="sentinel.runid_error != ''">
+                            <span ng-switch-when="true" style="color: red">[[sentinel.runid_error]]</span>
+                            <span ng-switch-default/>
                         </td>
                         <td class="button_tight_column">
                             <button class="btn btn-danger btn-xs active"
