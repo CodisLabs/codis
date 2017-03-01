@@ -276,7 +276,7 @@ function processProxyStats(codis_stats) {
     return {proxy_array: proxy_array, qps: qps, sessions: sessions};
 }
 
-function processSentinels(codis_stats, codis_name) {
+function processSentinels(codis_stats, group_stats, codis_name) {
     var ha = codis_stats.sentinels;
     var out_of_sync = false;
     var servers = [];
@@ -287,6 +287,7 @@ function processSentinels(codis_stats, codis_name) {
         for (var i = 0; i < ha.model.servers.length; i ++) {
             var x = {server: ha.model.servers[i]};
             var s = ha.stats[x.server];
+            x.runid_error = "";
             if (!s) {
                 x.status = "PENDING";
             } else if (s.timeout) {
@@ -345,6 +346,38 @@ function processSentinels(codis_stats, codis_name) {
                     avg = Number(x.sentinels) / x.masters;
                 }
                 x.status_text += ",sentinels=" + avg.toFixed(2);
+
+                if (s.sentinel != undefined) {
+                    var group_array = group_stats.group_array;
+                    for (var t in group_array) {
+                        var g = group_array[t];
+                        var d = s.sentinel[codis_name + "-" + g.id];
+                        var runids = {};
+                        if (d != undefined) {
+                            if (d.master != undefined) {
+                                var o = d.master;
+                                runids[o["runid"]] = o["ip"] + ":" + o["port"];
+                            }
+                            if (d.slaves != undefined) {
+                                for (var j = 0; j < d.slaves.length; j ++) {
+                                    var o = d.slaves[j];
+                                    runids[o["runid"]] = o["ip"] + ":" + o["port"];
+                                }
+                            }
+                        }
+                        for (var runid in runids) {
+                            if (g.runids[runid] === undefined) {
+                                x.runid_error = "group=" + g.id + ",server=" + runids[runid] + ",runid="
+                                    + ((runid != "") ? runid : "NA");
+                            }
+                        }
+                        for (var runid in g.runids) {
+                            if (runids[runid] === undefined) {
+                                x.runid_error = "group=" + g.id + ",server=" + g.runids[runid] + ",runid=" + runid;
+                            }
+                        }
+                    }
+                }
             }
             servers.push(x);
         }
@@ -436,6 +469,7 @@ function processGroupStats(codis_stats) {
             g.ispromoting = false;
             g.ispromoting_index = -1;
         }
+        g.runids = {}
         g.canremove = (g.servers.length == 0);
         for (var j = 0; j < g.servers.length; j++) {
             var x = g.servers[j];
@@ -488,6 +522,7 @@ function processGroupStats(codis_stats) {
                 } else {
                     x.master_status = (x.master == g.servers[0].server + ":up");
                 }
+                g.runids[s.stats["run_id"]] = x.server;
             }
             if (g.ispromoting) {
                 x.canremove = false;
@@ -590,7 +625,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.updateStats = function (codis_stats) {
             var proxy_stats = processProxyStats(codis_stats);
             var group_stats = processGroupStats(codis_stats);
-            var sentinel = processSentinels(codis_stats, $scope.codis_name);
+            var sentinel = processSentinels(codis_stats, group_stats, $scope.codis_name);
 
             var merge = function(obj1, obj2) {
                 if (obj1 === null || obj2 === null) {
