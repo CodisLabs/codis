@@ -35,7 +35,7 @@ proxy)
                     -v `realpath log`:/codis/log \
         -p 29000:19000 -p 21080:11080 \
         codis-image \
-        codis-proxy -l log/proxy.log -c proxy.toml --host-admin ${hostip}:29000 --host-proxy ${hostip}:21080
+        codis-proxy -l log/proxy.log -c proxy.toml --host-admin ${hostip}:21080 --host-proxy ${hostip}:29000
     ;;
 
 server)
