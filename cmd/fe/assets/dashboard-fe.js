@@ -645,8 +645,10 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 for (var i = 0; i < $scope.group_array.length; i ++) {
                     var g = $scope.group_array[i];
                     var ha_master = sentinel.masters[g.id];
+                    var ha_master_ingroup = false;
                     for (var j = 0; j < g.servers.length; j ++) {
                         var x = g.servers[j];
+                        x.server_text = x.server;
                         if (ha_master == undefined) {
                             x.ha_status = "ha_undefined";
                             continue;
@@ -664,6 +666,15 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                                 x.ha_status = "ha_slave";
                             }
                         }
+                        if (x.server == ha_master) {
+                            x.server_text = x.server + " [HA]";
+                            ha_master_ingroup = true;
+                        }
+                    }
+                    if (ha_master == undefined || ha_master_ingroup) {
+                        g.ha_warning = "";
+                    } else {
+                        g.ha_warning = "[HA: " + ha_master + "]";
                     }
                 }
             }
