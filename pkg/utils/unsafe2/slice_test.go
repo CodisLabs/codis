@@ -31,28 +31,28 @@ func TestMakeCGoSlice(t *testing.T) {
 	assert.Must(ok2 && len(s2.Buffer()) == n)
 	defer FreeSlice(s2)
 
-	assert.Must(OffheapBytes() == n*2)
+	assert.Must(OffheapBytes() == int64(n)*2)
 
 	s3 := MakeSlice(n)
 	_, ok3 := s3.(*goSlice)
 	assert.Must(ok3 && len(s3.Buffer()) == n)
 	defer FreeSlice(s3)
 
-	assert.Must(OffheapBytes() == n*2)
+	assert.Must(OffheapBytes() == int64(n)*2)
 
 	FreeSlice(s2)
-	assert.Must(OffheapBytes() == n)
+	assert.Must(OffheapBytes() == int64(n))
 
 	s4 := MakeSlice(n)
 	_, ok4 := s4.(*cgoSlice)
 	assert.Must(ok4 && len(s4.Buffer()) == n)
 	defer FreeSlice(s4)
 
-	assert.Must(OffheapBytes() == n*2)
+	assert.Must(OffheapBytes() == int64(n)*2)
 
 	s5 := MakeOffheapSlice(n)
 	assert.Must(s5 != nil && len(s5.Buffer()) == n)
 	defer FreeSlice(s5)
 
-	assert.Must(OffheapBytes() == n*3)
+	assert.Must(OffheapBytes() == int64(n)*3)
 }

@@ -7,8 +7,16 @@ type Bool struct {
 	c Int64
 }
 
-func (b *Bool) Get() bool {
-	return b.c.Get() != 0
+func (b *Bool) Bool() bool {
+	return b.IsTrue()
+}
+
+func (b *Bool) IsTrue() bool {
+	return b.c.Int64() != 0
+}
+
+func (b *Bool) IsFalse() bool {
+	return b.c.Int64() == 0
 }
 
 func (b *Bool) toInt64(v bool) int64 {

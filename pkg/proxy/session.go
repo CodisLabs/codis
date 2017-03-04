@@ -660,7 +660,7 @@ func (s *Session) flushOpStats(force bool) {
 
 	incrOpTotal(s.stats.total.Swap(0))
 	for _, e := range s.stats.opmap {
-		if e.calls.Get() != 0 || e.fails.Get() != 0 {
+		if e.calls.Int64() != 0 || e.fails.Int64() != 0 {
 			incrOpStats(e)
 		}
 	}

@@ -90,7 +90,7 @@ func (s *Topom) SlotActionPrepare() (int, bool, error) {
 
 	case models.ActionPending:
 
-		if s.action.disabled.Get() {
+		if s.action.disabled.IsTrue() {
 			return 0, false, nil
 		}
 		defer s.dirtySlotsCache(m.Id)
@@ -222,7 +222,7 @@ func (s *Topom) newSlotActionExecutor(sid int) (func(db int) (remains int, nextd
 
 	case models.ActionMigrating:
 
-		if s.action.disabled.Get() {
+		if s.action.disabled.IsTrue() {
 			return nil, nil
 		}
 		if ctx.isGroupPromoting(m.GroupId) {

@@ -220,7 +220,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 			return errors.Errorf("group-[%d] can't promote master", g.Id)
 		}
 	}
-	if n := s.action.executor.Get(); n != 0 {
+	if n := s.action.executor.Int64(); n != 0 {
 		return errors.Errorf("slots-migration is running = %d", n)
 	}
 
