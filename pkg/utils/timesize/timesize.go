@@ -15,8 +15,12 @@ import (
 
 type Duration time.Duration
 
-func (d Duration) Get() time.Duration {
+func (d Duration) Duration() time.Duration {
 	return time.Duration(d)
+}
+
+func (d Duration) Int64() int64 {
+	return int64(d)
 }
 
 func (d Duration) MarshalText() ([]byte, error) {
@@ -29,17 +33,22 @@ func (d Duration) MarshalText() ([]byte, error) {
 	}
 	switch {
 	case abs%time.Hour == 0:
-		return []byte(fmt.Sprintf("%dh", int64(d.Get()/time.Hour))), nil
+		val := d.Int64() / int64(time.Hour)
+		return []byte(fmt.Sprintf("%dh", val)), nil
 	case abs%time.Minute == 0:
-		return []byte(fmt.Sprintf("%dm", int64(d.Get()/time.Minute))), nil
+		val := d.Int64() / int64(time.Minute)
+		return []byte(fmt.Sprintf("%dm", val)), nil
 	case abs%time.Second == 0:
-		return []byte(fmt.Sprintf("%ds", int64(d.Get()/time.Second))), nil
+		val := d.Int64() / int64(time.Second)
+		return []byte(fmt.Sprintf("%ds", val)), nil
 	case abs%time.Millisecond == 0:
-		return []byte(fmt.Sprintf("%dms", int64(d.Get()/time.Millisecond))), nil
+		val := d.Int64() / int64(time.Millisecond)
+		return []byte(fmt.Sprintf("%dms", val)), nil
 	case abs%time.Microsecond == 0:
-		return []byte(fmt.Sprintf("%dus", int64(d.Get()/time.Microsecond))), nil
+		val := d.Int64() / int64(time.Microsecond)
+		return []byte(fmt.Sprintf("%dus", val)), nil
 	default:
-		return []byte(d.Get().String()), nil
+		return []byte(d.Duration().String()), nil
 	}
 }
 

@@ -39,7 +39,7 @@ func (p *Proxy) startMetricsReporter(d time.Duration, do, cleanup func() error) 
 
 func (p *Proxy) startMetricsJson() {
 	server := p.config.MetricsReportServer
-	period := p.config.MetricsReportPeriod.Get()
+	period := p.config.MetricsReportPeriod.Duration()
 	if server == "" {
 		return
 	}
@@ -52,7 +52,7 @@ func (p *Proxy) startMetricsJson() {
 
 func (p *Proxy) startMetricsInfluxdb() {
 	server := p.config.MetricsReportInfluxdbServer
-	period := p.config.MetricsReportInfluxdbPeriod.Get()
+	period := p.config.MetricsReportInfluxdbPeriod.Duration()
 	if server == "" {
 		return
 	}

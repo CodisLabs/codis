@@ -68,7 +68,7 @@ func New(config *Config) (*Proxy, error) {
 	s.config = config
 	s.exit.C = make(chan struct{})
 	s.router = NewRouter(config)
-	s.ignore = make([]byte, config.ProxyHeapPlaceholder.Int())
+	s.ignore = make([]byte, config.ProxyHeapPlaceholder.Int64())
 
 	s.model = &models.Proxy{
 		StartTime: time.Now().String(),
@@ -91,7 +91,7 @@ func New(config *Config) (*Proxy, error) {
 
 	log.Warnf("[%p] create new proxy:\n%s", s, s.model.Encode())
 
-	unsafe2.SetMaxOffheapBytes(config.ProxyMaxOffheapBytes.Int())
+	unsafe2.SetMaxOffheapBytes(config.ProxyMaxOffheapBytes.Int64())
 
 	go s.serveAdmin()
 	go s.serveProxy()
@@ -142,7 +142,7 @@ func (s *Proxy) setup(config *Config) error {
 	)
 
 	if config.JodisAddr != "" {
-		c, err := models.NewClient(config.JodisName, config.JodisAddr, config.JodisTimeout.Get())
+		c, err := models.NewClient(config.JodisName, config.JodisAddr, config.JodisTimeout.Duration())
 		if err != nil {
 			return err
 		}
@@ -412,8 +412,8 @@ func (s *Proxy) serveProxy() {
 		}
 	}(s.lproxy)
 
-	if d := s.config.BackendPingPeriod; d != 0 {
-		go s.keepAlive(d.Get())
+	if d := s.config.BackendPingPeriod.Duration(); d != 0 {
+		go s.keepAlive(d)
 	}
 	if s.xjodis != nil {
 		s.xjodis.Start()

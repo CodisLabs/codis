@@ -153,14 +153,14 @@ func init() {
 
 func (bc *BackendConn) newBackendReader(round int, config *Config) (*redis.Conn, chan<- *Request, error) {
 	c, err := redis.DialTimeout(bc.addr, time.Second*5,
-		config.BackendRecvBufsize.Int(),
-		config.BackendSendBufsize.Int())
+		config.BackendRecvBufsize.AsInt(),
+		config.BackendSendBufsize.AsInt())
 	if err != nil {
 		return nil, nil, err
 	}
-	c.ReaderTimeout = config.BackendRecvTimeout.Get()
-	c.WriterTimeout = config.BackendSendTimeout.Get()
-	c.SetKeepAlivePeriod(config.BackendKeepAlivePeriod.Get())
+	c.ReaderTimeout = config.BackendRecvTimeout.Duration()
+	c.WriterTimeout = config.BackendSendTimeout.Duration()
+	c.SetKeepAlivePeriod(config.BackendKeepAlivePeriod.Duration())
 
 	if err := bc.verifyAuth(c, config.ProductAuth); err != nil {
 		c.Close()

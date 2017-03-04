@@ -89,7 +89,7 @@ func New(client models.Client, config *Config) (*Topom, error) {
 	s := &Topom{}
 	s.config = config
 	s.exit.C = make(chan struct{})
-	s.action.redisp = redis.NewPool(config.ProductAuth, config.MigrationTimeout.Get())
+	s.action.redisp = redis.NewPool(config.ProductAuth, config.MigrationTimeout.Duration())
 	s.action.progress.status.Store("")
 
 	s.ha.redisp = redis.NewPool("", time.Second*5)

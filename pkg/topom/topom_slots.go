@@ -262,9 +262,9 @@ func (s *Topom) newSlotActionExecutor(sid int) (func(db int) (remains int, nextd
 			case models.ForwardSemiAsync:
 				var option = &redis.MigrateSlotAsyncOption{
 					MaxBulks: s.config.MigrationAsyncMaxBulks,
-					MaxBytes: s.config.MigrationAsyncMaxBytes.Int(),
+					MaxBytes: s.config.MigrationAsyncMaxBytes.AsInt(),
 					NumKeys:  s.config.MigrationAsyncNumKeys,
-					Timeout:  s.config.MigrationTimeout.Get(),
+					Timeout:  s.config.MigrationTimeout.Duration(),
 				}
 				do = func() (int, error) {
 					return c.MigrateSlotAsync(sid, dest, option)

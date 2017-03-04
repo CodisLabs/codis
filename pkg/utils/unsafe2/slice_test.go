@@ -19,7 +19,7 @@ func TestMakeGoSlice(t *testing.T) {
 
 func TestMakeCGoSlice(t *testing.T) {
 	n := MinOffheapSlice * 2
-	SetMaxOffheapBytes(n * 2)
+	SetMaxOffheapBytes(int64(n) * 2)
 
 	s1 := MakeSlice(n)
 	_, ok1 := s1.(*cgoSlice)
