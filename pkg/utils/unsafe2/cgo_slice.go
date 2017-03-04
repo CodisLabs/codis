@@ -23,7 +23,7 @@ type cgoSlice struct {
 }
 
 func newCGoSlice(n int, force bool) Slice {
-	after := int(allocOffheapBytes.Add(int64(n)))
+	after := allocOffheapBytes.Add(int64(n))
 	if !force && after > MaxOffheapBytes() {
 		allocOffheapBytes.Sub(int64(n))
 		return nil

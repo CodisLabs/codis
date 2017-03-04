@@ -62,12 +62,12 @@ func (s *Session) String() string {
 
 func NewSession(sock net.Conn, config *Config) *Session {
 	c := redis.NewConn(sock,
-		config.SessionRecvBufsize.Int(),
-		config.SessionSendBufsize.Int(),
+		config.SessionRecvBufsize.AsInt(),
+		config.SessionSendBufsize.AsInt(),
 	)
-	c.ReaderTimeout = config.SessionRecvTimeout.Get()
-	c.WriterTimeout = config.SessionSendTimeout.Get()
-	c.SetKeepAlivePeriod(config.SessionKeepAlivePeriod.Get())
+	c.ReaderTimeout = config.SessionRecvTimeout.Duration()
+	c.WriterTimeout = config.SessionSendTimeout.Duration()
+	c.SetKeepAlivePeriod(config.SessionKeepAlivePeriod.Duration())
 
 	s := &Session{
 		Conn: c, config: config,

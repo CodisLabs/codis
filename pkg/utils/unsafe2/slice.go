@@ -12,12 +12,12 @@ type Slice interface {
 
 var maxOffheapBytes atomic2.Int64
 
-func MaxOffheapBytes() int {
-	return int(maxOffheapBytes.Get())
+func MaxOffheapBytes() int64 {
+	return maxOffheapBytes.Get()
 }
 
-func SetMaxOffheapBytes(n int) {
-	maxOffheapBytes.Set(int64(n))
+func SetMaxOffheapBytes(n int64) {
+	maxOffheapBytes.Set(n)
 }
 
 const MinOffheapSlice = 1024 * 16

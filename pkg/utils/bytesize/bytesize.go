@@ -23,7 +23,11 @@ const (
 
 type Int64 int64
 
-func (b Int64) Int() int {
+func (b Int64) Int64() int64 {
+	return int64(b)
+}
+
+func (b Int64) AsInt() int {
 	return int(b)
 }
 
@@ -37,17 +41,22 @@ func (b Int64) MarshalText() ([]byte, error) {
 	}
 	switch {
 	case abs%PB == 0:
-		return []byte(fmt.Sprintf("%dpb", b/PB)), nil
+		val := b.Int64() / PB
+		return []byte(fmt.Sprintf("%dpb", val)), nil
 	case abs%TB == 0:
-		return []byte(fmt.Sprintf("%dtb", b/TB)), nil
+		val := b.Int64() / TB
+		return []byte(fmt.Sprintf("%dtb", val)), nil
 	case abs%GB == 0:
-		return []byte(fmt.Sprintf("%dgb", b/GB)), nil
+		val := b.Int64() / GB
+		return []byte(fmt.Sprintf("%dgb", val)), nil
 	case abs%MB == 0:
-		return []byte(fmt.Sprintf("%dmb", b/MB)), nil
+		val := b.Int64() / MB
+		return []byte(fmt.Sprintf("%dmb", val)), nil
 	case abs%KB == 0:
-		return []byte(fmt.Sprintf("%dkb", b/KB)), nil
+		val := b.Int64() / KB
+		return []byte(fmt.Sprintf("%dkb", val)), nil
 	default:
-		return []byte(fmt.Sprintf("%d", b)), nil
+		return []byte(fmt.Sprintf("%d", b.Int64())), nil
 	}
 }
 
