@@ -150,7 +150,7 @@ func (c *Client) InfoFull() (map[string]string, error) {
 		if host != "" || port != "" {
 			info["master_addr"] = net.JoinHostPort(host, port)
 		}
-		r, err := c.Do("CONFIG", "get", "maxmemory")
+		r, err := c.Do("CONFIG", "GET", "maxmemory")
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -168,22 +168,23 @@ func (c *Client) InfoFull() (map[string]string, error) {
 }
 
 func (c *Client) SetMaster(master string) error {
-	var host, port string
-	if master == "" || strings.ToUpper(master) == "NO:ONE" {
-		host, port = "NO", "ONE"
-	} else {
-		_, err := c.Do("CONFIG", "set", "masterauth", c.Auth)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		host, port, err = net.SplitHostPort(master)
-		if err != nil {
-			return errors.Trace(err)
-		}
-	}
-	_, err := c.Do("SLAVEOF", host, port)
+	host, port, err := net.SplitHostPort(master)
 	if err != nil {
 		return errors.Trace(err)
+	}
+	c.conn.Send("MULTI")
+	c.conn.Send("CONFIG", "SET", "masterauth", c.Auth)
+	c.conn.Send("SLAVEOF", host, port)
+	c.conn.Send("CONFIG", "REWRITE")
+	c.conn.Send("CLIENT", "KILL", "TYPE", "normal")
+	values, err := redigo.Values(c.Do("EXEC"))
+	if err != nil {
+		return errors.Trace(err)
+	}
+	for _, r := range values {
+		if err, ok := r.(redigo.Error); ok {
+			return errors.Trace(err)
+		}
 	}
 	return nil
 }
