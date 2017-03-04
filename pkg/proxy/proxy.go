@@ -337,7 +337,7 @@ func (s *Proxy) rewatchSentinels(servers []string) {
 				for !p.IsCanceled() {
 					timeout := time.Minute * 15
 					retryAt := time.Now().Add(time.Second * 10)
-					if !p.Subscribe(timeout, callback, servers...) {
+					if !p.Subscribe(servers, timeout, callback) {
 						delayUntil(retryAt)
 					} else {
 						callback()
@@ -349,7 +349,7 @@ func (s *Proxy) rewatchSentinels(servers []string) {
 					var success int
 					for i := 0; i != 10 && !p.IsCanceled() && success != 2; i++ {
 						timeout := time.Second * 5
-						masters, err := p.Masters(s.router.GetGroupIds(), timeout, servers...)
+						masters, err := p.Masters(servers, timeout)
 						if err != nil {
 							log.WarnErrorf(err, "[%p] fetch group masters failed", s)
 						} else {

@@ -62,21 +62,6 @@ func (s *Router) Close() {
 	}
 }
 
-func (s *Router) GetGroupIds() map[int]bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var groups = make(map[int]bool)
-	for i := range s.slots {
-		if gid := s.slots[i].backend.id; gid != 0 {
-			groups[gid] = true
-		}
-		if gid := s.slots[i].migrate.id; gid != 0 {
-			groups[gid] = true
-		}
-	}
-	return groups
-}
-
 func (s *Router) GetSlots() []*models.Slot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
