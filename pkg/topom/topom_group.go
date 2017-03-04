@@ -188,6 +188,9 @@ func (s *Topom) GroupDelServer(gid int, addr string) error {
 			slice = append(slice, x)
 		}
 	}
+	if len(slice) == 0 {
+		g.OutOfSync = false
+	}
 
 	g.Servers = slice
 
