@@ -155,6 +155,7 @@ func (s *fakeServer) Serve(c net.Conn) {
 	defer c.Close()
 	dec := redis.NewDecoder(c)
 	enc := redis.NewEncoder(c)
+	var multi int
 	for {
 		r, err := dec.Decode()
 		if err != nil {
@@ -165,14 +166,36 @@ func (s *fakeServer) Serve(c net.Conn) {
 		switch cmd := string(r.Array[0].Value); cmd {
 		case "SLOTSINFO":
 			resp = redis.NewArray([]*redis.Resp{})
-		case "AUTH", "SLAVEOF":
+		case "AUTH":
 			resp = redis.NewBulkBytes([]byte("OK"))
 		case "INFO":
 			resp = redis.NewBulkBytes([]byte("#Fake Codis Server"))
+		case "MULTI":
+			assert.Must(multi == 0)
+			multi++
+			continue
+		case "SLAVEOF", "CLIENT":
+			assert.Must(multi != 0)
+			multi++
+			continue
+		case "EXEC":
+			assert.Must(multi != 0)
+			resp = redis.NewArray([]*redis.Resp{})
+			for i := 1; i < multi; i++ {
+				resp.Array = append(resp.Array, redis.NewBulkBytes([]byte("OK")))
+			}
+			multi = 0
 		case "CONFIG":
-			assert.Must(len(r.Array) >= 3)
-			sub := strings.ToUpper(string(r.Array[1].Value))
-			key := string(r.Array[2].Value)
+			if multi != 0 {
+				multi++
+				continue
+			}
+			assert.Must(len(r.Array) >= 2)
+			var sub = strings.ToUpper(string(r.Array[1].Value))
+			var key string
+			if len(r.Array) >= 3 {
+				key = string(r.Array[2].Value)
+			}
 			switch {
 			case sub == "GET" && key == "maxmemory":
 				assert.Must(len(r.Array) == 3)
@@ -180,9 +203,6 @@ func (s *fakeServer) Serve(c net.Conn) {
 					redis.NewBulkBytes([]byte("maxmemory")),
 					redis.NewInt([]byte("0")),
 				})
-			case sub == "SET" && key == "masterauth":
-				assert.Must(len(r.Array) == 4)
-				resp = redis.NewBulkBytes([]byte("OK"))
 			default:
 				log.Panicf("unknown subcommand of <%s>", cmd)
 			}
