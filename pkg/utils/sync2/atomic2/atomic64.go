@@ -9,8 +9,12 @@ type Int64 struct {
 	v int64
 }
 
-func (a *Int64) Get() int64 {
+func (a *Int64) Int64() int64 {
 	return atomic.LoadInt64(&a.v)
+}
+
+func (a *Int64) AsInt() int {
+	return int(a.Int64())
 }
 
 func (a *Int64) Set(v int64) {

@@ -532,7 +532,7 @@ type RuntimeStats struct {
 	NumProcs      int   `json:"num_procs"`
 	NumGoroutines int   `json:"num_goroutines"`
 	NumCgoCall    int64 `json:"num_cgo_call"`
-	MemOffheap    int   `json:"mem_offheap"`
+	MemOffheap    int64 `json:"mem_offheap"`
 }
 
 type StatsFlags uint32

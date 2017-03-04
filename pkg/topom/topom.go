@@ -299,11 +299,11 @@ func (s *Topom) Stats() (*Stats, error) {
 	stats.Proxy.Models = models.SortProxy(ctx.proxy)
 	stats.Proxy.Stats = s.stats.proxies
 
-	stats.SlotAction.Interval = s.action.interval.Get()
-	stats.SlotAction.Disabled = s.action.disabled.Get()
-	stats.SlotAction.Progress.Remain = s.action.progress.remain.Get()
-	stats.SlotAction.Progress.Failed = s.action.progress.failed.Get()
-	stats.SlotAction.Executor = s.action.executor.Get()
+	stats.SlotAction.Interval = s.action.interval.Int64()
+	stats.SlotAction.Disabled = s.action.disabled.Bool()
+	stats.SlotAction.Progress.Remain = s.action.progress.remain.Int64()
+	stats.SlotAction.Progress.Failed = s.action.progress.failed.Bool()
+	stats.SlotAction.Executor = s.action.executor.Int64()
 
 	stats.HA.Model = ctx.sentinel
 	stats.HA.Stats = map[string]*RedisStats{}
@@ -372,7 +372,7 @@ func (s *Topom) IsClosed() bool {
 }
 
 func (s *Topom) GetSlotActionInterval() int {
-	return int(s.action.interval.Get())
+	return s.action.interval.AsInt()
 }
 
 func (s *Topom) SetSlotActionInterval(us int) {
@@ -382,7 +382,7 @@ func (s *Topom) SetSlotActionInterval(us int) {
 }
 
 func (s *Topom) GetSlotActionDisabled() bool {
-	return s.action.disabled.Get()
+	return s.action.disabled.Bool()
 }
 
 func (s *Topom) SetSlotActionDisabled(value bool) {

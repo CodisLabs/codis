@@ -37,10 +37,10 @@ func TestSlotAction(x *testing.T) {
 	prepareSlotAction(t, sid, true)
 	exec1, err := t.newSlotActionExecutor(sid)
 	assert.MustNoError(err)
-	assert.Must(t.action.executor.Get() != 0)
+	assert.Must(t.action.executor.Int64() != 0)
 	assert.Must(exec1 != nil)
 	exec1()
-	assert.Must(t.action.executor.Get() == 0)
+	assert.Must(t.action.executor.Int64() == 0)
 
 	reset()
 
@@ -51,7 +51,7 @@ func TestSlotAction(x *testing.T) {
 	exec2, err := t.newSlotActionExecutor(sid)
 	assert.MustNoError(err)
 	assert.Must(exec2 == nil)
-	assert.Must(t.action.executor.Get() == 0)
+	assert.Must(t.action.executor.Int64() == 0)
 
 	reset()
 

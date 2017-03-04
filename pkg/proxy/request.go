@@ -28,7 +28,7 @@ type Request struct {
 }
 
 func (r *Request) IsBroken() bool {
-	return r.Broken != nil && r.Broken.Get()
+	return r.Broken != nil && r.Broken.IsTrue()
 }
 
 func (r *Request) MakeSubRequest(n int) []Request {

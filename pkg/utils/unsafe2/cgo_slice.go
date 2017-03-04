@@ -13,8 +13,8 @@ import (
 
 var allocOffheapBytes atomic2.Int64
 
-func OffheapBytes() int {
-	return int(allocOffheapBytes.Get())
+func OffheapBytes() int64 {
+	return allocOffheapBytes.Int64()
 }
 
 type cgoSlice struct {

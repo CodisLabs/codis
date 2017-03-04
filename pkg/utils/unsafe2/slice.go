@@ -13,7 +13,7 @@ type Slice interface {
 var maxOffheapBytes atomic2.Int64
 
 func MaxOffheapBytes() int64 {
-	return maxOffheapBytes.Get()
+	return maxOffheapBytes.Int64()
 }
 
 func SetMaxOffheapBytes(n int64) {

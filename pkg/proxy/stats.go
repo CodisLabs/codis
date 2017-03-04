@@ -27,14 +27,14 @@ type opStats struct {
 func (s *opStats) OpStats() *OpStats {
 	o := &OpStats{
 		OpStr: s.opstr,
-		Calls: s.calls.Get(),
-		Usecs: s.nsecs.Get() / 1e3,
-		Fails: s.fails.Get(),
+		Calls: s.calls.Int64(),
+		Usecs: s.nsecs.Int64() / 1e3,
+		Fails: s.fails.Int64(),
 	}
 	if o.Calls != 0 {
 		o.UsecsPercall = o.Usecs / o.Calls
 	}
-	o.RedisErrType = s.redis.errors.Get()
+	o.RedisErrType = s.redis.errors.Int64()
 	return o
 }
 
@@ -65,9 +65,9 @@ func init() {
 	go func() {
 		for {
 			start := time.Now()
-			total := cmdstats.total.Get()
+			total := cmdstats.total.Int64()
 			time.Sleep(time.Second)
-			delta := cmdstats.total.Get() - total
+			delta := cmdstats.total.Int64() - total
 			normalized := math.Max(0, float64(delta)) * float64(time.Second) / float64(time.Since(start))
 			cmdstats.qps.Set(int64(normalized + 0.5))
 		}
@@ -75,19 +75,19 @@ func init() {
 }
 
 func OpTotal() int64 {
-	return cmdstats.total.Get()
+	return cmdstats.total.Int64()
 }
 
 func OpFails() int64 {
-	return cmdstats.fails.Get()
+	return cmdstats.fails.Int64()
 }
 
 func OpRedisErrors() int64 {
-	return cmdstats.redis.errors.Get()
+	return cmdstats.redis.errors.Int64()
 }
 
 func OpQPS() int64 {
-	return cmdstats.qps.Get()
+	return cmdstats.qps.Int64()
 }
 
 func getOpStats(opstr string, create bool) *opStats {
@@ -142,7 +142,7 @@ func ResetStats() {
 	cmdstats.total.Set(0)
 	cmdstats.fails.Set(0)
 	cmdstats.redis.errors.Set(0)
-	sessions.total.Set(sessions.alive.Get())
+	sessions.total.Set(sessions.alive.Int64())
 }
 
 func incrOpTotal(n int64) {
@@ -178,11 +178,11 @@ func decrSessions() {
 }
 
 func SessionsTotal() int64 {
-	return sessions.total.Get()
+	return sessions.total.Int64()
 }
 
 func SessionsAlive() int64 {
-	return sessions.alive.Get()
+	return sessions.alive.Int64()
 }
 
 type SysUsage struct {
