@@ -143,7 +143,11 @@ func (s *Sentinel) subscribeCommand(client *Client, sentinel string,
 			if len(message) != 3 {
 				return errors.Errorf("invalid response = %v", values)
 			}
-			_, yes := s.isSameProduct(message[2])
+			var params = strings.SplitN(message[2], " ", 2)
+			if len(params) != 2 {
+				return errors.Errorf("invalid response = %v", values)
+			}
+			_, yes := s.isSameProduct(params[0])
 			if yes {
 				return nil
 			}
