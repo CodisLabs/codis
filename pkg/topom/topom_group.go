@@ -272,8 +272,8 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 			}
 			groupIds := map[int]bool{g.Id: true}
 			sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
-			if err := sentinel.Unmonitor(groupIds, time.Second*5, p.Servers...); err != nil {
-				log.WarnErrorf(err, "group-[%d] unmonitor sentinels failed", g.Id)
+			if err := sentinel.RemoveGroups(p.Servers, time.Second*5, groupIds); err != nil {
+				log.WarnErrorf(err, "group-[%d] remove sentinels failed", g.Id)
 			}
 			if s.ha.masters != nil {
 				delete(s.ha.masters, gid)
