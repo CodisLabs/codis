@@ -24,8 +24,8 @@ type Sentinel struct {
 
 	Product, Auth string
 
-	LogFunc func(format string, arguments ...interface{})
-	ErrFunc func(err error, format string, arguments ...interface{})
+	LogFunc func(format string, args ...interface{})
+	ErrFunc func(err error, format string, args ...interface{})
 }
 
 func NewSentinel(product, auth string) *Sentinel {
@@ -47,26 +47,67 @@ func (s *Sentinel) NodeName(gid int) string {
 	return fmt.Sprintf("%s-%d", s.Product, gid)
 }
 
-func (s *Sentinel) isSameProduct(name string) bool {
-	if strings.LastIndexByte(name, '-') != len(s.Product) {
-		return false
+func (s *Sentinel) isSameProduct(name string) (gid int, _ bool) {
+	if !strings.HasPrefix(name, s.Product) {
+		return 0, false
 	}
-	return strings.HasPrefix(name, s.Product)
+	var suffix = name[len(s.Product):]
+	if len(suffix) <= 1 || suffix[0] != '-' {
+		return 0, false
+	}
+	n, err := strconv.Atoi(suffix[1:])
+	if err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
-func (s *Sentinel) printf(format string, arguments ...interface{}) {
+func (s *Sentinel) printf(format string, args ...interface{}) {
 	if s.LogFunc != nil {
-		s.LogFunc(format, arguments...)
+		s.LogFunc(format, args...)
 	}
 }
 
-func (s *Sentinel) errorf(err error, format string, arguments ...interface{}) {
+func (s *Sentinel) errorf(err error, format string, args ...interface{}) {
 	if s.ErrFunc != nil {
-		s.ErrFunc(err, format, arguments...)
+		s.ErrFunc(err, format, args...)
 	}
 }
 
-func (s *Sentinel) subscribeCommand(client *Client, sentinel string, onSubscribed func(string)) error {
+func (s *Sentinel) do(sentinel string, timeout time.Duration,
+	fn func(client *Client) error) error {
+	c, err := NewClientNoAuth(sentinel, timeout)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+	return fn(c)
+}
+
+func (s *Sentinel) dispatch(ctx context.Context, sentinel string, timeout time.Duration,
+	fn func(client *Client) error) error {
+	c, err := NewClientNoAuth(sentinel, timeout)
+	if err != nil {
+		return err
+	}
+	defer c.Close()
+
+	var exit = make(chan error, 1)
+
+	go func() {
+		exit <- fn(c)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return errors.Trace(ctx.Err())
+	case err := <-exit:
+		return err
+	}
+}
+
+func (s *Sentinel) subscribeCommand(client *Client, sentinel string,
+	onSubscribed func()) error {
 	var channels = []interface{}{"+switch-master"}
 	if err := client.Flush("SUBSCRIBE", channels...); err != nil {
 		return errors.Trace(err)
@@ -83,9 +124,7 @@ func (s *Sentinel) subscribeCommand(client *Client, sentinel string, onSubscribe
 			return errors.Errorf("invalid response = %v", values)
 		}
 	}
-	if onSubscribed != nil {
-		onSubscribed(sentinel)
-	}
+	onSubscribed()
 	for {
 		values, err := redigo.Values(client.Receive())
 		if err != nil {
@@ -104,38 +143,31 @@ func (s *Sentinel) subscribeCommand(client *Client, sentinel string, onSubscribe
 			if len(message) != 3 {
 				return errors.Errorf("invalid response = %v", values)
 			}
-			if s.isSameProduct(message[2]) {
+			_, yes := s.isSameProduct(message[2])
+			if yes {
 				return nil
 			}
 		}
 	}
 }
 
-func (s *Sentinel) subscribeInstance(ctx context.Context, sentinel string, timeout time.Duration, onSubscribed func(string)) (bool, error) {
-	c, err := NewClientNoAuth(sentinel, timeout)
+func (s *Sentinel) subscribeDispatch(ctx context.Context, sentinel string, timeout time.Duration,
+	onSubscribed func()) (bool, error) {
+	var err = s.dispatch(ctx, sentinel, timeout, func(c *Client) error {
+		return s.subscribeCommand(c, sentinel, onSubscribed)
+	})
 	if err != nil {
-		return false, err
-	}
-	defer c.Close()
-
-	var exit = make(chan error, 1)
-
-	go func() {
-		exit <- s.subscribeCommand(c, sentinel, onSubscribed)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return false, nil
-	case err := <-exit:
-		if err != nil {
+		switch errors.Cause(err) {
+		case context.Canceled, context.DeadlineExceeded:
+			return false, nil
+		default:
 			return false, err
 		}
-		return true, nil
 	}
+	return true, nil
 }
 
-func (s *Sentinel) Subscribe(timeout time.Duration, onMajoritySubscribed func(), sentinels ...string) bool {
+func (s *Sentinel) Subscribe(sentinels []string, timeout time.Duration, onMajoritySubscribed func()) bool {
 	cntx, cancel := context.WithTimeout(s.Context, timeout)
 	defer cancel()
 
@@ -144,17 +176,14 @@ func (s *Sentinel) Subscribe(timeout time.Duration, onMajoritySubscribed func(),
 
 	var majority = 1 + len(sentinels)/2
 
-	var count atomic2.Int64
-
-	onSubscribed := func(sentinel string) {
-		var total = int(count.Incr())
-		if total == majority && onMajoritySubscribed != nil {
-			onMajoritySubscribed()
-		}
-	}
+	var subscribed atomic2.Int64
 	for i := range sentinels {
 		go func(sentinel string) {
-			notified, err := s.subscribeInstance(cntx, sentinel, timeout, onSubscribed)
+			notified, err := s.subscribeDispatch(cntx, sentinel, timeout, func() {
+				if subscribed.Incr() == int64(majority) {
+					onMajoritySubscribed()
+				}
+			})
 			if err != nil {
 				s.errorf(err, "sentinel-[%s] subscribe failed", sentinel)
 			}
@@ -171,26 +200,25 @@ func (s *Sentinel) Subscribe(timeout time.Duration, onMajoritySubscribed func(),
 		}
 		select {
 		case <-cntx.Done():
-			if cntx.Err() == context.Canceled {
+			if cntx.Err() != context.DeadlineExceeded {
 				s.printf("sentinel subscribe canceled (%v)", cntx.Err())
 			}
 			return false
 		case notified := <-results:
-			if !notified {
-				continue
+			if notified {
+				s.printf("sentinel subscribe notified +switch-master")
+				return true
 			}
-			s.printf("sentinel subscribe notified +switch-master")
-			return true
 		}
 	}
 }
 
 func (s *Sentinel) existsCommand(client *Client, name string) (bool, error) {
-	if reply, err := client.Do("SENTINEL", "get-master-addr-by-name", name); err != nil {
+	r, err := client.Do("SENTINEL", "get-master-addr-by-name", name)
+	if err != nil {
 		return false, errors.Trace(err)
-	} else {
-		return reply != nil, nil
 	}
+	return r != nil, nil
 }
 
 func (s *Sentinel) masterCommand(client *Client, name string) (map[string]string, error) {
@@ -227,55 +255,43 @@ func (s *Sentinel) slavesCommand(client *Client, name string) ([]map[string]stri
 	return slaves, nil
 }
 
-func (s *Sentinel) mastersCommand(client *Client) ([]map[string]string, error) {
+func (s *Sentinel) mastersCommand(client *Client) (map[int]map[string]string, error) {
 	values, err := redigo.Values(client.Do("SENTINEL", "masters"))
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	var masters []map[string]string
+	var masters = make(map[int]map[string]string)
 	for i := range values {
 		m, err := redigo.StringMap(values[i], nil)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		if s.isSameProduct(m["name"]) {
-			masters = append(masters, m)
+		gid, yes := s.isSameProduct(m["name"])
+		if yes {
+			masters[gid] = m
 		}
 	}
 	return masters, nil
 }
 
-func (s *Sentinel) mastersInstance(ctx context.Context, sentinel string, groups map[int]bool, timeout time.Duration) (map[int]*SentinelMaster, error) {
-	c, err := NewClientNoAuth(sentinel, timeout)
-	if err != nil {
-		return nil, err
-	}
-	defer c.Close()
-
-	masters := make(map[int]*SentinelMaster)
-
-	var exit = make(chan error, 1)
-
-	go func() (err error) {
-		defer func() {
-			exit <- err
-		}()
-		for gid := range groups {
-			var name = s.NodeName(gid)
-			master, err := s.masterCommand(c, name)
-			if err != nil {
-				return err
-			} else if master == nil {
-				continue
-			}
+func (s *Sentinel) mastersDispatch(ctx context.Context, sentinel string, timeout time.Duration) (map[int]*SentinelMaster, error) {
+	var masters = make(map[int]*SentinelMaster)
+	var err = s.dispatch(ctx, sentinel, timeout, func(c *Client) error {
+		m, err := s.mastersCommand(c)
+		if err != nil {
+			return err
+		}
+		for gid, master := range m {
 			epoch, err := strconv.ParseInt(master["config-epoch"], 10, 64)
 			if err != nil {
-				s.printf("sentinel-[%s] masters parse config-epoch failed, %s", sentinel, err)
+				s.printf("sentinel-[%s] masters parse %s failed, config-epoch = '%s', %s",
+					sentinel, master["name"], master["config-epoch"], err)
 				continue
 			}
-			ip, port := master["ip"], master["port"]
+			var ip, port = master["ip"], master["port"]
 			if ip == "" || port == "" {
-				s.printf("sentinel-[%s] masters parse ip:port failed, '%s:%s'", sentinel, ip, port)
+				s.printf("sentinel-[%s] masters parse %s failed, ip:port = '%s:%s'",
+					sentinel, master["name"], ip, port)
 				continue
 			}
 			masters[gid] = &SentinelMaster{
@@ -284,17 +300,16 @@ func (s *Sentinel) mastersInstance(ctx context.Context, sentinel string, groups 
 			}
 		}
 		return nil
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil, nil
-	case err := <-exit:
-		if err != nil {
+	})
+	if err != nil {
+		switch errors.Cause(err) {
+		case context.Canceled:
+			return nil, nil
+		default:
 			return nil, err
 		}
-		return masters, nil
 	}
+	return masters, nil
 }
 
 type SentinelMaster struct {
@@ -303,7 +318,7 @@ type SentinelMaster struct {
 	Epoch int64
 }
 
-func (s *Sentinel) Masters(groups map[int]bool, timeout time.Duration, sentinels ...string) (map[int]string, error) {
+func (s *Sentinel) Masters(sentinels []string, timeout time.Duration) (map[int]string, error) {
 	cntx, cancel := context.WithTimeout(s.Context, timeout)
 	defer cancel()
 
@@ -314,7 +329,7 @@ func (s *Sentinel) Masters(groups map[int]bool, timeout time.Duration, sentinels
 
 	for i := range sentinels {
 		go func(sentinel string) {
-			masters, err := s.mastersInstance(cntx, sentinel, groups, timeout)
+			masters, err := s.mastersDispatch(cntx, sentinel, timeout)
 			if err != nil {
 				s.errorf(err, "sentinel-[%s] masters failed", sentinel)
 			}
@@ -328,11 +343,12 @@ func (s *Sentinel) Masters(groups map[int]bool, timeout time.Duration, sentinels
 	var voted int
 	for alive := len(sentinels); ; alive-- {
 		if alive == 0 {
-			if cntx.Err() == context.Canceled {
+			switch {
+			case cntx.Err() != context.DeadlineExceeded && cntx.Err() != nil:
 				s.printf("sentinel masters canceled (%v)", cntx.Err())
 				return nil, errors.Trace(cntx.Err())
-			} else if voted != len(sentinels) || len(masters) != len(groups) {
-				s.printf("sentinel masters voted = (%d/%d) masters = (%d/%d) (%v)", voted, len(sentinels), len(masters), len(groups), cntx.Err())
+			case voted != len(sentinels):
+				s.printf("sentinel masters voted = (%d/%d) masters = %d (%v)", voted, len(sentinels), len(masters), cntx.Err())
 			}
 			if voted < majority {
 				return nil, errors.Errorf("lost majority (%d/%d)", voted, len(sentinels))
@@ -341,11 +357,12 @@ func (s *Sentinel) Masters(groups map[int]bool, timeout time.Duration, sentinels
 		}
 		select {
 		case <-cntx.Done():
-			if cntx.Err() == context.Canceled {
+			switch {
+			case cntx.Err() != context.DeadlineExceeded:
 				s.printf("sentinel masters canceled (%v)", cntx.Err())
 				return nil, errors.Trace(cntx.Err())
-			} else {
-				s.printf("sentinel masters voted = (%d/%d) masters = (%d/%d) (%v)", voted, len(sentinels), len(masters), len(groups), cntx.Err())
+			default:
+				s.printf("sentinel masters voted = (%d/%d) masters = %d (%v)", voted, len(sentinels), len(masters), cntx.Err())
 			}
 			if voted < majority {
 				return nil, errors.Errorf("lost majority (%d/%d)", voted, len(sentinels))
@@ -376,7 +393,7 @@ type MonitorConfig struct {
 	ClientReconfigScript string
 }
 
-func (s *Sentinel) monitorCommand(client *Client, sentniel string, groups map[int]*net.TCPAddr, config *MonitorConfig) error {
+func (s *Sentinel) monitorGroupsCommand(client *Client, sentniel string, config *MonitorConfig, groups map[int]*net.TCPAddr) error {
 	for gid, tcpAddr := range groups {
 		var name = s.NodeName(gid)
 		if exists, err := s.existsCommand(client, name); err != nil {
@@ -387,32 +404,31 @@ func (s *Sentinel) monitorCommand(client *Client, sentniel string, groups map[in
 				return errors.Trace(err)
 			}
 		}
-		var host = tcpAddr.IP.String()
-		var port = tcpAddr.Port
-		_, err := client.Do("SENTINEL", "monitor", name, host, port, config.Quorum)
+		var ip, port = tcpAddr.IP.String(), tcpAddr.Port
+		_, err := client.Do("SENTINEL", "monitor", name, ip, port, config.Quorum)
 		if err != nil {
 			return errors.Trace(err)
 		} else {
-			var arguments = []interface{}{"set", name}
+			var args = []interface{}{"set", name}
 			if config.ParallelSyncs != 0 {
-				arguments = append(arguments, "parallel-syncs", config.ParallelSyncs)
+				args = append(args, "parallel-syncs", config.ParallelSyncs)
 			}
 			if config.DownAfter != 0 {
-				arguments = append(arguments, "down-after-milliseconds", int(config.DownAfter/time.Millisecond))
+				args = append(args, "down-after-milliseconds", int(config.DownAfter/time.Millisecond))
 			}
 			if config.FailoverTimeout != 0 {
-				arguments = append(arguments, "failover-timeout", int(config.FailoverTimeout/time.Millisecond))
+				args = append(args, "failover-timeout", int(config.FailoverTimeout/time.Millisecond))
 			}
 			if s.Auth != "" {
-				arguments = append(arguments, "auth-pass", s.Auth)
+				args = append(args, "auth-pass", s.Auth)
 			}
 			if config.NotificationScript != "" {
-				arguments = append(arguments, "notification-script", config.NotificationScript)
+				args = append(args, "notification-script", config.NotificationScript)
 			}
 			if config.ClientReconfigScript != "" {
-				arguments = append(arguments, "client-reconfig-script", config.ClientReconfigScript)
+				args = append(args, "client-reconfig-script", config.ClientReconfigScript)
 			}
-			_, err := client.Do("SENTINEL", arguments...)
+			_, err := client.Do("SENTINEL", args...)
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -421,28 +437,23 @@ func (s *Sentinel) monitorCommand(client *Client, sentniel string, groups map[in
 	return nil
 }
 
-func (s *Sentinel) monitorInstance(ctx context.Context, sentinel string, groups map[int]*net.TCPAddr, config *MonitorConfig, timeout time.Duration) error {
-	c, err := NewClientNoAuth(sentinel, timeout)
+func (s *Sentinel) monitorGroupsDispatch(ctx context.Context, sentinel string, timeout time.Duration,
+	config *MonitorConfig, groups map[int]*net.TCPAddr) error {
+	var err = s.dispatch(ctx, sentinel, timeout, func(c *Client) error {
+		return s.monitorGroupsCommand(c, sentinel, config, groups)
+	})
 	if err != nil {
-		return err
+		switch errors.Cause(err) {
+		case context.Canceled:
+			return nil
+		default:
+			return err
+		}
 	}
-	defer c.Close()
-
-	var exit = make(chan error, 1)
-
-	go func() {
-		exit <- s.monitorCommand(c, sentinel, groups, config)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil
-	case err := <-exit:
-		return err
-	}
+	return nil
 }
 
-func (s *Sentinel) Monitor(groups map[int]string, config *MonitorConfig, timeout time.Duration, sentinels ...string) error {
+func (s *Sentinel) MonitorGroups(sentinels []string, timeout time.Duration, config *MonitorConfig, groups map[int]string) error {
 	cntx, cancel := context.WithTimeout(s.Context, timeout)
 	defer cancel()
 
@@ -470,7 +481,7 @@ func (s *Sentinel) Monitor(groups map[int]string, config *MonitorConfig, timeout
 
 	select {
 	case <-cntx.Done():
-		if cntx.Err() == context.Canceled {
+		if cntx.Err() != context.DeadlineExceeded {
 			s.printf("sentinel monitor canceled (%v)", cntx.Err())
 		} else {
 			s.printf("sentinel montior resolve tcp address (%v)", cntx.Err())
@@ -487,7 +498,7 @@ func (s *Sentinel) Monitor(groups map[int]string, config *MonitorConfig, timeout
 
 	for i := range sentinels {
 		go func(sentinel string) {
-			err := s.monitorInstance(cntx, sentinel, resolve, config, timeout)
+			err := s.monitorGroupsDispatch(cntx, sentinel, timeout, config, resolve)
 			if err != nil {
 				s.errorf(err, "sentinel-[%s] monitor failed", sentinel)
 			}
@@ -512,7 +523,7 @@ func (s *Sentinel) Monitor(groups map[int]string, config *MonitorConfig, timeout
 	return last
 }
 
-func (s *Sentinel) unmonitorCommand(client *Client, sentinel string, groups map[int]bool) error {
+func (s *Sentinel) removeGroupsCommand(client *Client, groups map[int]bool) error {
 	for gid := range groups {
 		var name = s.NodeName(gid)
 		if exists, err := s.existsCommand(client, name); err != nil {
@@ -527,28 +538,23 @@ func (s *Sentinel) unmonitorCommand(client *Client, sentinel string, groups map[
 	return nil
 }
 
-func (s *Sentinel) unmonitorInstance(ctx context.Context, sentinel string, groups map[int]bool, timeout time.Duration) error {
-	c, err := NewClientNoAuth(sentinel, timeout)
+func (s *Sentinel) removeGroupsDispatch(ctx context.Context, sentinel string, timeout time.Duration,
+	groups map[int]bool) error {
+	var err = s.dispatch(ctx, sentinel, timeout, func(c *Client) error {
+		return s.removeGroupsCommand(c, groups)
+	})
 	if err != nil {
-		return err
+		switch errors.Cause(err) {
+		case context.Canceled:
+			return nil
+		default:
+			return err
+		}
 	}
-	defer c.Close()
-
-	var exit = make(chan error, 1)
-
-	go func() {
-		exit <- s.unmonitorCommand(c, sentinel, groups)
-	}()
-
-	select {
-	case <-ctx.Done():
-		return nil
-	case err := <-exit:
-		return err
-	}
+	return nil
 }
 
-func (s *Sentinel) Unmonitor(groups map[int]bool, timeout time.Duration, sentinels ...string) error {
+func (s *Sentinel) RemoveGroups(sentinels []string, timeout time.Duration, groups map[int]bool) error {
 	cntx, cancel := context.WithTimeout(s.Context, timeout)
 	defer cancel()
 
@@ -557,9 +563,66 @@ func (s *Sentinel) Unmonitor(groups map[int]bool, timeout time.Duration, sentine
 
 	for i := range sentinels {
 		go func(sentinel string) {
-			err := s.unmonitorInstance(cntx, sentinel, groups, timeout)
+			err := s.removeGroupsDispatch(cntx, sentinel, timeout, groups)
 			if err != nil {
-				s.errorf(err, "sentinel-[%s] unmonitor failed", sentinel)
+				s.errorf(err, "sentinel-[%s] remove failed", sentinel)
+			}
+			results <- err
+		}(sentinels[i])
+	}
+
+	var last error
+	for _ = range sentinels {
+		select {
+		case <-cntx.Done():
+			if last != nil {
+				return last
+			}
+			return errors.Trace(cntx.Err())
+		case err := <-results:
+			if err != nil {
+				last = err
+			}
+		}
+	}
+	return last
+}
+
+func (s *Sentinel) removeGroupsAllDispatch(ctx context.Context, sentinel string, timeout time.Duration) error {
+	var err = s.dispatch(ctx, sentinel, timeout, func(c *Client) error {
+		m, err := s.mastersCommand(c)
+		if err != nil {
+			return err
+		}
+		var groups = make(map[int]bool)
+		for gid := range m {
+			groups[gid] = true
+		}
+		return s.removeGroupsCommand(c, groups)
+	})
+	if err != nil {
+		switch errors.Cause(err) {
+		case context.Canceled:
+			return nil
+		default:
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Sentinel) RemoveGroupsAll(sentinels []string, timeout time.Duration) error {
+	cntx, cancel := context.WithTimeout(s.Context, timeout)
+	defer cancel()
+
+	timeout += time.Second * 5
+	results := make(chan error, len(sentinels))
+
+	for i := range sentinels {
+		go func(sentinel string) {
+			err := s.removeGroupsAllDispatch(cntx, sentinel, timeout)
+			if err != nil {
+				s.errorf(err, "sentinel-[%s] remove failed", sentinel)
 			}
 			results <- err
 		}(sentinels[i])
@@ -607,22 +670,27 @@ func (s *Sentinel) MastersAndSlavesClient(client *Client) (map[string]*SentinelG
 }
 
 func (s *Sentinel) MastersAndSlaves(sentinel string, timeout time.Duration) (map[string]*SentinelGroup, error) {
-	c, err := NewClientNoAuth(sentinel, timeout)
+	var results map[string]*SentinelGroup
+	var err = s.do(sentinel, timeout, func(c *Client) error {
+		m, err := s.MastersAndSlavesClient(c)
+		if err != nil {
+			return err
+		}
+		results = m
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer c.Close()
-	return s.MastersAndSlavesClient(c)
+	return results, nil
 }
 
-func (s *Sentinel) FlushConfig(sentinel string) error {
-	c, err := NewClientNoAuth(sentinel, time.Second)
-	if err != nil {
-		return err
-	}
-	defer c.Close()
-	if _, err := c.Do("SENTINEL", "flushconfig"); err != nil {
-		return err
-	}
-	return nil
+func (s *Sentinel) FlushConfig(sentinel string, timeout time.Duration) error {
+	return s.do(sentinel, timeout, func(c *Client) error {
+		_, err := c.Do("SENTINEL", "flushconfig")
+		if err != nil {
+			return err
+		}
+		return nil
+	})
 }
