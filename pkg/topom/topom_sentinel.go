@@ -194,6 +194,9 @@ func (s *Topom) ResyncSentinels() error {
 	}
 
 	sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
+	if err := sentinel.RemoveGroupsAll(p.Servers, time.Second*5); err != nil {
+		log.WarnErrorf(err, "remove sentinels failed")
+	}
 	if err := sentinel.MonitorGroups(p.Servers, time.Second*5, config, ctx.getGroupMasters()); err != nil {
 		log.WarnErrorf(err, "resync sentinels failed")
 		return err
