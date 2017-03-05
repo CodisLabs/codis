@@ -8,8 +8,25 @@ go:
     - 1.7.5
     - 1.6.4
     - 1.5.4
-    - tip
 
 script:
     - make
     - make gotest
+
+before_deploy:
+    - export   DEPLOY_TARGET=codis${TRAVIS_TAG}-go${TRAVIS_GO_VERSION}-${TRAVIS_OS_NAME}
+    - mv bin ${DEPLOY_TARGET}
+    - zip -r ${DEPLOY_TARGET}.zip ${DEPLOY_TARGET} && tar -czvf ${DEPLOY_TARGET}.tar.gz ${DEPLOY_TARGET}
+
+deploy:
+    provider: releases
+    overwrite: true
+    api_key:
+        secure: RKVkoCwNJej19d6KbgpxkwJ9H3bu0icS895G9BkaytUjRVO129S93L4xpHRfeIyySZNVrd4P/le01JIJ6/Fl89wKCc/5oX07aFo6l0w/+JKxSn33FsGh8pGTg5wt9Vm5aqccB6lbkylwKrvDUOwuJCbzMva8f1YrWv0a+3I6JKU=
+    file:
+        - ${DEPLOY_TARGET}.zip
+        - ${DEPLOY_TARGET}.tar.gz
+    on:
+        repo: CodisLabs/codis
+        tags: true
+        go: '1.7.5'
