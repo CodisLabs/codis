@@ -166,9 +166,9 @@ func (s *Session) loopReader(tasks chan<- *Request, d *Router) (err error) {
 
 		r := &Request{}
 		r.Multi = multi
-		r.Start = start.UnixNano()
 		r.Batch = &sync.WaitGroup{}
 		r.Database = s.database
+		r.UnixNano = start.UnixNano()
 
 		if len(tasks) == cap(tasks) {
 			return ErrTooManyPipelinedRequests
@@ -635,7 +635,7 @@ func (s *Session) getOpStats(opstr string) *opStats {
 func (s *Session) incrOpStats(r *Request, t redis.RespType) {
 	e := s.getOpStats(r.OpStr)
 	e.calls.Incr()
-	e.nsecs.Add(time.Now().UnixNano() - r.Start)
+	e.nsecs.Add(time.Now().UnixNano() - r.UnixNano)
 	switch t {
 	case redis.TypeError:
 		e.redis.errors.Incr()
