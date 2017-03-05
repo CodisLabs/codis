@@ -13,13 +13,15 @@ import (
 
 type Request struct {
 	Multi []*redis.Resp
-	Start int64
 	Batch *sync.WaitGroup
 	Group *sync.WaitGroup
 
+	Broken *atomic2.Bool
+
 	OpStr string
 	OpFlag
-	Broken *atomic2.Bool
+
+	UnixNano int64
 
 	*redis.Resp
 	Err error
@@ -35,11 +37,11 @@ func (r *Request) MakeSubRequest(n int) []Request {
 	var sub = make([]Request, n)
 	for i := range sub {
 		x := &sub[i]
-		x.Start = r.Start
 		x.Batch = r.Batch
 		x.OpStr = r.OpStr
 		x.OpFlag = r.OpFlag
 		x.Broken = r.Broken
+		x.UnixNano = r.UnixNano
 	}
 	return sub
 }
@@ -47,7 +49,7 @@ func (r *Request) MakeSubRequest(n int) []Request {
 const GOLDEN_RATIO_PRIME_32 = 0x9e370001
 
 func (r *Request) Seed16() uint {
-	h32 := uint32(r.Start) + uint32(uintptr(unsafe.Pointer(r)))
+	h32 := uint32(r.UnixNano) + uint32(uintptr(unsafe.Pointer(r)))
 	h32 *= GOLDEN_RATIO_PRIME_32
 	return uint(h32 >> 16)
 }
