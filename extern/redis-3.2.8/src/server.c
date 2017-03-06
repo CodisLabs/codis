@@ -1598,14 +1598,6 @@ void initServerConfig(void) {
     server.next_client_id = 1; /* Client IDs, start from 1 .*/
     server.loading_process_events_interval_bytes = (1024*1024*2);
 
-    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
-    server.slotsmgrt_cached_clients = zmalloc(sizeof(slotsmgrtAsyncClient) * server.dbnum);
-    for (j = 0; j < server.dbnum; j ++) {
-        slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
-        memset(ac, 0, sizeof(*ac));
-    }
-    server.slotsmgrt_lazy_release = listCreate();
-
     server.lruclock = getLRUClock();
     resetServerSaveParams();
 
@@ -1964,6 +1956,14 @@ void initServer(void) {
     adjustOpenFilesLimit();
     server.el = aeCreateEventLoop(server.maxclients+CONFIG_FDSET_INCR);
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
+    
+	server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
+    server.slotsmgrt_cached_clients = zmalloc(sizeof(slotsmgrtAsyncClient) * server.dbnum);
+    for (j = 0; j < server.dbnum; j ++) {
+        slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
+        memset(ac, 0, sizeof(*ac));
+    }
+    server.slotsmgrt_lazy_release = listCreate();
 
     /* Open the TCP listening socket for the user commands. */
     if (server.port != 0 &&
