@@ -545,6 +545,7 @@ function processGroupStats(codis_stats) {
                 x.canslaveof = "create";
                 x.actionstate = "";
             }
+            x.server_text = x.server;
         }
     }
     return {group_array: group_array, keys: keys, memory: memory};
@@ -683,7 +684,6 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                     var ha_master_ingroup = false;
                     for (var j = 0; j < g.servers.length; j ++) {
                         var x = g.servers[j];
-                        x.server_text = x.server;
                         if (ha_master == undefined) {
                             x.ha_status = "ha_undefined";
                             continue;
