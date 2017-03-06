@@ -193,7 +193,7 @@ index fb5341e..dff5225 100644
      /* For the purpose of output buffer limiting, masters are handled
       * like normal clients. */
 diff --git a/extern/redis-3.2.8/src/server.c b/extern/redis-3.2.8/src/server.c
-index f05763e..6c0c20e 100644
+index f05763e..8946e65 100644
 --- a/extern/redis-3.2.8/src/server.c
 +++ b/extern/redis-3.2.8/src/server.c
 @@ -300,13 +300,26 @@ struct redisCommand redisCommandTable[] = {
@@ -265,19 +265,30 @@ index f05763e..6c0c20e 100644
      }
  
      /* Cleanup expired MIGRATE cached sockets. */
-@@ -1577,6 +1599,12 @@ void initServerConfig(void) {
+@@ -1576,8 +1598,6 @@ void initServerConfig(void) {
+     server.next_client_id = 1; /* Client IDs, start from 1 .*/
      server.loading_process_events_interval_bytes = (1024*1024*2);
  
-     server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
+-    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
+-
+     server.lruclock = getLRUClock();
+     resetServerSaveParams();
+ 
+@@ -1937,6 +1957,14 @@ void initServer(void) {
+     server.el = aeCreateEventLoop(server.maxclients+CONFIG_FDSET_INCR);
+     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
+ 
++    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
 +    server.slotsmgrt_cached_clients = zmalloc(sizeof(slotsmgrtAsyncClient) * server.dbnum);
 +    for (j = 0; j < server.dbnum; j ++) {
 +        slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
 +        memset(ac, 0, sizeof(*ac));
 +    }
 +    server.slotsmgrt_lazy_release = listCreate();
- 
-     server.lruclock = getLRUClock();
-     resetServerSaveParams();
++
+     /* Open the TCP listening socket for the user commands. */
+     if (server.port != 0 &&
+         listenToPort(server.port,server.ipfd,&server.ipfd_count) == C_ERR)
 @@ -1973,6 +2001,7 @@ void initServer(void) {
          for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
              server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
