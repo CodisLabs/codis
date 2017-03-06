@@ -1956,8 +1956,8 @@ void initServer(void) {
     adjustOpenFilesLimit();
     server.el = aeCreateEventLoop(server.maxclients+CONFIG_FDSET_INCR);
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
-    
-	server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
+
+    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
     server.slotsmgrt_cached_clients = zmalloc(sizeof(slotsmgrtAsyncClient) * server.dbnum);
     for (j = 0; j < server.dbnum; j ++) {
         slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
