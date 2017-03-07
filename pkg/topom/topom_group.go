@@ -298,7 +298,6 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 		for _, x := range slice {
 			x.Action.Index = 0
 			x.Action.State = models.ActionNothing
-			x.ReplicaGroup = false
 		}
 
 		g.Servers = slice
