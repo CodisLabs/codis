@@ -367,13 +367,13 @@ function processSentinels(codis_stats, group_stats, codis_name) {
                         }
                         for (var runid in runids) {
                             if (g.runids[runid] === undefined) {
-                                x.runid_error = "group=" + g.id + ",server=" + runids[runid] + ",runid="
+                                x.runid_error = "[+]group=" + g.id + ",server=" + runids[runid] + ",runid="
                                     + ((runid != "") ? runid : "NA");
                             }
                         }
                         for (var runid in g.runids) {
                             if (runids[runid] === undefined) {
-                                x.runid_error = "group=" + g.id + ",server=" + g.runids[runid] + ",runid=" + runid;
+                                x.runid_error = "[-]group=" + g.id + ",server=" + g.runids[runid] + ",runid=" + runid;
                             }
                         }
                     }
