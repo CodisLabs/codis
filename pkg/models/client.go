@@ -8,6 +8,7 @@ import (
 
 	"github.com/CodisLabs/codis/pkg/models/etcd"
 	"github.com/CodisLabs/codis/pkg/models/fs"
+	"github.com/CodisLabs/codis/pkg/models/mysql"
 	"github.com/CodisLabs/codis/pkg/models/zk"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
@@ -36,6 +37,8 @@ func NewClient(coordinator string, addrlist string, timeout time.Duration) (Clie
 		return etcdclient.New(addrlist, timeout)
 	case "fs", "filesystem":
 		return fsclient.New(addrlist)
+	case "db":
+		return mysqlclient.New(addrlist, timeout)
 	}
 	return nil, errors.Errorf("invalid coordinator name = %s", coordinator)
 }

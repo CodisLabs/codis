@@ -30,7 +30,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT] [--pidfile=FILE]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--db=ADDR|--fillslots=FILE] [--ulimit=NLIMIT] [--pidfile=FILE]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -143,6 +143,10 @@ Options:
 	case d["--filesystem"] != nil:
 		coordinator.name = "filesystem"
 		coordinator.addr = utils.ArgumentMust(d, "--filesystem")
+
+	case d["--db"] != nil:
+		coordinator.name = "db"
+		coordinator.addr = utils.ArgumentMust(d, "--db")
 
 	}
 
