@@ -22,6 +22,7 @@ type Jodis struct {
 	data []byte
 
 	client models.Client
+	online bool
 	closed bool
 
 	watching bool
@@ -98,6 +99,13 @@ func (j *Jodis) Rewatch() (<-chan struct{}, error) {
 }
 
 func (j *Jodis) Start() {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.online {
+		return
+	}
+	j.online = true
+
 	go func() {
 		var delay = &DelayExp2{
 			Min: 1, Max: 30,
