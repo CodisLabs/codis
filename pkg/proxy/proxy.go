@@ -45,13 +45,13 @@ type Proxy struct {
 
 	lproxy net.Listener
 	ladmin net.Listener
-	xjodis *Jodis
 
 	ha struct {
 		monitor *redis.Sentinel
 		masters map[int]string
 		servers []string
 	}
+	jodis *Jodis
 }
 
 var ErrClosedProxy = errors.New("use of closed proxy")
@@ -151,7 +151,7 @@ func (s *Proxy) setup(config *Config) error {
 		} else {
 			s.model.JodisPath = models.JodisPath(config.ProductName, s.model.Token)
 		}
-		s.xjodis = NewJodis(c, s.model)
+		s.jodis = NewJodis(c, s.model)
 	}
 
 	return nil
@@ -168,6 +168,9 @@ func (s *Proxy) Start() error {
 	}
 	s.online = true
 	s.router.Start()
+	if s.jodis != nil {
+		s.jodis.Start()
+	}
 	return nil
 }
 
@@ -180,8 +183,8 @@ func (s *Proxy) Close() error {
 	s.closed = true
 	close(s.exit.C)
 
-	if s.xjodis != nil {
-		s.xjodis.Close()
+	if s.jodis != nil {
+		s.jodis.Close()
 	}
 	if s.ladmin != nil {
 		s.ladmin.Close()
@@ -414,9 +417,6 @@ func (s *Proxy) serveProxy() {
 
 	if d := s.config.BackendPingPeriod.Duration(); d != 0 {
 		go s.keepAlive(d)
-	}
-	if s.xjodis != nil {
-		s.xjodis.Start()
 	}
 
 	select {
