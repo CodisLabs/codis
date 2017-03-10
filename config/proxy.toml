@@ -91,3 +91,8 @@ metrics_report_influxdb_username = ""
 metrics_report_influxdb_password = ""
 metrics_report_influxdb_database = ""
 
+# Set statsd server (such as localhost:8125), proxy will report metrics to statsd.
+metrics_report_statsd_server = ""
+metrics_report_statsd_period = "1s"
+metrics_report_statsd_prefix = ""
+

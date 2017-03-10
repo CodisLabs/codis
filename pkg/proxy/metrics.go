@@ -11,7 +11,9 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
 
-	client "github.com/influxdata/influxdb/client/v2"
+	influxdbClient "github.com/influxdata/influxdb/client/v2"
+	statsdClient "gopkg.in/alexcesaro/statsd.v2"
+	"strings"
 )
 
 func (p *Proxy) startMetricsReporter(d time.Duration, do, cleanup func() error) {
@@ -58,7 +60,7 @@ func (p *Proxy) startMetricsInfluxdb() {
 	}
 	period = math2.MaxDuration(time.Second, period)
 
-	c, err := client.NewHTTPClient(client.HTTPConfig{
+	c, err := influxdbClient.NewHTTPClient(influxdbClient.HTTPConfig{
 		Addr:     server,
 		Username: p.config.MetricsReportInfluxdbUsername,
 		Password: p.config.MetricsReportInfluxdbPassword,
@@ -72,7 +74,7 @@ func (p *Proxy) startMetricsInfluxdb() {
 	database := p.config.MetricsReportInfluxdbDatabase
 
 	p.startMetricsReporter(period, func() error {
-		b, err := client.NewBatchPoints(client.BatchPointsConfig{
+		b, err := influxdbClient.NewBatchPoints(influxdbClient.BatchPointsConfig{
 			Database:  database,
 			Precision: "ns",
 		})
@@ -105,7 +107,7 @@ func (p *Proxy) startMetricsInfluxdb() {
 			"runtime_num_cgo_call":     stats.Runtime.NumCgoCall,
 			"runtime_num_mem_offheap":  stats.Runtime.MemOffheap,
 		}
-		p, err := client.NewPoint("codis_usage", tags, fields, time.Now())
+		p, err := influxdbClient.NewPoint("codis_usage", tags, fields, time.Now())
 		if err != nil {
 			return errors.Trace(err)
 		}
@@ -113,5 +115,60 @@ func (p *Proxy) startMetricsInfluxdb() {
 		return c.Write(b)
 	}, func() error {
 		return c.Close()
+	})
+}
+
+func (p *Proxy) startMetricsStatsd() {
+	server := p.config.MetricsReportStatsdServer
+	period := p.config.MetricsReportStatsdPeriod.Duration()
+	if server == "" {
+		return
+	}
+	period = math2.MaxDuration(time.Second, period)
+
+	c, err := statsdClient.New(statsdClient.Address(server))
+	if err != nil {
+		log.WarnErrorf(err, "create statsd client failed")
+		return
+	}
+
+	prefix := p.config.MetricsReportStatsdPrefix
+
+	replacer := strings.NewReplacer(".", "_", ":", "_")
+
+	p.startMetricsReporter(period, func() error {
+		model := p.Model()
+		stats := p.Stats(StatsRuntime)
+
+		segs := []string{
+			prefix, model.ProductName,
+			replacer.Replace(model.AdminAddr),
+			replacer.Replace(model.ProxyAddr),
+		}
+
+		fields := map[string]interface{}{
+			"ops_total":                stats.Ops.Total,
+			"ops_fails":                stats.Ops.Fails,
+			"ops_redis_errors":         stats.Ops.Redis.Errors,
+			"ops_qps":                  stats.Ops.QPS,
+			"sessions_total":           stats.Sessions.Total,
+			"sessions_alive":           stats.Sessions.Alive,
+			"rusage_mem":               stats.Rusage.Mem,
+			"rusage_cpu":               stats.Rusage.CPU,
+			"runtime_gc_num":           stats.Runtime.GC.Num,
+			"runtime_gc_total_pausems": stats.Runtime.GC.TotalPauseMs,
+			"runtime_num_procs":        stats.Runtime.NumProcs,
+			"runtime_num_goroutines":   stats.Runtime.NumGoroutines,
+			"runtime_num_cgo_call":     stats.Runtime.NumCgoCall,
+			"runtime_num_mem_offheap":  stats.Runtime.MemOffheap,
+		}
+
+		for key, value := range fields {
+			c.Gauge(strings.Join(append(segs, key), "."), value)
+		}
+		return nil
+	}, func() error {
+		c.Close()
+		return nil
 	})
 }
