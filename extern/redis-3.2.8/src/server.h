@@ -1700,6 +1700,7 @@ void slotsmgrtTagOneAsyncCommand(client *c);
 void slotsmgrtTagOneAsyncDumpCommand(client *c);
 void slotsmgrtAsyncFenceCommand(client *c);
 void slotsmgrtAsyncCancelCommand(client *c);
+void slotsmgrtAsyncStatusCommand(client *c);
 void slotsmgrtExecWrapperCommand(client *c);
 void slotsmgrtLazyReleaseCommand(client *c);
 void slotsrestoreAsyncCommand(client *c);

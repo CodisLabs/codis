@@ -1286,6 +1286,31 @@ slotsmgrtAsyncCancelCommand(client *c) {
     addReplyLongLong(c, releaseSlotsmgrtAsyncClient(c->db->id, "interrupted: canceled"));
 }
 
+/* ============================ SlotsmgrtAsyncStatus ======================================= */
+
+static void
+singleObjectIteratorStatus(client *c, singleObjectIterator *it) {
+    // TODO
+    (void)c;
+    (void)it;
+}
+
+static void
+batchedObjectIteratorStatus(client *c, batchedObjectIterator *it) {
+    // TODO
+    (void)c;
+    (void)it;
+}
+
+/* *
+ * SLOTSMGRT-ASYNC-STATUS
+ * */
+void
+slotsmgrtAsyncStatusCommand(client *c) {
+    // TODO
+    (void)c;
+}
+
 /* ============================ SlotsmgrtExecWrapper ======================================= */
 
 /* *
