@@ -1292,16 +1292,88 @@ slotsmgrtAsyncCancelCommand(client *c) {
 
 static void
 singleObjectIteratorStatus(client *c, singleObjectIterator *it) {
-    // TODO
-    (void)c;
-    (void)it;
+    if (it == NULL) {
+        addReply(c, shared.nullmultibulk);
+        return;
+    }
+    void *ptr = addDeferredMultiBulkLength(c);
+    int fields = 0;
+
+    fields ++; addReplyBulkCString(c, "key");
+    addReplyBulk(c, it->key);
+
+    fields ++; addReplyBulkCString(c, "val.type");
+    addReplyBulkLongLong(c, it->val == NULL ? -1 : it->val->type);
+
+    fields ++; addReplyBulkCString(c, "stage");
+    addReplyBulkLongLong(c, it->stage);
+
+    fields ++; addReplyBulkCString(c, "expire");
+    addReplyBulkLongLong(c, it->expire);
+
+    fields ++; addReplyBulkCString(c, "cursor");
+    addReplyBulkLongLong(c, it->cursor);
+
+    fields ++; addReplyBulkCString(c, "lindex");
+    addReplyBulkLongLong(c, it->lindex);
+
+    fields ++; addReplyBulkCString(c, "zindex");
+    addReplyBulkLongLong(c, it->zindex);
+
+    fields ++; addReplyBulkCString(c, "chunked_msgs");
+    addReplyBulkLongLong(c, it->chunked_msgs);
+
+    setDeferredMultiBulkLength(c, ptr, fields * 2);
 }
 
 static void
 batchedObjectIteratorStatus(client *c, batchedObjectIterator *it) {
-    // TODO
-    (void)c;
-    (void)it;
+    if (it == NULL) {
+        addReply(c, shared.nullmultibulk);
+        return;
+    }
+    void *ptr = addDeferredMultiBulkLength(c);
+    int fields = 0;
+
+    fields ++; addReplyBulkCString(c, "keys");
+    addReplyMultiBulkLen(c, 2);
+    addReplyBulkLongLong(c, dictSize(it->keys));
+    addReplyMultiBulkLen(c, dictSize(it->keys));
+    dictIterator *di = dictGetIterator(it->keys);
+    dictEntry *de;
+    while((de = dictNext(di)) != NULL) {
+        addReplyBulk(c, dictGetKey(de));
+    }
+    dictReleaseIterator(di);
+
+    fields ++; addReplyBulkCString(c, "timeout");
+    addReplyBulkLongLong(c, it->timeout);
+
+    fields ++; addReplyBulkCString(c, "maxbulks");
+    addReplyBulkLongLong(c, it->maxbulks);
+
+    fields ++; addReplyBulkCString(c, "maxbytes");
+    addReplyBulkLongLong(c, it->maxbytes);
+
+    fields ++; addReplyBulkCString(c, "estimate_msgs");
+    addReplyBulkLongLong(c, it->estimate_msgs);
+
+    fields ++; addReplyBulkCString(c, "removed_keys");
+    addReplyBulkLongLong(c, listLength(it->removed_keys));
+
+    fields ++; addReplyBulkCString(c, "chunked_vals");
+    addReplyBulkLongLong(c, listLength(it->chunked_vals));
+
+    fields ++; addReplyBulkCString(c, "iterators");
+    addReplyMultiBulkLen(c, 2);
+    addReplyBulkLongLong(c, listLength(it->list));
+    singleObjectIterator *sp = NULL;
+    if (listLength(it->list) != 0) {
+        sp = listNodeValue(listFirst(it->list));
+    }
+    singleObjectIteratorStatus(c, sp);
+
+    setDeferredMultiBulkLength(c, ptr, fields * 2);
 }
 
 /* *
@@ -1309,8 +1381,42 @@ batchedObjectIteratorStatus(client *c, batchedObjectIterator *it) {
  * */
 void
 slotsmgrtAsyncStatusCommand(client *c) {
-    // TODO
-    (void)c;
+    slotsmgrtAsyncClient *ac = getSlotsmgrtAsyncClient(c->db->id);
+    if (ac->c == NULL) {
+        addReply(c, shared.nullmultibulk);
+        return;
+    }
+    void *ptr = addDeferredMultiBulkLength(c);
+    int fields = 0;
+
+    fields ++; addReplyBulkCString(c, "host");
+    addReplyBulkCString(c, ac->host);
+
+    fields ++; addReplyBulkCString(c, "port");
+    addReplyBulkLongLong(c, ac->port);
+
+    fields ++; addReplyBulkCString(c, "used");
+    addReplyBulkLongLong(c, ac->used);
+
+    fields ++; addReplyBulkCString(c, "timeout");
+    addReplyBulkLongLong(c, ac->timeout);
+
+    fields ++; addReplyBulkCString(c, "lastuse");
+    addReplyBulkLongLong(c, ac->lastuse);
+
+    fields ++; addReplyBulkCString(c, "since_lastuse");
+    addReplyBulkLongLong(c, mstime() - ac->lastuse);
+
+    fields ++; addReplyBulkCString(c, "blocked_clients");
+    addReplyBulkLongLong(c, listLength(ac->blocked_list));
+
+    fields ++; addReplyBulkCString(c, "sending_messages");
+    addReplyBulkLongLong(c, ac->sending_msgs);
+
+    fields ++; addReplyBulkCString(c, "batched_iterator");
+    batchedObjectIteratorStatus(c, ac->batched_iter);
+
+    setDeferredMultiBulkLength(c, ptr, fields * 2);
 }
 
 /* ============================ SlotsmgrtExecWrapper ======================================= */
