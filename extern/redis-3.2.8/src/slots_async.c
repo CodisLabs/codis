@@ -241,7 +241,7 @@ typedef struct {
     unsigned long cursor;
     unsigned long lindex;
     unsigned long zindex;
-    int chunked;
+    unsigned long chunked_msgs;
 } singleObjectIterator;
 
 static singleObjectIterator *
@@ -255,7 +255,7 @@ createSingleObjectIterator(robj *key) {
     it->cursor = 0;
     it->lindex = 0;
     it->zindex = 0;
-    it->chunked = 0;
+    it->chunked_msgs = 0;
     return it;
 }
 
@@ -414,18 +414,18 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         incrRefCount(it->val);
         it->expire = getExpire(c->db, key);
 
-        int extra_msgs = 0;
+        int leading_msgs = 0;
 
-        slotsmgrtAsyncClient *client = getSlotsmgrtAsyncClient(c->db->id);
-        if (client->c == c) {
-            if (client->used == 0) {
-                client->used = 1;
+        slotsmgrtAsyncClient *ac = getSlotsmgrtAsyncClient(c->db->id);
+        if (ac->c == c) {
+            if (ac->used == 0) {
+                ac->used = 1;
                 if (server.requirepass != NULL) {
                     /* SLOTSRESTORE-ASYNC-AUTH $password */
                     addReplyMultiBulkLen(c, 2);
                     addReplyBulkCString(c, "SLOTSRESTORE-ASYNC-AUTH");
                     addReplyBulkCString(c, server.requirepass);
-                    extra_msgs += 1;
+                    leading_msgs += 1;
                 }
                 do {
                     /* SLOTSRESTORE-ASYNC select $db */
@@ -433,7 +433,7 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
                     addReplyBulkCString(c, "SLOTSRESTORE-ASYNC");
                     addReplyBulkCString(c, "select");
                     addReplyBulkLongLong(c, c->db->id);
-                    extra_msgs += 1;
+                    leading_msgs += 1;
                 } while (0);
             }
         }
@@ -444,13 +444,15 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
         addReplyBulkCString(c, "del");
         addReplyBulk(c, key);
 
-        if (numberOfRestoreCommandsFromObject(val, maxbulks) != 1) {
+        long n = numberOfRestoreCommandsFromObject(val, maxbulks);
+        if (n >= 2) {
             it->stage = STAGE_CHUNKED;
-            it->chunked = 1;
+            it->chunked_msgs = n;
         } else {
             it->stage = STAGE_PAYLOAD;
+            it->chunked_msgs = 0;
         }
-        return 1 + extra_msgs;
+        return 1 + leading_msgs;
     }
 
     robj *val = it->val;
@@ -680,7 +682,7 @@ batchedObjectIteratorHasNext(batchedObjectIterator *it) {
         if (sp->val != NULL) {
             incrRefCount(sp->key);
             listAddNodeTail(it->removed_keys, sp->key);
-            if (sp->chunked) {
+            if (sp->chunked_msgs != 0) {
                 incrRefCount(sp->val);
                 listAddNodeTail(it->chunked_vals, sp->val);
             }
