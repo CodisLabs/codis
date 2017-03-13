@@ -44,6 +44,7 @@ Usage:
 	codis-admin [-v] --dashboard=ADDR            --sync-action    --remove --addr=ADDR
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --create --sid=ID --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --remove --sid=ID
+	codis-admin [-v] --dashboard=ADDR            --slot-action    --create-some  --gid-from=ID --gid-to=ID --num-slots=N
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --create-range --beg=ID --end=ID --gid=ID
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --interval=VALUE
 	codis-admin [-v] --dashboard=ADDR            --slot-action    --disabled=VALUE

@@ -725,6 +725,18 @@ func (t *cmdDashboard) handleSlotActionCommand(d map[string]interface{}) {
 		}
 		log.Debugf("call rpc remove-slot-action OK")
 
+	case d["--create-some"].(bool):
+
+		src := utils.ArgumentIntegerMust(d, "--gid-from")
+		dst := utils.ArgumentIntegerMust(d, "--gid-to")
+		num := utils.ArgumentIntegerMust(d, "--num-slots")
+
+		log.Debugf("call rpc create-slot-action-some to dashboard %s", t.addr)
+		if err := c.SlotCreateActionSome(src, dst, num); err != nil {
+			log.PanicErrorf(err, "call rpc create-slot-action-some to dashboard %s failed", t.addr)
+		}
+		log.Debugf("call rpc create-slot-action-some OK")
+
 	case d["--create-range"].(bool):
 
 		beg := utils.ArgumentIntegerMust(d, "--beg")
