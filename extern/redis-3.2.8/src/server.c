@@ -317,7 +317,6 @@ struct redisCommand redisCommandTable[] = {
     {"slotsmgrt-async-cancel",slotsmgrtAsyncCancelCommand,0,"F",0,NULL,0,0,0,0,0},
     {"slotsmgrt-async-status",slotsmgrtAsyncStatusCommand,0,"F",0,NULL,0,0,0,0,0},
     {"slotsmgrt-exec-wrapper",slotsmgrtExecWrapperCommand,-3,"wm",0,NULL,0,0,0,0,0},
-    {"slotsmgrt-lazy-release",slotsmgrtLazyReleaseCommand,-1,"r",0,NULL,0,0,0,0,0},
     {"slotsrestore-async",slotsrestoreAsyncCommand,-2,"w",0,NULL,0,0,0,0,0},
     {"slotsrestore-async-auth",slotsrestoreAsyncAuthCommand,2,"F",0,NULL,0,0,0,0,0},
     {"slotsrestore-async-ack",slotsrestoreAsyncAckCommand,3,"w",0,NULL,0,0,0,0,0},
@@ -1344,10 +1343,6 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
         slotsmgrtAsyncCleanup();
     }
 
-    run_with_period(100) {
-        slotsmgrtLazyReleaseCleanup();
-    }
-
     /* Cleanup expired MIGRATE cached sockets. */
     run_with_period(1000) {
         migrateCloseTimedoutSockets();
@@ -1965,7 +1960,7 @@ void initServer(void) {
         slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
         memset(ac, 0, sizeof(*ac));
     }
-    server.slotsmgrt_lazy_release = listCreate();
+    slotsmgrtInitLazyReleaseWorkerThread();
 
     /* Open the TCP listening socket for the user commands. */
     if (server.port != 0 &&
@@ -2601,10 +2596,6 @@ int processCommand(client *c) {
         flagTransaction(c);
         addReply(c, shared.slowscripterr);
         return C_OK;
-    }
-
-    if (c->cmd->proc != slotsrestoreAsyncAckCommand) {
-        slotsmgrtLazyReleaseIncrementally();
     }
 
     /* Exec the command */

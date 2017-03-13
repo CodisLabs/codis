@@ -1,228 +1,59 @@
 #include "server.h"
 
-/* ============================ Iterator for Lazy Release ================================== */
+/* ============================ Worker Thread for Lazy Release ============================= */
 
 typedef struct {
-    robj *val;
-    unsigned long cursor;
-} lazyReleaseIterator;
+    pthread_t thread;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    list *objs;
+} lazyReleaseWorker;
 
-static lazyReleaseIterator *
-createLazyReleaseIterator(robj *val) {
-    lazyReleaseIterator *it = zmalloc(sizeof(lazyReleaseIterator));
-    it->val = val;
-    incrRefCount(it->val);
-    it->cursor = 0;
-    return it;
+static void *
+lazyReleaseWorkerMain(void *args) {
+    lazyReleaseWorker *p = args;
+    while (1) {
+        pthread_mutex_lock(&p->mutex);
+        while (listLength(p->objs) == 0) {
+            pthread_cond_wait(&p->cond, &p->mutex);
+        }
+        listNode *head = listFirst(p->objs);
+        robj *o = listNodeValue(head);
+        listDelNode(p->objs, head);
+        pthread_mutex_unlock(&p->mutex);
+
+        decrRefCount(o);
+    }
+    return NULL;
 }
 
 static void
-freeLazyReleaseIterator(lazyReleaseIterator *it) {
-    if (it->val != NULL) {
-        decrRefCount(it->val);
+lazyReleaseObject(robj *o) {
+    lazyReleaseWorker *p = server.slotsmgrt_lazy_release;
+    pthread_mutex_lock(&p->mutex);
+    if (listLength(p->objs) == 0) {
+        pthread_cond_broadcast(&p->cond);
     }
-    zfree(it);
+    listAddNodeTail(p->objs, o);
+    pthread_mutex_unlock(&p->mutex);
 }
 
-static int
-lazyReleaseIteratorHasNext(lazyReleaseIterator *it) {
-    return it->val != NULL;
-}
-
-static void
-lazyReleaseIteratorScanCallback(void *data, const dictEntry *de) {
-    void **pd = (void **)data;
-    list *l = pd[0];
-
-    robj *field = dictGetKey(de);
-    incrRefCount(field);
-    listAddNodeTail(l, field);
-}
-
-static void
-lazyReleaseIteratorNext(lazyReleaseIterator *it, int step) {
-    robj *val = it->val;
-    serverAssert(val != NULL);
-
-    unsigned int limit = step * 2;
-    if (limit < 100) {
-        limit = 100;
+static lazyReleaseWorker *
+createLazyReleaseWorkerThread() {
+    lazyReleaseWorker *p = zmalloc(sizeof(lazyReleaseWorker));
+    pthread_mutex_init(&p->mutex, NULL);
+    pthread_cond_init(&p->cond, NULL);
+    p->objs = listCreate();
+    if (pthread_create(&p->thread, NULL, lazyReleaseWorkerMain, p) != 0) {
+        serverLog(LL_WARNING,"Fatal: Can't initialize Worker Thread for Lazy Release Jobs.");
+        exit(1);
     }
-
-    if (val->type == OBJ_LIST) {
-        if (listTypeLength(val) <= limit) {
-            decrRefCount(val);
-            it->val = NULL;
-        } else {
-            for (int i = 0; i < step; i ++) {
-                robj *value = listTypePop(val, LIST_HEAD);
-                decrRefCount(value);
-            }
-        }
-        return;
-    }
-
-    if (val->type == OBJ_HASH || val->type == OBJ_SET) {
-        dict *ht = val->ptr;
-        if (dictSize(ht) <= limit) {
-            decrRefCount(val);
-            it->val = NULL;
-        } else {
-            list *ll = listCreate();
-            listSetFreeMethod(ll, decrRefCountVoid);
-            int loop = step;
-            void *pd[] = {ll};
-            do {
-                it->cursor = dictScan(ht, it->cursor, lazyReleaseIteratorScanCallback, pd);
-            } while (it->cursor != 0 && listLength(ll) < (unsigned long)step && (-- loop) >= 0);
-
-            while (listLength(ll) != 0) {
-                listNode *head = listFirst(ll);
-                robj *field = listNodeValue(head);
-                dictDelete(ht, field);
-                listDelNode(ll, head);
-            }
-            listRelease(ll);
-        }
-        return;
-    }
-
-    if (val->type == OBJ_ZSET) {
-        zset *zs = val->ptr;
-        dict *ht = zs->dict;
-        if (dictSize(ht) <= limit) {
-            decrRefCount(val);
-            it->val = NULL;
-        } else {
-            zskiplist *zsl = zs->zsl;
-            for (int i = 0; i < step; i ++) {
-                zskiplistNode *node = zsl->header->level[0].forward;
-                robj *field = node->obj;
-                incrRefCount(field);
-                zslDelete(zsl, node->score, field);
-                dictDelete(ht, field);
-                decrRefCount(field);
-            }
-        }
-        return;
-    }
-
-    serverPanic("unknown object type");
-}
-
-static int
-lazyReleaseIteratorRemains(lazyReleaseIterator *it) {
-    robj *val = it->val;
-    if (val == NULL) {
-        return 0;
-    }
-    if (val->type == OBJ_LIST) {
-        return listTypeLength(val);
-    }
-    if (val->type == OBJ_HASH) {
-        return hashTypeLength(val);
-    }
-    if (val->type == OBJ_SET) {
-        return setTypeSize(val);
-    }
-    if (val->type == OBJ_ZSET) {
-        return zsetLength(val);
-    }
-    return -1;
-}
-
-static int
-slotsmgrtLazyReleaseStep(int step) {
-    list *ll = server.slotsmgrt_lazy_release;
-    if (listLength(ll) != 0) {
-        listNode *head = listFirst(ll);
-        lazyReleaseIterator *it = listNodeValue(head);
-        if (lazyReleaseIteratorHasNext(it)) {
-            lazyReleaseIteratorNext(it, step);
-        } else {
-            freeLazyReleaseIterator(it);
-            listDelNode(ll, head);
-        }
-        return 1;
-    }
-    return 0;
-}
-
-static void
-slotsmgrtLazyReleaseMicroseconds(long long usecs) {
-    long long deadline = ustime() + usecs;
-    while (slotsmgrtLazyReleaseStep(50)) {
-        if (ustime() >= deadline) {
-            return;
-        }
-    }
-}
-
-static struct {
-    long long last_numcommands;
-    int step;
-} lazy_release_options = {
-    .last_numcommands = 0,
-    .step = 1,
-};
-
-void
-slotsmgrtLazyReleaseCleanup() {
-    long long ops = server.stat_numcommands - lazy_release_options.last_numcommands;
-    if (ops < 0) {
-        ops = 0;
-    }
-    if (ops > 30) {
-        lazy_release_options.step = 1 + (1000 / ops) * 3;
-    } else {
-        lazy_release_options.step = 100;
-    }
-    lazy_release_options.last_numcommands = server.stat_numcommands;
-
-    long long usecs = lazy_release_options.step / 10 * 100;
-    if (usecs != 0) {
-        slotsmgrtLazyReleaseMicroseconds(usecs);
-    }
+    return p;
 }
 
 void
-slotsmgrtLazyReleaseIncrementally() {
-    slotsmgrtLazyReleaseStep(lazy_release_options.step);
-}
-
-/* *
- * SLOTSMGRT-LAZY-RELEASE $microseconds
- * */
-void
-slotsmgrtLazyReleaseCommand(client *c) {
-    if (c->argc != 1 && c->argc != 2) {
-        addReplyError(c, "wrong number of arguments for SLOTSMGRT-LAZY-RELEASE");
-        return;
-    }
-    long long usecs = 1;
-    if (c->argc != 1) {
-        if (getLongLongFromObject(c->argv[1], &usecs) != C_OK ||
-                !(usecs >= 0 && usecs <= INT_MAX)) {
-            addReplyErrorFormat(c, "invalid value of usecs (%s)",
-                    (char *)c->argv[1]->ptr);
-            return;
-        }
-    }
-    if (usecs != 0) {
-        slotsmgrtLazyReleaseMicroseconds(usecs);
-    }
-
-    list *ll = server.slotsmgrt_lazy_release;
-
-    addReplyMultiBulkLen(c, 2);
-    addReplyLongLong(c, listLength(ll));
-
-    if (listLength(ll) != 0) {
-        lazyReleaseIterator *it = listNodeValue(listFirst(ll));
-        addReplyLongLong(c, lazyReleaseIteratorRemains(it));
-    } else {
-        addReplyLongLong(c, 0);
-    }
+slotsmgrtInitLazyReleaseWorkerThread() {
+    server.slotsmgrt_lazy_release = createLazyReleaseWorkerThread();
 }
 
 /* ============================ Iterator for Data Migration ================================ */
@@ -1891,8 +1722,11 @@ slotsrestoreAsyncAckHandle(client *c) {
         list *ll = it->chunked_vals;
         while (listLength(ll) != 0) {
             listNode *head = listFirst(ll);
-            robj *val = listNodeValue(head);
-            listAddNodeTail(server.slotsmgrt_lazy_release, createLazyReleaseIterator(val));
+            robj *o = listNodeValue(head);
+            if (o->refcount == 1) {
+                incrRefCount(o);
+                lazyReleaseObject(o);
+            }
             listDelNode(ll, head);
         }
     }
