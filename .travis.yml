@@ -5,9 +5,9 @@ os:
     - osx
 
 go:
-    - 1.7.5
-    - 1.6.4
-    - 1.5.4
+    - 1.7.x
+    - 1.6.x
+    - 1.5.x
 
 script:
     - make
@@ -30,4 +30,4 @@ deploy:
     on:
         repo: CodisLabs/codis
         tags: true
-        go: '1.7.5'
+        condition: $TRAVIS_GO_VERSION =~ ^1\.7\.[0-9]+$
