@@ -1407,11 +1407,11 @@ slotsmgrtAsyncStatusCommand(client *c) {
     fields ++; addReplyBulkCString(c, "since_lastuse");
     addReplyBulkLongLong(c, mstime() - ac->lastuse);
 
+    fields ++; addReplyBulkCString(c, "sending_msgs");
+    addReplyBulkLongLong(c, ac->sending_msgs);
+
     fields ++; addReplyBulkCString(c, "blocked_clients");
     addReplyBulkLongLong(c, listLength(ac->blocked_list));
-
-    fields ++; addReplyBulkCString(c, "sending_messages");
-    addReplyBulkLongLong(c, ac->sending_msgs);
 
     fields ++; addReplyBulkCString(c, "batched_iterator");
     batchedObjectIteratorStatus(c, ac->batched_iter);
