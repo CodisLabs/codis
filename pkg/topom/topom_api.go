@@ -103,6 +103,7 @@ func newApiServer(t *Topom) http.Handler {
 		r.Group("/slots", func(r martini.Router) {
 			r.Group("/action", func(r martini.Router) {
 				r.Put("/create/:xauth/:sid/:gid", api.SlotCreateAction)
+				r.Put("/create-some/:xauth/:src/:dst/:num", api.SlotCreateActionSome)
 				r.Put("/create-range/:xauth/:beg/:end/:gid", api.SlotCreateActionRange)
 				r.Put("/remove/:xauth/:sid", api.SlotRemoveAction)
 				r.Put("/interval/:xauth/:value", api.SetSlotActionInterval)
@@ -601,6 +602,29 @@ func (s *apiServer) SlotCreateAction(params martini.Params) (int, string) {
 	}
 }
 
+func (s *apiServer) SlotCreateActionSome(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	groupFrom, err := s.parseInteger(params, "src")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	groupTo, err := s.parseInteger(params, "dst")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	numSlots, err := s.parseInteger(params, "num")
+	if err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.topom.SlotCreateActionSome(groupFrom, groupTo, numSlots); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
+	}
+}
+
 func (s *apiServer) SlotCreateActionRange(params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
@@ -617,15 +641,11 @@ func (s *apiServer) SlotCreateActionRange(params martini.Params) (int, string) {
 	if err != nil {
 		return rpc.ApiResponseError(err)
 	}
-	if !(beg >= 0 && beg <= end && end < MaxSlotNum) {
-		return rpc.ApiResponseError(fmt.Errorf("invalid slot range [%d,%d]", beg, end))
+	if err := s.topom.SlotCreateActionRange(beg, end, gid, true); err != nil {
+		return rpc.ApiResponseError(err)
+	} else {
+		return rpc.ApiResponseJson("OK")
 	}
-	for sid := beg; sid <= end; sid++ {
-		if err := s.topom.SlotCreateAction(sid, gid); err != nil {
-			return rpc.ApiResponseError(err)
-		}
-	}
-	return rpc.ApiResponseJson("OK")
 }
 
 func (s *apiServer) SlotRemoveAction(params martini.Params) (int, string) {
@@ -921,6 +941,11 @@ func (c *ApiClient) SyncRemoveAction(addr string) error {
 
 func (c *ApiClient) SlotCreateAction(sid int, gid int) error {
 	url := c.encodeURL("/api/topom/slots/action/create/%s/%d/%d", c.xauth, sid, gid)
+	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) SlotCreateActionSome(groupFrom, groupTo int, numSlots int) error {
+	url := c.encodeURL("/api/topom/slots/action/create-some/%s/%d/%d/%d", c.xauth, groupFrom, groupTo, numSlots)
 	return rpc.ApiPutJson(url, nil, nil)
 }
 
