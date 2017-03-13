@@ -26,6 +26,7 @@ deploy:
     file:
         - ${DEPLOY_TARGET}.zip
         - ${DEPLOY_TARGET}.tar.gz
+    skip_cleanup: true
     on:
         repo: CodisLabs/codis
         tags: true
