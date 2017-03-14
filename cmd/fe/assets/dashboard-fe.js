@@ -1170,12 +1170,12 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.createSlotAction = function (slot_id, group_id) {
+        $scope.createSlotActionSome = function (slots_num, group_from, group_to) {
             var codis_name = $scope.codis_name;
-            if (isValidInput(codis_name) && isValidInput(slot_id) && isValidInput(group_id)) {
-                alertAction("Migrate Slots-[" + slot_id + "] to Group-[" + group_id + "]", function () {
+            if (isValidInput(codis_name) && isValidInput(slots_num) && isValidInput(group_from) && isValidInput(group_to)) {
+                alertAction("Migrate " + slots_num + " Slots from Group-[" + group_from + "] to Group-[" + group_to + "]", function () {
                     var xauth = genXAuth(codis_name);
-                    var url = concatUrl("/api/topom/slots/action/create/" + xauth + "/" + slot_id + "/" + group_id, codis_name);
+                    var url = concatUrl("/api/topom/slots/action/create-some/" + xauth + "/" + group_from + "/" + group_to + "/" + slots_num, codis_name);
                     $http.put(url).then(function () {
                         $scope.refreshStats();
                     }, function (failedResp) {

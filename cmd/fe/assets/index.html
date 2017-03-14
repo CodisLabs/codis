@@ -215,20 +215,20 @@
                         <button class="btn btn-warning btn-sm active" style="width: 120px; font-size: 14px; padding: 2px;"
                                 ng-click="createSlotActionRange(migrate_slot_id_beg, migrate_slot_id_end, migrate_range_to_group_id)"
                                 ng-disabled="!migrate_slot_id_beg || !migrate_slot_id_end || !migrate_range_to_group_id">
-                            Migrate Slots
+                            Migrate Range
                         </button>
-                        [
-                        <input style="height: 28px; width: 110px; " type="text"
-                               class="form-control" placeholder="Slot [0,1023]"
+                        Slots-[
+                        <input style="height: 28px; width: 140px; " type="text"
+                               class="form-control" placeholder="[0,1023]"
                                ng-model="migrate_slot_id_beg">
                         ~
-                        <input style="height: 28px; width: 110px; " type="text"
-                               class="form-control" placeholder="Slot [0,1023]"
+                        <input style="height: 28px; width: 140px; " type="text"
+                               class="form-control" placeholder="[0,1023]"
                                ng-model="migrate_slot_id_end">
-                        ] to
+                        ] to Group
                         <input style="height: 28px; width: 140px;"
                                pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
-                               class="form-control" placeholder="Group [1,9999]"
+                               class="form-control" placeholder="[1,9999]"
                                ng-model="migrate_range_to_group_id">
                     </span>
                 </form>
@@ -237,6 +237,32 @@
             <div class="col-md-12">
                 <div id="slots_charts" style="min-width: 400px; height: 180px; margin: 0 auto"></div>
             </div>
+
+            <div class="col-md-12"
+                 style="padding-bottom: 10px;">
+                <form class="form-inline">
+                    <span ng-if="codis_addr != 'NA'">
+                        <button class="btn btn-warning btn-sm active" style="width: 120px; font-size: 14px; padding: 2px;"
+                                ng-click="createSlotActionSome(migrate_some_slots_num, migrate_some_group_from, migrate_some_group_to)"
+                                ng-disabled="!migrate_some_slots_num || !migrate_some_group_from || !migrate_some_group_to">
+                            Migrate Some
+                        </button>
+                        <input style="height: 28px; width: 130px; " type="text"
+                               class="form-control" placeholder="Number of Slots"
+                               ng-model="migrate_some_slots_num">
+                        from Group
+                        <input style="height: 28px; width: 140px; "
+                               class="form-control" placeholder="[1,9999]"
+                               ng-model="migrate_some_group_from">
+                        to Group
+                        <input style="height: 28px; width: 140px;"
+                               pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
+                               class="form-control" placeholder="[1,9999]"
+                               ng-model="migrate_some_group_to">
+                    </span>
+                </form>
+            </div>
+
             <div>
                 <div class="row">
                     <div class="col-md-6" style="min-width:450px;">
