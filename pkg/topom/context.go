@@ -57,17 +57,6 @@ func (ctx *context) maxSlotActionIndex() (maxIndex int) {
 	return maxIndex
 }
 
-func (ctx *context) minSlotActionIndex() (d *models.SlotMapping) {
-	for _, m := range ctx.slots {
-		if m.Action.State != models.ActionNothing {
-			if d == nil || m.Action.Index < d.Action.Index {
-				d = m
-			}
-		}
-	}
-	return d
-}
-
 func (ctx *context) isSlotLocked(m *models.SlotMapping) bool {
 	switch m.Action.State {
 	case models.ActionNothing, models.ActionPending:

@@ -5,36 +5,77 @@ package topom
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
+	"github.com/CodisLabs/codis/pkg/utils/sync2"
 )
 
 func (s *Topom) ProcessSlotAction() error {
 	for s.IsOnline() {
-		sid, ok, err := s.SlotActionPrepare()
-		if err != nil || !ok {
-			return err
+		var (
+			marks = make(map[int]bool)
+			plans = make(map[int]bool)
+		)
+		var accept = func(m *models.SlotMapping) bool {
+			if marks[m.GroupId] || marks[m.Action.TargetId] {
+				return false
+			}
+			if plans[m.Id] {
+				return false
+			}
+			return true
 		}
-		if err := s.processSlotAction(sid); err != nil {
-			return err
+		var update = func(m *models.SlotMapping) bool {
+			if m.GroupId != 0 {
+				marks[m.GroupId] = true
+			}
+			marks[m.Action.TargetId] = true
+			plans[m.Id] = true
+			return true
+		}
+		var parallel = math2.MaxInt(1, s.config.MigrationSlotsParallel)
+		for parallel > len(plans) {
+			_, ok, err := s.SlotActionPrepareFilter(accept, update)
+			if err != nil {
+				return err
+			} else if !ok {
+				break
+			}
+		}
+		if len(plans) == 0 {
+			return nil
+		}
+		var fut sync2.Future
+		for sid, _ := range plans {
+			fut.Add()
+			go func(sid int) {
+				log.Warnf("slot-[%d] process action", sid)
+				var err = s.processSlotAction(sid)
+				if err != nil {
+					status := fmt.Sprintf("[ERROR] Slot[%04d]: %s", sid, err)
+					s.action.progress.status.Store(status)
+				} else {
+					s.action.progress.status.Store("")
+				}
+				fut.Done(strconv.Itoa(sid), err)
+			}(sid)
+		}
+		for _, v := range fut.Wait() {
+			if v != nil {
+				return v.(error)
+			}
 		}
 		time.Sleep(time.Millisecond * 10)
 	}
 	return nil
 }
 
-func (s *Topom) processSlotAction(sid int) (err error) {
-	defer func() {
-		if err != nil {
-			s.action.progress.status.Store(fmt.Sprintf("[ERROR] %s", err))
-		} else {
-			s.action.progress.status.Store("")
-		}
-	}()
-	log.Warnf("slot-[%d] process action", sid)
-
-	var db = 0
+func (s *Topom) processSlotAction(sid int) error {
+	var db int = 0
 	for s.IsOnline() {
 		if exec, err := s.newSlotActionExecutor(sid); err != nil {
 			return err

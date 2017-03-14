@@ -179,6 +179,10 @@ func (s *Topom) SlotRemoveAction(sid int) error {
 }
 
 func (s *Topom) SlotActionPrepare() (int, bool, error) {
+	return s.SlotActionPrepareFilter(nil, nil)
+}
+
+func (s *Topom) SlotActionPrepareFilter(accept, update func(m *models.SlotMapping) bool) (int, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
@@ -186,8 +190,43 @@ func (s *Topom) SlotActionPrepare() (int, bool, error) {
 		return 0, false, err
 	}
 
-	m := ctx.minSlotActionIndex()
+	var minActionIndex = func(filter func(m *models.SlotMapping) bool) (picked *models.SlotMapping) {
+		for _, m := range ctx.slots {
+			if m.Action.State == models.ActionNothing {
+				continue
+			}
+			if filter(m) {
+				if picked != nil && picked.Action.Index < m.Action.Index {
+					continue
+				}
+				if accept == nil || accept(m) {
+					picked = m
+				}
+			}
+		}
+		return picked
+	}
+
+	var m = func() *models.SlotMapping {
+		var picked = minActionIndex(func(m *models.SlotMapping) bool {
+			return m.Action.State != models.ActionPending
+		})
+		if picked != nil {
+			return picked
+		}
+		if s.action.disabled.IsTrue() {
+			return nil
+		}
+		return minActionIndex(func(m *models.SlotMapping) bool {
+			return m.Action.State == models.ActionPending
+		})
+	}()
+
 	if m == nil {
+		return 0, false, nil
+	}
+
+	if update != nil && !update(m) {
 		return 0, false, nil
 	}
 
@@ -197,9 +236,6 @@ func (s *Topom) SlotActionPrepare() (int, bool, error) {
 
 	case models.ActionPending:
 
-		if s.action.disabled.IsTrue() {
-			return 0, false, nil
-		}
 		defer s.dirtySlotsCache(m.Id)
 
 		m.Action.State = models.ActionPreparing
