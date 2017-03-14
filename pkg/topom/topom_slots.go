@@ -4,6 +4,8 @@
 package topom
 
 import (
+	"sort"
+
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -516,14 +518,18 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 		return nil, errors.Errorf("no valid group could be found")
 	}
 
-	var bound = (len(ctx.slots) + len(count) - 1) / len(count)
+	var bound = (MaxSlotNum + len(count) - 1) / len(count)
 	var pending []int
 	for _, m := range ctx.slots {
 		if m.Action.State != models.ActionNothing {
 			count[m.Action.TargetId]++
 		}
 	}
-	for _, m := range ctx.slots {
+	for sid := 0; sid < MaxSlotNum; sid++ {
+		m, err := ctx.getSlotMapping(sid)
+		if err != nil {
+			return nil, err
+		}
 		if m.Action.State != models.ActionNothing {
 			continue
 		}
@@ -535,7 +541,17 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 	}
 
 	var plans = make(map[int]int)
+	var groupIds []int
 	for _, g := range ctx.group {
+		groupIds = append(groupIds, g.Id)
+	}
+	sort.Ints(groupIds)
+
+	for _, gid := range groupIds {
+		g, err := ctx.getGroup(gid)
+		if err != nil {
+			return nil, err
+		}
 		if len(g.Servers) != 0 {
 			for count[g.Id] < bound && len(pending) != 0 {
 				count[g.Id]++
@@ -546,7 +562,14 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 	if !confirm {
 		return plans, nil
 	}
-	for sid, gid := range plans {
+
+	var slotIds []int
+	for sid, _ := range plans {
+		slotIds = append(slotIds, sid)
+	}
+	sort.Ints(slotIds)
+
+	for _, sid := range slotIds {
 		m, err := ctx.getSlotMapping(sid)
 		if err != nil {
 			return nil, err
@@ -555,7 +578,7 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 
 		m.Action.State = models.ActionPending
 		m.Action.Index = ctx.maxSlotActionIndex() + 1
-		m.Action.TargetId = gid
+		m.Action.TargetId = plans[sid]
 		if err := s.storeUpdateSlotMapping(m); err != nil {
 			return nil, err
 		}
