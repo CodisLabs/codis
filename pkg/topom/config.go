@@ -35,6 +35,7 @@ admin_addr = "0.0.0.0:18080"
 
 # Set arguments for data migration (only accept 'sync' & 'semi-async').
 migration_method = "semi-async"
+migration_slots_parallel = 8
 migration_async_maxbulks = 200
 migration_async_maxbytes = "32mb"
 migration_async_numkeys = 100
@@ -61,6 +62,7 @@ type Config struct {
 	ProductAuth string `toml:"product_auth" json:"-"`
 
 	MigrationMethod        string            `toml:"migration_method" json:"migration_method"`
+	MigrationSlotsParallel int               `toml:"migration_slots_parallel" json:"migration_slots_parallel"`
 	MigrationAsyncMaxBulks int               `toml:"migration_async_maxbulks" json:"migration_async_maxbulks"`
 	MigrationAsyncMaxBytes bytesize.Int64    `toml:"migration_async_maxbytes" json:"migration_async_maxbytes"`
 	MigrationAsyncNumKeys  int               `toml:"migration_async_numkeys" json:"migration_async_numkeys"`
@@ -116,6 +118,9 @@ func (c *Config) Validate() error {
 	}
 	if _, ok := models.ParseForwardMethod(c.MigrationMethod); !ok {
 		return errors.New("invalid migration_method")
+	}
+	if c.MigrationSlotsParallel <= 0 {
+		return errors.New("invalid migration_slots_parallel")
 	}
 	if c.MigrationAsyncMaxBulks <= 0 {
 		return errors.New("invalid migration_async_maxbulks")
