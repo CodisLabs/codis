@@ -29,6 +29,7 @@ lazyReleaseWorkerMain(void *args) {
 
 static void
 lazyReleaseObject(robj *o) {
+    serverAssert(o->refcount == 1);
     lazyReleaseWorker *p = server.slotsmgrt_lazy_release;
     pthread_mutex_lock(&p->mutex);
     if (listLength(p->objs) == 0) {
@@ -1723,11 +1724,13 @@ slotsrestoreAsyncAckHandle(client *c) {
         while (listLength(ll) != 0) {
             listNode *head = listFirst(ll);
             robj *o = listNodeValue(head);
-            if (o->refcount == 1) {
-                incrRefCount(o);
+            incrRefCount(o);
+            listDelNode(ll, head);
+            if (o->refcount != 1) {
+                decrRefCount(o);
+            } else {
                 lazyReleaseObject(o);
             }
-            listDelNode(ll, head);
         }
     }
 
