@@ -363,7 +363,7 @@ func (c *Client) CreateEphemeralInOrder(path string, data []byte) (<-chan struct
 		if err != nil {
 			return err
 		}
-		signal, node = w, filepath.Join(path, p)
+		signal, node = w, p
 		return nil
 	})
 	if err != nil {
