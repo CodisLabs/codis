@@ -37,7 +37,7 @@ func (s *Topom) ProcessSlotAction() error {
 			plans[m.Id] = true
 			return true
 		}
-		var parallel = math2.MaxInt(1, s.config.MigrationSlotsParallel)
+		var parallel = math2.MaxInt(1, s.config.MigrationParallelSlots)
 		for parallel > len(plans) {
 			_, ok, err := s.SlotActionPrepareFilter(accept, update)
 			if err != nil {
