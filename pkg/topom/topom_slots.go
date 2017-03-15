@@ -63,14 +63,18 @@ func (s *Topom) SlotCreateActionSome(groupFrom, groupTo int, numSlots int) error
 	}
 
 	var pending []int
-	for _, m := range ctx.slots {
-		if len(pending) >= numSlots {
-			break
+	for sid := 0; sid < MaxSlotNum && len(pending) < numSlots; sid++ {
+		m, err := ctx.getSlotMapping(sid)
+		if err != nil {
+			return err
+		}
+		if m.Action.State != models.ActionNothing {
+			continue
 		}
 		if m.GroupId != groupFrom {
 			continue
 		}
-		if m.GroupId == g.Id || m.Action.State != models.ActionNothing {
+		if m.GroupId == g.Id {
 			continue
 		}
 		pending = append(pending, m.Id)

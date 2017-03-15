@@ -32,6 +32,9 @@ type context struct {
 }
 
 func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {
+	if len(ctx.slots) != MaxSlotNum {
+		return nil, errors.Errorf("invalid number of slots = %d/%d", len(ctx.slots), MaxSlotNum)
+	}
 	if sid >= 0 && sid < MaxSlotNum {
 		return ctx.slots[sid], nil
 	}
