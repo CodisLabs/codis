@@ -800,12 +800,12 @@ func (t *cmdDashboard) handleSlotRebalance(d map[string]interface{}) {
 					end = sid
 					continue
 				}
-				fmt.Println("[%04d,%04d] => %d", beg, end, gid)
+				fmt.Printf("[%04d,%04d] => %d\n", beg, end, gid)
 			}
 			beg, end, gid = sid, sid, plans[sid]
 		}
 		if beg <= end {
-			fmt.Println("[%04d,%04d] => %d", beg, end, gid)
+			fmt.Printf("[%04d,%04d] => %d\n", beg, end, gid)
 		}
 		fmt.Println("done")
 	}
