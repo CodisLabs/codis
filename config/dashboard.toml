@@ -18,7 +18,7 @@ admin_addr = "0.0.0.0:18080"
 
 # Set arguments for data migration (only accept 'sync' & 'semi-async').
 migration_method = "semi-async"
-migration_slots_parallel = 8
+migration_parallel_slots = 100
 migration_async_maxbulks = 200
 migration_async_maxbytes = "32mb"
 migration_async_numkeys = 100

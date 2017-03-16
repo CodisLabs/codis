@@ -32,7 +32,14 @@ admin_addr = "0.0.0.0:11080"
 proto_type = "tcp4"
 proxy_addr = "0.0.0.0:19000"
 
-# Set jodis address & session timeout, only accept "zookeeper" & "etcd".
+# Set jodis address & session timeout
+#   1. jodis_name is short for jodis_coordinator_name, only accept "zookeeper" & "etcd".
+#   2. jodis_addr is short for jodis_coordinator_addr
+#   3. proxy will be registered as node:
+#        if jodis_compatible = true (not suggested):
+#          /zk/codis/db_{PRODUCT_NAME}/proxy-{HASHID} (compatible with Codis2.0)
+#        or else
+#          /jodis/{PRODUCT_NAME}/proxy-{HASHID}
 jodis_name = ""
 jodis_addr = ""
 jodis_timeout = "20s"
