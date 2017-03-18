@@ -6,6 +6,8 @@ package topom
 import (
 	"sort"
 
+	rbtree "github.com/emirpasic/gods/trees/redblacktree"
+
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
@@ -63,10 +65,9 @@ func (s *Topom) SlotCreateActionSome(groupFrom, groupTo int, numSlots int) error
 	}
 
 	var pending []int
-	for sid := 0; sid < MaxSlotNum && len(pending) < numSlots; sid++ {
-		m, err := ctx.getSlotMapping(sid)
-		if err != nil {
-			return err
+	for _, m := range ctx.slots {
+		if len(pending) >= numSlots {
+			break
 		}
 		if m.Action.State != models.ActionNothing {
 			continue
@@ -548,57 +549,152 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 		return nil, err
 	}
 
-	var count = make(map[int]int)
-	for _, g := range ctx.group {
-		if len(g.Servers) != 0 {
-			count[g.Id] = 0
-		}
-	}
-	if len(count) == 0 {
-		return nil, errors.Errorf("no valid group could be found")
-	}
-
-	var bound = (MaxSlotNum + len(count) - 1) / len(count)
-	var pending []int
-	for _, m := range ctx.slots {
-		if m.Action.State != models.ActionNothing {
-			count[m.Action.TargetId]++
-		}
-	}
-	for sid := 0; sid < MaxSlotNum; sid++ {
-		m, err := ctx.getSlotMapping(sid)
-		if err != nil {
-			return nil, err
-		}
-		if m.Action.State != models.ActionNothing {
-			continue
-		}
-		if gid := m.GroupId; gid != 0 && count[gid] < bound {
-			count[gid]++
-		} else {
-			pending = append(pending, m.Id)
-		}
-	}
-
-	var plans = make(map[int]int)
 	var groupIds []int
 	for _, g := range ctx.group {
-		groupIds = append(groupIds, g.Id)
+		if len(g.Servers) != 0 {
+			groupIds = append(groupIds, g.Id)
+		}
 	}
 	sort.Ints(groupIds)
 
-	for _, gid := range groupIds {
-		g, err := ctx.getGroup(gid)
-		if err != nil {
-			return nil, err
+	if len(groupIds) == 0 {
+		return nil, errors.Errorf("no valid group could be found")
+	}
+
+	var (
+		assigned = make(map[int]int)
+		pendings = make(map[int][]int)
+	)
+	var groupSize = func(gid int) int {
+		return assigned[gid] + len(pendings[gid])
+	}
+
+	// don't migrate slot if it's being migrated
+	for _, m := range ctx.slots {
+		if m.Action.State != models.ActionNothing {
+			assigned[m.Action.TargetId]++
 		}
-		if len(g.Servers) != 0 {
-			for count[g.Id] < bound && len(pending) != 0 {
-				count[g.Id]++
-				plans[pending[0]], pending = g.Id, pending[1:]
+	}
+
+	var lowerBound = MaxSlotNum / len(groupIds)
+
+	// don't migrate slot if groupSize < lowerBound
+	for _, m := range ctx.slots {
+		if m.Action.State != models.ActionNothing {
+			continue
+		}
+		if m.GroupId != 0 {
+			if groupSize(m.GroupId) < lowerBound {
+				assigned[m.GroupId]++
+			} else {
+				pendings[m.GroupId] = append(pendings[m.GroupId], m.Id)
 			}
 		}
 	}
+
+	// reverse pending list for each group
+	for _, list := range pendings {
+		sort.Sort(sort.Reverse(sort.IntSlice(list)))
+	}
+
+	var tree = rbtree.NewWith(func(x, y interface{}) int {
+		var gid1 = x.(int)
+		var gid2 = y.(int)
+		if gid1 != gid2 {
+			if d := groupSize(gid1) - groupSize(gid2); d != 0 {
+				return d
+			}
+			return gid1 - gid2
+		}
+		return 0
+	})
+	for _, gid := range groupIds {
+		tree.Put(gid, nil)
+	}
+
+	var offline []int
+
+	// assign offline slots to the smallest group
+	for _, m := range ctx.slots {
+		if m.Action.State != models.ActionNothing {
+			continue
+		}
+		if m.GroupId != 0 {
+			continue
+		}
+		gid := tree.Left().Key.(int)
+		tree.Remove(gid)
+
+		assigned[gid]++
+		tree.Put(gid, nil)
+
+		offline = append(offline, gid)
+	}
+	sort.Ints(offline)
+
+	var plans = make(map[int]int)
+
+	// create migration plans for offline slots
+	for _, m := range ctx.slots {
+		if m.Action.State != models.ActionNothing {
+			continue
+		}
+		if m.GroupId != 0 {
+			continue
+		}
+		if len(offline) != 0 {
+			plans[m.Id], offline = offline[0], offline[1:]
+		}
+	}
+
+	var upperBound = (MaxSlotNum + len(groupIds) - 1) / len(groupIds)
+
+	var newPlan = func(from, dest int) bool {
+		var fromSize = groupSize(from)
+		var destSize = groupSize(dest)
+		if fromSize <= lowerBound {
+			return false
+		}
+		if destSize >= upperBound {
+			return false
+		}
+		if d := fromSize - destSize; d <= 1 {
+			return false
+		}
+		var list = pendings[from]
+		if len(list) == 0 {
+			return false
+		}
+		plans[list[0]] = dest
+		pendings[from] = list[1:]
+		assigned[dest]++
+		return true
+	}
+
+	// rebalance between different server groups
+
+	for tree.Size() >= 2 {
+		from := tree.Right().Key.(int)
+		tree.Remove(from)
+
+		if len(pendings[from]) == 0 {
+			continue
+		}
+
+		dest := tree.Left().Key.(int)
+		tree.Remove(dest)
+
+		var updated bool
+		for newPlan(from, dest) {
+			updated = true
+		}
+		if !updated {
+			break
+		}
+		tree.Put(from, nil)
+		tree.Put(dest, nil)
+	}
+
 	if !confirm {
 		return plans, nil
 	}
