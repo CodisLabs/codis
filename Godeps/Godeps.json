@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/CodisLabs/codis",
-	"GoVersion": "go1.7",
+	"GoVersion": "go1.8",
 	"GodepVersion": "v79",
 	"Packages": [
 		"./..."
@@ -37,6 +37,26 @@
 			"Rev": "784ddc588536785e7299f7272f39101f7faccc3f"
 		},
 		{
+			"ImportPath": "github.com/emirpasic/gods/containers",
+			"Comment": "v1.9.0",
+			"Rev": "f6c17b524822278a87e3b3bd809fec33b51f5b46"
+		},
+		{
+			"ImportPath": "github.com/emirpasic/gods/trees",
+			"Comment": "v1.9.0",
+			"Rev": "f6c17b524822278a87e3b3bd809fec33b51f5b46"
+		},
+		{
+			"ImportPath": "github.com/emirpasic/gods/trees/redblacktree",
+			"Comment": "v1.9.0",
+			"Rev": "f6c17b524822278a87e3b3bd809fec33b51f5b46"
+		},
+		{
+			"ImportPath": "github.com/emirpasic/gods/utils",
+			"Comment": "v1.9.0",
+			"Rev": "f6c17b524822278a87e3b3bd809fec33b51f5b46"
+		},
+		{
 			"ImportPath": "github.com/garyburd/redigo/internal",
 			"Comment": "v1.0.0-20-g4854517",
 			"Rev": "48545177e92ae3e7bcdbd50b42f7a139e6a268da"
@@ -53,17 +73,17 @@
 		},
 		{
 			"ImportPath": "github.com/influxdata/influxdb/client/v2",
-			"Comment": "v1.1.0-223-g8c2cfd14",
+			"Comment": "v1.1.0-223-g8c2cfd14a",
 			"Rev": "8c2cfd14af2511580277ddfd7a834b6aaa5f19ab"
 		},
 		{
 			"ImportPath": "github.com/influxdata/influxdb/models",
-			"Comment": "v1.1.0-223-g8c2cfd14",
+			"Comment": "v1.1.0-223-g8c2cfd14a",
 			"Rev": "8c2cfd14af2511580277ddfd7a834b6aaa5f19ab"
 		},
 		{
 			"ImportPath": "github.com/influxdata/influxdb/pkg/escape",
-			"Comment": "v1.1.0-223-g8c2cfd14",
+			"Comment": "v1.1.0-223-g8c2cfd14a",
 			"Rev": "8c2cfd14af2511580277ddfd7a834b6aaa5f19ab"
 		},
 		{
@@ -88,7 +108,7 @@
 		},
 		{
 			"ImportPath": "github.com/spinlock/jemalloc-go",
-			"Rev": "c02d8364a3e58416d9de7be36db64ee0494eceb7"
+			"Rev": "26719b2ee6186ef794cd50b604f8d765d3be5a30"
 		},
 		{
 			"ImportPath": "github.com/ugorji/go/codec",
