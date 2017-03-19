@@ -57,3 +57,15 @@ func (s *cgoSlice) reclaim() {
 	s.buf = nil
 	runtime.SetFinalizer(s, nil)
 }
+
+func (s *cgoSlice) Slice2(beg, end int) Slice {
+	return newGoSliceFrom(s, s.Buffer()[beg:end])
+}
+
+func (s *cgoSlice) Slice3(beg, end, cap int) Slice {
+	return newGoSliceFrom(s, s.Buffer()[beg:end:cap])
+}
+
+func (s *cgoSlice) Parent() Slice {
+	return nil
+}

@@ -5,6 +5,8 @@ package unsafe2
 
 type goSlice struct {
 	buf []byte
+
+	parent Slice
 }
 
 func newGoSlice(n int) Slice {
@@ -13,9 +15,27 @@ func newGoSlice(n int) Slice {
 	}
 }
 
+func newGoSliceFrom(parent Slice, buf []byte) Slice {
+	return &goSlice{
+		buf: buf, parent: parent,
+	}
+}
+
 func (s *goSlice) Buffer() []byte {
 	return s.buf
 }
 
-func (s goSlice) reclaim() {
+func (s *goSlice) reclaim() {
+}
+
+func (s *goSlice) Slice2(beg, end int) Slice {
+	return newGoSliceFrom(s.parent, s.buf[beg:end])
+}
+
+func (s *goSlice) Slice3(beg, end, cap int) Slice {
+	return newGoSliceFrom(s.parent, s.buf[beg:end:cap])
+}
+
+func (s *goSlice) Parent() Slice {
+	return s.parent
 }
