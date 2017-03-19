@@ -8,6 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
@@ -54,4 +55,87 @@ func (r *Request) Seed16() uint {
 	h32 := uint32(r.UnixNano) + uint32(uintptr(unsafe.Pointer(r)))
 	h32 *= GOLDEN_RATIO_PRIME_32
 	return uint(h32 >> 16)
+}
+
+type RequestChan struct {
+	lock sync.Mutex
+	cond *sync.Cond
+
+	data []*Request
+	buff []*Request
+
+	waits  int
+	closed bool
+}
+
+const MinRequestChanBuffer = 128
+
+func NewRequestChan() *RequestChan {
+	return NewRequestChanBuffer(MinRequestChanBuffer)
+}
+
+func NewRequestChanBuffer(n int) *RequestChan {
+	var ch = &RequestChan{
+		buff: make([]*Request, math2.MaxInt(n, MinRequestChanBuffer)),
+	}
+	ch.cond = sync.NewCond(&ch.lock)
+	return ch
+}
+
+func (c *RequestChan) Close() {
+	c.lock.Lock()
+	if !c.closed {
+		c.closed = true
+		c.cond.Broadcast()
+	}
+	c.lock.Unlock()
+}
+
+func (c *RequestChan) Len() int {
+	c.lock.Lock()
+	n := len(c.data)
+	c.lock.Unlock()
+	return n
+}
+
+func (c *RequestChan) PushBack(r *Request) int {
+	c.lock.Lock()
+	n := c.lockedPushBack(r)
+	c.lock.Unlock()
+	return n
+}
+
+func (c *RequestChan) PopFront() (*Request, bool) {
+	c.lock.Lock()
+	r, ok := c.lockedPopFront()
+	c.lock.Unlock()
+	return r, ok
+}
+
+func (c *RequestChan) lockedPushBack(r *Request) int {
+	if c.closed {
+		panic("send on closed chan")
+	}
+	if len(c.data) == 0 {
+		c.data = c.buff[:0]
+	}
+	if c.waits != 0 {
+		c.cond.Signal()
+	}
+	c.data = append(c.data, r)
+	return len(c.data)
+}
+
+func (c *RequestChan) lockedPopFront() (*Request, bool) {
+	for len(c.data) == 0 {
+		if c.closed {
+			return nil, false
+		}
+		c.waits++
+		c.cond.Wait()
+		c.waits--
+	}
+	var r = c.data[0]
+	c.data[0], c.data = nil, c.data[1:]
+	return r, true
 }
