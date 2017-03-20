@@ -60,7 +60,7 @@ func TestRequestChan3(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 8192; i++ {
 			ch.PushBack(&Request{UnixNano: int64(i)})
-			if i%10 == 0 {
+			if i%1024 == 0 {
 				runtime.Gosched()
 			}
 		}
@@ -110,6 +110,9 @@ func benchmarkRequestChanN(b *testing.B, n int) {
 	go func() {
 		for i := 0; i < b.N; i++ {
 			ch.PushBack(request)
+			if i%1024 == 0 {
+				runtime.Gosched()
+			}
 		}
 	}()
 

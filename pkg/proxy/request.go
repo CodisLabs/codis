@@ -116,9 +116,6 @@ func (c *RequestChan) lockedPushBack(r *Request) int {
 	if c.closed {
 		panic("send on closed chan")
 	}
-	if len(c.data) == 0 {
-		c.data = c.buff[:0]
-	}
 	if c.waits != 0 {
 		c.cond.Signal()
 	}
@@ -131,11 +128,12 @@ func (c *RequestChan) lockedPopFront() (*Request, bool) {
 		if c.closed {
 			return nil, false
 		}
+		c.data = c.buff[:0]
 		c.waits++
 		c.cond.Wait()
 		c.waits--
 	}
 	var r = c.data[0]
-	c.data[0], c.data = nil, c.data[1:]
+	c.data, c.data[0] = c.data[1:], nil
 	return r, true
 }
