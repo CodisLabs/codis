@@ -137,3 +137,27 @@ func (c *RequestChan) lockedPopFront() (*Request, bool) {
 	c.data, c.data[0] = c.data[1:], nil
 	return r, true
 }
+
+func (c *RequestChan) IsEmpty() bool {
+	return c.Len() == 0
+}
+
+func (c *RequestChan) PopFrontAll(onRequest func(r *Request) error) error {
+	for {
+		r, ok := c.PopFront()
+		if ok {
+			if err := onRequest(r); err != nil {
+				return err
+			}
+		} else {
+			return nil
+		}
+	}
+}
+
+func (c *RequestChan) PopFrontAllVoid(onRequest func(r *Request)) {
+	c.PopFrontAll(func(r *Request) error {
+		onRequest(r)
+		return nil
+	})
+}

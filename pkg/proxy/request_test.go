@@ -108,6 +108,7 @@ func benchmarkRequestChanN(b *testing.B, n int) {
 	}
 	var ch = NewRequestChanBuffer(n)
 	go func() {
+		defer ch.Close()
 		for i := 0; i < b.N; i++ {
 			ch.PushBack(request)
 			if i%1024 == 0 {
@@ -116,9 +117,7 @@ func benchmarkRequestChanN(b *testing.B, n int) {
 		}
 	}()
 
-	for i := 0; i < b.N; i++ {
-		ch.PopFront()
-	}
+	ch.PopFrontAllVoid(func(r *Request) {})
 }
 
 func BenchmarkRequestChan128(b *testing.B)  { benchmarkRequestChanN(b, 128) }
