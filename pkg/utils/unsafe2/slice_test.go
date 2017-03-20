@@ -15,6 +15,11 @@ func TestMakeGoSlice(t *testing.T) {
 	assert.Must(s != nil)
 	_, ok := s.(*goSlice)
 	assert.Must(ok)
+
+	c1 := s.Slice2(0, 1)
+	c2 := s.Slice2(0, 2)
+	assert.Must(c1.Parent() == nil)
+	assert.Must(c2.Parent() == nil)
 }
 
 func TestMakeCGoSlice(t *testing.T) {
@@ -55,4 +60,15 @@ func TestMakeCGoSlice(t *testing.T) {
 	defer FreeSlice(s5)
 
 	assert.Must(OffheapBytes() == int64(n)*3)
+
+	c1 := s5.Slice2(0, 2)
+	c2 := c1.Slice3(0, 1, 2)
+	assert.Must(c1.Parent() == s5)
+	assert.Must(c2.Parent() == s5)
+
+	c1.Buffer()[0] = 'a'
+	assert.Must(c2.Buffer()[0] == 'a')
+
+	c1.Buffer()[0] = 'b'
+	assert.Must(c2.Buffer()[0] == 'b')
 }
