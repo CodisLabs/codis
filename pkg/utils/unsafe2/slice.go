@@ -6,6 +6,8 @@ package unsafe2
 import "github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 
 type Slice interface {
+	Type() string
+
 	Buffer() []byte
 	reclaim()
 

@@ -43,6 +43,10 @@ func newCGoSlice(n int, force bool) Slice {
 	return s
 }
 
+func (s *cgoSlice) Type() string {
+	return "cgo_slice"
+}
+
 func (s *cgoSlice) Buffer() []byte {
 	return s.buf
 }

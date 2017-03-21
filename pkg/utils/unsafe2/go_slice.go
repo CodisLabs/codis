@@ -21,6 +21,10 @@ func newGoSliceFrom(parent Slice, buf []byte) Slice {
 	}
 }
 
+func (s *goSlice) Type() string {
+	return "go_slice"
+}
+
 func (s *goSlice) Buffer() []byte {
 	return s.buf
 }
