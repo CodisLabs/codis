@@ -8,7 +8,6 @@ import (
 	"unsafe"
 
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
-	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/sync2/atomic2"
 )
 
@@ -68,15 +67,18 @@ type RequestChan struct {
 	closed bool
 }
 
-const MinRequestChanBuffer = 128
+const DefaultRequestChanBuffer = 128
 
 func NewRequestChan() *RequestChan {
-	return NewRequestChanBuffer(MinRequestChanBuffer)
+	return NewRequestChanBuffer(0)
 }
 
 func NewRequestChanBuffer(n int) *RequestChan {
+	if n <= 0 {
+		n = DefaultRequestChanBuffer
+	}
 	var ch = &RequestChan{
-		buff: make([]*Request, math2.MaxInt(n, MinRequestChanBuffer)),
+		buff: make([]*Request, n),
 	}
 	ch.cond = sync.NewCond(&ch.lock)
 	return ch

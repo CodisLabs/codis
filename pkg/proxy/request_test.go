@@ -14,7 +14,7 @@ import (
 )
 
 func TestRequestChan1(t *testing.T) {
-	var ch = NewRequestChanBuffer(512)
+	var ch = NewRequestChanBuffer(0)
 	for i := 0; i < 8192; i++ {
 		n := ch.PushBack(&Request{UnixNano: int64(i)})
 		assert.Must(n == i+1)
