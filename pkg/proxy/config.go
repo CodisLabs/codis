@@ -95,7 +95,7 @@ session_send_timeout = "30s"
 
 # Make sure this is higher than the max number of requests for each pipeline request, or your client may be blocked.
 # Set session pipeline buffer size.
-session_max_pipeline = 1024
+session_max_pipeline = 10000
 
 # Set session tcp keepalive period. (0 to disable)
 session_keepalive_period = "75s"
