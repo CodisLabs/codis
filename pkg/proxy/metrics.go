@@ -4,16 +4,16 @@
 package proxy
 
 import (
+	"strings"
 	"time"
+
+	influxdbClient "github.com/influxdata/influxdb/client/v2"
+	statsdClient "gopkg.in/alexcesaro/statsd.v2"
 
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
-
-	influxdbClient "github.com/influxdata/influxdb/client/v2"
-	statsdClient "gopkg.in/alexcesaro/statsd.v2"
-	"strings"
 )
 
 func (p *Proxy) startMetricsReporter(d time.Duration, do, cleanup func() error) {
@@ -132,9 +132,10 @@ func (p *Proxy) startMetricsStatsd() {
 		return
 	}
 
-	prefix := p.config.MetricsReportStatsdPrefix
-
-	replacer := strings.NewReplacer(".", "_", ":", "_")
+	var (
+		prefix   = p.config.MetricsReportStatsdPrefix
+		replacer = strings.NewReplacer(".", "_", ":", "_")
+	)
 
 	p.startMetricsReporter(period, func() error {
 		model := p.Model()
@@ -162,7 +163,6 @@ func (p *Proxy) startMetricsStatsd() {
 			"runtime_num_cgo_call":     stats.Runtime.NumCgoCall,
 			"runtime_num_mem_offheap":  stats.Runtime.MemOffheap,
 		}
-
 		for key, value := range fields {
 			c.Gauge(strings.Join(append(segs, key), "."), value)
 		}
