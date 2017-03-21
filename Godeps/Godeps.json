@@ -117,6 +117,11 @@
 		{
 			"ImportPath": "golang.org/x/net/context",
 			"Rev": "242b6b35177ec3909636b6cf6a47e8c2c6324b5d"
+		},
+		{
+			"ImportPath": "gopkg.in/alexcesaro/statsd.v2",
+			"Comment": "v2.0.0",
+			"Rev": "7fea3f0d2fab1ad973e641e51dba45443a311a90"
 		}
 	]
 }

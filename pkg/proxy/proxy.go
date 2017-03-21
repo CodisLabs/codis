@@ -98,6 +98,7 @@ func New(config *Config) (*Proxy, error) {
 
 	s.startMetricsJson()
 	s.startMetricsInfluxdb()
+	s.startMetricsStatsd()
 
 	return s, nil
 }

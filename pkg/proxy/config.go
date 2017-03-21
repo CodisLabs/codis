@@ -113,6 +113,11 @@ metrics_report_influxdb_period = "1s"
 metrics_report_influxdb_username = ""
 metrics_report_influxdb_password = ""
 metrics_report_influxdb_database = ""
+
+# Set statsd server (such as localhost:8125), proxy will report metrics to statsd.
+metrics_report_statsd_server = ""
+metrics_report_statsd_period = "1s"
+metrics_report_statsd_prefix = ""
 `
 
 type Config struct {
@@ -163,6 +168,9 @@ type Config struct {
 	MetricsReportInfluxdbUsername string            `toml:"metrics_report_influxdb_username" json:"metrics_report_influxdb_username"`
 	MetricsReportInfluxdbPassword string            `toml:"metrics_report_influxdb_password" json:"-"`
 	MetricsReportInfluxdbDatabase string            `toml:"metrics_report_influxdb_database" json:"metrics_report_influxdb_database"`
+	MetricsReportStatsdServer     string            `toml:"metrics_report_statsd_server" json:"metrics_report_statsd_server"`
+	MetricsReportStatsdPeriod     timesize.Duration `toml:"metrics_report_statsd_period" json:"metrics_report_statsd_period"`
+	MetricsReportStatsdPrefix     string            `toml:"metrics_report_statsd_prefix" json:"metrics_report_statsd_prefix"`
 }
 
 func NewDefaultConfig() *Config {
@@ -281,6 +289,9 @@ func (c *Config) Validate() error {
 	}
 	if c.MetricsReportInfluxdbPeriod < 0 {
 		return errors.New("invalid metrics_report_influxdb_period")
+	}
+	if c.MetricsReportStatsdPeriod < 0 {
+		return errors.New("invalid metrics_report_statsd_period")
 	}
 	return nil
 }
