@@ -91,7 +91,7 @@ func (c *RequestChan) Close() {
 	c.lock.Unlock()
 }
 
-func (c *RequestChan) Len() int {
+func (c *RequestChan) Buffered() int {
 	c.lock.Lock()
 	n := len(c.data)
 	c.lock.Unlock()
@@ -139,7 +139,7 @@ func (c *RequestChan) lockedPopFront() (*Request, bool) {
 }
 
 func (c *RequestChan) IsEmpty() bool {
-	return c.Len() == 0
+	return c.Buffered() == 0
 }
 
 func (c *RequestChan) PopFrontAll(onRequest func(r *Request) error) error {
