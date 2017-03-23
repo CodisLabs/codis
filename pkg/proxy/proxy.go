@@ -29,7 +29,6 @@ import (
 type Proxy struct {
 	mu sync.Mutex
 
-	token string
 	xauth string
 	model *models.Proxy
 
