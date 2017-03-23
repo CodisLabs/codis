@@ -1,0 +1,53 @@
+LASTEST NOT RELEASED
+------------------------------
+* Refs #159 *
+* Refs #160*
+
+V1.34.5
+------------------------------
+* Merged #137, Add missing less and remove stray css file in src folder *
+* Tabindex is a customizable option now. *
+* Refs #142 *
+* Refs #145 *
+
+V1.34.4
+------------------------------
+* Updated required Bootstrap version. *
+
+V1.34.3
+------------------------------
+* Fixed #125, a bug that dialog footer won't be shown if it was hidden by a no button realization. *
+* Refs #126. Adding a data 'button' to the created button. Passing original event object to button callback action(dialog, event). *
+* Support Bootstrap v3.3.4
+
+V1.34.2
+------------------------------
+* FIXED #102 *
+* FIXED #121 *
+* Implemented modal-sm, REFS #105 *
+* More controls on confirm dialog, REFS #105 *
+* Added I18N example *
+
+V1.34.1
+------------------------------
+* Added more compatible methods to make BootstrapDialog works better with older version of Bootstrap Modal. *
+
+V1.34.0
+------------------------------
+* FIXED #84 *
+* Support Bootstrap Modal v3.3.0 *
+
+V1.33.5
+------------------------------
+* PULL REQUEST: #72 *
+* PULL REQUEST: #83 *
+* Fixed a bug that after dragging the dialog to another place, the original place prevents closing the dialog by clicking on backdrop. *
+
+V1.33.4
+------------------------------
+* RE-FIXED #56 *
+
+V1.33.3
+------------------------------
+* FIXED #62 *
+* IMPLEMENTED #67 *

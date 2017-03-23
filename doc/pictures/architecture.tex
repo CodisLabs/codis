@@ -1,0 +1,83 @@
+\documentclass{article}
+\usepackage[letterpaper, landscape, margin=2in]{geometry}
+\usepackage[active,tightpage]{preview}
+\PreviewBorder=12pt
+
+\usepackage{tikz}
+\usetikzlibrary{positioning,shapes,arrows,decorations,decorations.pathreplacing}
+
+\begin{document}
+\begin{preview}
+\begin{tikzpicture}[x=1pt,y=1pt,auto]
+    \tikzstyle{every node}=[draw=black,fill=white,rectangle,minimum height=28,node distance=0,inner sep=0,rounded corners]
+    \tikzstyle{note}=[draw=none,opaque,fill=none]
+    \tikzstyle{proxy}=[minimum width=90]
+    \tikzstyle{group}=[minimum width=70,minimum height=22]
+    \tikzstyle{server}=[group,minimum width=80,minimum height=18]
+    \tikzstyle{client}=[proxy,minimum width=58,rounded corners=0]
+    \tikzstyle{dashboard}=[minimum width=100]
+    {
+        \node[proxy] (p0) at (200,0) {codis-proxy};
+        \node[proxy] (p1) at (340,0) {codis-proxy};
+        \node[proxy] (p2) at (470,0) {codis-proxy};
+        \node[note] at (270,0) {\ldots};
+        \node[dashboard] (d0) at (405,60) {codis-dashboard};
+
+        \node[client] (c0) at (165, 120) {jodis-client};
+        \node[client] (c1) at (235, 120) {redis-client};
+        \draw[decorate,decoration={brace,amplitude=3}]
+                (235,105) -- (165,105) node[note] (cm) {};
+
+        \node[dashboard,minimum width=70] (fe) at (405,120) {codis-fe};
+
+        \path[->,>=stealth',shorten >=1pt,shorten <=1pt,auto]
+            (d0) edge (p0)
+            (d0) edge node[note,right,inner sep=20pt] {\scriptsize{RESTful API}} (p1.north)
+            (d0) edge (p2.north)
+            (fe) edge (d0)
+            (200, 102) edge (p0);
+
+        \newcount\pos
+        \foreach \i in {0,1,2,3} {
+            \pos=\i
+            \multiply\pos by 90
+            \node[group] (g\i) at (\pos+200,-60) {\small{codis-group}};
+            \foreach \j in {0,1,2} {
+                \path[->,>=stealth',shorten >=1pt,shorten <=1pt,auto]
+                    (p\j.south) edge (g\i.north);
+            }
+        }
+
+        \node[draw=gray,minimum width=130,minimum height=70,rounded corners=0] (box) at (600, -120) {};
+        \node[server] (s0) at (590, -100) {\small{codis-server:0}};
+        \node[server] (s1) at (590, -120) {\small{codis-server:1}};
+        \node[server] (s2) at (590, -140) {\small{codis-server:2}};
+        \node[note,right=of s0] {\scriptsize{\hspace{0.4em}master}};
+        \node[note,right=of s1] {\scriptsize{\hspace{0.4em}slave}};
+        \node[note,right=of s2] {\scriptsize{\hspace{0.4em}slave}};
+
+        \path[shorten >=1pt,shorten <=1pt,auto,dotted]
+            (g3.east) edge (box.north east)
+            (g3.south) edge (box.south west);
+
+        \node[draw,cloud,cloud puffs=9,minimum width=100pt,minimum height=60pt] (cloud1) at (600, 100) {};
+        \node[note] at (600,100) {Storage};
+        \path[->,>=stealth',shorten >=1pt,shorten <=1pt]
+            (d0) edge node[note,above,outer sep=-7pt,sloped,anchor=south,auto=false] {\scriptsize{CRUD/List}} (cloud1);
+
+        \node[draw,cloud,cloud puffs=12,minimum width=80pt,minimum height=40pt] (cloud2) at (100, 55) {};
+        \node[note] at (100,55) {\small{zookeeper}};
+        \path[->,>=stealth',shorten >=2pt,shorten <=2pt,dashed]
+            (p0.west) edge[bend left=15] node[note,above,outer sep=-7pt,sloped,anchor=south,auto=false] {\scriptsize{jodis}} (cloud2)
+            (cloud2) edge[bend left=15] node[note,above,outer sep=-7pt,sloped,anchor=south,auto=false] {} (c0);
+
+        \node[draw,cloud,cloud puffs=12,minimum width=80pt,minimum height=40pt] (cloud3) at (600, 30) {};
+        \node[note] at (600,30) {redis-sentinel};
+        \path[->,>=stealth',shorten >=1pt,shorten <=1pt]
+            (p2.east) edge[bend right=15] node[note,above,outer sep=-7pt,sloped,anchor=south,auto=false] {\scriptsize{subscribe}} (cloud3)
+            (cloud3.south) edge node[note,above,outer sep=-7pt,sloped,anchor=south,auto=false] {\scriptsize{HA: ping}} (box)
+            (d0) edge node[note,above,outer sep=-7pt,sloped,anchor=south,auto=false] {\scriptsize{monitor}} (cloud3);
+    }
+\end{tikzpicture}
+\end{preview}
+\end{document}

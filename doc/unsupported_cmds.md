@@ -41,7 +41,10 @@ These commands are disallowed in codis proxy, if you use them, proxy will close 
 |                  | FLUSHALL         |
 |                  | FLUSHDB          |
 |                  | LASTSAVE         |
+|                  | LATENCY          |
 |                  | MONITOR          |
+|                  | PSYNC            |
+|                  | REPLCONF         |
 |                  | RESTORE          |
 |                  | SAVE             |
 |                  | SHUTDOWN         |
@@ -64,14 +67,19 @@ These commands is "half-supported". Codis does not support cross-node operation,
 |   Command Type   |   Command Name   |
 |:----------------:|:---------------- |
 |   Lists          | RPOPLPUSH        |
-|     Sets        |    SDIFF    |
-|             |    SINTER    |
-|             |   SINTERSTORE     |
-|             |   SMOVE     |
-|             |    SUNION    |
-|             |    SUNIONSTORE    |
-|      Sorted Sets       |   ZINTERSTORE     |
-|             |   ZUNIONSTORE     |
-|       HyperLogLog      |  PFMERGE      |
-|       Scripting      |    EVAL    |
-|             |    EVALSHA    |
+|                  |                  |
+|   Sets           | SDIFF            |
+|                  | SINTER           |
+|                  | SINTERSTORE      |
+|                  | SMOVE            |
+|                  | SUNION           |
+|                  | SUNIONSTORE      |
+|                  |                  |
+|   Sorted Sets    | ZINTERSTORE      |
+|                  | ZUNIONSTORE      |
+|                  |                  |
+|   HyperLogLog    | PFMERGE          |
+|                  |                  |
+|   Scripting      | EVAL             |
+|                  | EVALSHA          |
+

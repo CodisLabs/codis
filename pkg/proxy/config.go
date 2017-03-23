@@ -4,75 +4,274 @@
 package proxy
 
 import (
-	"strings"
+	"bytes"
 
+<<<<<<< HEAD
 	"github.com/c4pt0r/cfg"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+=======
+	"github.com/BurntSushi/toml"
+
+	"github.com/CodisLabs/codis/pkg/utils/bytesize"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/timesize"
+>>>>>>> CodisLabs/release3.1
 )
 
-type Config struct {
-	proxyId       string
-	productName   string
-	zkAddr        string
-	passwd        string
-	fact          ZkFactory
-	proto         string //tcp or tcp4
-	provider      string
-	dashboardAddr string
+const DefaultConfig = `
+##################################################
+#                                                #
+#                  Codis-Proxy                   #
+#                                                #
+##################################################
 
-	pingPeriod       int // seconds
-	maxTimeout       int // seconds
-	maxBufSize       int
-	maxPipeline      int
-	zkSessionTimeout int
+# Set Codis Product Name/Auth.
+product_name = "codis-demo"
+product_auth = ""
+
+# Set bind address for admin(rpc), tcp only.
+admin_addr = "0.0.0.0:11080"
+
+# Set bind address for proxy, proto_type can be "tcp", "tcp4", "tcp6", "unix" or "unixpacket".
+proto_type = "tcp4"
+proxy_addr = "0.0.0.0:19000"
+
+# Set jodis address & session timeout, only accept "zookeeper" & "etcd".
+jodis_name = ""
+jodis_addr = ""
+jodis_timeout = "20s"
+jodis_compatible = false
+
+# Set datacenter of proxy.
+proxy_datacenter = ""
+
+# Set max number of alive sessions.
+proxy_max_clients = 1000
+
+# Set max offheap memory size. (0 to disable)
+proxy_max_offheap_size = "1024mb"
+
+# Set heap placeholder to reduce GC frequency.
+proxy_heap_placeholder = "256mb"
+
+# Proxy will ping backend redis (and clear 'MASTERDOWN' state) in a predefined interval. (0 to disable)
+backend_ping_period = "5s"
+
+# Set backend recv buffer size & timeout.
+backend_recv_bufsize = "128kb"
+backend_recv_timeout = "30s"
+
+# Set backend send buffer & timeout.
+backend_send_bufsize = "128kb"
+backend_send_timeout = "30s"
+
+# Set backend pipeline buffer size.
+backend_max_pipeline = 1024
+
+# Set backend never read replica groups, default is false
+backend_primary_only = false
+
+# Set backend parallel connections per server
+backend_primary_parallel = 1
+backend_replica_parallel = 1
+
+# Set backend tcp keepalive period. (0 to disable)
+backend_keepalive_period = "75s"
+
+# If there is no request from client for a long time, the connection will be closed. (0 to disable)
+# Set session recv buffer size & timeout.
+session_recv_bufsize = "128kb"
+session_recv_timeout = "30m"
+
+# Set session send buffer size & timeout.
+session_send_bufsize = "64kb"
+session_send_timeout = "30s"
+
+# Make sure this is higher than the max number of requests for each pipeline request, or your client may be blocked.
+# Set session pipeline buffer size.
+session_max_pipeline = 1024
+
+# Set session tcp keepalive period. (0 to disable)
+session_keepalive_period = "75s"
+
+# Set session to be sensitive to failures. Default is false, instead of closing socket, proxy will send an error response to client.
+session_break_on_failure = false
+
+# Set metrics server (such as http://localhost:28000), proxy will report json formatted metrics to specified server in a predefined period.
+metrics_report_server = ""
+metrics_report_period = "1s"
+
+# Set influxdb server (such as http://localhost:8086), proxy will report metrics to influxdb.
+metrics_report_influxdb_server = ""
+metrics_report_influxdb_period = "1s"
+metrics_report_influxdb_username = ""
+metrics_report_influxdb_password = ""
+metrics_report_influxdb_database = ""
+`
+
+type Config struct {
+	ProtoType string `toml:"proto_type" json:"proto_type"`
+	ProxyAddr string `toml:"proxy_addr" json:"proxy_addr"`
+	AdminAddr string `toml:"admin_addr" json:"admin_addr"`
+
+	HostProxy string `toml:"-" json:"-"`
+	HostAdmin string `toml:"-" json:"-"`
+
+	JodisName       string            `toml:"jodis_name" json:"jodis_name"`
+	JodisAddr       string            `toml:"jodis_addr" json:"jodis_addr"`
+	JodisTimeout    timesize.Duration `toml:"jodis_timeout" json:"jodis_timeout"`
+	JodisCompatible bool              `toml:"jodis_compatible" json:"jodis_compatible"`
+
+	ProductName string `toml:"product_name" json:"product_name"`
+	ProductAuth string `toml:"product_auth" json:"-"`
+
+	ProxyDataCenter      string         `toml:"proxy_datacenter" json:"proxy_datacenter"`
+	ProxyMaxClients      int            `toml:"proxy_max_clients" json:"proxy_max_clients"`
+	ProxyMaxOffheapBytes bytesize.Int64 `toml:"proxy_max_offheap_size" json:"proxy_max_offheap_size"`
+	ProxyHeapPlaceholder bytesize.Int64 `toml:"proxy_heap_placeholder" json:"proxy_heap_placeholder"`
+
+	BackendPingPeriod      timesize.Duration `toml:"backend_ping_period" json:"backend_ping_period"`
+	BackendRecvBufsize     bytesize.Int64    `toml:"backend_recv_bufsize" json:"backend_recv_bufsize"`
+	BackendRecvTimeout     timesize.Duration `toml:"backend_recv_timeout" json:"backend_recv_timeout"`
+	BackendSendBufsize     bytesize.Int64    `toml:"backend_send_bufsize" json:"backend_send_bufsize"`
+	BackendSendTimeout     timesize.Duration `toml:"backend_send_timeout" json:"backend_send_timeout"`
+	BackendMaxPipeline     int               `toml:"backend_max_pipeline" json:"backend_max_pipeline"`
+	BackendPrimaryOnly     bool              `toml:"backend_primary_only" json:"backend_primary_only"`
+	BackendPrimaryParallel int               `toml:"backend_primary_parallel" json:"backend_primary_parallel"`
+	BackendReplicaParallel int               `toml:"backend_replica_parallel" json:"backend_replica_parallel"`
+	BackendKeepAlivePeriod timesize.Duration `toml:"backend_keepalive_period" json:"backend_keepalive_period"`
+
+	SessionRecvBufsize     bytesize.Int64    `toml:"session_recv_bufsize" json:"session_recv_bufsize"`
+	SessionRecvTimeout     timesize.Duration `toml:"session_recv_timeout" json:"session_recv_timeout"`
+	SessionSendBufsize     bytesize.Int64    `toml:"session_send_bufsize" json:"session_send_bufsize"`
+	SessionSendTimeout     timesize.Duration `toml:"session_send_timeout" json:"session_send_timeout"`
+	SessionMaxPipeline     int               `toml:"session_max_pipeline" json:"session_max_pipeline"`
+	SessionKeepAlivePeriod timesize.Duration `toml:"session_keepalive_period" json:"session_keepalive_period"`
+	SessionBreakOnFailure  bool              `toml:"session_break_on_failure" json:"session_break_on_failure"`
+
+	MetricsReportServer           string            `toml:"metrics_report_server" json:"metrics_report_server"`
+	MetricsReportPeriod           timesize.Duration `toml:"metrics_report_period" json:"metrics_report_period"`
+	MetricsReportInfluxdbServer   string            `toml:"metrics_report_influxdb_server" json:"metrics_report_influxdb_server"`
+	MetricsReportInfluxdbPeriod   timesize.Duration `toml:"metrics_report_influxdb_period" json:"metrics_report_influxdb_period"`
+	MetricsReportInfluxdbUsername string            `toml:"metrics_report_influxdb_username" json:"metrics_report_influxdb_username"`
+	MetricsReportInfluxdbPassword string            `toml:"metrics_report_influxdb_password" json:"-"`
+	MetricsReportInfluxdbDatabase string            `toml:"metrics_report_influxdb_database" json:"metrics_report_influxdb_database"`
 }
 
-func LoadConf(configFile string) (*Config, error) {
-	c := cfg.NewCfg(configFile)
-	if err := c.Load(); err != nil {
-		log.PanicErrorf(err, "load config '%s' failed", configFile)
+func NewDefaultConfig() *Config {
+	c := &Config{}
+	if _, err := toml.Decode(DefaultConfig, c); err != nil {
+		log.PanicErrorf(err, "decode toml failed")
 	}
+	if err := c.Validate(); err != nil {
+		log.PanicErrorf(err, "validate config failed")
+	}
+	return c
+}
 
-	conf := &Config{}
-	conf.productName, _ = c.ReadString("product", "test")
-	if len(conf.productName) == 0 {
-		log.Panicf("invalid config: product entry is missing in %s", configFile)
+func (c *Config) LoadFromFile(path string) error {
+	_, err := toml.DecodeFile(path, c)
+	if err != nil {
+		return errors.Trace(err)
 	}
-	conf.dashboardAddr, _ = c.ReadString("dashboard_addr", "")
-	if conf.dashboardAddr == "" {
-		log.Panicf("invalid config: dashboard_addr is missing in %s", configFile)
-	}
-	conf.zkAddr, _ = c.ReadString("zk", "")
-	if len(conf.zkAddr) == 0 {
-		log.Panicf("invalid config: need zk entry is missing in %s", configFile)
-	}
-	conf.zkAddr = strings.TrimSpace(conf.zkAddr)
-	conf.passwd, _ = c.ReadString("password", "")
+	return c.Validate()
+}
 
-	conf.proxyId, _ = c.ReadString("proxy_id", "")
-	if len(conf.proxyId) == 0 {
-		log.Panicf("invalid config: need proxy_id entry is missing in %s", configFile)
+func (c *Config) String() string {
+	var b bytes.Buffer
+	e := toml.NewEncoder(&b)
+	e.Indent = "    "
+	e.Encode(c)
+	return b.String()
+}
+
+func (c *Config) Validate() error {
+	if c.ProtoType == "" {
+		return errors.New("invalid proto_type")
 	}
-
-	conf.proto, _ = c.ReadString("proto", "tcp")
-	conf.provider, _ = c.ReadString("coordinator", "zookeeper")
-
-	loadConfInt := func(entry string, defval int) int {
-		v, _ := c.ReadInt(entry, defval)
-		if v < 0 {
-			log.Panicf("invalid config: read %s = %d", entry, v)
+	if c.ProxyAddr == "" {
+		return errors.New("invalid proxy_addr")
+	}
+	if c.AdminAddr == "" {
+		return errors.New("invalid admin_addr")
+	}
+	if c.JodisName != "" {
+		if c.JodisAddr == "" {
+			return errors.New("invalid jodis_addr")
 		}
-		return v
+		if c.JodisTimeout < 0 {
+			return errors.New("invalid jodis_timeout")
+		}
+	}
+	if c.ProductName == "" {
+		return errors.New("invalid product_name")
+	}
+	if c.ProxyMaxClients < 0 {
+		return errors.New("invalid proxy_max_clients")
 	}
 
-	conf.pingPeriod = loadConfInt("backend_ping_period", 5)
-	conf.maxTimeout = loadConfInt("session_max_timeout", 1800)
-	conf.maxBufSize = loadConfInt("session_max_bufsize", 131072)
-	conf.maxPipeline = loadConfInt("session_max_pipeline", 1024)
-	conf.zkSessionTimeout = loadConfInt("zk_session_timeout", 30000)
-	if conf.zkSessionTimeout <= 100 {
-		conf.zkSessionTimeout *= 1000
-		log.Warn("zkSessionTimeout is to small, it is ms not second")
+	const MaxInt = bytesize.Int64(^uint(0) >> 1)
+
+	if d := c.ProxyMaxOffheapBytes; d < 0 || d > MaxInt {
+		return errors.New("invalid proxy_max_offheap_size")
 	}
-	return conf, nil
+	if d := c.ProxyHeapPlaceholder; d < 0 || d > MaxInt {
+		return errors.New("invalid proxy_heap_placeholder")
+	}
+	if c.BackendPingPeriod < 0 {
+		return errors.New("invalid backend_ping_period")
+	}
+
+	if d := c.BackendRecvBufsize; d < 0 || d > MaxInt {
+		return errors.New("invalid backend_recv_bufsize")
+	}
+	if c.BackendRecvTimeout < 0 {
+		return errors.New("invalid backend_recv_timeout")
+	}
+	if d := c.BackendSendBufsize; d < 0 || d > MaxInt {
+		return errors.New("invalid backend_send_bufsize")
+	}
+	if c.BackendSendTimeout < 0 {
+		return errors.New("invalid backend_send_timeout")
+	}
+	if c.BackendMaxPipeline < 0 {
+		return errors.New("invalid backend_max_pipeline")
+	}
+	if c.BackendPrimaryParallel < 0 {
+		return errors.New("invalid backend_primary_parallel")
+	}
+	if c.BackendReplicaParallel < 0 {
+		return errors.New("invalid backend_replica_parallel")
+	}
+	if c.BackendKeepAlivePeriod < 0 {
+		return errors.New("invalid backend_keepalive_period")
+	}
+
+	if d := c.SessionRecvBufsize; d < 0 || d > MaxInt {
+		return errors.New("invalid session_recv_bufsize")
+	}
+	if c.SessionRecvTimeout < 0 {
+		return errors.New("invalid session_recv_timeout")
+	}
+	if d := c.SessionSendBufsize; d < 0 || d > MaxInt {
+		return errors.New("invalid session_send_bufsize")
+	}
+	if c.SessionSendTimeout < 0 {
+		return errors.New("invalid session_send_timeout")
+	}
+	if c.SessionMaxPipeline < 0 {
+		return errors.New("invalid session_max_pipeline")
+	}
+	if c.SessionKeepAlivePeriod < 0 {
+		return errors.New("invalid session_keepalive_period")
+	}
+
+	if c.MetricsReportPeriod < 0 {
+		return errors.New("invalid metrics_report_period")
+	}
+	if c.MetricsReportInfluxdbPeriod < 0 {
+		return errors.New("invalid metrics_report_influxdb_period")
+	}
+	return nil
 }

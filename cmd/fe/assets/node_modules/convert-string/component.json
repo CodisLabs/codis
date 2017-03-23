@@ -1,0 +1,16 @@
+{
+  "name": "convert-string",
+  "version": "0.1.0",
+  "description": "Convert to/from strings and array of bytes",
+  "keywords": [
+    "string",
+    "strings",
+    "convert",
+    "bytes"
+  ],
+  "repo": "cryptocoinjs/convert-string",
+  "scripts": [
+    "convert-string.js"
+  ],
+  "main": "convert-string.js"
+}

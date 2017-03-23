@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en" ng-app="dashboard-fe" data-framework="angularjs">
+<head>
+    <meta charset="utf-8">
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width">
+
+    <title>Codis • Dashboard</title>
+    <link rel="stylesheet" href="node_modules/bootstrap-dialog/src/css/bootstrap-dialog.css" media="all">
+    <link rel="stylesheet" href="node_modules/bootstrap/dist/css/bootstrap.css" media="all">
+    <link rel="stylesheet" href="css/main.css" media="all">
+    <style>[ng-cloak] {
+        display: none;
+    }</style>
+    <style type="text/css">
+        .bs-example {
+            margin: 20px;
+        }
+
+        @media screen and (min-width: 968px) {
+            .modal-dialog {
+                width: 900px; /* New width for default modal */
+            }
+        }
+    </style>
+</head>
+<body ng-controller="MainCodisCtrl">
+<div class="body-container" ng-cloak>
+    <div id="sidebar">
+        <div class=content">
+            <div class="title" dis="1"> Codis</div>
+            <div class="items">
+                <ul class="ui-itemlist" ng-repeat="cname in codis_list">
+                    <li><a href="#[[cname]]" ng-click="selectCodisInstance(cname)">[[cname]]</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="main">
+    <div class="container-full">
+        <div class="row" style="min-width: 400px">
+            <div class="col-md-12">
+                <h4 style="padding-left:20px;"><b>Overview</b></h4>
+                <table class="table table-bordered" style="font-weight: bold;">
+                    <col width="200px">
+                    <tbody>
+                    <tr>
+                        <td>Product Name</td>
+                        <td>[[codis_name]]</td>
+                    </tr>
+                    <tr>
+                        <td>[[codis_coord_name]]</td>
+                        <td>[[codis_coord_addr]]</td>
+                    </tr>
+                    <tr>
+                        <td>Codis QPS</td>
+                        <td>[[codis_qps]]</td>
+                    </tr>
+                    <tr>
+                        <td>Sessions</td>
+                        <td>[[codis_sessions]]</td>
+                    </tr>
+                    <tr>
+                        <td>Redis Memory</td>
+                        <td>[[redis_mem]]</td>
+                    </tr>
+                    <tr>
+                        <td>Redis Keys</td>
+                        <td>[[redis_keys]]</td>
+                    </tr>
+                    <tr>
+                        <td>Dashboard</td>
+                        <td ng-switch="codis_addr">
+                            <span ng-switch-when="NA">NA</span>
+                            <span ng-switch-default><a href="http://[[codis_addr]]/topom" target="_blank">[[codis_addr]]</a></span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                <div>
+                    <highchart config="chart_ops" style="height:270px"></highchart>
+                </div>
+                <table class="table">
+                    <col width="200px">
+                    <tr>
+                        <td style="border:none;" ng-model="refresh_interval">
+                            <b>Refresh: [[refresh_interval]]</b>
+                        </td>
+                        <td style="border:none;">
+                            <input type="range" min="1" max="60" step="1" ng-model="refresh_interval"
+                                   value="[[refresh_interval]]">
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="row" style="min-width: 1200px">
+            <div class="col-md-12"
+                 style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
+                <form class="form-inline">
+                    <h4 style="padding-left:30px; padding-right:20px; display: inline;">Proxy</h4>
+                </form>
+            </div>
+            <div class="col-md-12"
+                 style="padding-bottom: 10px;">
+                <form class="form-inline">
+                    <span ng-if="codis_addr != 'NA'">
+                    <button class="btn btn-warning btn-sm active" style="width: 120px; font-size: 14px; padding: 2px;"
+                            ng-click="createProxy(new_proxy)"
+                            ng-disabled="!new_proxy">New Proxy
+                    </button>
+                    <input style="height: 28px; width: 250px;" type="text" class="form-control" placeholder="Proxy Admin Address"
+                           ng-model="new_proxy">
+                    </span>
+                </form>
+            </div>
+            <div class="col-md-12" ng-if="proxy_array.length != 0">
+                <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
+                    <thead>
+                    <tr>
+                        <th style="width: 35px; text-align: center"/>ID</th>
+                        <th style="width: 50px; text-align: center">Stats</th>
+                        <th style="min-width: 160px;">Proxy</th>
+                        <th style="min-width: 160px;">Admin</th>
+                        <th style="width: 60px;"/>
+                        <th style="min-width: 100px;">Data Center</th>
+                        <th style="width: 35px;"/>
+                        <th style="min-width: 140px;">Sessions</th>
+                        <th style="min-width: 200px;">Commands</th>
+                        <th style="width: 35px;"></th>
+                    </tr>
+                    </thead>
+                    <tr ng-repeat="proxy in proxy_array">
+                        <td class="text-center">[[proxy.id]]</td>
+                        <td>
+                            <a ng-href="http://[[proxy.proxy_link]]" target="_blank" class="btn btn-primary btn-xs active" role="button">F</a>
+                            <a ng-href="http://[[proxy.stats_link]]" target="_blank" class="btn btn-default btn-xs active" role="button">
+                                <span ng-if="proxy.primary_only" style="color: DarkRed; font-weight: bold;"
+                                    data-toggle="tooltip" data-placement="right" title="BACKEND: PRIMARY ONLY">S</span>
+                                <span ng-if="!proxy.primary_only">S</span>
+                            </a>
+                        </td>
+                        <td ng-switch="proxy.switched">
+                            <span ng-switch-when="true" style="color: white; background-color: red"
+                                data-toggle="tooltip" data-placement="right" title="HA: MASTER SWITCHED">
+                                [[proxy.proxy_addr]]
+                            </span>
+                            <span ng-switch-default>
+                                [[proxy.proxy_addr]]
+                            </span>
+                        </td>
+                        <td ng-switch="proxy.switched">
+                            <span ng-switch-when="true" style="color: white; background-color: red"
+                                data-toggle="tooltip" data-placement="right" title="HA: MASTER SWITCHED">
+                                [[proxy.admin_addr]]
+                            </span>
+                            <span ng-switch-default>
+                                [[proxy.admin_addr]]
+                            </span>
+                        </td>
+                        <td style="text-align: center">
+                            <span ng-if="proxy.status == 'HEALTHY' && !proxy.switched" class="btn btn-success btn-xs active"
+                                data-toggle="tooltip" data-placement="right" title="RESYNC ALL SLOTS to [[proxy.proxy_addr]]"
+                                ng-click="reinitProxy(proxy)">
+                                SYNC
+                            </span>
+                            <span ng-if="proxy.status == 'PENDING' || proxy.switched" class="btn btn-danger btn-xs active"
+                                data-toggle="tooltip" data-placement="right" title="RESYNC ALL SLOTS to [[proxy.proxy_addr]]"
+                                ng-click="reinitProxy(proxy)">
+                                SYNC
+                            </span>
+                        </td>
+                        <td>[[proxy.datacenter]]</td>
+                        <td class="button_tight_column" style="text-align: center">
+                            <button class="btn btn-danger btn-xs active" ng-if="proxy.status == 'ERROR'"
+                                data-toggle="tooltip" data-placement="right" title="FORCE REMOVE PROXY [[proxy.proxy_addr]]"
+                                ng-click="removeProxy(proxy, true)">
+                                <span class="glyphicon glyphicon-remove"></span>
+                            </button>
+                        </td>
+                        <td>[[proxy.sessions]]</td>
+                        <td ng-switch="proxy.status">
+                            <span ng-switch-when="ERROR" class="status_label_error">[[proxy.status]]</span>
+                            <span ng-switch-when="TIMEOUT" class="status_label_warning">[[proxy.status]]</span>
+                            <span ng-switch-when="PENDING" class="status_label_pending">[[proxy.status]]</span>
+                            <span ng-switch-default>[[proxy.commands]]</span>
+                        </td>
+                        <td class="button_tight_column" style="text-align: center">
+                            <button class="btn btn-danger btn-xs active"
+                                data-toggle="tooltip" data-placement="right" title="REMOVE PROXY [[proxy.proxy_addr]]"
+                                ng-click="removeProxy(proxy, false)">
+                                <span class="glyphicon glyphicon-minus"></span>
+                            </button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12"
+                 style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
+                <form class="form-inline">
+                    <h4 style="padding-left:30px; padding-right:20px; display: inline;">Slots</h4>
+                </form>
+            </div>
+            <div class="col-md-12"
+                 style="padding-bottom: 10px;">
+                <form class="form-inline">
+                    <span ng-if="codis_addr != 'NA'">
+                        <button class="btn btn-warning btn-sm active" style="width: 120px; font-size: 14px; padding: 2px;"
+                                ng-click="createSlotActionRange(migrate_slot_id_beg, migrate_slot_id_end, migrate_range_to_group_id)"
+                                ng-disabled="!migrate_slot_id_beg || !migrate_slot_id_end || !migrate_range_to_group_id">
+                            Migrate Slots
+                        </button>
+                        [
+                        <input style="height: 28px; width: 110px; " type="text"
+                               class="form-control" placeholder="Slot [0,1023]"
+                               ng-model="migrate_slot_id_beg">
+                        ~
+                        <input style="height: 28px; width: 110px; " type="text"
+                               class="form-control" placeholder="Slot [0,1023]"
+                               ng-model="migrate_slot_id_end">
+                        ] to
+                        <input style="height: 28px; width: 140px;"
+                               pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
+                               class="form-control" placeholder="Group [1,9999]"
+                               ng-model="migrate_range_to_group_id">
+                    </span>
+                </form>
+            </div>
+
+            <div class="col-md-12">
+                <div id="slots_charts" style="min-width: 400px; height: 180px; margin: 0 auto"></div>
+            </div>
+            <div>
+                <div class="row">
+                    <div class="col-md-6" style="min-width:450px;">
+                        <table class="table table-bordered" style="font-weight:bold;">
+                            <col width="40%">
+                            <col width="60%">
+                            <tbody>
+                            <tr>
+                                <td ng-switch="slots_action_disabled">
+                                    <span ng-switch-when="true">
+                                        Action : Disabled
+                                    </span>
+                                    <span ng-switch-when="false">
+                                        Action : Enabled
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="btn-group">
+                                        <button class="btn btn-success btn-xs active" style="width: 120px;"
+                                                ng-disabled="!slots_action_disabled"
+                                                ng-click="updateSlotActionDisabled(0)">
+                                            Enable
+                                        </button>
+                                        <button class="btn btn-danger btn-xs active" style="width: 120px;"
+                                                ng-disabled="slots_action_disabled"
+                                                ng-click="updateSlotActionDisabled(1)">
+                                            Disable
+                                        </button>
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Action Interval (us)</td>
+                                <td>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" style="height: 22px;"
+                                               pattern="^(?:[1][0]{6}|[1-9][0-9]{1,5}|[0-9])$"
+                                               placeholder="[[slots_action_interval]]"
+                                               ng-model="updated_slots_action_interval">
+                                            <span class="input-group-btn active">
+                                                <button class="btn btn-primary btn-xs active" type="button"
+                                                        ng-click="updateSlotActionInterval(updated_slots_action_interval)"
+                                                        ng-disabled="!updated_slots_action_interval">
+                                                    Update
+                                                </button>
+                                            </span>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Action Status</td>
+                                <td ng-switch="slots_action_failed">
+                                    <span ng-switch-when="true" class="status_label_error">
+                                        ERROR
+                                    </span>
+                                    <span ng-switch-default>
+                                        [[slots_action_remain]]
+                                    </span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Show Actions</td>
+                                <td>
+                                    <input type="checkbox" ng-model="show_slots_actions">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Auto-Rebalance</td>
+                                <td>
+                                    <span>
+                                        <button class="btn btn-danger btn-xs active" style="width: 240px;"
+                                                ng-click="rebalanceAllSlots()">
+                                            Rebalance All Slots
+                                        </button>
+                                    </span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="col-md-6" ng-if="show_slots_actions">
+                        <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
+                            <thead>
+                            <tr>
+                                <th style="min-width: 35px">Slot</th>
+                                <th style="min-width: 35px">Group</th>
+                                <th style="min-width: 35px">Target</th>
+                                <th style="min-width: 35px">Index</th>
+                                <th style="min-width: 120px;">Status</th>
+                                <th style="width: 35px;"></th>
+                            </tr>
+                            </thead>
+                            <tr ng-repeat="slot in slots_actions">
+                                <td class="text-center">[[slot.id]]</td>
+                                <td>[[slot.group_id]]</td>
+                                <td>[[slot.action.target_id]]</td>
+                                <td>[[slot.action.index]]</td>
+                                <td ng-switch="slot.action.state">
+                                    <span ng-switch-when="pending">
+                                        [[slot.action.state]]
+                                    </span>
+                                    <span ng-switch-default style="color: red; font-weight: bold;">
+                                        [[slot.action.state]]
+                                    </span>
+                                </td>
+                                <td class="button_tight_column" ng-switch="slot.action.state">
+                                    <span ng-switch-when="pending">
+                                        <button class="btn btn-danger btn-xs active" ng-click="removeSlotAction(slot.id)">
+                                            <span class="glyphicon glyphicon-minus"></span>
+                                        </button>
+                                    </span>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row" style="min-width: 1200px">
+            <div class="col-md-12"
+                 style="margin-bottom: 10px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
+                <form class="form-inline">
+                    <h4 style="padding-left:30px; padding-right:20px; display: inline;">Group</h4>
+                </form>
+            </div>
+            <div class="col-md-12"
+                 style="padding-bottom: 10px;">
+                <form class="form-inline" style="padding-bottom:5px">
+                    <span ng-if="codis_addr != 'NA'">
+                        <button class="btn btn-success btn-sm active" style="width: 120px; font-size: 14px; padding: 2px;"
+                                ng-click="createGroup(new_group)"
+                                ng-disabled="!new_group">New Group
+                        </button>
+                        <input style="height: 28px; width: 140px;"
+                               pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
+                               class="form-control" placeholder="Group [1,9999]"
+                               ng-model="new_group">
+                    </span>
+                </form>
+                <form class="form-inline" style="padding-bottom: 5px">
+                    <span ng-if="codis_addr != 'NA'">
+                        <button class="btn btn-warning btn-sm active" style="width: 120px; font-size: 14px; padding: 2px;"
+                                ng-click="addGroupServer(new_server_group, new_server_datacenter, new_server_addr)"
+                                ng-disabled="!new_server_group || !new_server_addr">Add Server
+                        </button>
+                        <input style="height: 28px; width: 140px; " type="text" class="form-control"
+                               class="form-control" placeholder="Data Center"
+                               ng-model="new_server_datacenter">
+                        <input style="height: 28px; width: 250px; " type="text" class="form-control"
+                               placeholder="Codis Server Address"
+                               ng-model="new_server_addr">
+                        to
+                        <input style="height: 28px; width: 140px;"
+                               pattern="^(?:[1-9][0-9]{1,3}|[1-9])$"
+                               class="form-control" placeholder="Group [1,9999]"
+                               ng-model="new_server_group">
+                    </span>
+                </form>
+                <form class="form-inline">
+                    <span ng-if="group_array.length != 0" class="btn-group">
+                        <button class="btn btn-primary btn-xs active" style="width: 160px; font-size: 14px; padding: 2px;"
+                                ng-click="resyncGroupAll()">GROUPS: SYNC ALL
+                        </button>
+                        <button class="btn btn-success btn-xs active" style="width: 200px; font-size: 14px; padding: 2px;"
+                                ng-click="enableReplicaGroupsAll(1)">REPLICA(S): ENABLE ALL
+                        </button>
+                        <button class="btn btn-danger btn-xs active" style="width: 200px; font-size: 14px; padding: 2px;"
+                                ng-click="enableReplicaGroupsAll(0)">REPLICA(S): DISABLE ALL
+                        </button>
+                    </span>
+                </form>
+            </div>
+
+            <div class="col-md-12" ng-repeat="group in group_array">
+                <table class="table table-bordered table-striped table-hover table-condensed">
+                    <thead>
+                    <tr>
+                        <th style="width: 85px; text-align: center" ng-switch="group.ispromoting">
+                            <span ng-switch-when="true" class="status_label_error">
+                                [ [[group.id]] ]
+                            </span>
+                            <span ng-switch-default>
+                                [[group.id]]
+                            </span>
+                        </th>
+                        <th style="min-width: 190px;"> Server
+                            <span ng-if="group.ha_warning != ''" style="color: white; background-color: red">
+                                    [[group.ha_warning]]
+                            </span>
+                        </th>
+                        <th style="min-width: 100px;">Data Center</th>
+                        <th style="min-width: 180px;">
+                            <span ng-switch="group.out_of_sync">
+                                <span ng-switch-when="true" style="color: white; background-color: red">
+                                    (OUT OF SYNC)
+                                </span>
+                                <span ng-switch-default>
+                                    Master
+                                </span>
+                            </span>
+                        </th>
+                        <th style="width: 25px;"/>
+                        <th style="width: 35px;"/>
+                        <th style="min-width: 100px;"/>
+                        <th style="min-width: 140px;">Memory</th>
+                        <th style="min-width: 230px;">Keys</th>
+                        <th style="width: 35px; text-align: center">
+                            <span ng-if="!group.ispromoting">
+                                <span ng-if="group.canremove">
+                                    <button class="btn btn-primary btn-xs active"
+                                            data-toggle="tooltip" data-placement="right" title="REMOVE GROUP-[[group.id]]"
+                                            ng-click="removeGroup(group.id)">
+                                        <span class="glyphicon glyphicon-trash"></span>
+                                    </button>
+                                </span>
+                            </span>
+                        </th>
+                    </tr>
+                    </thead>
+                    <tr ng-repeat="server in group.servers">
+                        <td class="button_tight_column" style="text-align: center">
+                            <span ng-if="!group.ispromoting">
+                                <span ng-if="server.canpromote">
+                                    <span ng-switch="server.ha_status">
+                                        <span ng-switch-when="ha_real_master">
+                                            <button class="btn btn-success btn-xs active"
+                                                    style="width: 70px;"
+                                                    data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
+                                                    ng-click="promoteServer(group, server.server)">
+                                                PROMOTE
+                                            </button>
+                                        </span>
+                                        <span ng-switch-default>
+                                            <button class="btn btn-warning btn-xs active"
+                                                    style="width: 70px;"
+                                                    data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
+                                                    ng-click="promoteServer(group, server.server)">
+                                                PROMOTE
+                                            </button>
+                                        </span>
+                                    </span>
+                                </span>
+                                <span ng-if="!server.canpromote" ng-switch="group.out_of_sync">
+                                    <span ng-switch-when="true">
+                                        <button class="btn btn-danger btn-xs active"
+                                                style="width: 70px;"
+                                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of GROUP-[[group.id]]"
+                                                ng-click="resyncGroup(group)">
+                                            SYNC
+                                        </button>
+                                    </span>
+                                    <span ng-switch-default>
+                                        <button class="btn btn-primary btn-xs active"
+                                                style="width: 70px;"
+                                                data-toggle="tooltip" data-placement="right" title="RESYNC SLOTS of GROUP-[[group.id]]"
+                                                ng-click="resyncGroup(group)">
+                                            SYNC
+                                        </button>
+                                    </span>
+                                </span>
+                            </span>
+                            <span ng-if="group.ispromoting">
+                                <span ng-if="server.ispromoting">
+                                    <button class="btn btn-danger btn-xs active"
+                                            style="width: 70px;"
+                                            data-toggle="tooltip" data-placement="right" title="PROMOTE SERVER [[server.server]]"
+                                            ng-click="promoteServer(group, server.server)">
+                                        PROMOTE
+                                    </button>
+                                </span>
+                            </span>
+                        </td>
+                        <td>
+                            <a ng-href="http://[[codis_addr]]/api/topom/group/info/[[server.server]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
+                            <span ng-switch="server.ha_status">
+                                <span ng-switch-when="ha_master" style="color: darkgreen"
+                                    data-toggle="tooltip" data-placement="right" title="HA: MASTER">
+                                    [[server.server_text]]
+                                </span>
+                                <span ng-switch-when="ha_real_master" style="color: white; background-color: darkgreen"
+                                    data-toggle="tooltip" data-placement="right" title="HA: REAL MASTER">
+                                    [[server.server_text]]
+                                </span>
+                                <span ng-switch-when="ha_not_master" style="color: white; background-color: red"
+                                    data-toggle="tooltip" data-placement="right" title="HA: NOT MASTER">
+                                    [[server.server_text]]
+                                </span>
+                                <span ng-switch-when="ha_slave"
+                                    data-toggle="tooltip" data-placement="right" title="HA: SLAVE">
+                                    [[server.server_text]]
+                                </span>
+                                <span ng-switch-when="ha_undefined" style="color: white; background-color: darkgray"
+                                    data-toggle="tooltip" data-placement="right" title="HA: UNDEFINED">
+                                    [[server.server_text]]
+                                </span>
+                                <span ng-switch-default>
+                                    [[server.server_text]]
+                                </span>
+                            </span>
+                        </td>
+                        <td>[[server.datacenter]]</td>
+                        <td ng-switch="server.master_status">
+                            <span ng-switch-when="false" class="status_label_error">[[server.master]]</span>
+                            <span ng-switch-default>[[server.master]]</span>
+                        </td>
+                        <td ng-switch="group.ispromoting" style="text-align: center">
+                            <span ng-switch-when="true">
+                                <input type="checkbox" disabled="disabled"
+                                    data-toggle="tooltip" data-placement="right" title="REPLICA_GROUP = [[server.replica_group]]"
+                                    ng-model="server.replica_group">
+                            </span>
+                            <span ng-switch-default>
+                                <input type="checkbox"
+                                    data-toggle="tooltip" data-placement="right" title="REPLICA_GROUP = [[server.replica_group]]"
+                                    ng-model="server.replica_group" ng-click="enableReplicaGroups(group.id, server.server, server.replica_group)">
+                            </span>
+                        </td>
+                        <td class="button_tight_column" ng-switch="group.ispromoting">
+                            <span ng-switch-when="true" ng-switch="server.canslaveof">
+                                <span ng-switch-when="create">
+                                    <button class="btn btn-success btn-xs active disabled"
+                                            data-toggle="tooltip" data-placement="right" title="SLAVEOF [[server.master_expect]]">
+                                        <span class="glyphicon glyphicon-wrench"></span>
+                                    </button>
+                                </span>
+                                <span ng-switch-when="remove">
+                                    <button class="btn btn-danger btn-xs active disabled"
+                                            data-toggle="tooltip" data-placement="right" title="CANCEL ACTION">
+                                        <span class="glyphicon glyphicon-minus"></span>
+                                    </button>
+                                </span>
+                            </span>
+                            <span ng-switch-default ng-switch="server.canslaveof">
+                                <span ng-switch-when="create">
+                                    <button class="btn btn-success btn-xs active"
+                                            data-toggle="tooltip" data-placement="right" title="SLAVEOF [[server.master_expect]]"
+                                            ng-click="createSyncAction(server.server)">
+                                        <span class="glyphicon glyphicon-wrench"></span>
+                                    </button>
+                                </span>
+                                <span ng-switch-when="remove">
+                                    <button class="btn btn-danger btn-xs active"
+                                            data-toggle="tooltip" data-placement="right" title="CANCEL ACTION"
+                                            ng-click="removeSyncAction(server.server)">
+                                        <span class="glyphicon glyphicon-minus"></span>
+                                    </button>
+                                </span>
+                            </span>
+                        </td>
+                        <td>[[server.actionstate]]</td>
+                        <td>[[server.memory]] / [[server.maxmem]]</td>
+                        <td ng-switch="server.status">
+                            <span ng-switch-when="ERROR" class="status_label_error">[[server.status]]</span>
+                            <span ng-switch-when="TIMEOUT" class="status_label_warning">[[server.status]]</span>
+                            <span ng-switch-when="PENDING" class="status_label_pending">[[server.status]]</span>
+                            <span ng-switch-default>[[server.keys]]</span>
+                        </td>
+                        <td class="button_tight_column" ng-switch="group.ispromoting" style="text-align: center">
+                            <span ng-switch-when="true" ng-switch="server.canremove">
+                                <span ng-switch-when="true">
+                                    <button class="btn btn-danger btn-xs active disabled"
+                                            data-toggle="tooltip" data-placement="right" title="REMOVE SERVER [[server.server]]">
+                                        <span class="glyphicon glyphicon-minus"></span>
+                                    </button>
+                                </span>
+                            </span>
+                            <span ng-switch-default ng-switch="server.canremove">
+                                <span ng-switch-when="true">
+                                    <button class="btn btn-danger btn-xs active"
+                                            data-toggle="tooltip" data-placement="right" title="REMOVE SERVER [[server.server]]"
+                                            ng-click="delGroupServer(group, server.server)">
+                                        <span class="glyphicon glyphicon-minus"></span>
+                                    </button>
+                                </span>
+                            </span>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="row" style="min-width: 1200px">
+            <div class="col-md-12"
+                 style="margin-bottom: 10px; margin-top: 30px; padding-bottom: 10px; border-bottom: solid 1px lightgray;">
+                <form class="form-inline">
+                    <h4 style="padding-left:30px; padding-right:20px; display: inline;">Sentinels</h4>
+                </form>
+            </div>
+            <div class="col-md-12"
+                 style="padding-bottom: 10px">
+                <form class="form-inline">
+                    <span ng-if="codis_addr != 'NA'">
+                        <button class="btn btn-warning btn-sm active" style="width: 120px; font-size: 14px; padding: 2px;"
+                                ng-click="addSentinel(new_sentinel_addr)"
+                                ng-disabled="!new_sentinel_addr">Add Sentinel
+                        </button>
+                        <input style="height: 28px; width: 250px; " type="text" class="form-control"
+                               placeholder="Redis Sentinel Address"
+                               ng-model="new_sentinel_addr">
+                    </span>
+                </form>
+            </div>
+            <div class="col-md-4"
+                 style="padding-bottom: 10px">
+                <table class="table table-bordered table-striped table-hover table-condensed" style="white-space: nowrap">
+                    <thead>
+                    <tr>
+                        <th style="width: 85px; text-align: center">
+                            <span ng-switch="sentinel_out_of_sync">
+                                <span ng-switch-when="true">
+                                    <button class="btn btn-danger btn-xs active"
+                                            data-toggle="tooltip" data-placement="right" title="RESYNC ALL SENTINELS & PROXIES"
+                                            style="width: 70px;"
+                                            ng-click="resyncSentinels()">
+                                        SYNC
+                                    </button>
+                                </span>
+                                <span ng-switch-default>
+                                    <button class="btn btn-primary btn-xs active"
+                                            data-toggle="tooltip" data-placement="right" title="RESYNC ALL SENTINELS & PROXIES"
+                                            style="width: 70px;"
+                                            ng-click="resyncSentinels()">
+                                        SYNC
+                                    </button>
+                                </span>
+                            </span>
+                        </th>
+                        <th style="min-width: 220px;">
+                            Sentinels
+                            <span ng-if="sentinel_out_of_sync" style="color: white; background-color: red">
+                                (OUT OF SYNC)
+                            </span>
+                        </th>
+                        <th style="min-width: 35px;"/>
+                        <th style="min-width: 350px;">
+                            Status
+                        </th>
+                        <th style="min-width: 35px;"/>
+                        <th style="min-width: 35px;"/>
+                    </tr>
+                    </thead>
+                    <tr ng-repeat="sentinel in sentinel_servers">
+                        <td style="text-align: center">
+                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel.server]]/monitored" style="width: 70px;" target="_blank" class="btn btn-default btn-xs active" role="button">WATCHED</a>
+                        </td>
+                        <td>
+                            <a ng-href="http://[[codis_addr]]/api/topom/sentinels/info/[[sentinel.server]]" target="_blank" class="btn btn-default btn-xs active" role="button">S</a>
+                            <span>
+                                [[sentinel.server]]
+                            </span>
+                        </td>
+                        <td class="button_tight_column" style="text-align: center">
+                            <button class="btn btn-danger btn-xs active" ng-if="sentinel.status == 'ERROR'"
+                                data-toggle="tooltip" data-placement="right" title="FORCE REMOVE SENTINEL [[sentinel.server]]"
+                                ng-click="delSentinel(sentinel, true)">
+                                <span class="glyphicon glyphicon-remove"></span>
+                            </button>
+                        </td>
+                        <td ng-switch="sentinel.status">
+                            <span ng-switch-when="ERROR" class="status_label_error">[[sentinel.status]]</span>
+                            <span ng-switch-when="TIMEOUT" class="status_label_warning">[[sentinel.status]]</span>
+                            <span ng-switch-when="PENDING" class="status_label_pending">[[sentinel.status]]</span>
+                            <span ng-switch-default>[[sentinel.status_text]]</span>
+                        </td>
+                        <td ng-switch="sentinel.runid_error != ''">
+                            <span ng-switch-when="true" style="color: red">[[sentinel.runid_error]]</span>
+                            <span ng-switch-default/>
+                        </td>
+                        <td class="button_tight_column">
+                            <button class="btn btn-danger btn-xs active"
+                                data-toggle="tooltip" data-placement="right" title="REMOVE SENTINEL [[sentinel.server]]"
+                                ng-click="delSentinel(sentinel, false)">
+                                <span class="glyphicon glyphicon-minus"></span>
+                            </button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script src="node_modules/jquery/dist/jquery.js"></script>
+<script src="node_modules/angular/angular.js"></script>
+<script src="node_modules/bootstrap/dist/js/bootstrap.js"></script>
+<script src="node_modules/angular-ui-bootstrap/ui-bootstrap-tpls.js"></script>
+<script src="node_modules/highcharts/lib/highcharts.js"></script>
+<script src="node_modules/highcharts/lib/highcharts-more.js"></script>
+<script src="node_modules/highcharts-ng/dist/highcharts-ng.js"></script>
+<script src="node_modules/bootstrap-dialog/src/js/bootstrap-dialog.js"></script>
+<script src="node_modules/convert-string/convert-string.js"></script>
+<script src="node_modules/convert-hex/convert-hex.js"></script>
+<script src="node_modules/sha256/lib/sha256.js"></script>
+<script src="dashboard-fe.js"></script>
+</body>
+</html>

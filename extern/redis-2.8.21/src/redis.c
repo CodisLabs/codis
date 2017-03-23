@@ -276,6 +276,7 @@ struct redisCommand redisCommandTable[] = {
     {"pfdebug",pfdebugCommand,-3,"w",0,NULL,0,0,0,0,0},
     {"latency",latencyCommand,-2,"arslt",0,NULL,0,0,0,0,0},
     {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
+    {"slotsscan",slotsscanCommand,-3,"rR",0,NULL,0,0,0,0,0},
     {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
     {"slotsmgrtslot",slotsmgrtslotCommand,5,"aw",0,NULL,0,0,0,0,0},
     {"slotsmgrtone",slotsmgrtoneCommand,5,"aw",0,NULL,0,0,0,0,0},
@@ -658,10 +659,16 @@ int incrementallyRehash(int dbid) {
     /* Keys dictionary */
     if (dictIsRehashing(server.db[dbid].dict)) {
         dictRehashMilliseconds(server.db[dbid].dict,1);
+
+        long long start = timeInMilliseconds();
         for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
-            dict *d = server.db[dbid].hash_slots[i];
+            int idx = ((i + start) & HASH_SLOTS_MASK);
+            dict *d = server.db[dbid].hash_slots[idx];
             if (dictIsRehashing(d)) {
                 dictRehashMilliseconds(d, 1);
+                if (timeInMilliseconds() != start) {
+                    break;
+                }
             }
         }
         return 1; /* already used our millisecond for this loop... */

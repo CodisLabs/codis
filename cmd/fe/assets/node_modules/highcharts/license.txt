@@ -1,0 +1,8 @@
+This is the repository for Highsoft's JavaScript charting libraries: Highcharts, Highstock and Highmaps.
+
+The libraries are available under different licenses depending on whether it is intended for commercial/government use, or for a personal or non-profit project.
+
+Read more on licensing alternatives here:
+- Highcharts: http://shop.highsoft.com/highcharts.html
+- Highstock: http://shop.highsoft.com/highstock.html
+- Highmaps: http://shop.highsoft.com/highmaps.html

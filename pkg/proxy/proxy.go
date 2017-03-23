@@ -4,139 +4,219 @@
 package proxy
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"path"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/models"
+<<<<<<< HEAD
 	"github.com/CodisLabs/codis/pkg/proxy/router"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/wandoulabs/go-zookeeper/zk"
 	topo "github.com/wandoulabs/go-zookeeper/zk"
+=======
+	"github.com/CodisLabs/codis/pkg/utils"
+	"github.com/CodisLabs/codis/pkg/utils/errors"
+	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
+	"github.com/CodisLabs/codis/pkg/utils/redis"
+	"github.com/CodisLabs/codis/pkg/utils/rpc"
+	"github.com/CodisLabs/codis/pkg/utils/unsafe2"
+>>>>>>> CodisLabs/release3.1
 )
 
-type Server struct {
-	conf   *Config
-	topo   *Topology
-	info   models.ProxyInfo
-	groups map[int]int
+type Proxy struct {
+	mu sync.Mutex
 
-	lastActionSeq int
+	token string
+	xauth string
+	model *models.Proxy
 
-	evtbus   chan interface{}
-	router   *router.Router
-	listener net.Listener
+	exit struct {
+		C chan struct{}
+	}
+	online bool
+	closed bool
 
-	kill chan interface{}
-	wait sync.WaitGroup
-	stop sync.Once
+	config *Config
+	router *Router
+	ignore []byte
+
+	lproxy net.Listener
+	ladmin net.Listener
+
+	ha struct {
+		monitor *redis.Sentinel
+		masters map[int]string
+		servers []string
+	}
+	jodis *Jodis
 }
 
-func New(addr string, debugVarAddr string, conf *Config) *Server {
-	log.Infof("create proxy with config: %+v", conf)
+var ErrClosedProxy = errors.New("use of closed proxy")
 
-	proxyHost := strings.Split(addr, ":")[0]
-	debugHost := strings.Split(debugVarAddr, ":")[0]
-
-	hostname, err := os.Hostname()
-	if err != nil {
-		log.PanicErrorf(err, "get host name failed")
+func New(config *Config) (*Proxy, error) {
+	if err := config.Validate(); err != nil {
+		return nil, errors.Trace(err)
 	}
-	if proxyHost == "0.0.0.0" || strings.HasPrefix(proxyHost, "127.0.0.") || proxyHost == "" {
-		proxyHost = hostname
-	}
-	if debugHost == "0.0.0.0" || strings.HasPrefix(debugHost, "127.0.0.") || debugHost == "" {
-		debugHost = hostname
+	if err := models.ValidateProduct(config.ProductName); err != nil {
+		return nil, errors.Trace(err)
 	}
 
-	s := &Server{conf: conf, lastActionSeq: -1, groups: make(map[int]int)}
-	s.topo = NewTopo(conf.productName, conf.zkAddr, conf.fact, conf.provider, conf.zkSessionTimeout)
-	s.info.Id = conf.proxyId
-	s.info.State = models.PROXY_STATE_OFFLINE
-	s.info.Addr = proxyHost + ":" + strings.Split(addr, ":")[1]
-	s.info.DebugVarAddr = debugHost + ":" + strings.Split(debugVarAddr, ":")[1]
-	s.info.Pid = os.Getpid()
-	s.info.StartAt = time.Now().String()
-	s.kill = make(chan interface{})
+	s := &Proxy{}
+	s.config = config
+	s.exit.C = make(chan struct{})
+	s.router = NewRouter(config)
+	s.ignore = make([]byte, config.ProxyHeapPlaceholder.Int64())
 
-	log.Infof("proxy info = %+v", s.info)
-
-	if l, err := net.Listen(conf.proto, addr); err != nil {
-		log.PanicErrorf(err, "open listener failed")
+	s.model = &models.Proxy{
+		StartTime: time.Now().String(),
+	}
+	s.model.ProductName = config.ProductName
+	s.model.DataCenter = config.ProxyDataCenter
+	s.model.Pid = os.Getpid()
+	s.model.Pwd, _ = os.Getwd()
+	if b, err := exec.Command("uname", "-a").Output(); err != nil {
+		log.WarnErrorf(err, "run command uname failed")
 	} else {
-		s.listener = l
+		s.model.Sys = strings.TrimSpace(string(b))
 	}
-	s.router = router.NewWithAuth(conf.passwd)
-	s.evtbus = make(chan interface{}, 1024)
+	s.model.Hostname = utils.Hostname
 
-	s.register()
+	if err := s.setup(config); err != nil {
+		s.Close()
+		return nil, err
+	}
 
-	s.wait.Add(1)
-	go func() {
-		defer s.wait.Done()
-		s.serve()
-	}()
-	return s
+	log.Warnf("[%p] create new proxy:\n%s", s, s.model.Encode())
+
+	unsafe2.SetMaxOffheapBytes(config.ProxyMaxOffheapBytes.Int64())
+
+	go s.serveAdmin()
+	go s.serveProxy()
+
+	s.startMetricsJson()
+	s.startMetricsInfluxdb()
+
+	return s, nil
 }
 
-func (s *Server) SetMyselfOnline() error {
-	log.Info("mark myself online")
-	info := models.ProxyInfo{
-		Id:    s.conf.proxyId,
-		State: models.PROXY_STATE_ONLINE,
+func (s *Proxy) setup(config *Config) error {
+	proto := config.ProtoType
+	if l, err := net.Listen(proto, config.ProxyAddr); err != nil {
+		return errors.Trace(err)
+	} else {
+		s.lproxy = l
+
+		x, err := utils.ReplaceUnspecifiedIP(proto, l.Addr().String(), config.HostProxy)
+		if err != nil {
+			return err
+		}
+		s.model.ProtoType = proto
+		s.model.ProxyAddr = x
 	}
-	b, _ := json.Marshal(info)
-	url := "http://" + s.conf.dashboardAddr + "/api/proxy"
-	res, err := http.Post(url, "application/json", bytes.NewReader(b))
-	if err != nil {
-		return err
+
+	proto = "tcp"
+	if l, err := net.Listen(proto, config.AdminAddr); err != nil {
+		return errors.Trace(err)
+	} else {
+		s.ladmin = l
+
+		x, err := utils.ReplaceUnspecifiedIP(proto, l.Addr().String(), config.HostAdmin)
+		if err != nil {
+			return err
+		}
+		s.model.AdminAddr = x
 	}
-	if res.StatusCode != 200 {
-		return errors.New("response code is not 200")
+
+	s.model.Token = rpc.NewToken(
+		config.ProductName,
+		s.lproxy.Addr().String(),
+		s.ladmin.Addr().String(),
+	)
+	s.xauth = rpc.NewXAuth(
+		config.ProductName,
+		config.ProductAuth,
+		s.model.Token,
+	)
+
+	if config.JodisAddr != "" {
+		c, err := models.NewClient(config.JodisName, config.JodisAddr, config.JodisTimeout.Duration())
+		if err != nil {
+			return err
+		}
+		if config.JodisCompatible {
+			s.model.JodisPath = filepath.Join("/zk/codis", fmt.Sprintf("db_%s", config.ProductName), "proxy", s.model.Token)
+		} else {
+			s.model.JodisPath = models.JodisPath(config.ProductName, s.model.Token)
+		}
+		s.jodis = NewJodis(c, s.model)
+	}
+
+	return nil
+}
+
+func (s *Proxy) Start() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
+	}
+	if s.online {
+		return nil
+	}
+	s.online = true
+	s.router.Start()
+	if s.jodis != nil {
+		s.jodis.Start()
 	}
 	return nil
 }
 
-func (s *Server) serve() {
-	defer s.close()
-
-	if !s.waitOnline() {
-		return
+func (s *Proxy) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil
 	}
+	s.closed = true
+	close(s.exit.C)
 
-	s.rewatchNodes()
-
-	for i := 0; i < router.MaxSlotNum; i++ {
-		s.fillSlot(i)
+	if s.jodis != nil {
+		s.jodis.Close()
 	}
-	log.Info("proxy is serving")
-	go func() {
-		defer s.close()
-		s.handleConns()
-	}()
-
-	s.loopEvents()
+	if s.ladmin != nil {
+		s.ladmin.Close()
+	}
+	if s.lproxy != nil {
+		s.lproxy.Close()
+	}
+	if s.router != nil {
+		s.router.Close()
+	}
+	if s.ha.monitor != nil {
+		s.ha.monitor.Cancel()
+	}
+	return nil
 }
 
-func (s *Server) handleConns() {
-	ch := make(chan net.Conn, 4096)
-	defer close(ch)
+func (s *Proxy) XAuth() string {
+	return s.xauth
+}
 
-	go func() {
-		for c := range ch {
-			x := router.NewSessionSize(c, s.conf.passwd, s.conf.maxBufSize, s.conf.maxTimeout)
-			go x.Serve(s.router, s.conf.maxPipeline)
-		}
-	}()
+func (s *Proxy) Model() *models.Proxy {
+	return s.model
+}
 
+<<<<<<< HEAD
 	for {
 		c, err := s.listener.Accept()
 		if err != nil {
@@ -151,326 +231,422 @@ func (s *Server) handleConns() {
 			ch <- c
 		}
 	}
+=======
+func (s *Proxy) Config() *Config {
+	return s.config
+>>>>>>> CodisLabs/release3.1
 }
 
-func (s *Server) Info() models.ProxyInfo {
-	return s.info
+func (s *Proxy) IsOnline() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.online && !s.closed
 }
 
-func (s *Server) Join() {
-	s.wait.Wait()
+func (s *Proxy) IsClosed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed
 }
 
-func (s *Server) Close() error {
-	s.close()
-	s.wait.Wait()
+func (s *Proxy) HasSwitched() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.router.HasSwitched()
+}
+
+func (s *Proxy) Slots() []*models.Slot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.router.GetSlots()
+}
+
+func (s *Proxy) FillSlot(m *models.Slot) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
+	}
+	return s.router.FillSlot(m)
+}
+
+func (s *Proxy) FillSlots(slots []*models.Slot) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
+	}
+	for _, m := range slots {
+		if err := s.router.FillSlot(m); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
-func (s *Server) close() {
-	s.stop.Do(func() {
-		s.listener.Close()
-		if s.router != nil {
-			s.router.Close()
-		}
-		close(s.kill)
-	})
-}
-
-func (s *Server) rewatchProxy() {
-	_, err := s.topo.WatchNode(path.Join(models.GetProxyPath(s.topo.ProductName), s.info.Id), s.evtbus)
-	if err != nil {
-		log.PanicErrorf(err, "watch node failed")
+func (s *Proxy) SwitchMasters(masters map[int]string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
 	}
-}
+	s.ha.masters = masters
 
-func (s *Server) rewatchNodes() []string {
-	nodes, err := s.topo.WatchChildren(models.GetWatchActionPath(s.topo.ProductName), s.evtbus)
-	if err != nil {
-		log.PanicErrorf(err, "watch children failed")
+	if len(masters) != 0 {
+		s.router.SwitchMasters(masters)
 	}
-	return nodes
+	return nil
 }
 
-func (s *Server) register() {
-	if _, err := s.topo.CreateProxyInfo(&s.info); err != nil {
-		log.PanicErrorf(err, "create proxy node failed")
+func (s *Proxy) GetSentinels() ([]string, map[int]string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil, nil
 	}
-	if _, err := s.topo.CreateProxyFenceNode(&s.info); err != nil && err != zk.ErrNodeExists {
-		log.PanicErrorf(err, "create fence node failed")
+	return s.ha.servers, s.ha.masters
+}
+
+func (s *Proxy) SetSentinels(servers []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
 	}
-	log.Warn("********** Attention **********")
-	log.Warn("You should use `kill {pid}` rather than `kill -9 {pid}` to stop me,")
-	log.Warn("or the node resisted on zk will not be cleaned when I'm quiting and you must remove it manually")
-	log.Warn("*******************************")
+	s.ha.servers = servers
+	log.Warnf("[%p] set sentinels = %v", s, s.ha.servers)
+
+	s.rewatchSentinels(s.ha.servers)
+	return nil
 }
 
-func (s *Server) markOffline() {
-	s.topo.Close(s.info.Id)
-	s.info.State = models.PROXY_STATE_MARK_OFFLINE
-}
-
-func (s *Server) waitOnline() bool {
-	for {
-		info, err := s.topo.GetProxyInfo(s.info.Id)
-		if err != nil {
-			log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
-		}
-		switch info.State {
-		case models.PROXY_STATE_MARK_OFFLINE:
-			log.Infof("mark offline, proxy got offline event: %s", s.info.Id)
-			s.markOffline()
-			return false
-		case models.PROXY_STATE_ONLINE:
-			s.info.State = info.State
-			log.Infof("we are online: %s", s.info.Id)
-			s.rewatchProxy()
-			return true
-		}
-		select {
-		case <-s.kill:
-			log.Infof("mark offline, proxy is killed: %s", s.info.Id)
-			s.markOffline()
-			return false
-		default:
-		}
-		log.Infof("wait to be online: %s", s.info.Id)
-		time.Sleep(3 * time.Second)
+func (s *Proxy) RewatchSentinels() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
 	}
+	log.Warnf("[%p] rewatch sentinels = %v", s, s.ha.servers)
+
+	s.rewatchSentinels(s.ha.servers)
+	return nil
 }
 
-func getEventPath(evt interface{}) string {
-	return evt.(topo.Event).Path
-}
-
-func needResponse(receivers []string, self models.ProxyInfo) bool {
-	var info models.ProxyInfo
-	for _, v := range receivers {
-		err := json.Unmarshal([]byte(v), &info)
-		if err != nil {
-			if v == self.Id {
-				return true
+func (s *Proxy) rewatchSentinels(servers []string) {
+	if s.ha.monitor != nil {
+		s.ha.monitor.Cancel()
+		s.ha.monitor = nil
+		s.ha.masters = nil
+	}
+	if len(servers) != 0 {
+		s.ha.monitor = redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
+		s.ha.monitor.LogFunc = log.Warnf
+		s.ha.monitor.ErrFunc = log.WarnErrorf
+		go func(p *redis.Sentinel) {
+			var trigger = make(chan struct{}, 1)
+			delayUntil := func(deadline time.Time) {
+				for !p.IsCanceled() {
+					var d = deadline.Sub(time.Now())
+					if d <= 0 {
+						return
+					}
+					time.Sleep(math2.MinDuration(d, time.Second))
+				}
 			}
-			return false
-		}
-		if info.Id == self.Id && info.Pid == self.Pid && info.StartAt == self.StartAt {
-			return true
-		}
-	}
-	return false
-}
-
-func groupMaster(groupInfo models.ServerGroup) string {
-	var master string
-	for _, server := range groupInfo.Servers {
-		if server.Type == models.SERVER_TYPE_MASTER {
-			if master != "" {
-				log.Panicf("two master not allowed: %+v", groupInfo)
-			}
-			master = server.Addr
-		}
-	}
-	if master == "" {
-		log.Panicf("master not found: %+v", groupInfo)
-	}
-	return master
-}
-
-func (s *Server) resetSlot(i int) {
-	s.router.ResetSlot(i)
-}
-
-func (s *Server) fillSlot(i int) {
-	slotInfo, slotGroup, err := s.topo.GetSlotByIndex(i)
-	if err != nil {
-		log.PanicErrorf(err, "get slot by index failed", i)
-	}
-
-	var from string
-	var addr = groupMaster(*slotGroup)
-	if slotInfo.State.Status == models.SLOT_STATUS_MIGRATE {
-		fromGroup, err := s.topo.GetGroup(slotInfo.State.MigrateStatus.From)
-		if err != nil {
-			log.PanicErrorf(err, "get migrate from failed")
-		}
-		from = groupMaster(*fromGroup)
-		if from == addr {
-			log.Panicf("set slot %04d migrate from %s to %s", i, from, addr)
-		}
-	}
-
-	s.groups[i] = slotInfo.GroupId
-	s.router.FillSlot(i, addr, from,
-		slotInfo.State.Status == models.SLOT_STATUS_PRE_MIGRATE)
-}
-
-func (s *Server) onSlotRangeChange(param *models.SlotMultiSetParam) {
-	log.Infof("slotRangeChange %+v", param)
-	for i := param.From; i <= param.To; i++ {
-		switch param.Status {
-		case models.SLOT_STATUS_OFFLINE:
-			s.resetSlot(i)
-		case models.SLOT_STATUS_ONLINE:
-			s.fillSlot(i)
-		default:
-			log.Panicf("can not handle status %v", param.Status)
-		}
-	}
-}
-
-func (s *Server) onGroupChange(groupId int) {
-	log.Infof("group changed %d", groupId)
-	for i, g := range s.groups {
-		if g == groupId {
-			s.fillSlot(i)
-		}
-	}
-}
-
-func (s *Server) responseAction(seq int64) {
-	log.Infof("send response seq = %d", seq)
-	err := s.topo.DoResponse(int(seq), &s.info)
-	if err != nil {
-		log.InfoErrorf(err, "send response seq = %d failed", seq)
-	}
-}
-
-func (s *Server) getActionObject(seq int, target interface{}) {
-	act := &models.Action{Target: target}
-	err := s.topo.GetActionWithSeqObject(int64(seq), act)
-	if err != nil {
-		log.PanicErrorf(err, "get action object failed, seq = %d", seq)
-	}
-	log.Infof("action %+v", act)
-}
-
-func (s *Server) checkAndDoTopoChange(seq int) bool {
-	act, err := s.topo.GetActionWithSeq(int64(seq))
-	if err != nil { //todo: error is not "not exist"
-		log.PanicErrorf(err, "action failed, seq = %d", seq)
-	}
-
-	if !needResponse(act.Receivers, s.info) { //no need to response
-		return false
-	}
-
-	log.Warnf("action %v receivers %v", seq, act.Receivers)
-
-	switch act.Type {
-	case models.ACTION_TYPE_SLOT_MIGRATE, models.ACTION_TYPE_SLOT_CHANGED,
-		models.ACTION_TYPE_SLOT_PREMIGRATE:
-		slot := &models.Slot{}
-		s.getActionObject(seq, slot)
-		s.fillSlot(slot.Id)
-	case models.ACTION_TYPE_SERVER_GROUP_CHANGED:
-		serverGroup := &models.ServerGroup{}
-		s.getActionObject(seq, serverGroup)
-		s.onGroupChange(serverGroup.Id)
-	case models.ACTION_TYPE_SERVER_GROUP_REMOVE:
-	//do not care
-	case models.ACTION_TYPE_MULTI_SLOT_CHANGED:
-		param := &models.SlotMultiSetParam{}
-		s.getActionObject(seq, param)
-		s.onSlotRangeChange(param)
-	default:
-		log.Panicf("unknown action %+v", act)
-	}
-	return true
-}
-
-func (s *Server) processAction(e interface{}) {
-	if strings.Index(getEventPath(e), models.GetProxyPath(s.topo.ProductName)) == 0 {
-		info, err := s.topo.GetProxyInfo(s.info.Id)
-		if err != nil {
-			log.PanicErrorf(err, "get proxy info failed: %s", s.info.Id)
-		}
-		switch info.State {
-		case models.PROXY_STATE_MARK_OFFLINE:
-			log.Infof("mark offline, proxy got offline event: %s", s.info.Id)
-			s.markOffline()
-		case models.PROXY_STATE_ONLINE:
-			s.rewatchProxy()
-		default:
-			log.Panicf("unknown proxy state %v", info)
-		}
-		return
-	}
-
-	//re-watch
-	nodes := s.rewatchNodes()
-
-	seqs, err := models.ExtraSeqList(nodes)
-	if err != nil {
-		log.PanicErrorf(err, "get seq list failed")
-	}
-
-	if len(seqs) == 0 || !s.topo.IsChildrenChangedEvent(e) {
-		return
-	}
-
-	//get last pos
-	index := -1
-	for i, seq := range seqs {
-		if s.lastActionSeq < seq {
-			index = i
-			//break
-			//only handle latest action
-		}
-	}
-
-	if index < 0 {
-		return
-	}
-
-	actions := seqs[index:]
-	for _, seq := range actions {
-		exist, err := s.topo.Exist(path.Join(s.topo.GetActionResponsePath(seq), s.info.Id))
-		if err != nil {
-			log.PanicErrorf(err, "get action failed")
-		}
-		if exist {
-			continue
-		}
-		if s.checkAndDoTopoChange(seq) {
-			s.responseAction(int64(seq))
-		}
-	}
-
-	s.lastActionSeq = seqs[len(seqs)-1]
-}
-
-func (s *Server) loopEvents() {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
-	var tick int = 0
-	for s.info.State == models.PROXY_STATE_ONLINE {
-		select {
-		case <-s.kill:
-			log.Infof("mark offline, proxy is killed: %s", s.info.Id)
-			s.markOffline()
-		case e := <-s.evtbus:
-			evtPath := getEventPath(e)
-			log.Infof("got event %s, %v, lastActionSeq %d", s.info.Id, e, s.lastActionSeq)
-			if strings.Index(evtPath, models.GetActionResponsePath(s.conf.productName)) == 0 {
-				seq, err := strconv.Atoi(path.Base(evtPath))
-				if err != nil {
-					log.ErrorErrorf(err, "parse action seq failed")
-				} else {
-					if seq < s.lastActionSeq {
-						log.Infof("ignore seq = %d", seq)
-						continue
+			go func() {
+				defer close(trigger)
+				callback := func() {
+					select {
+					case trigger <- struct{}{}:
+					default:
 					}
 				}
-			}
-			s.processAction(e)
-		case <-ticker.C:
-			if maxTick := s.conf.pingPeriod; maxTick != 0 {
-				if tick++; tick >= maxTick {
-					s.router.KeepAlive()
-					tick = 0
+				for !p.IsCanceled() {
+					timeout := time.Minute * 15
+					retryAt := time.Now().Add(time.Second * 10)
+					if !p.Subscribe(servers, timeout, callback) {
+						delayUntil(retryAt)
+					} else {
+						callback()
+					}
 				}
+			}()
+			go func() {
+				for _ = range trigger {
+					var success int
+					for i := 0; i != 10 && !p.IsCanceled() && success != 2; i++ {
+						timeout := time.Second * 5
+						masters, err := p.Masters(servers, timeout)
+						if err != nil {
+							log.WarnErrorf(err, "[%p] fetch group masters failed", s)
+						} else {
+							if !p.IsCanceled() {
+								s.SwitchMasters(masters)
+							}
+							success += 1
+						}
+						delayUntil(time.Now().Add(time.Second * 5))
+					}
+				}
+			}()
+		}(s.ha.monitor)
+	}
+}
+
+func (s *Proxy) serveAdmin() {
+	if s.IsClosed() {
+		return
+	}
+	defer s.Close()
+
+	log.Warnf("[%p] admin start service on %s", s, s.ladmin.Addr())
+
+	eh := make(chan error, 1)
+	go func(l net.Listener) {
+		h := http.NewServeMux()
+		h.Handle("/", newApiServer(s))
+		hs := &http.Server{Handler: h}
+		eh <- hs.Serve(l)
+	}(s.ladmin)
+
+	select {
+	case <-s.exit.C:
+		log.Warnf("[%p] admin shutdown", s)
+	case err := <-eh:
+		log.ErrorErrorf(err, "[%p] admin exit on error", s)
+	}
+}
+
+func (s *Proxy) serveProxy() {
+	if s.IsClosed() {
+		return
+	}
+	defer s.Close()
+
+	log.Warnf("[%p] proxy start service on %s", s, s.lproxy.Addr())
+
+	eh := make(chan error, 1)
+	go func(l net.Listener) (err error) {
+		defer func() {
+			eh <- err
+		}()
+		for {
+			c, err := s.acceptConn(l)
+			if err != nil {
+				return err
 			}
+			NewSession(c, s.config).Start(s.router)
+		}
+	}(s.lproxy)
+
+	if d := s.config.BackendPingPeriod.Duration(); d != 0 {
+		go s.keepAlive(d)
+	}
+
+	select {
+	case <-s.exit.C:
+		log.Warnf("[%p] proxy shutdown", s)
+	case err := <-eh:
+		log.ErrorErrorf(err, "[%p] proxy exit on error", s)
+	}
+}
+
+func (s *Proxy) keepAlive(d time.Duration) {
+	var ticker = time.NewTicker(math2.MaxDuration(d, time.Second))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.exit.C:
+			return
+		case <-ticker.C:
+			s.router.KeepAlive()
 		}
 	}
+}
+
+func (s *Proxy) acceptConn(l net.Listener) (net.Conn, error) {
+	var delay = &DelayExp2{
+		Min: 10, Max: 500,
+		Unit: time.Millisecond,
+	}
+	for {
+		c, err := l.Accept()
+		if err != nil {
+			if e, ok := err.(net.Error); ok && e.Temporary() {
+				log.WarnErrorf(err, "[%p] proxy accept new connection failed", s)
+				delay.Sleep()
+				continue
+			}
+		}
+		return c, err
+	}
+}
+
+type Overview struct {
+	Version string         `json:"version"`
+	Compile string         `json:"compile"`
+	Config  *Config        `json:"config,omitempty"`
+	Model   *models.Proxy  `json:"model,omitempty"`
+	Stats   *Stats         `json:"stats,omitempty"`
+	Slots   []*models.Slot `json:"slots,omitempty"`
+}
+
+type Stats struct {
+	Online bool `json:"online"`
+	Closed bool `json:"closed"`
+
+	Sentinels struct {
+		Servers  []string          `json:"servers,omitempty"`
+		Masters  map[string]string `json:"masters,omitempty"`
+		Switched bool              `json:"switched,omitempty"`
+	} `json:"sentinels"`
+
+	Ops struct {
+		Total int64 `json:"total"`
+		Fails int64 `json:"fails"`
+		Redis struct {
+			Errors int64 `json:"errors"`
+		} `json:"redis"`
+		QPS int64      `json:"qps"`
+		Cmd []*OpStats `json:"cmd,omitempty"`
+	} `json:"ops"`
+
+	Sessions struct {
+		Total int64 `json:"total"`
+		Alive int64 `json:"alive"`
+	} `json:"sessions"`
+
+	Rusage struct {
+		Now string       `json:"now"`
+		CPU float64      `json:"cpu"`
+		Mem int64        `json:"mem"`
+		Raw *utils.Usage `json:"raw,omitempty"`
+	} `json:"rusage"`
+
+	Backend struct {
+		PrimaryOnly bool `json:"primary_only"`
+	} `json:"backend"`
+
+	Runtime *RuntimeStats `json:"runtime,omitempty"`
+}
+
+type RuntimeStats struct {
+	General struct {
+		Alloc   uint64 `json:"alloc"`
+		Sys     uint64 `json:"sys"`
+		Lookups uint64 `json:"lookups"`
+		Mallocs uint64 `json:"mallocs"`
+		Frees   uint64 `json:"frees"`
+	} `json:"general"`
+
+	Heap struct {
+		Alloc   uint64 `json:"alloc"`
+		Sys     uint64 `json:"sys"`
+		Idle    uint64 `json:"idle"`
+		Inuse   uint64 `json:"inuse"`
+		Objects uint64 `json:"objects"`
+	} `json:"heap"`
+
+	GC struct {
+		Num          uint32  `json:"num"`
+		CPUFraction  float64 `json:"cpu_fraction"`
+		TotalPauseMs uint64  `json:"total_pausems"`
+	} `json:"gc"`
+
+	NumProcs      int   `json:"num_procs"`
+	NumGoroutines int   `json:"num_goroutines"`
+	NumCgoCall    int64 `json:"num_cgo_call"`
+	MemOffheap    int64 `json:"mem_offheap"`
+}
+
+type StatsFlags uint32
+
+func (s StatsFlags) HasBit(m StatsFlags) bool {
+	return (s & m) != 0
+}
+
+const (
+	StatsCmds = StatsFlags(1 << iota)
+	StatsSlots
+	StatsRuntime
+
+	StatsFull = StatsFlags(^uint32(0))
+)
+
+func (s *Proxy) Overview(flags StatsFlags) *Overview {
+	o := &Overview{
+		Version: utils.Version,
+		Compile: utils.Compile,
+		Config:  s.Config(),
+		Model:   s.Model(),
+		Stats:   s.Stats(flags),
+	}
+	if flags.HasBit(StatsSlots) {
+		o.Slots = s.Slots()
+	}
+	return o
+}
+
+func (s *Proxy) Stats(flags StatsFlags) *Stats {
+	stats := &Stats{}
+	stats.Online = s.IsOnline()
+	stats.Closed = s.IsClosed()
+
+	servers, masters := s.GetSentinels()
+	if servers != nil {
+		stats.Sentinels.Servers = servers
+	}
+	if masters != nil {
+		stats.Sentinels.Masters = make(map[string]string)
+		for gid, addr := range masters {
+			stats.Sentinels.Masters[strconv.Itoa(gid)] = addr
+		}
+	}
+	stats.Sentinels.Switched = s.HasSwitched()
+
+	stats.Ops.Total = OpTotal()
+	stats.Ops.Fails = OpFails()
+	stats.Ops.Redis.Errors = OpRedisErrors()
+	stats.Ops.QPS = OpQPS()
+
+	if flags.HasBit(StatsCmds) {
+		stats.Ops.Cmd = GetOpStatsAll()
+	}
+
+	stats.Sessions.Total = SessionsTotal()
+	stats.Sessions.Alive = SessionsAlive()
+
+	if u := GetSysUsage(); u != nil {
+		stats.Rusage.Now = u.Now.String()
+		stats.Rusage.CPU = u.CPU
+		stats.Rusage.Mem = u.MemTotal()
+		stats.Rusage.Raw = u.Usage
+	}
+
+	stats.Backend.PrimaryOnly = s.Config().BackendPrimaryOnly
+
+	if flags.HasBit(StatsRuntime) {
+		var r runtime.MemStats
+		runtime.ReadMemStats(&r)
+
+		stats.Runtime = &RuntimeStats{}
+		stats.Runtime.General.Alloc = r.Alloc
+		stats.Runtime.General.Sys = r.Sys
+		stats.Runtime.General.Lookups = r.Lookups
+		stats.Runtime.General.Mallocs = r.Mallocs
+		stats.Runtime.General.Frees = r.Frees
+		stats.Runtime.Heap.Alloc = r.HeapAlloc
+		stats.Runtime.Heap.Sys = r.HeapSys
+		stats.Runtime.Heap.Idle = r.HeapIdle
+		stats.Runtime.Heap.Inuse = r.HeapInuse
+		stats.Runtime.Heap.Objects = r.HeapObjects
+		stats.Runtime.GC.Num = r.NumGC
+		stats.Runtime.GC.CPUFraction = r.GCCPUFraction
+		stats.Runtime.GC.TotalPauseMs = r.PauseTotalNs / uint64(time.Millisecond)
+		stats.Runtime.NumProcs = runtime.GOMAXPROCS(0)
+		stats.Runtime.NumGoroutines = runtime.NumGoroutine()
+		stats.Runtime.NumCgoCall = runtime.NumCgoCall()
+		stats.Runtime.MemOffheap = unsafe2.OffheapBytes()
+	}
+	return stats
 }

@@ -1,0 +1,24 @@
+{
+    "env": {
+        "node": true
+    },
+
+    "rules": {
+        "brace-style": [2, "1tbs"],
+        "default-case": 2,
+        "func-style": [2, "declaration"],
+        "guard-for-in": 2,
+        "no-floating-decimal": 2,
+        "no-nested-ternary": 2,
+        "radix": 2,
+        "space-unary-word-ops": 2,
+        "space-after-keywords": [2, "always"],
+        "valid-jsdoc": [2, {
+            "prefer": {
+                "return": "returns"
+             }
+        }],
+        "quotes": [1, "single", "allow-avoiding-escaped-quotes"],
+        "wrap-iife": 2
+    }
+}

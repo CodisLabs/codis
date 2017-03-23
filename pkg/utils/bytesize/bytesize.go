@@ -4,16 +4,16 @@
 package bytesize
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
 const (
-	B = 1 << (10 * iota)
+	_ = 1 << (10 * iota)
 	KB
 	MB
 	GB
@@ -21,55 +21,104 @@ const (
 	PB
 )
 
+type Int64 int64
+
+func (b Int64) Int64() int64 {
+	return int64(b)
+}
+
+func (b Int64) AsInt() int {
+	return int(b)
+}
+
+func (b Int64) MarshalText() ([]byte, error) {
+	if b == 0 {
+		return []byte("0"), nil
+	}
+	var abs = int64(b)
+	if abs < 0 {
+		abs = -abs
+	}
+	switch {
+	case abs%PB == 0:
+		val := b.Int64() / PB
+		return []byte(fmt.Sprintf("%dpb", val)), nil
+	case abs%TB == 0:
+		val := b.Int64() / TB
+		return []byte(fmt.Sprintf("%dtb", val)), nil
+	case abs%GB == 0:
+		val := b.Int64() / GB
+		return []byte(fmt.Sprintf("%dgb", val)), nil
+	case abs%MB == 0:
+		val := b.Int64() / MB
+		return []byte(fmt.Sprintf("%dmb", val)), nil
+	case abs%KB == 0:
+		val := b.Int64() / KB
+		return []byte(fmt.Sprintf("%dkb", val)), nil
+	default:
+		return []byte(fmt.Sprintf("%d", b.Int64())), nil
+	}
+}
+
+func (p *Int64) UnmarshalText(text []byte) error {
+	n, err := Parse(string(text))
+	if err != nil {
+		return err
+	}
+	*p = Int64(n)
+	return nil
+}
+
 var (
-	BytesizeRegexp = regexp.MustCompile(`(?i)^\s*(\-?[\d\.]+)\s*([KMGTP]?B|[BKMGTP]|)\s*$`)
-	digitsRegexp   = regexp.MustCompile(`^\-?\d+$`)
+	fullRegexp = regexp.MustCompile(`^\s*(\-?[\d\.]+)\s*([kmgtp]?b|[bkmgtp]|)\s*$`)
+	digitsOnly = regexp.MustCompile(`^\-?\d+$`)
 )
 
 var (
-	ErrBadBytesize     = errors.New("invalid byte size")
-	ErrBadBytesizeUnit = errors.New("invalid byte size unit")
+	ErrBadByteSize     = errors.New("invalid bytesize")
+	ErrBadByteSizeUnit = errors.New("invalid bytesize unit")
 )
 
 func Parse(s string) (int64, error) {
-	if !BytesizeRegexp.MatchString(s) {
-		return 0, errors.Trace(ErrBadBytesize)
+	if !fullRegexp.MatchString(s) {
+		return 0, errors.Trace(ErrBadByteSize)
 	}
 
-	subs := BytesizeRegexp.FindStringSubmatch(s)
+	subs := fullRegexp.FindStringSubmatch(s)
 	if len(subs) != 3 {
-		return 0, errors.Trace(ErrBadBytesize)
-	}
-
-	size := int64(0)
-	switch strings.ToUpper(string(subs[2])) {
-	case "B", "":
-		size = 1
-	case "KB", "K":
-		size = KB
-	case "MB", "M":
-		size = MB
-	case "GB", "G":
-		size = GB
-	case "TB", "T":
-		size = TB
-	case "PB", "P":
-		size = PB
-	default:
-		return 0, errors.Trace(ErrBadBytesizeUnit)
+		return 0, errors.Trace(ErrBadByteSize)
 	}
 
 	text := subs[1]
-	if digitsRegexp.MatchString(text) {
+	unit := subs[2]
+
+	size := int64(1)
+	switch unit {
+	case "b", "":
+	case "k", "kb":
+		size = KB
+	case "m", "mb":
+		size = MB
+	case "g", "gb":
+		size = GB
+	case "t", "tb":
+		size = TB
+	case "p", "pb":
+		size = PB
+	default:
+		return 0, errors.Trace(ErrBadByteSizeUnit)
+	}
+
+	if digitsOnly.MatchString(text) {
 		n, err := strconv.ParseInt(text, 10, 64)
 		if err != nil {
-			return 0, errors.Trace(ErrBadBytesize)
+			return 0, errors.Trace(ErrBadByteSize)
 		}
 		size *= n
 	} else {
 		n, err := strconv.ParseFloat(text, 64)
 		if err != nil {
-			return 0, errors.Trace(ErrBadBytesize)
+			return 0, errors.Trace(ErrBadByteSize)
 		}
 		size = int64(float64(size) * n)
 	}

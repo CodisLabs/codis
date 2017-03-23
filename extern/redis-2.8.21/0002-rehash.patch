@@ -1,0 +1,35 @@
+diff --git a/extern/redis-2.8.21/src/redis.c b/extern/redis-2.8.21/src/redis.c
+index 33ba3a3..f035bb2 100644
+--- a/extern/redis-2.8.21/src/redis.c
++++ b/extern/redis-2.8.21/src/redis.c
+@@ -659,10 +659,16 @@ int incrementallyRehash(int dbid) {
+     /* Keys dictionary */
+     if (dictIsRehashing(server.db[dbid].dict)) {
+         dictRehashMilliseconds(server.db[dbid].dict,1);
++
++        long long start = timeInMilliseconds();
+         for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
+-            dict *d = server.db[dbid].hash_slots[i];
++            int idx = ((i + start) & HASH_SLOTS_MASK);
++            dict *d = server.db[dbid].hash_slots[idx];
+             if (dictIsRehashing(d)) {
+                 dictRehashMilliseconds(d, 1);
++                if (timeInMilliseconds() != start) {
++                    break;
++                }
+             }
+         }
+         return 1; /* already used our millisecond for this loop... */
+diff --git a/extern/redis-2.8.21/src/redis.h b/extern/redis-2.8.21/src/redis.h
+index 8a0c13d..8971143 100644
+--- a/extern/redis-2.8.21/src/redis.h
++++ b/extern/redis-2.8.21/src/redis.h
+@@ -424,6 +424,8 @@ typedef struct redisObject {
+ void crc32_init();
+ uint32_t crc32_checksum(const char *buf, int len);
+ 
++long long timeInMilliseconds(void);
++
+ #define HASH_SLOTS_MASK 0x000003ff
+ #define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
+ 

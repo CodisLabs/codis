@@ -1,16 +1,16 @@
 *.log
-*.rdb
 *.swp
 *.out
 *.dump
 *.log.*
+*.tmp
+*.rdb
 
-martini_log
-_workspace
+.DS_Store
 .htaccess
 
 /bin
+/tmp
 /pkg/utils/version.go
-/deploy.tar
 
 makefile

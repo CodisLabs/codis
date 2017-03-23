@@ -1,0 +1,26 @@
+
+##################################################
+#                                                #
+#                  Codis-Dashboard               #
+#                                                #
+##################################################
+
+# Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
+coordinator_name = "zookeeper"
+coordinator_addr = "127.0.0.1:2181"
+
+# Set Codis Product Name/Auth.
+product_name = "codis-demo"
+product_auth = ""
+
+# Set bind address for admin(rpc), tcp only.
+admin_addr = "0.0.0.0:18080"
+
+# Set configs for redis sentinel.
+sentinel_quorum = 2
+sentinel_parallel_syncs = 1
+sentinel_down_after = "30s"
+sentinel_failover_timeout = "5m"
+sentinel_notification_script = ""
+sentinel_client_reconfig_script = ""
+

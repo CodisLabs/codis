@@ -10,9 +10,9 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/assert"
 )
 
-func TestBtoi(t *testing.T) {
+func TestBtoi64(t *testing.T) {
 	for i, b := range tmap {
-		v, err := btoi(b)
+		v, err := Btoi64(b)
 		assert.MustNoError(err)
 		assert.Must(v == i)
 	}
@@ -48,10 +48,8 @@ func TestDecodeInvalidRequests(t *testing.T) {
 }
 
 func TestDecodeSimpleRequest1(t *testing.T) {
-	resp, err := DecodeFromBytes([]byte("\r\n"))
-	assert.MustNoError(err)
-	assert.Must(resp.IsArray())
-	assert.Must(len(resp.Array) == 0)
+	_, err := DecodeFromBytes([]byte("\r\n"))
+	assert.Must(err != nil)
 }
 
 func TestDecodeSimpleRequest2(t *testing.T) {
@@ -63,14 +61,11 @@ func TestDecodeSimpleRequest2(t *testing.T) {
 		"    hello     world    \r\n",
 	}
 	for _, s := range test {
-		resp, err := DecodeFromBytes([]byte(s))
+		a, err := DecodeMultiBulkFromBytes([]byte(s))
 		assert.MustNoError(err)
-		assert.Must(resp.IsArray())
-		assert.Must(len(resp.Array) == 2)
-		s1 := resp.Array[0]
-		assert.Must(bytes.Equal(s1.Value, []byte("hello")))
-		s2 := resp.Array[1]
-		assert.Must(bytes.Equal(s2.Value, []byte("world")))
+		assert.Must(len(a) == 2)
+		assert.Must(bytes.Equal(a[0].Value, []byte("hello")))
+		assert.Must(bytes.Equal(a[1].Value, []byte("world")))
 	}
 }
 
@@ -112,3 +107,50 @@ func TestDecoder(t *testing.T) {
 		assert.MustNoError(err)
 	}
 }
+
+type loopReader struct {
+	buf []byte
+	pos int
+}
+
+func (b *loopReader) Read(p []byte) (int, error) {
+	if b.pos == len(b.buf) {
+		b.pos = 0
+	}
+	n := copy(p, b.buf[b.pos:])
+	b.pos += n
+	return n, nil
+}
+
+func newBenchmarkDecoder(n int) *Decoder {
+	r := NewArray([]*Resp{
+		NewBulkBytes(make([]byte, n)),
+	})
+	p, err := EncodeToBytes(r)
+	assert.MustNoError(err)
+	var b bytes.Buffer
+	for i := 0; i < 128 && b.Len() < 1024*1024; i++ {
+		_, err := b.Write(p)
+		assert.MustNoError(err)
+	}
+	return NewDecoderSize(&loopReader{buf: b.Bytes()}, 1024*128)
+}
+
+func benchmarkDecode(b *testing.B, n int) {
+	d := newBenchmarkDecoder(n)
+	for i := 0; i < b.N; i++ {
+		multi, err := d.DecodeMultiBulk()
+		assert.MustNoError(err)
+		assert.Must(len(multi) == 1 && len(multi[0].Value) == n)
+	}
+}
+
+func BenchmarkDecode16B(b *testing.B)  { benchmarkDecode(b, 16) }
+func BenchmarkDecode64B(b *testing.B)  { benchmarkDecode(b, 64) }
+func BenchmarkDecode512B(b *testing.B) { benchmarkDecode(b, 512) }
+func BenchmarkDecode1K(b *testing.B)   { benchmarkDecode(b, 1024) }
+func BenchmarkDecode2K(b *testing.B)   { benchmarkDecode(b, 1024*2) }
+func BenchmarkDecode4K(b *testing.B)   { benchmarkDecode(b, 1024*4) }
+func BenchmarkDecode16K(b *testing.B)  { benchmarkDecode(b, 1024*16) }
+func BenchmarkDecode32K(b *testing.B)  { benchmarkDecode(b, 1024*32) }
+func BenchmarkDecode128K(b *testing.B) { benchmarkDecode(b, 1024*128) }

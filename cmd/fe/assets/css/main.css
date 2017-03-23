@@ -1,0 +1,302 @@
+body {
+    min-height: 20000px;
+    min-width: 1000px;
+}
+
+[ng\:cloak], [ng-cloak], [data-ng-cloak], [x-ng-cloak], .ng-cloak, .x-ng-cloak {
+    display: none !important;
+}
+
+#main {
+    margin-left: 100px;
+    margin-top: 0px;
+    position: relative;
+    height: 100%;
+}
+
+.container-full {
+    margin: 20px 60px 20px 60px;
+}
+
+#main > .container-full > .row {
+    margin-bottom: 40px;
+}
+
+.status_label_error {
+    background-color: red;
+    color: white;
+    font-weight: bold;
+    padding: 3px
+}
+
+.status_label_warning {
+    background-color: yellow;
+    font-weight: bold;
+    padding: 3px
+}
+
+.status_label_pending {
+    background-color: palevioletred;
+    font-weight: bold;
+    padding: 3px
+}
+
+.button_tight_column {
+    padding: 1px;
+    vertical-align: middle;
+}
+
+#sidebar {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    top: 0px;
+    width: 120px;
+    z-index: 8;
+    background-color: #fff;
+    -webkit-box-shadow: 0 0 10px 0 rgba(0, 0, 0, .2);
+    -moz-box-shadow: 0 0 10px 0 rgba(0, 0, 0, .2)
+}
+
+.sidebar-cover {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 46px;
+    background: rgba(255, 255, 255, .5);
+    z-index: 11
+}
+
+.sidebar-cover:hover {
+    background: rgba(220, 220, 220, .5)
+}
+
+.sidebar-cover:hover::before {
+    width: 100%;
+    text-align: center;
+    content: "Disabled";
+    color: #888;
+    position: absolute;
+    top: 45%
+}
+
+#sidebar .title {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    font-size: 13px;
+    font-weight: 700;
+    border-bottom: 1px solid #ccc;
+    padding: 8px;
+    background: #DFF2FF
+}
+
+#sidebar .items {
+    margin: 0;
+    list-style: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: 36px;
+    overflow-y: auto
+}
+
+#sidebar > .selected-node,
+#sidebar > .selected-node > .info {
+    display: none
+}
+
+#sidebar > .tabs {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 35px;
+    border-top: 1px solid #ddd;
+    margin: 0;
+    padding: 0;
+    background: #f9f9f9
+}
+
+#sidebar > .tabs > li {
+    display: inline-block
+}
+
+#sidebar > .tabs > li > a {
+    display: inline-block;
+    padding: 10px;
+    width: 60px;
+    font-size: 13px;
+    text-align: center;
+    border-right: 1px solid #ddd;
+    position: relative;
+    top: -1px
+}
+
+#sidebar > .tabs > li.active > a {
+    background: #fff
+}
+
+#sidebar > .content {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 46px;
+    overflow-y: auto
+}
+
+#sidebar > .actions {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 30px;
+    padding: 8px;
+    background: #f0f0f0
+}
+
+#sidebar > .actions > button {
+    width: 34px;
+    height: 30px;
+    padding: 0
+}
+
+#sidebar > .actions > .search {
+    display: inline-block;
+    border: 0;
+    background: #fff;
+    border-radius: 3px;
+    padding: 5px 6px;
+    height: 22px;
+    outline: 0;
+    width: 157px;
+    margin-right: 6px;
+    box-shadow: inset 0 0 2px 0 rgba(80, 80, 80, .5);
+    color: #333;
+    position: relative;
+    top: -1px
+}
+
+#sidebar > .actions > .fn-clear-search {
+    position: absolute;
+    top: 15px;
+    right: 65px;
+    font-weight: 100;
+    color: #888;
+    cursor: pointer
+}
+
+#sidebar > .actions > .fn-collapse {
+    float: right;
+    background-image: linear-gradient(transparent, rgba(0, 0, 0, .08) 40%, rgba(0, 0, 0, .1))
+}
+
+#sidebar > .actions > .fn-collapse:hover {
+    background-image: linear-gradient(rgba(0, 0, 0, .01), rgba(0, 0, 0, .14) 40%, rgba(0, 0, 0, .16))
+}
+
+body.sidebar-collapsed #sidebar {
+    width: 50px;
+    background: #fff
+}
+
+body.sidebar-collapsed #main {
+    margin-left: 50px
+}
+
+body.sidebar-collapsed #sidebar .actions .search,
+body.sidebar-collapsed #sidebar .content {
+    display: none
+}
+
+body.sidebar-collapsed #sidebar > .selected-node {
+    display: block;
+    position: relative
+}
+
+body.sidebar-collapsed #sidebar > .selected-node > .cube {
+    width: 50px;
+    background: #eee;
+    height: 45px;
+    line-height: 45px;
+    text-align: center;
+    font-size: 15px;
+    color: #2494F2;
+    cursor: pointer
+}
+
+body.sidebar-collapsed #sidebar > .selected-node:hover > .info {
+    display: block;
+    position: absolute;
+    left: 50px;
+    top: 0;
+    padding-left: 10px;
+    width: 169px;
+    height: 45px;
+    line-height: 45px;
+    background: #fff;
+    border-right: 1px solid #2494F2;
+    border-bottom: 1px solid #2494F2;
+    font-size: 13px
+}
+
+body.sidebar-collapsed #sidebar > .selected-node:hover > .cube {
+    border-bottom: 1px solid #2494F2
+}
+
+.ui-itemlist {
+    margin: 0;
+    padding: 0;
+    list-style: none
+}
+
+.ui-itemlist > li {
+    border-bottom: 1px solid #eee;
+    position: relative;
+    transition: all .2s ease
+}
+
+.ui-itemlist > li > i {
+    opacity: 0;
+    position: absolute;
+    left: 12px;
+    top: 9px;
+    transition: all .2s ease;
+    font-size: 13px;
+    z-index: 1
+}
+
+.ui-itemlist > li > a {
+    display: block;
+    position: relative;
+    padding: 8px 12px;
+    transition: all .2s ease;
+    font-size: 13px;
+    color: #2083D6
+}
+
+.ui-itemlist > li:hover {
+    background: #fafafa
+}
+
+.ui-itemlist > li.selected {
+    background: #eee
+}
+
+.ui-itemlist > li.selected:hover {
+    background: #f4f4f4
+}
+
+.ui-itemlist > li.selected > a,
+.ui-itemlist > li:hover > a {
+    margin-left: 12px
+}
+
+.ui-itemlist > li.selected > i,
+.ui-itemlist > li:hover > i {
+    opacity: 1
+}

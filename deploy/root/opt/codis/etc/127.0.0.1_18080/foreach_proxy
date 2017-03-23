@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -x
+set -e
+
+d=1
+sleep $d; /opt/codis/bin/codis-admin --proxy=127.0.0.1:11080 $@
+sleep $d; /opt/codis/bin/codis-admin --proxy=127.0.0.1:11081 $@
+sleep $d; /opt/codis/bin/codis-admin --proxy=127.0.0.1:11082 $@
+

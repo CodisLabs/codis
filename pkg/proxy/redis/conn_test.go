@@ -4,15 +4,17 @@
 package redis
 
 import (
-	"io"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/CodisLabs/codis/pkg/utils/assert"
+<<<<<<< HEAD
 	"github.com/CodisLabs/codis/pkg/utils/atomic2"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
+=======
+	"github.com/CodisLabs/codis/pkg/utils/unsafe2"
+>>>>>>> CodisLabs/release3.1
 )
 
 func newConnPair() (*Conn, *Conn) {
@@ -25,16 +27,14 @@ func newConnPair() (*Conn, *Conn) {
 	cc := make(chan *Conn, 1)
 	go func() {
 		defer close(cc)
-		for {
-			c, err := l.Accept()
-			if err != nil {
-				return
-			}
-			cc <- NewConnSize(c, bufsize)
-		}
+		c, err := l.Accept()
+		assert.MustNoError(err)
+		cc <- NewConn(c, bufsize, bufsize)
 	}()
 
-	conn1, err := DialTimeout(l.Addr().String(), bufsize, time.Millisecond*50)
+	const timeout = time.Millisecond * 50
+
+	conn1, err := DialTimeout(l.Addr().String(), timeout, bufsize, bufsize)
 	assert.MustNoError(err)
 
 	conn2, ok := <-cc
@@ -42,83 +42,30 @@ func newConnPair() (*Conn, *Conn) {
 	return conn1, conn2
 }
 
-func TestConnReaderTimeout(t *testing.T) {
-	resp := NewString([]byte("hello world"))
-
-	conn1, conn2 := newConnPair()
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var err error
-
-		conn1.ReaderTimeout = time.Millisecond * 10
-		_, err = conn1.Reader.Decode()
-		assert.Must(err != nil && IsTimeout(err))
-
-		conn1.Reader.Err = nil
-		conn1.ReaderTimeout = 0
-		_, err = conn1.Reader.Decode()
-		assert.MustNoError(err)
-
-		_, err = conn1.Reader.Decode()
-		assert.Must(err != nil && errors.Equal(err, io.EOF))
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var err error
-
-		time.Sleep(time.Millisecond * 100)
-
-		err = conn2.Writer.Encode(resp, true)
-		assert.MustNoError(err)
-
-		conn2.Close()
-	}()
-
-	wg.Wait()
-
-	conn1.Close()
-	conn2.Close()
-}
-
-func TestConnWriterTimeout(t *testing.T) {
-	resp := NewString([]byte("hello world"))
-
-	conn1, conn2 := newConnPair()
-
-	var wg sync.WaitGroup
-
-	var count atomic2.Int64
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer conn2.Close()
-
-		conn2.WriterTimeout = time.Millisecond * 50
-		for {
-			if err := conn2.Writer.Encode(resp, true); err != nil {
-				assert.Must(IsTimeout(err))
-				return
-			}
-			count.Incr()
-		}
-	}()
-
-	wg.Wait()
-
-	for i := count.Get(); i != 0; i-- {
-		_, err := conn1.Reader.Decode()
-		assert.MustNoError(err)
+func benchmarkConn(b *testing.B, n int) {
+	unsafe2.SetMaxOffheapBytes(0)
+	for i := 0; i < b.N; i++ {
+		c := NewConn(&net.TCPConn{}, n, n)
+		c.Close()
 	}
-	_, err := conn1.Reader.Decode()
-	assert.Must(err != nil && errors.Equal(err, io.EOF))
-
-	conn1.Close()
-	conn2.Close()
 }
+
+func benchmarkConnOffheap(b *testing.B, n int) {
+	unsafe2.SetMaxOffheapBytes(1024 * 1024 * 512)
+	for i := 0; i < b.N; i++ {
+		c := NewConn(&net.TCPConn{}, n, n)
+		c.Close()
+	}
+}
+
+func BenchmarkConn16K(b *testing.B)  { benchmarkConn(b, 1024*16) }
+func BenchmarkConn32K(b *testing.B)  { benchmarkConn(b, 1024*32) }
+func BenchmarkConn64K(b *testing.B)  { benchmarkConn(b, 1024*64) }
+func BenchmarkConn128K(b *testing.B) { benchmarkConn(b, 1024*128) }
+func BenchmarkConn256K(b *testing.B) { benchmarkConn(b, 1024*256) }
+
+func BenchmarkConnOffheap16K(b *testing.B)  { benchmarkConnOffheap(b, 1024*16) }
+func BenchmarkConnOffheap32K(b *testing.B)  { benchmarkConnOffheap(b, 1024*32) }
+func BenchmarkConnOffheap64K(b *testing.B)  { benchmarkConnOffheap(b, 1024*64) }
+func BenchmarkConnOffheap128K(b *testing.B) { benchmarkConnOffheap(b, 1024*128) }
+func BenchmarkConnOffheap256K(b *testing.B) { benchmarkConnOffheap(b, 1024*256) }

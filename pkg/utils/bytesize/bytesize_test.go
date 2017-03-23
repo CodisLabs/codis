@@ -1,24 +1,27 @@
 // Copyright 2016 CodisLabs. All Rights Reserved.
 // Licensed under the MIT (MIT-LICENSE.txt) license.
 
-package bytesize_test
+package bytesize
 
 import (
 	"testing"
 
 	"github.com/CodisLabs/codis/pkg/utils/assert"
+<<<<<<< HEAD
 	. "github.com/CodisLabs/codis/pkg/utils/bytesize"
+=======
+>>>>>>> CodisLabs/release3.1
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 )
 
-func TestBytesize(t *testing.T) {
+func TestByteSize(t *testing.T) {
 	assert.Must(MustParse("1") == 1)
-	assert.Must(MustParse("1B") == 1)
-	assert.Must(MustParse("1K") == KB)
-	assert.Must(MustParse("1M") == MB)
-	assert.Must(MustParse("1G") == GB)
-	assert.Must(MustParse("1T") == TB)
-	assert.Must(MustParse("1P") == PB)
+	assert.Must(MustParse("1b") == 1)
+	assert.Must(MustParse("1k") == KB)
+	assert.Must(MustParse("1m") == MB)
+	assert.Must(MustParse("1g") == GB)
+	assert.Must(MustParse("1t") == TB)
+	assert.Must(MustParse("1p") == PB)
 
 	assert.Must(MustParse(" -1") == -1)
 	assert.Must(MustParse(" -1 b") == -1)
@@ -36,12 +39,12 @@ func TestBytesize(t *testing.T) {
 	assert.Must(MustParse(" 1.5 pb ") == 1.5*PB)
 }
 
-func TestBytesizeError(t *testing.T) {
+func TestByteSizeError(t *testing.T) {
 	var err error
 	_, err = Parse("--1")
-	assert.Must(errors.Equal(err, ErrBadBytesize))
+	assert.Must(errors.Equal(err, ErrBadByteSize))
 	_, err = Parse("hello world")
-	assert.Must(errors.Equal(err, ErrBadBytesize))
+	assert.Must(errors.Equal(err, ErrBadByteSize))
 	_, err = Parse("123.132.32")
-	assert.Must(errors.Equal(err, ErrBadBytesize))
+	assert.Must(errors.Equal(err, ErrBadByteSize))
 }

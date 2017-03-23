@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="../assets/jquery/jquery-1.10.2.min.js"></script>
+        <link href="../assets/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap/js/bootstrap.min.js"></script>
+        <link href="../assets/bootstrap-dialog/css/bootstrap-dialog.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap-dialog/js/bootstrap-dialog.min.js"></script>
+        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+        <title>Only one dialog</title>
+        <meta charset="utf-8" />
+        <style type="text/css">
+            .floating-menu {
+                background-color: gray;
+                border: 1px solid blue;
+                padding: 20px;
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                z-index: 9999;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="floating-menu">
+            <button class="btn btn-primary" id="btn-open">Open dialog</button>
+        </div>
+        <script type="text/javascript">
+            /**
+             * See how to limit only one dialog can be opened at a time.
+             */
+            $(function() {
+                var $btn = $('#btn-open');
+                $btn.on('click', function(event) {
+                    BootstrapDialog.closeAll();
+                    var dialog = new BootstrapDialog({
+                        message: 'The only one.'
+                    });
+                    dialog.open();
+                });
+            });
+        </script>
+    </body>
+</html>

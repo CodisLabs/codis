@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="../assets/jquery/jquery-1.10.2.min.js"></script>
+        <link href="../assets/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap/js/bootstrap.min.js"></script>
+        <link href="../assets/bootstrap-dialog/css/bootstrap-dialog.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap-dialog/js/bootstrap-dialog.min.js"></script>
+        <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+        <title>Tabindex</title>
+        <meta charset="utf-8" />
+    </head>
+    <body>
+        <script type="text/javascript">
+            /**
+             * This example demonstrates how to custom tabindex attribute of the dialog.
+             */
+            $(function() {
+                var dialog = new BootstrapDialog({
+                    message: 'Custom tabindex.',
+                    tabindex: 10
+                });
+                dialog.open();
+            });
+        </script>
+    </body>
+</html>

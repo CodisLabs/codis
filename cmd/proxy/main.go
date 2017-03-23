@@ -4,13 +4,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	_ "net/http/pprof"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/docopt/docopt-go"
+<<<<<<< HEAD
 	"github.com/ngaut/gostats"
 	"github.com/CodisLabs/codis/pkg/proxy"
 	"github.com/CodisLabs/codis/pkg/proxy/router"
@@ -25,187 +27,307 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/bytesize"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 )
+=======
+>>>>>>> CodisLabs/release3.1
 
-var (
-	cpus       = 2
-	addr       = ":9000"
-	httpAddr   = ":9001"
-	configFile = "config.ini"
+	"github.com/CodisLabs/codis/pkg/models"
+	"github.com/CodisLabs/codis/pkg/proxy"
+	"github.com/CodisLabs/codis/pkg/topom"
+	"github.com/CodisLabs/codis/pkg/utils"
+	"github.com/CodisLabs/codis/pkg/utils/log"
 )
 
-var usage = `usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--log-filesize=<filesize>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
-
-options:
-   -c	set config file
-   -L	set output log file, default is stdout
-   --log-level=<loglevel>	set log level: info, warn, error, debug [default: info]
-   --log-filesize=<maxsize>  set max log file size, suffixes "KB", "MB", "GB" are allowed, 1KB=1024 bytes, etc. Default is 1GB.
-   --cpu=<cpu_num>		num of cpu cores that proxy can use
-   --addr=<proxy_listen_addr>		proxy listen address, example: 0.0.0.0:9000
-   --http-addr=<debug_http_server_addr>		debug vars http server
-`
-
-const banner string = `
-  _____  ____    ____/ /  (_)  _____
- / ___/ / __ \  / __  /  / /  / ___/
-/ /__  / /_/ / / /_/ /  / /  (__  )
-\___/  \____/  \__,_/  /_/  /____/
-
-`
-
-func init() {
-	log.SetLevel(log.LEVEL_INFO)
-}
-
-func setLogLevel(level string) {
-	level = strings.ToLower(level)
-	var l = log.LEVEL_INFO
-	switch level {
-	case "error":
-		l = log.LEVEL_ERROR
-	case "warn", "warning":
-		l = log.LEVEL_WARN
-	case "debug":
-		l = log.LEVEL_DEBUG
-	case "info":
-		fallthrough
-	default:
-		level = "info"
-		l = log.LEVEL_INFO
-	}
-	log.SetLevel(l)
-	log.Infof("set log level to <%s>", level)
-}
-
-func setCrashLog(file string) {
-	f, err := os.OpenFile(file, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.InfoErrorf(err, "cannot open crash log file: %s", file)
-	} else {
-		syscall.Dup2(int(f.Fd()), 2)
-	}
-}
-
-func handleSetLogLevel(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
-	setLogLevel(r.Form.Get("level"))
-}
-
-func checkUlimit(min int) {
-	ulimitN, err := exec.Command("/bin/sh", "-c", "ulimit -n").Output()
-	if err != nil {
-		log.WarnErrorf(err, "get ulimit failed")
-	}
-
-	n, err := strconv.Atoi(strings.TrimSpace(string(ulimitN)))
-	if err != nil || n < min {
-		log.Panicf("ulimit too small: %d, should be at least %d", n, min)
-	}
-}
-
 func main() {
-	args, err := docopt.Parse(usage, nil, true, utils.Version, true)
+	const usage = `
+Usage:
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT] [--pidfile=FILE]
+	codis-proxy  --default-config
+	codis-proxy  --version
+
+Options:
+	--ncpu=N                    set runtime.GOMAXPROCS to N, default is runtime.NumCPU().
+	-c CONF, --config=CONF      run with the specific configuration.
+	-l FILE, --log=FILE         set path/name of daliy rotated log file.
+	--log-level=LEVEL           set the log-level, should be INFO,WARN,DEBUG or ERROR, default is INFO.
+	--ulimit=NLIMIT             run 'ulimit -n' to check the maximum number of open file descriptors.
+`
+
+	d, err := docopt.Parse(usage, nil, true, "", false)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	fmt.Print(banner)
-
-	// set config file
-	if args["-c"] != nil {
-		configFile = args["-c"].(string)
+		log.PanicError(err, "parse arguments failed")
 	}
 
-	var maxFileFrag = 10000000
-	var maxFragSize int64 = bytesize.GB * 1
-	if s, ok := args["--log-filesize"].(string); ok && s != "" {
-		v, err := bytesize.Parse(s)
+	switch {
+
+	case d["--default-config"]:
+		fmt.Println(proxy.DefaultConfig)
+		return
+
+	case d["--version"].(bool):
+		fmt.Println("version:", utils.Version)
+		fmt.Println("compile:", utils.Compile)
+		return
+
+	}
+
+	if s, ok := utils.Argument(d, "--log"); ok {
+		w, err := log.NewRollingFile(s, log.DailyRolling)
 		if err != nil {
-			log.PanicErrorf(err, "invalid max log file size = %s", s)
-		}
-		maxFragSize = v
-	}
-
-	// set output log file
-	if s, ok := args["-L"].(string); ok && s != "" {
-		f, err := log.NewRollingFile(s, maxFileFrag, maxFragSize)
-		if err != nil {
-			log.PanicErrorf(err, "open rolling log file failed: %s", s)
+			log.PanicErrorf(err, "open log file %s failed", s)
 		} else {
-			defer f.Close()
-			log.StdLog = log.New(f, "")
+			log.StdLog = log.New(w, "")
 		}
 	}
-	log.SetLevel(log.LEVEL_INFO)
-	log.SetFlags(log.Flags() | log.Lshortfile)
+	log.SetLevel(log.LevelInfo)
 
-	// set log level
-	if s, ok := args["--log-level"].(string); ok && s != "" {
-		setLogLevel(s)
+	if s, ok := utils.Argument(d, "--log-level"); ok {
+		if !log.SetLevelString(s) {
+			log.Panicf("option --log-level = %s", s)
+		}
 	}
-	cpus = runtime.NumCPU()
-	// set cpu
-	if args["--cpu"] != nil {
-		cpus, err = strconv.Atoi(args["--cpu"].(string))
+
+	if n, ok := utils.ArgumentInteger(d, "--ulimit"); ok {
+		b, err := exec.Command("/bin/sh", "-c", "ulimit -n").Output()
 		if err != nil {
-			log.PanicErrorf(err, "parse cpu number failed")
+			log.PanicErrorf(err, "run ulimit -n failed")
+		}
+		if v, err := strconv.Atoi(strings.TrimSpace(string(b))); err != nil || v < n {
+			log.PanicErrorf(err, "ulimit too small: %d, should be at least %d", v, n)
 		}
 	}
 
-	// set addr
-	if args["--addr"] != nil {
-		addr = args["--addr"].(string)
+	var ncpu int
+	if n, ok := utils.ArgumentInteger(d, "--ncpu"); ok {
+		ncpu = n
+	} else {
+		ncpu = runtime.NumCPU()
+	}
+	runtime.GOMAXPROCS(ncpu)
+
+	var maxncpu int
+	if n, ok := utils.ArgumentInteger(d, "--max-ncpu"); ok {
+		maxncpu = n
+	}
+	log.Warnf("set ncpu = %d, max-ncpu = %d", ncpu, maxncpu)
+
+	if ncpu < maxncpu {
+		go AutoGOMAXPROCS(ncpu, maxncpu)
 	}
 
-	// set http addr
-	if args["--http-addr"] != nil {
-		httpAddr = args["--http-addr"].(string)
+	config := proxy.NewDefaultConfig()
+	if s, ok := utils.Argument(d, "--config"); ok {
+		if err := config.LoadFromFile(s); err != nil {
+			log.PanicErrorf(err, "load config %s failed", s)
+		}
+	}
+	if s, ok := utils.Argument(d, "--host-admin"); ok {
+		config.HostAdmin = s
+		log.Warnf("option --host-admin = %s", s)
+	}
+	if s, ok := utils.Argument(d, "--host-proxy"); ok {
+		config.HostProxy = s
+		log.Warnf("option --host-proxy = %s", s)
 	}
 
-	checkUlimit(1024)
-	runtime.GOMAXPROCS(cpus)
+	var dashboard string
+	if s, ok := utils.Argument(d, "--dashboard"); ok {
+		dashboard = s
+		log.Warnf("option --dashboard = %s", s)
+	}
 
-	http.HandleFunc("/setloglevel", handleSetLogLevel)
-	go func() {
-		err := http.ListenAndServe(httpAddr, nil)
-		log.PanicError(err, "http debug server quit")
-	}()
-	log.Info("running on ", addr)
-	conf, err := proxy.LoadConf(configFile)
+	var coordinator struct {
+		name string
+		addr string
+	}
+
+	switch {
+
+	case d["--zookeeper"] != nil:
+		coordinator.name = "zookeeper"
+		coordinator.addr = utils.ArgumentMust(d, "--zookeeper")
+
+	case d["--etcd"] != nil:
+		coordinator.name = "etcd"
+		coordinator.addr = utils.ArgumentMust(d, "--etcd")
+
+	case d["--filesystem"] != nil:
+		coordinator.name = "filesystem"
+		coordinator.addr = utils.ArgumentMust(d, "--filesystem")
+
+	}
+
+	if coordinator.name != "" {
+		log.Warnf("option --%s = %s", coordinator.name, coordinator.addr)
+	}
+
+	var slots []*models.Slot
+	if s, ok := utils.Argument(d, "--fillslots"); ok {
+		b, err := ioutil.ReadFile(s)
+		if err != nil {
+			log.PanicErrorf(err, "load slots from file failed")
+		}
+		if err := json.Unmarshal(b, &slots); err != nil {
+			log.PanicErrorf(err, "decode slots from json failed")
+		}
+	}
+
+	s, err := proxy.New(config)
 	if err != nil {
-		log.PanicErrorf(err, "load config failed")
+		log.PanicErrorf(err, "create proxy with config file failed\n%s", config)
 	}
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM, os.Kill)
-
-	s := proxy.New(addr, httpAddr, conf)
 	defer s.Close()
 
-	stats.PublishJSONFunc("router", func() string {
-		var m = make(map[string]interface{})
-		m["ops"] = router.OpCounts()
-		m["cmds"] = router.GetAllOpStats()
-		m["info"] = s.Info()
-		m["build"] = map[string]interface{}{
-			"version": utils.Version,
-			"compile": utils.Compile,
+	log.Warnf("create proxy with config\n%s", config)
+
+	if s, ok := utils.Argument(d, "--pidfile"); ok {
+		if pidfile, err := filepath.Abs(s); err != nil {
+			log.WarnErrorf(err, "parse pidfile = '%s' failed", s)
+		} else if err := ioutil.WriteFile(pidfile, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+			log.WarnErrorf(err, "write pidfile = '%s' failed", pidfile)
+		} else {
+			defer func() {
+				if err := os.Remove(pidfile); err != nil {
+					log.WarnErrorf(err, "remove pidfile = '%s' failed", pidfile)
+				}
+			}()
+			log.Warnf("option --pidfile = %s", pidfile)
 		}
-		b, _ := json.Marshal(m)
-		return string(b)
-	})
-
-	go func() {
-		<-c
-		log.Info("ctrl-c or SIGTERM found, bye bye...")
-		s.Close()
-	}()
-
-	time.Sleep(time.Second)
-	if err := s.SetMyselfOnline(); err != nil {
-		log.WarnError(err, "mark myself online fail, you need mark online manually by dashboard")
 	}
 
-	s.Join()
-	log.Infof("proxy exit!! :(")
+	go func() {
+		defer s.Close()
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM)
+
+		sig := <-c
+		log.Warnf("[%p] proxy receive signal = '%v'", s, sig)
+	}()
+
+	switch {
+	case dashboard != "":
+		go AutoOnlineWithDashboard(s, dashboard)
+	case coordinator.name != "":
+		go AutoOnlineWithCoordinator(s, coordinator.name, coordinator.addr)
+	case slots != nil:
+		go AutoOnlineWithFillSlots(s, slots)
+	}
+
+	for !s.IsClosed() && !s.IsOnline() {
+		log.Warnf("[%p] proxy waiting online ...", s)
+		time.Sleep(time.Second)
+	}
+
+	log.Warnf("[%p] proxy is working ...", s)
+
+	for !s.IsClosed() {
+		time.Sleep(time.Second)
+	}
+
+	log.Warnf("[%p] proxy is exiting ...", s)
+}
+
+func AutoGOMAXPROCS(min, max int) {
+	for {
+		var ncpu = runtime.GOMAXPROCS(0)
+		var less, more int
+		var usage [10]float64
+		for i := 0; i < len(usage) && more == 0; i++ {
+			u, _, err := utils.CPUUsage(time.Second)
+			if err != nil {
+				log.WarnErrorf(err, "get cpu usage failed")
+				time.Sleep(time.Second * 30)
+				continue
+			}
+			u /= float64(ncpu)
+			switch {
+			case u < 0.30 && ncpu > min:
+				less++
+			case u > 0.70 && ncpu < max:
+				more++
+			}
+			usage[i] = u
+		}
+		var nn = ncpu
+		switch {
+		case more != 0:
+			nn = ncpu + ((max - ncpu + 3) / 4)
+		case less == len(usage):
+			nn = ncpu - 1
+		}
+		if nn != ncpu {
+			runtime.GOMAXPROCS(nn)
+			var b bytes.Buffer
+			for i, u := range usage {
+				if i != 0 {
+					fmt.Fprintf(&b, ", ")
+				}
+				fmt.Fprintf(&b, "%.3f", u)
+			}
+			log.Warnf("ncpu = %d -> %d, usage = [%s]", ncpu, nn, b.Bytes())
+		}
+	}
+}
+
+func AutoOnlineWithDashboard(p *proxy.Proxy, dashboard string) {
+	for i := 0; i < 10; i++ {
+		if p.IsClosed() || p.IsOnline() {
+			return
+		}
+		if OnlineProxy(p, dashboard) {
+			return
+		}
+		time.Sleep(time.Second * 3)
+	}
+	log.Panicf("online proxy failed")
+}
+
+func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr string) {
+	client, err := models.NewClient(name, addr, time.Minute)
+	if err != nil {
+		log.PanicErrorf(err, "create '%s' client to '%s' failed", name, addr)
+	}
+	defer client.Close()
+	for i := 0; i < 30; i++ {
+		if p.IsClosed() || p.IsOnline() {
+			return
+		}
+		t, err := models.LoadTopom(client, p.Config().ProductName, false)
+		if err != nil {
+			log.WarnErrorf(err, "load & decode topom failed")
+		} else if t != nil && OnlineProxy(p, t.AdminAddr) {
+			return
+		}
+		time.Sleep(time.Second * 3)
+	}
+	log.Panicf("online proxy failed")
+}
+
+func AutoOnlineWithFillSlots(p *proxy.Proxy, slots []*models.Slot) {
+	if err := p.FillSlots(slots); err != nil {
+		log.PanicErrorf(err, "fill slots failed")
+	}
+	if err := p.Start(); err != nil {
+		log.PanicErrorf(err, "start proxy failed")
+	}
+}
+
+func OnlineProxy(p *proxy.Proxy, dashboard string) bool {
+	client := topom.NewApiClient(dashboard)
+	t, err := client.Model()
+	if err != nil {
+		log.WarnErrorf(err, "rpc fetch model failed")
+		return false
+	}
+	if t.ProductName != p.Config().ProductName {
+		log.Panicf("unexcepted product name, got model =\n%s", t.Encode())
+	}
+	client.SetXAuth(p.Config().ProductName)
+
+	if err := client.OnlineProxy(p.Model().AdminAddr); err != nil {
+		log.WarnErrorf(err, "rpc online proxy failed")
+		return false
+	} else {
+		log.Warnf("rpc online proxy seems OK")
+		return true
+	}
 }

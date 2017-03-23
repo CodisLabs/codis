@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="../assets/jquery/jquery-1.10.2.min.js"></script>
+        <link href="../assets/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap/js/bootstrap.min.js"></script>
+        <link href="../assets/bootstrap-dialog/css/bootstrap-dialog.min.css" rel="stylesheet" type="text/css" />
+        <script src="../assets/bootstrap-dialog/js/bootstrap-dialog.min.js"></script>
+        <title>Button Event</title>
+        <meta charset="utf-8" />
+    </head>
+    <body>
+        <script type="text/javascript">
+            $(function() {
+                var dialog = new BootstrapDialog({
+                    closable: false,
+                    buttons: [{
+                            label: 'Button 1',
+                            action: function(dialog, event) {
+                                // this.data('button') is the original button config
+                                console.log(this.data('button'));
+
+                                // Stop bubbling. 'event' here is the original event object of 'click'.
+                                event.stopPropagation();
+                            }
+                        }, {
+                            label: 'Button 2',
+                            action: function(dialog) {
+                                // Does nothing
+                            }
+                        }],
+                    onshown: function(dialog) {
+                        var $footer = dialog.getModalFooter();
+                        $footer.on('click', function(event) {
+                            alert('Footer was hit.');
+                        });
+                    }
+                });
+                dialog.open();
+            });
+        </script>
+    </body>
+</html>

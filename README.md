@@ -4,6 +4,13 @@
 [![Build Status](https://travis-ci.org/CodisLabs/codis.svg)](https://travis-ci.org/CodisLabs/codis)
 
 Codis is a proxy based high performance Redis cluster solution written in Go. It is production-ready and widely used at [wandoujia.com](http://wandoujia.com) and many companies. You can see [Codis Releases](https://github.com/CodisLabs/codis/releases) for latest and most stable realeases.
+<<<<<<< HEAD
+=======
+
+##Donation
+Donate if you want to help us maintaining this project. Thank you!
+[See this issue for details](https://github.com/CodisLabs/codis/issues/976)
+>>>>>>> CodisLabs/release3.1
 
 ##Compared with Twemproxy and Redis Cluster
 <table>
@@ -24,17 +31,30 @@ Codis is a proxy based high performance Redis cluster solution written in Go. It
 ## Tutorial
 
 [简体中文](doc/tutorial_zh.md)
+<<<<<<< HEAD
 [English](doc/tutorial_en.md)
+=======
+[English (WIP) ](doc/tutorial_en.md)
+>>>>>>> CodisLabs/release3.1
 
 ## FAQ
 
 [简体中文](doc/FAQ_zh.md)
+<<<<<<< HEAD
 [English (WIP) ](doc/FAQ_en.md)
 
 ## High Availability
 
 [简体中文](doc/tutorial_zh.md#ha)
 [English](doc/tutorial_en.md#ha)
+=======
+[English (WIP) ](FAQ_en.md)
+
+## High Availability
+
+[简体中文](doc/tutorial_zh.md#3-jodis-与-ha)
+[English (WIP) ](doc/tutorial_en.md#ha)
+>>>>>>> CodisLabs/release3.1
 
 ## Architecture
 
@@ -42,14 +62,17 @@ Codis is a proxy based high performance Redis cluster solution written in Go. It
 
 ## Snapshots
 
-Dashboard
-![main](doc/pictures/snapshot.png)
-
-Migrate
-![migrate](doc/pictures/snapshot_migrate.png)
+Proxy
+![proxy](doc/pictures/snapshots1.png)
 
 Slots
-![slots](doc/pictures/slots.png)
+![slots](doc/pictures/snapshots2.png)
+
+Group
+![group](doc/pictures/snapshots3.png)
+
+Sentinel
+![sentinel](doc/pictures/snapshots4.png)
 
 ##Benchmarks
 [See benchmark results](doc/benchmark.md)
@@ -62,7 +85,7 @@ Active authors:
 
 Emeritus authors:
 * [@goroutine](https://github.com/ngaut) [微博@goroutine](http://weibo.com/u/1923497393)
-* [@c4pt0r](https://github.com/c4pt0r) [微博@Dongxu_Huang](http://weibo.com/c4pt0r)
+* [@c4pt0r](https://github.com/c4pt0r) [微博@Dongxu\_Huang](http://weibo.com/c4pt0r)
 
 Thanks:
 * [@ivanzhaowy](https://github.com/ivanzhaowy)

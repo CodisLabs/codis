@@ -1,0 +1,19 @@
+{
+    "product_name": "demo-alpha",
+    "product_auth": "",
+    "dashboard": {
+        "admin_addr": "127.0.0.1:18080",
+        "coordinator": {
+            "name": "etcd",
+            "addr": "127.0.0.1:2379"
+        },
+        "sentinel_quorum": 2,
+        "sentinel_down_after": "10s"
+    },
+    "proxy": {
+        "min_cpu": 4,
+        "max_cpu": 8,
+        "max_clients": 10000,
+        "max_pipeline": 1024
+    }
+}
