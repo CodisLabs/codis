@@ -13,7 +13,7 @@ codis-dashboard: codis-deps
 	@./bin/codis-dashboard --default-config > config/dashboard.toml
 
 codis-proxy: codis-deps
-	go build -i -o bin/codis-proxy ./cmd/proxy
+	go build -i -tags "cgo_jemalloc" -o bin/codis-proxy ./cmd/proxy
 	@./bin/codis-proxy --default-config > config/proxy.toml
 
 codis-admin: codis-deps
