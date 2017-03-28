@@ -21,7 +21,7 @@ migration_method = "semi-async"
 migration_parallel_slots = 100
 migration_async_maxbulks = 200
 migration_async_maxbytes = "32mb"
-migration_async_numkeys = 100
+migration_async_numkeys = 500
 migration_timeout = "30s"
 
 # Set configs for redis sentinel.
