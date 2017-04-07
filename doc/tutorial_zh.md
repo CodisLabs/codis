@@ -31,8 +31,12 @@ Codis 3.x 由以下组件组成：
     + 目前仅提供了 Zookeeper 和 Etcd 两种实现，但是提供了抽象的 interface 可自行扩展。
 
 ## 0. 下载与编译
+### 1.所需依赖包安装
+```
+yum install -y gcc make gcc-c++ automake lrzsz openssl-devel zlib-* bzip2-* readline* zlib-* bzip2-* git nmap unzip wget lsof xz net-tools mercurial vim
+```
 
-#### 1. 安装 Go 运行环境 [参考这里](https://golang.org/doc/install)
+#### 2. 安装 Go 运行环境 [参考这里](https://golang.org/doc/install)
 
 安装完成后可以运行下列命令进行检测：
 
@@ -41,7 +45,119 @@ $ go version
 go version go1.5.2 linux/amd64
 ```
 
-#### 2. 设置编译环境
+### 3. zookeeper环境配置
+##### JDK配置
+
+```
+cd /usr/loca/src/
+tar -C /usr/local/ -xzf /usr/local/src/jdk-8u111-linux-x64.tar.gz
+```
+
+##### 刷新环境变量
+
+```
+vim /etc/profile
+```
+
+##### 添加如下信息
+
+```
+export JAVA_HOME=/usr/local/jdk1.8.0_111
+export PATH=$JAVA_HOME/bin:$PATH
+export CLASSPATH=.:$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar
+```
+
+##### 刷新配置文件：
+
+```
+source /etc/profile
+```
+
+##### 安装zookeeper
+```
+cd /usr/local/src/
+tar -C /usr/local/ -xzf zookeeper-3.4.8.tar.gz
+cd /usr/local/zookeeper-3.4.8
+ln -s zookeeper-3.4.8 zookeeper
+```
+
+##### 生成配置文件
+
+```
+cd /usr/local/zookeeper
+cp conf/zoo_sample.cfg conf/zoo.cfg
+```
+
+##### 修改zookeeper配置文件
+
+```
+vim /usr/local/zookeeper/conf/zoo.cfg
+```
+
+##### 修改以下内容
+
+```
+maxClientCnxns=60
+tickTime=2000
+initLimit=10
+syncLimit=5
+dataDir=/usr/local/zookeeper/data
+dataLogDir=/data/logs/zookeeper
+clientPort=2181
+server.1=IP:2888:3888
+server.2=IP:2888:3888
+server.3=IP:2888:3888
+```
+>以上IP地址、路径、参数可根据实际情况修改
+>2888表示zookeeper程序监听端口，3888表示zookeeper选举通信端口
+
+
+##### 创建zookeeper所需文件夹
+
+```
+mkdir -p /usr/local/zookeeper/data
+mkdir -p /data/logs/zookeeper
+```
+
+##### 生成myid
+ 
+server.1
+
+```
+echo "1" >/usr/local/zookeeper/data/myid  ##生成ID，这里需要注意， myid对应的zoo.cfg的server.ID，比如第二台zookeeper主机对应的myid应该是2
+```
+
+server.2
+
+```
+echo "2" >/usr/local/zookeeper/data/myid
+```
+
+server.3
+
+```
+echo "3" >/usr/local/zookeeper/data/myid
+```
+
+##### 启动zookeeper
+
+```
+cd /usr/local/zookeeper/bin
+./zkServer.sh start
+```
+
+##### 查看zk状态
+```
+cd /usr/local/zookeeper/bin
+./zkServer.sh status
+```
+
+##### 查看zk相关信息：
+```
+/usr/local/zookeeper/bin/zkCli.sh -server 127.0.0.1:2181
+```
+
+#### 3. 设置Codis编译环境
 
 **注意 `$GOPATH` 是本机所有第三方库 go 项目所在目录，Codis 仅是其中之一。**
 
@@ -52,16 +168,16 @@ $ go env GOPATH
 /home/codis/gopath
 ```
 
-#### 3. 下载 Codis 源代码
+#### 4. 下载 Codis 源代码
 
 Codis 源代码需要下载到 `$GOPATH/src/github.com/CodisLabs/codis`：
 
 ```bash
 $ mkdir -p $GOPATH/src/github.com/CodisLabs
-$ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.1
+$ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.2
 ```
 
-#### 4. 编译 Codis 源代码
+#### 5. 编译 Codis 源代码
 
 * 直接通过 make 进行编译，会看到如下输出：
 
@@ -91,6 +207,7 @@ $ cat bin/version
 version = 2016-01-03 14:53:22 +0800 @51f06ae3b58a256a58f857f590430977638846a3
 compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 ```
+
 
 ## 1. 快速启动
 
