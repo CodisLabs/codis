@@ -25,11 +25,6 @@ Codis 3.x 由以下组件组成：
     + 多个集群实例共享可以共享同一个前端展示页面；
     + 通过配置文件管理后端 codis-dashboard 列表，配置文件可自动更新。
 
-* **Codis HA**：为集群提供高可用。
-
-    + 依赖 codis-dashboard 实例，自动抓取集群各个组件的状态；
-    + 会根据当前集群状态自动生成主从切换策略，并在需要时通过 codis-dashboard 完成主从切换。
-
 * **Storage**：为集群状态提供外部存储。
 
     + 提供 Namespace 概念，不同集群的会按照不同 product name 进行组织；
@@ -87,7 +82,6 @@ drwxr-xr-x 4 codis codis     4096 Jan  4 14:55 assets
 -rwxr-xr-x 1 codis codis 17600752 Jan  4 14:55 codis-admin
 -rwxr-xr-x 1 codis codis 18416320 Jan  4 14:55 codis-dashboard
 -rwxr-xr-x 1 codis codis  9498040 Jan  4 14:55 codis-fe
--rwxr-xr-x 1 codis codis  9956328 Jan  4 14:55 codis-ha
 -rwxr-xr-x 1 codis codis 11057280 Jan  4 14:55 codis-proxy
 -rwxr-xr-x 1 codis codis  4234432 Jan  4 14:55 codis-server
 -rw-r--r-- 1 codis codis      148 Jan  4 14:55 version
@@ -375,53 +369,11 @@ $ ./bin/codis-admin --dashboard-list --zookeeper=127.0.0.1:2181 | tee codis.json
 ]
 ```
 
-#### 2.5 Codis HA（可选组件）
-
-##### 2.5.1 启动命令：
-
-```bash
-$ nohup ./bin/codis-ha --log=ha.log --log-level=WARN --dashboard=127.0.0.1:18080 &
-```
-
-##### 2.5.2 详细说明：
-
-```bash
-$ ./bin/codis-ha -h
-Usage:
-	codis-ha [--log=FILE] [--log-level=LEVEL] --dashboard=ADDR
-	codis-ha  --version
-
-Options:
-	-l FILE, --log=FILE         设置 log 输出文件
-	--log-level=LEVEL           设置 log 输出等级：INFO,WARN,DEBUG,ERROR；默认INFO，推荐WARN
-```
-##### 2.5.3 工作原理：
-
-**注意：Codis HA 工具仅仅是 Codis 集群 HA 的一部分，单独工作能力有限。**
-
-**注意：Codis 同时支持 sentinel 作为 HA，codis-ha 已经不推荐使用了。**
-
-+ 默认以 5s 为周期，codis-ha 会从 codis-dashboard 中拉取集群状态，并进行主从切换；
-
-+ codis-ha 在以下状态下会退出：
-    1. 从 codis-dashboard 获取集群状态失败时；
-    2. 向 codis-dashboard 发送主从切换指令失败时；
-
-+ codis-ha 在以下状态下不会进行主从切换：
-    1. 存在 proxy 状态异常：
-        + 因为提升主从需要得到所有 proxy 的确认，因此必须确保操作时所有 proxy 都能正常响应操作指令；
-    2. 网络原因造成的 master 异常：
-        + 若存在 slave 满足 `slave.master_link_status == up`，通常可以认为 master 并没有真的退出，而是由于网络原因或者响应延迟造成的 master 状态获取失败，此时 codis-ha 不会对该 group 进行操作；
-    3. 没有满足条件的 slave 时：
-        + 提升过程会选择满足 `slave.master_link_status == down`，并且 `slave.master_link_down_since_seconds` 最小的进行操作。这就要求被选择的 slave 至少在过去一段时间内与 master 是成功同步状态，这个时间间隔是 `2d+5`，其中 `d` 是 codis-ha 检查周期默认 `5`秒。
-
-**注意：因此，应用 codis-ha 时还需要结合对 codis-proxy 和 codis-server 的可用性监控，否则 codis-ha 无法保证可靠性。**
-
-#### 2.6 Codis Admin（命令行工具）
+#### 2.5 Codis Admin（命令行工具）
 
 **注意：使用 codis-admin 是十分危险的。**
 
-##### 2.6.1 codis-dashboard 异常退出的修复
+##### 2.5.1 codis-dashboard 异常退出的修复
 
 当 codis-dashboard 启动时，会在外部存储上存放一条数据，用于存储 dashboard 信息，同时作为 LOCK 存在。当 codis-dashboard 安全退出时，会主动删除该数据。当 codis-dashboard 异常退出时，由于之前 LOCK 未安全删除，重启往往会失败。因此 codis-admin 提供了强制删除工具：
 
@@ -432,7 +384,7 @@ Options:
 $ ./bin/codis-admin --remove-lock --product=codis-demo --zookeeper=127.0.0.1:2181
 ```
 
-##### 2.6.2 codis-proxy 异常退出的修复
+##### 2.5.2 codis-proxy 异常退出的修复
 
 通常 codis-proxy 都是通过 codis-dashboard 进行移除，移除过程中 codis-dashboard 为了安全会向 codis-proxy 发送 `offline` 指令，成功后才会将 proxy 信息从外部存储中移除。如果 codis-proxy 异常退出，该操作会失败。此时可以使用 codis-admin 工具进行移除：
 
@@ -529,3 +481,5 @@ Codis 3.x 的组件兼容 Jodis 协议。
 因为 Codis 2.x 与 Codis 3.x 在外部存储中的组织结构不同，所以可以安全的 `kill` 掉全部 Codis 2.x 组件。
 
 **注意：关闭过程请不要使用 `kill -9`，因为旧组件在退出时会自动清理部分注册信息。**
+
+
