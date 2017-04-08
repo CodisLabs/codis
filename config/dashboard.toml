@@ -6,8 +6,11 @@
 ##################################################
 
 # Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
-coordinator_name = "zookeeper"
-coordinator_addr = "127.0.0.1:2181"
+# Quick Start
+coordinator_name = "filesystem"
+coordinator_addr = "/tmp/codis"
+#coordinator_name = "zookeeper"
+#coordinator_addr = "127.0.0.1:2181"
 
 # Set Codis Product Name/Auth.
 product_name = "codis-demo"
