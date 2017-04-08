@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -55,7 +56,7 @@ func init() {
 func main() {
 	const usage = `
 Usage:
-	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] (--dashboard-list=FILE|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT) --listen=ADDR
+	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] [--pidfile=FILE] (--dashboard-list=FILE|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT) --listen=ADDR
 	codis-fe  --version
 
 Options:
@@ -192,6 +193,21 @@ Options:
 		log.PanicErrorf(err, "listen %s failed", listen)
 	}
 	defer l.Close()
+
+	if s, ok := utils.Argument(d, "--pidfile"); ok {
+		if pidfile, err := filepath.Abs(s); err != nil {
+			log.WarnErrorf(err, "parse pidfile = '%s' failed", s)
+		} else if err := ioutil.WriteFile(pidfile, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
+			log.WarnErrorf(err, "write pidfile = '%s' failed", pidfile)
+		} else {
+			defer func() {
+				if err := os.Remove(pidfile); err != nil {
+					log.WarnErrorf(err, "remove pidfile = '%s' failed", pidfile)
+				}
+			}()
+			log.Warnf("option --pidfile = %s", pidfile)
+		}
+	}
 
 	h := http.NewServeMux()
 	h.Handle("/", m)
