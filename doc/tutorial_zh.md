@@ -27,7 +27,7 @@ codis目前主要release版本如下:
 > * 实现动态pipeline缓存区
 > * proxy支持通过HTTP请求实时获取runtime metrics,便于监控、运维
 > * 支持通过influxdb和statsd采集proxy metrics
-> * 去除了集群slot automatic rebalance
+> * slot auto rebalance算法从2.0的基于max memory policy变更成基于group下slot数量
 > * 提供了更加友好的dashboard和fe界面，新增了很多按钮、跳转链接、错误状态等，有利于快速发现、处理集群故障
 > * 新增SLOTSSCAN指令,便于获取集群各个slot下的所有key
 > * codis-proxy与codis-dashbaord支持docker部署
