@@ -192,12 +192,12 @@ tail -100 ./log/codis-fe.log.2017-04-08
 添加NEW GROUP，NEW GROUP行输入1，再点击NEWGROUP即可
 添加Codis Server,Add Server行输入我们刚刚启动的codis-server地址，添加到我们刚新建的GROUP，然后再点击Add Server按钮即可，如下图所示
 
-![addgroup](doc/pictures/addgroup.jpg)
+![addgroup](pictures/addgroup.jpg)
 
 ### 通过fe初始化slot
 新增的集群slot状态是offline,因此我们需要对它进行初始化（将1024个slot分配到各个group）,而初始化最快的方法可通过fe提供的rebalance all slots按钮来做，如下图所示，点击此按钮，我们即快速完成了一个集群的搭建。
 
-![rebalance_slots](doc/pictures/rebalance_slots.jpg)
+![rebalance_slots](pictures/rebalance_slots.jpg)
 
 ## 2. 启动及参数
 
