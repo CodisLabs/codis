@@ -1,7 +1,8 @@
 # Codis 使用文档
 
 Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接到 Codis Proxy 和连接原生的 Redis Server 没有显著区别 ([不支持的命令列表](unsupported_cmds.md)), 上层应用可以像使用单机的 Redis 一样使用, Codis 底层会处理请求的转发, 不停机的数据迁移等工作, 所有后边的一切事情, 对于前面的客户端来说是透明的, 可以简单的认为后边连接的是一个内存无限大的 Redis 服务。
-##codis版本简介
+
+## codis版本简介
 codis目前主要release版本如下:
 ### codis 1.9
 > * codis-server基于redis-2.8.13
@@ -190,11 +191,13 @@ tail -100 ./log/codis-fe.log.2017-04-08
 但是Group栏为空，因为我们启动的codis-server并未加入到集群
 添加NEW GROUP，NEW GROUP行输入1，再点击NEWGROUP即可
 添加Codis Server,Add Server行输入我们刚刚启动的codis-server地址，添加到我们刚新建的GROUP，然后再点击Add Server按钮即可，如下图所示
-![addgroup](doc/pictures/addgroup.png)
+
+![addgroup](doc/pictures/addgroup.jpg)
 
 ### 通过fe初始化slot
 新增的集群slot状态是offline,因此我们需要对它进行初始化（将1024个slot分配到各个group）,而初始化最快的方法可通过fe提供的rebalance all slots按钮来做，如下图所示，点击此按钮，我们即快速完成了一个集群的搭建。
-![rebalance_slots](doc/pictures/rebalance_slots.png)
+
+![rebalance_slots](doc/pictures/rebalance_slots.jpg)
 
 ## 2. 启动及参数
 
