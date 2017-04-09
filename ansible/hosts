@@ -1,0 +1,10 @@
+[codis-dashboard-servers]
+127.0.0.1
+[codis-proxy-servers]
+127.0.0.1
+[codis-servers]
+127.0.0.1
+[codis-fe-servers]
+127.0.0.1
+[redis-sentinel-servers]
+127.0.0.1

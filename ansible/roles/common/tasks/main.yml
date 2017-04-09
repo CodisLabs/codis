@@ -1,0 +1,12 @@
+---
+- name: Create codis install directory
+  file: path={{ codis_install_dir }} state=directory owner=codis group=codis
+
+- name: Create codis bin directory
+  file: path={{ codis_install_dir }}/bin state=directory owner=codis group=codis
+
+- name: Create codis conf directory
+  file: path={{ codis_install_dir }}/config state=directory owner=codis group=codis
+
+- name: Create codis admin directory
+  file: path={{ codis_install_dir }}/admin state=directory owner=codis group=codis
