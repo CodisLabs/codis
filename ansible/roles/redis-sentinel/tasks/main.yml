@@ -1,0 +1,15 @@
+---
+- name: Create redis sentinel work directory
+  file: path={{ redis_sentinel_workdir }} state=directory owner=codis group=codis
+
+- name: Copy redis-sentinel binary 
+  copy: src={{ codis_dir }}/bin/codis-server dest={{ codis_install_dir }}/bin/redis-sentinel mode=766
+
+- name: Copy redis-sentinel configuration
+  template: src=sentinel.conf dest={{ codis_install_dir }}/config/sentinel.conf
+
+- name: Copy redis-sentinel admin script 
+  template: src=redis-sentinel-admin.sh dest={{ codis_install_dir }}/admin/redis-sentinel-admin.sh mode=766
+
+- name: Restart redis-sentinel service 
+  command: "{{ codis_install_dir }}/admin/redis-sentinel-admin.sh restart"
