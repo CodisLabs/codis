@@ -199,6 +199,22 @@ tail -100 ./log/codis-fe.log.2017-04-08
 
 ![rebalance_slots](pictures/rebalance_slots.jpg)
 
+
+## 通过ansible快速部署集群
+
+使用ansible可快速在单机、多机部署多套codis集群.
+ansible文件夹包含了部署codis集群的playbook,根据自己部署环境修改groups_var/all文件里参数，修改hosts文件添加部署的环境IP即可.
+ansible安装也及其简单,各部署机器无需安装任何额外的agent,彼此之间通过ssh通信。
+
+```
+git clone git://github.com/ansible/ansible.git -b stable-2.3
+cd ./ansible
+source ./hacking/env-setup
+cd $codis_dir
+ansible-playbook -i hosts site.yml
+```
+
+
 ## 2. 启动及参数
 
 **注意：请按照顺序逐步完成操作。生产环境建议修改dashboard coordinator_name配置，使用 `zookeeper` 或`etctd`作为外部存储。**
