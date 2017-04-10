@@ -23,6 +23,12 @@
   roles:
     - codis-server 
 
+- name: Install redis-sentinel
+  hosts: redis-sentinel-servers
+  remote_user: codis
+  roles:
+    - redis-sentinel
+
 - name: Install codis-fe
   hosts: codis-fe-servers
   remote_user: codis
