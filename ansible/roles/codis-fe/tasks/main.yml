@@ -6,7 +6,7 @@
   command: cp -r {{ codis_dir }}/bin/assets {{ codis_install_dir }}/bin
 
 - name: Copy codis-fe admin script 
-  copy: src={{ codis_dir }}/admin/codis-fe-admin.sh dest={{ codis_install_dir }}/admin/codis-fe-admin.sh mode=766
+  template: src=codis-fe-admin.sh dest={{ codis_install_dir }}/admin/codis-fe-admin.sh mode=766
 
 - name: Restart codis-fe service 
   command: "{{ codis_install_dir }}/admin/codis-fe-admin.sh restart"
