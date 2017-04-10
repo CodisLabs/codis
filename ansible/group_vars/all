@@ -1,6 +1,10 @@
 ---
 codis_dir: /home/codis/codis 
 
+coordinator_name: filesystem
+
+coordinator_addr: /tmp/codis
+
 codis_install_dir: /data/codis-vip
 
 product_name: codis-demo

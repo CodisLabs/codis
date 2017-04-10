@@ -7,8 +7,8 @@
 
 # Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
 # Quick Start
-coordinator_name = "filesystem"
-coordinator_addr = "/tmp/codis"
+coordinator_name = "{{ coordinator_name }}"
+coordinator_addr = "{{ coordinator_addr }}"
 #coordinator_name = "zookeeper"
 #coordinator_addr = "127.0.0.1:2181"
 
