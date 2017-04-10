@@ -9,9 +9,9 @@ CODIS_LOG_DIR=$CODIS_ADMIN_DIR/../log
 CODIS_CONF_DIR=$CODIS_ADMIN_DIR/../config
 
 REDIS_SENTINEL_BIN=$CODIS_BIN_DIR/redis-sentinel
-REDIS_SENTINEL_PID_FILE={{ redis_sentinel_workdir }}/redis_{{ redis_sentinel_port }}.pid
+REDIS_SENTINEL_PID_FILE={{ redis_sentinel_workdir }}/sentinel_{{ redis_sentinel_port }}.pid
 
-REDIS_SENTINEL_LOG_FILE={{ redis_sentinel_workdir }}/redis_{{ redis_sentinel_port }}.log
+REDIS_SENTINEL_LOG_FILE={{ redis_sentinel_workdir }}/sentinel_{{ redis_sentinel_port }}.log
 REDIS_SENTINEL_DAEMON_FILE=$CODIS_LOG_DIR/redis-sentinel.out
 
 REDIS_SENTINEL_CONF_FILE=$CODIS_CONF_DIR/sentinel.conf
