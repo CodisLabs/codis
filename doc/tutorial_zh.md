@@ -210,7 +210,7 @@ ansible安装也及其简单,各部署机器无需安装任何额外的agent,彼
 git clone git://github.com/ansible/ansible.git -b stable-2.3
 cd ./ansible
 source ./hacking/env-setup
-cd $codis_dir
+cd $codis_dir/ansible
 ansible-playbook -i hosts site.yml
 ```
 
