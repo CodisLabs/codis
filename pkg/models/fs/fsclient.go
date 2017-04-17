@@ -156,7 +156,7 @@ func (c *Client) writeFile(realpath string, data []byte, noexists bool) error {
 	}
 	defer f.Close()
 
-	atomicSaveAndRename := func() error {
+	var writeThenRename = func() error {
 		_, err := f.Write(data)
 		if err != nil {
 			return errors.Trace(err)
@@ -169,7 +169,7 @@ func (c *Client) writeFile(realpath string, data []byte, noexists bool) error {
 		}
 		return nil
 	}
-	if err := atomicSaveAndRename(); err != nil {
+	if err := writeThenRename(); err != nil {
 		os.Remove(f.Name())
 		return err
 	}
