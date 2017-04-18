@@ -5,28 +5,28 @@ Codes is a distributed Redis solution, there is no obvious difference between co
 
 Codis 3.x consists of the following components:
 
-** Codis Server **: based on redis-3.2.8 branch development. Added additional data structures to support slot-related operations and data migration instructions. Specific changes can refer to the document [redis changes] (redis_change_zh.md).
+* **Codis Server**: based on redis-3.2.8 branch development. Added additional data structures to support slot-related operations and data migration instructions. Specific changes can refer to the document [redis changes] (redis_change_zh.md).
 
-** Codis Proxy **: is the proxy service of client connections. Codis Proxy Implements Redis Protocol. In addition to some commands do not support ([unsupported command list] (unsupported_cmds.md)).
+* **Codis Proxy**: is the proxy service of client connections. Codis Proxy Implements Redis Protocol. In addition to some commands do not support ([unsupported command list] (unsupported_cmds.md)).
 
     + For the same product cluster, you can deploy multiple codis-proxy instances at the same time;
     + Different codis-proxy by codis-dashboard to ensure state synchronization.
 
-** Codis Dashboard **: cluster management tools, support codis-proxy, codis-server add, delete, slot migrate(sync/async), and other operations. When a cluster state changes, the codis-dashboard maintains the consistency of all codis-proxy states under the cluster.
+* **Codis Dashboard**: cluster management tools, support codis-proxy, codis-server add, delete, slot migrate(sync/async), and other operations. When a cluster state changes, the codis-dashboard maintains the consistency of all codis-proxy states under the cluster.
 
     + For the same product cluster, the same time codis-dashboard can only have 0 or 1;
     + All changes to the cluster must be done via codis-dashboard.
 
-** Codis Admin **: Command-line tool for cluster management.
+* **Codis Admin**: Command-line tool for cluster management.
 
     + Can be used to control the codis-proxy, codis-dashboard status, and access external storage.
 
-** Codis FE **: cluster management Web Interface.
+* **Codis FE**: cluster management Web Interface.
 
     + Multiple cluster instances can share the same front-end display page;
     + FE reads all cluster instances name from external storage.
 
-** Storage **: Provides external storage for cluster status, and saves cluster metadata.
+* **Storage**: Provides external storage for cluster status, and saves cluster metadata.
 
     + Provide the concept of Namespace, different clusters will be organized according to different product name;
     + Currently only provides Zookeeper, Etcd, Fs three implementations, but provides an abstract interface can be self-expansion.
@@ -200,7 +200,7 @@ ansible-playbook -i hosts site.yml
 ```
 
 
-##HA
+## Codis HA
 
 Codis's proxy is stateless so you can run more than one proxies to get high availability and horizontal scalability.
 
