@@ -1093,10 +1093,6 @@ struct commandHelp {
         "hashkey command [arg ...]",
         "", 14, "codis3.2"
     },
-    {"SLOTSMGRT-LAZY-RELEASE",
-        "[microseconds]",
-        "", 14, "codis3.2"
-    },
     {"SLOTSRESTORE-ASYNC SELECT",
         "db",
         "", 14, "codis3.2"
