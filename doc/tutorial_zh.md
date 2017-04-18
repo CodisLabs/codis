@@ -5,32 +5,31 @@ Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接
 ## codis版本简介
 codis目前主要release版本如下:
 ### codis 1.9
-> * codis-server基于redis-2.8.13
-> * codis-proxy对pipeline支持不友好
-> * codis-proxy对zk强依赖
-> * 同步迁移性能差,不支持大key迁移
+> * codis-server 基于 redis-2.8.13
+> * codis-proxy 对 pipeline 支持不友好
+> * codis-proxy 对 zk 强依赖
+> * 同步迁移性能差，不支持大 key 迁移
 ### codis 2.0
-> * codis-server基于redis-2.8.21
-> * 重构了codis-proxy,性能大幅提升,对pipeline支持比较好
-> * codis-proxy对zk强依赖
-> * 同步迁移性能差,不支持大key迁移
+> * codis-server 基于 redis-2.8.21
+> * 重构了codis-proxy，性能大幅提升，对 pipeline 支持比较好
+> * codis-proxy 对 zk 强依赖
+> * 同步迁移性能差，不支持大key迁移
 ### codis 3.x
-> * 最新release版本为codis 3.2，codis-server基于redis-3.2.8
-> * 支持slot同步迁移、异步迁移和并发迁移，对key大小无任何限制,迁移性能大幅度提升
-> * 相比2.0,重构了整个集群组件通信方式,codis-proxy与zookeeper实现了解耦，废弃了codis-config等
-> * codis slot等元数据存储支持etcd,zookeeper,fs等,可自行扩展支持新的存储,集群正常运行期间，即便元存储故障也不再影响codis集群，大大提升codis-proxy稳定性
-> * 对codis-proxy进行了大量性能优化,通过控制GC频率、减少对象创建、内存预分配、引入cgo、jemalloc等，使其吞吐还是延迟，都已达到codis项目中最佳
-> * proxy实现select命令,支持多DB
-> * proxy实现auth指令
-> * proxy支持读写分离、优先读同DC redis slave功能
-> * 基于redis-sentinel实现主备自动切换
-> * 实现动态pipeline缓存区
-> * proxy支持通过HTTP请求实时获取runtime metrics,便于监控、运维
-> * 支持通过influxdb和statsd采集proxy metrics
-> * slot auto rebalance算法从2.0的基于max memory policy变更成基于group下slot数量
-> * 提供了更加友好的dashboard和fe界面，新增了很多按钮、跳转链接、错误状态等，有利于快速发现、处理集群故障
-> * 新增SLOTSSCAN指令,便于获取集群各个slot下的所有key
-> * codis-proxy与codis-dashbaord支持docker部署
+> * 最新 release 版本为 codis-3.2，codis-server 基于 redis-3.2.8
+> * 支持 slot 同步迁移、异步迁移和并发迁移，对 key 大小无任何限制，迁移性能大幅度提升
+> * 相比 2.0：重构了整个集群组件通信方式，codis-proxy 与 zookeeper 实现了解耦，废弃了codis-config 等
+> * 元数据存储支持 etcd/zookeeper/filesystem 等，可自行扩展支持新的存储，集群正常运行期间，即便元存储故障也不再影响 codis 集群，大大提升 codis-proxy 稳定性
+> * 对 codis-proxy 进行了大量性能优化,通过控制GC频率、减少对象创建、内存预分配、引入 `cgo`、`jemalloc` 等，使其吞吐还是延迟，都已达到 codis 项目中最佳
+> * proxy 实现 select 命令，支持多 DB
+> * proxy 支持读写分离、优先读同 IP/同 DC 下副本功能
+> * 基于 redis-sentinel 实现主备自动切换
+> * 实现动态 pipeline 缓存区（减少内存分配以及所引起的 GC 问题）
+> * proxy 支持通过 HTTP 请求实时获取 runtime metrics，便于监控、运维
+> * 支持通过 influxdb 和 statsd 采集 proxy metrics
+> * slot auto rebalance 算法从 2.0 的基于 max memory policy 变更成基于 group 下 slot 数量
+> * 提供了更加友好的 dashboard 和 fe 界面，新增了很多按钮、跳转链接、错误状态等，有利于快速发现、处理集群故障
+> * 新增 `SLOTSSCAN` 指令，便于获取集群各个 slot 下的所有 key
+> * codis-proxy 与 codis-dashbaord 支持 docker 部署
 
 Codis 3.x 由以下组件组成：
 
@@ -128,12 +127,13 @@ compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 ```
 
 ## 1. 快速启动
-2分钟快速构建一个单机版测试codis集群，无任何外部组件依赖.
+2分钟快速构建一个单机版测试 codis 集群，无任何外部组件依赖.
 
-源码中admin文件夹提供了一系列脚本以便快速启动、停止各个组件，提高运维效率。
+源码中 admin 文件夹提供了一系列脚本以便快速启动、停止各个组件，提高运维效率。
 
 ### 启动codis-dashboard
-使用codis-dashboard-admin.sh脚本启动dashboard,并查看dashboard日志确认启动是否有异常.
+使用 `codis-dashboard-admin.sh` 脚本启动 dashboard，并查看 dashboard 日志确认启动是否有异常。
+
 ```
 ./admin/codis-dashboard-admin.sh start
  tail -100 ./log/codis-dashboard.log.2017-04-08
@@ -142,17 +142,17 @@ compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 2017/04/08 15:16:57 fsclient.go:197: [INFO] fsclient - create /codis3/codis-demo/topom OK
 2017/04/08 15:16:57 main.go:140: [WARN] [0xc42025f7a0] dashboard is working ...
 2017/04/08 15:16:57 topom.go:424: [WARN] admin start service on [::]:18080
-
 ```
-快速启动集群元数据存储使用filesystem,默认数据路径保存在/tmp/codis,若启动失败，请检查当前用户是否对该路径拥有读写权限.
+
+快速启动集群元数据存储使用 `filesystem`，默认数据路径保存在 `/tmp/codis`，若启动失败，请检查当前用户是否对该路径拥有读写权限。
 
 ### 启动codis-proxy
-使用codis-proxy-admin.sh脚本启动codis-proxy,并查看proxy日志确认启动是否有异常.
+使用 `codis-proxy-admin.sh` 脚本启动 codis-proxy，并查看 proxy 日志确认启动是否有异常。
+
 ```
 ./admin/codis-proxy-admin.sh start
 tail -100 ./log/codis-proxy.log.2017-04-08
 ```
-
 ```
 2017/04/08 15:39:37 proxy.go:293: [WARN] [0xc4200df760] set sentinels = []
 2017/04/08 15:39:37 main.go:320: [WARN] rpc online proxy seems OK
@@ -160,20 +160,21 @@ tail -100 ./log/codis-proxy.log.2017-04-08
 ```
 
 ### 启动codis-server
-使用codis-server-admin.sh脚本启动codis-server,并查看redis日志确认启动是否有异常.
+使用 `codis-server-admin.sh` 脚本启动 codis-server，并查看 redis 日志确认启动是否有异常。
+
 ```
 ./admin/codis-server-admin.sh start
 tail -100 /tmp/redis_6379.log 
 ```
-
 ```
 5706:M 08 Apr 16:04:11.748 * DB loaded from disk: 0.000 seconds
 5706:M 08 Apr 16:04:11.748 * The server is now ready to accept connections on port 6379
 ```
-redis.conf配置中pidfile,logfile默认保存在/tmp目录，若启动失败，请检查当前用户是否有该目录的读写权限。
+redis.conf 配置中 pidfile、logfile 默认保存在 `/tmp` 目录，若启动失败，请检查当前用户是否有该目录的读写权限。
 
 ### 启动codis-fe
-使用codis-fe-admin.sh脚本启动codis-fe,并查看fe日志确认启动是否有异常.
+使用 `codis-fe-admin.sh` 脚本启动 codis-fe，并查看 fe 日志确认启动是否有异常。
+
 ```
 ./admin/codis-fe-admin.sh start
 tail -100 ./log/codis-fe.log.2017-04-08
@@ -187,24 +188,24 @@ tail -100 ./log/codis-fe.log.2017-04-08
 
 ### 通过fe添加group
 通过web浏览器访问集群管理页面(fe地址:127.0.0.1:9090)
-选择我们刚搭建的集群codis-demo，在Proxy栏可看到我们已经启动的Proxy,
-但是Group栏为空，因为我们启动的codis-server并未加入到集群
-添加NEW GROUP，NEW GROUP行输入1，再点击NEWGROUP即可
-添加Codis Server,Add Server行输入我们刚刚启动的codis-server地址，添加到我们刚新建的GROUP，然后再点击Add Server按钮即可，如下图所示
+选择我们刚搭建的集群 codis-demo，在 Proxy 栏可看到我们已经启动的 Proxy，
+但是 Group 栏为空，因为我们启动的 codis-server 并未加入到集群
+添加 `NEW GROUP`，`NEW GROUP` 行输入 1，再点击 `NEW GROUP` 即可
+添加 Codis Server，`Add Server` 行输入我们刚刚启动的 codis-server 地址，添加到我们刚新建的 Group，然后再点击 `Add Server` 按钮即可，如下图所示
 
 ![addgroup](pictures/addgroup.jpg)
 
 ### 通过fe初始化slot
-新增的集群slot状态是offline,因此我们需要对它进行初始化（将1024个slot分配到各个group）,而初始化最快的方法可通过fe提供的rebalance all slots按钮来做，如下图所示，点击此按钮，我们即快速完成了一个集群的搭建。
+新增的集群 slot 状态是 offline，因此我们需要对它进行初始化（将 1024 个 slot 分配到各个 group），而初始化最快的方法可通过 fe 提供的 `rebalance all slots` 按钮来做，如下图所示，点击此按钮，我们即快速完成了一个集群的搭建。
 
 ![rebalance_slots](pictures/rebalance_slots.jpg)
 
 
-## 通过ansible快速部署集群
+## 通过 ansible 快速部署集群
 
-使用ansible可快速在单机、多机部署多套codis集群.
-ansible文件夹包含了部署codis集群的playbook,根据自己部署环境修改groups_var/all文件里参数，修改hosts文件添加部署的环境IP即可.
-ansible安装也及其简单,各部署机器无需安装任何额外的agent,彼此之间通过ssh通信。
+使用 ansible 可快速在单机、多机部署多套 codis 集群。
+ansible 文件夹包含了部署 codis 集群的 playbook，根据自己部署环境修改 `groups_var/all` 文件里参数，修改 hosts 文件添加部署的环境 IP 即可。
+ansible 安装也及其简单，各部署机器无需安装任何额外的 agent，彼此之间通过 ssh 通信。
 
 ```
 git clone git://github.com/ansible/ansible.git -b stable-2.3
@@ -441,53 +442,11 @@ $ ./bin/codis-admin --dashboard-list --zookeeper=127.0.0.1:2181 | tee codis.json
 ]
 ```
 
-#### 2.5 Codis HA（可选组件）
-
-##### 2.5.1 启动命令：
-
-```bash
-$ nohup ./bin/codis-ha --log=ha.log --log-level=WARN --dashboard=127.0.0.1:18080 &
-```
-
-##### 2.5.2 详细说明：
-
-```bash
-$ ./bin/codis-ha -h
-Usage:
-	codis-ha [--log=FILE] [--log-level=LEVEL] --dashboard=ADDR
-	codis-ha  --version
-
-Options:
-	-l FILE, --log=FILE         设置 log 输出文件
-	--log-level=LEVEL           设置 log 输出等级：INFO,WARN,DEBUG,ERROR；默认INFO，推荐WARN
-```
-##### 2.5.3 工作原理：
-
-**注意：Codis HA 工具仅仅是 Codis 集群 HA 的一部分，单独工作能力有限。**
-
-**注意：Codis 同时支持 sentinel 作为 HA，codis-ha 已经不推荐使用了。**
-
-+ 默认以 5s 为周期，codis-ha 会从 codis-dashboard 中拉取集群状态，并进行主从切换；
-
-+ codis-ha 在以下状态下会退出：
-    1. 从 codis-dashboard 获取集群状态失败时；
-    2. 向 codis-dashboard 发送主从切换指令失败时；
-
-+ codis-ha 在以下状态下不会进行主从切换：
-    1. 存在 proxy 状态异常：
-        + 因为提升主从需要得到所有 proxy 的确认，因此必须确保操作时所有 proxy 都能正常响应操作指令；
-    2. 网络原因造成的 master 异常：
-        + 若存在 slave 满足 `slave.master_link_status == up`，通常可以认为 master 并没有真的退出，而是由于网络原因或者响应延迟造成的 master 状态获取失败，此时 codis-ha 不会对该 group 进行操作；
-    3. 没有满足条件的 slave 时：
-        + 提升过程会选择满足 `slave.master_link_status == down`，并且 `slave.master_link_down_since_seconds` 最小的进行操作。这就要求被选择的 slave 至少在过去一段时间内与 master 是成功同步状态，这个时间间隔是 `2d+5`，其中 `d` 是 codis-ha 检查周期默认 `5`秒。
-
-**注意：因此，应用 codis-ha 时还需要结合对 codis-proxy 和 codis-server 的可用性监控，否则 codis-ha 无法保证可靠性。**
-
-#### 2.6 Codis Admin（命令行工具）
+#### 2.5 Codis Admin（命令行工具）
 
 **注意：使用 codis-admin 是十分危险的。**
 
-##### 2.6.1 codis-dashboard 异常退出的修复
+##### 2.5.1 codis-dashboard 异常退出的修复
 
 当 codis-dashboard 启动时，会在外部存储上存放一条数据，用于存储 dashboard 信息，同时作为 LOCK 存在。当 codis-dashboard 安全退出时，会主动删除该数据。当 codis-dashboard 异常退出时，由于之前 LOCK 未安全删除，重启往往会失败。因此 codis-admin 提供了强制删除工具：
 
@@ -498,7 +457,7 @@ Options:
 $ ./bin/codis-admin --remove-lock --product=codis-demo --zookeeper=127.0.0.1:2181
 ```
 
-##### 2.6.2 codis-proxy 异常退出的修复
+##### 2.5.2 codis-proxy 异常退出的修复
 
 通常 codis-proxy 都是通过 codis-dashboard 进行移除，移除过程中 codis-dashboard 为了安全会向 codis-proxy 发送 `offline` 指令，成功后才会将 proxy 信息从外部存储中移除。如果 codis-proxy 异常退出，该操作会失败。此时可以使用 codis-admin 工具进行移除：
 
