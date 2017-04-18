@@ -2,186 +2,210 @@
 
 Codes is a distributed Redis solution, there is no obvious difference between connecting to a Codis proxy and an original Redis server(?), top layer application can connect to Codis as normal standalone Redis, Codis will forward low layer requests. Hot data migration and all things in the shadow are transparent to client. Simply treat Coids as a Redis service with unlimited RAM. 
 
-Codis has four parts:
-* Codis Proxy(proxy)
-* Codis manager(cconfig)
-* Codis Redis
-* ZooKeeper
 
-`codis-proxy` is the proxy service of client connections, `codis-proxy` is a Redis protocol implementation, perform as an original Redis(just like Twemproxy). You can deploy multiple `codis-proxy` for one business, `codis-proxy` is none-stateful.
+Codis 3.x consists of the following components:
 
-`codis-config` is the configuration to for Codis, support actions like add/remove Redis node, add/remove Proxy node and start data migaration, etc. `codis-config` has a built-in http server which can start a dashboard for user to monitor the status of Codis cluster in browser.
+* **Codis Server**: based on redis-3.2.8 branch development. Added additional data structures to support slot-related operations and data migration instructions. Specific changes can refer to the document [redis changes] (redis_change_zh.md).
 
-`codis-server` is a branch of Redis maintain by Codis project, based on 2.8.13, add support for slot and atomic data migration. `codis-proxy` and `codis-config` can only work properly with this specific version of Redis.
+* **Codis Proxy**: is the proxy service of client connections. Codis Proxy Implements Redis Protocol. In addition to some commands do not support ([unsupported command list] (unsupported_cmds.md)).
 
-Codis depend on ZooKeeper to store data routing table and meta data of `codis-proxy` node, `codis-config` actions will go through ZooKeeper, then synchronize up to alive `codis-proxy`.
+    + For the same product cluster, you can deploy multiple codis-proxy instances at the same time;
+    + Different codis-proxy by codis-dashboard to ensure state synchronization.
 
-Codis support namespace, configs of products with different name  won’t be conflict.
+* **Codis Dashboard**: cluster management tools, support codis-proxy, codis-server add, delete, slot migrate(sync/async), and other operations. When a cluster state changes, the codis-dashboard maintains the consistency of all codis-proxy states under the cluster.
 
-## Build codis-proxy & codis-config
+    + For the same product cluster, the same time codis-dashboard can only have 0 or 1;
+    + All changes to the cluster must be done via codis-dashboard.
+
+* **Codis Admin**: Command-line tool for cluster management.
+
+    + Can be used to control the codis-proxy, codis-dashboard status, and access external storage.
+
+* **Codis FE**: cluster management Web Interface.
+
+    + Multiple cluster instances can share the same front-end display page;
+    + FE reads all cluster instances name from external storage.
+
+* **Storage**: Provides external storage for cluster status, and saves cluster metadata.
+
+    + Provide the concept of Namespace, different clusters will be organized according to different product name;
+    + Currently only provides Zookeeper, Etcd, Fs three implementations, but provides an abstract interface can be self-expansion.
 
 
-* install go [see official doc](https://golang.org/doc/install)
-* set $GOPATH correctly and set PATH=$GOPATH/bin:$PATH to execute commands installed by `go get`
-* execute `go get -u -d github.com/CodisLabs/codis` to download codis
-* change directory to `$GOPATH/src/github.com/CodisLabs/codis` and execute `make` to compile, execute `make gotest` to run unit test
+##  Getting Codis
 
-Two executable file `codas-config` and `codis-proxy` should be generated in `codis/bin`(`bin/assets` is the resources for `codis-config` dashboard, should be placed at same directory with `codis-config`).
+### Download Pre-built Release Binaries
 
-```
-cd sample
+The easiest way to get codis is to use one of the pre-built release binaries which are available for OSX, Linux. Instructions for using these binaries are on the [GitHub releases page][github-release].
 
-$ bin/codis-config -h                                                                                                                                                                                                                           (master)
-usage: codis-config  [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>]
-        <command> [<args>...]
-options:
-   -c   config file path, default: ./config.ini
-   -L   log output path, default: stdout
-   --log-level=<loglevel>   (debug < info (default) < warn < error < fatal)
+### Compile Source Code
 
-commands:
-    server            redis group management
-    slot              slot management
-    dashboard         start dashboard
-    action            action management
-    proxy             proxy management
-```
+For those wanting to try the very latest version, build the latest version of codis from the `master` branch. This first needs [*Go*](https://golang.org/) installed (version 1.7+ is required). All development occurs on `master`, including new features and bug fixes. Bug fixes are first targeted at `master` and subsequently ported to release branches.
 
-```
-$ bin/codis-proxy -h
 
-usage: proxy [-c <config_file>] [-L <log_file>] [--log-level=<loglevel>] [--cpu=<cpu_num>] [--addr=<proxy_listen_addr>] [--http-addr=<debug_http_server_addr>]
+#### 1. Install Go Environment [reference](https://golang.org/doc/install)
 
-options:
-   -c	set config file
-   -L	set output log file, default is stdout
-   --log-level=<loglevel>	set log level: info, warn, error, debug [default: info]
-   --cpu=<cpu_num>		num of cpu cores that proxy can use
-   --addr=<proxy_listen_addr>		proxy listen address, example: 0.0.0.0:9000
-   --http-addr=<debug_http_server_addr>		debug vars http server
+After the installation is complete, you can run the following command to detect：
+
+```bash
+$ go version
+go version go1.7.3 linux/amd64
 ```
 
-## Deploy
+#### 2. Set the compilation environment
 
-### Configuration file
-`codis-config` and `codis-proxy` will take `config.ini` in current directory by default without a specific `-c`.
+Add `$GOPATH/bin` To `$PATH`，For Example：`PATH=$PATH:$GOPATH/bin`。
 
-See [config.ini](https://github.com/CodisLabs/codis/blob/master/config.ini)'s comments.
-
-### Workflow
-0. Execute `codis-config dashboard` , start dashboard.
-1. Execute `codis-config slot init` to initialize slots
-2. Starting and compiling a Codis Redis has no difference from a normal Redis Server
-3. Add Redis server group, each server group as a Redis server group, only one master is allowed while could have multiple slaves. Group id only support integer lager than 1.
-
-```
-$ bin/codis-config server -h
-usage:
-    codis-config server list
-    codis-config server add <group_id> <redis_addr> <role>
-    codis-config server remove <group_id> <redis_addr>
-    codis-config server promote <group_id> <redis_addr>
-    codis-config server add-group <group_id>
-    codis-config server remove-group <group_id>
+```bash
+$ go env GOPATH
+/home/codis/gopath
 ```
 
-For example: Add two server group with the ids of 1 and 2, each has two Redis instances, a master and a slave.
+#### 3. Download Codis Source Code
 
-First, add a group with id of 1 and assign a Redis master to it:
+The Codis source code needs to be downloaded to `$GOPATH/src/github.com/CodisLabs/codis`：
 
-```
-$ bin/codis-config server add 1 localhost:6379 master
-```
-
-Second, assign a Redis slave to this group:
-
-```
-$ bin/codis-config server add 1 localhost:6380 slave
+```bash
+$ mkdir -p $GOPATH/src/github.com/CodisLabs
+$ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.2
 ```
 
-Then the group with id of 2:
+#### 4. Compile Codis Source Code
 
-```
-$ bin/codis-config server add 2 localhost:6479 master
-$ bin/codis-config server add 2 localhost:6480 slave
-```
+* use make tool to compile：
 
-4. Config slot range of server group
+```bash
+$ cd $GOPATH/src/github.com/CodisLabs/codis
+$ make
+make -j -C extern/redis-3.2.8/
+... ...
+go build -i -o bin/codis-dashboard ./cmd/dashboard
+go build -i -o bin/codis-proxy ./cmd/proxy
+go build -i -o bin/codis-admin ./cmd/admin
+go build -i -o bin/codis-fe ./cmd/fe
 
-Codes implement data segmentation with Pre-sharding mechanism, 1024 slots will be segmented by default,a single key use following formula to determine which slot to resident, each slot has a server group id represents the server group which will provide service.
+$ ls bin/
+total 69124
+drwxr-xr-x 4 codis codis     4096 Jan  4 14:55 assets
+-rwxr-xr-x 1 codis codis 17600752 Jan  4 14:55 codis-admin
+-rwxr-xr-x 1 codis codis 18416320 Jan  4 14:55 codis-dashboard
+-rwxr-xr-x 1 codis codis  9498040 Jan  4 14:55 codis-fe
+-rwxr-xr-x 1 codis codis 11057280 Jan  4 14:55 codis-proxy
+-rwxr-xr-x 1 codis codis  4234432 Jan  4 14:55 codis-server
+-rw-r--r-- 1 codis codis      148 Jan  4 14:55 version
+... ...
 
-```
-$ bin/codis-config slot -h                                                                                                                                                                                                                     
-usage:
-    codis-config slot init
-    codis-config slot info <slot_id>
-    codis-config slot set <slot_id> <group_id> <status>
-    codis-config slot range-set <slot_from> <slot_to> <group_id> <status>
-    codis-config slot migrate <slot_from> <slot_to> <group_id> [--delay=<delay_time_in_ms>]
-```
-
-For exmaple, config server group 1 provide service for slot [0, 511], server group 2 provide service for slot [512, 1023]
-
-```
-$ bin/codis-config slot range-set 0 511 1 online
-$ bin/codis-config slot range-set 512 1023 2 online
-```
-
-5. Start `codis-proxy`
-
-```
-  bin/codis-proxy -c config.ini -L ./log/proxy.log  --cpu=8 --addr=0.0.0.0:19000 --http-addr=0.0.0.0:11000
+$ cat bin/version
+version = 2016-01-03 14:53:22 +0800 @51f06ae3b58a256a58f857f590430977638846a3
+compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 ```
 
-`codas-proxy`’s status are now `offline`, put it `online` to provide service:
+## Running Codis Cluster
+
+Build a standalone codis cluster in 2 minutes,without any external component dependencies.
+The admin folder in the source code provides a series of scripts to quickly start, stop the codis components, improve the efficiency of operation and maintenance.
+
+
+### Start codis-dashboard
+Use codis-dashboard-admin.sh script to start dashboard and check the dashboard log to confirm whether there is an exception.
+```
+./admin/codis-dashboard-admin.sh start
+ tail -100 ./log/codis-dashboard.log.2017-04-08
+```
+```
+2017/04/08 15:16:57 fsclient.go:197: [INFO] fsclient - create /codis3/codis-demo/topom OK
+2017/04/08 15:16:57 main.go:140: [WARN] [0xc42025f7a0] dashboard is working ...
+2017/04/08 15:16:57 topom.go:424: [WARN] admin start service on [::]:18080
 
 ```
- bin/codis-config -c config.ini proxy online <proxy_name>  <---- proxy id, e.g. proxy_1
+
+The default external storage Uses filesystem, the default data path is saved in /tmp/codis. If the startup fails, please check whether the current user has read/write access to the path.
+
+
+### Start codis-proxy
+Use codis-proxy-admin.sh script to start codis-proxy and check the proxy log to confirm whether there is an exception.
+```
+./admin/codis-proxy-admin.sh start
+tail -100 ./log/codis-proxy.log.2017-04-08
 ```
 
-6. Open http://localhost:18087/admin in browser
-
-Now you can achieve operations in browser. Enjoy!
-
-## Data Migration
-
-Codis offers a reliable and transparent data migration mechanism, also it’s a killer feature which made Codis distinguished from other static distributed Redis solution, such as Twemproxy.
-
-The minimum data migration unit is `key`, we add some specific actions—such as `SLOTSMGRT`—to Codis to support migration based on `key`, which will send a random record of a slot to another Codis Redis instance each time, after the transportation is confirmed the original record will be removed from slot and return slot’s length. The action is atomically.
-
-For example: migrate data in slot with ID from 0 to 511 to server group 2, `--delay` is the sleep duration after each transportation of record, which is used to limit speed, default value is 0. 
-
 ```
-$ bin/codis-config slot migrate 0 511 2 --delay=10
+2017/04/08 15:39:37 proxy.go:293: [WARN] [0xc4200df760] set sentinels = []
+2017/04/08 15:39:37 main.go:320: [WARN] rpc online proxy seems OK
+2017/04/08 15:39:38 main.go:210: [WARN] [0xc4200df760] proxy is working ...
 ```
 
-Migration progress is reliable and transparent, data won’t vanish and top layer application won’t terminate service. 
-
-Notice that migration task could be paused, but if there is a paused task, it must be fulfilled before another start(means only one migration task is allowed at the same time). 
-
-### Auto Rebalance
-
-Codis support dynamic slots migration based on RAM usage to balance data distribution.
- 
+### Start codis-server
+Use codis-server-admin.sh script to start codis-server and check the redis log to confirm whether there is an exception.
 ```
-$bin/codis-config slot rebalance
+./admin/codis-server-admin.sh start
+tail -100 /tmp/redis_6379.log 
 ```
 
-Requirements:
- * all codis-server must set maxmemory.
- * All slots’ status should be `online`, namely no transportation task is running. 
- * All server groups must have a master. 
+```
+5706:M 08 Apr 16:04:11.748 * DB loaded from disk: 0.000 seconds
+5706:M 08 Apr 16:04:11.748 * The server is now ready to accept connections on port 6379
+```
+redis.conf pidfile,logfile default saves in the /tmp directory. If the startup fails, please check whether the current user has read/write access to the path.
+
+### Start codis-fe
+Use codis-fe-admin.sh script to start codis-fe and check the redis log to confirm whether there is an exception.
+```
+./admin/codis-fe-admin.sh start
+tail -100 ./log/codis-fe.log.2017-04-08
+```
+```
+2017/04/08 16:12:13 main.go:100: [WARN] set ncpu = 1
+2017/04/08 16:12:13 main.go:103: [WARN] set listen = 0.0.0.0:9090
+2017/04/08 16:12:13 main.go:115: [WARN] set assets = /home/codis/go/src/github.com/CodisLabs/codis/admin/../bin/assets
+2017/04/08 16:12:13 main.go:153: [WARN] set --filesystem = /tmp/codis
+```
+
+### Add group by fe
+
+Please visit the cluster management web page(fe url:127.0.0.1:9090)
+Select the cluster(codis-demo) we have just built, in the Proxy column we can see that we have activated the Proxy,
+But the Group column is empty, because codis-server is not joined the cluster.
+
+Add NEW GROUP
+In the `NEW GROUP` row, please input a number such as 1, and click NEWGROUP
+
+Add Codis Server
+
+In the `Add Server` row, please input the codis-server address we just started, add it to GROUP, and then click the Add Server button, as shown below
+
+![addgroup](pictures/addgroup.jpg)
+
+### Initialize slot by fe
+
+The new cluster slot status is offline, so we need to initialize it (allocate 1024 slots to each group), and the fastest way to initialize a cluster is to click the `rebalance all slots` button provided by fe, as shown in the following figure.
+
+![rebalance_slots](pictures/rebalance_slots.jpg)
 
 
-##HA
+## Quickly deploy the cluster by ansible
+
+Use ansible to quickly deploy multiple clusters in standalone and multi-machine environment.
+The ansible folder contains the playbook for deploying the codis cluster, modifying the parameters in the groups_var / all file according to your own deployment environment, and modifying the hosts file to add the deployed environment IP.
+
+Ansible installation is simple.Once Ansible is installed, there will be no daemons to start or keep running. You only need to install it on one machine and it can manage an entire fleet of remote machines from that central point. 
+Ansible by default manages machines over the SSH protocol.
+
+```
+git clone git://github.com/ansible/ansible.git -b stable-2.3
+cd ./ansible
+source ./hacking/env-setup
+cd $codis_dir/ansible
+ansible-playbook -i hosts site.yml
+```
+
+
+## Codis HA
 
 Codis's proxy is stateless so you can run more than one proxies to get high availability and horizontal scalability.
 
 For Java users, you can use a modified Jedis, [Jodis](https://github.com/CodisLabs/jodis). It will watch the ZooKeeper to get the real-time available proxies, then query via them using a round robin policy to balance load and detect proxy online and offline automatically.
 If asynchronous request is required, you can use [Nedis](https://github.com/CodisLabs/nedis) which is implemented based on Netty.
 
-For redis instances, the designers of codis think when a master down, system administrator should know about it and promote a slave to master by hand, not automatically. Because a crashed master may result in the data in this group not consistent.
-But we also offer a solution: [codis-ha](https://github.com/ngaut/codis-ha)。It is a tool using codis rest api to promote a slave to master when it find the master down.
+Codis-server is stateful.Redis Sentinel provides high availability for Codis-Server.Codis uses it to check master and slave instances are working as expected and start a failover process where a slave is promoted to master, the other additional slaves are reconfigured to use the new master.
 
-When codis promote one slave instantce to master, other slaves will not change there status. These slaves will still try to sync from the old crashed master, so the data in this group is not consistent.
-Because the `slave of` command in redis will let a slave drop its data and sync from the new master, it will make the master a little slow on handling queries.So you should change the status by hand after your acknowledgement by using `codis-config server add <group_id> <redis_addr> slave` to refresh the status of remain slaves. Codis-ha won't do this.

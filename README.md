@@ -5,11 +5,11 @@
 
 Codis is a proxy based high performance Redis cluster solution written in Go. It is production-ready and widely used at [wandoujia.com](http://wandoujia.com) and many companies. You can see [Codis Releases](https://github.com/CodisLabs/codis/releases) for latest and most stable realeases.
 
-##Donation
+## Donation
 Donate if you want to help us maintaining this project. Thank you!
 [See this issue for details](https://github.com/CodisLabs/codis/issues/976)
 
-##Compared with Twemproxy and Redis Cluster
+## Compared with Twemproxy and Redis Cluster
 <table>
 <tr><th></th><th>Codis</th><th>Twemproxy</th><th>Redis Cluster</th></tr>
 <tr><td>resharding without restarting cluster</td><td>Yes</td><td>No</td><td>Yes</td></tr>
@@ -20,7 +20,7 @@ Donate if you want to help us maintaining this project. Thank you!
 </table>
 "Resharding" means migrating the data in one slot from one redis server to another, usually happens while increasing/decreasing the number of redis servers.
 
-##Other Features
+## Other Features
 * GUI website dashboard & admin tools
 * Supports most of Redis commands, Fully compatible with Twemproxy(https://github.com/twitter/twemproxy)
 * Proxies can register on zk/etcd, clients can avoid dead proxies, see "High Availability" section.

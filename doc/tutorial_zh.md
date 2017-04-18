@@ -2,9 +2,39 @@
 
 Codis 是一个分布式 Redis 解决方案, 对于上层的应用来说, 连接到 Codis Proxy 和连接原生的 Redis Server 没有显著区别 ([不支持的命令列表](unsupported_cmds.md)), 上层应用可以像使用单机的 Redis 一样使用, Codis 底层会处理请求的转发, 不停机的数据迁移等工作, 所有后边的一切事情, 对于前面的客户端来说是透明的, 可以简单的认为后边连接的是一个内存无限大的 Redis 服务。
 
+## codis版本简介
+codis目前主要release版本如下:
+### codis 1.9
+> * codis-server基于redis-2.8.13
+> * codis-proxy对pipeline支持不友好
+> * codis-proxy对zk强依赖
+> * 同步迁移性能差,不支持大key迁移
+### codis 2.0
+> * codis-server基于redis-2.8.21
+> * 重构了codis-proxy,性能大幅提升,对pipeline支持比较好
+> * codis-proxy对zk强依赖
+> * 同步迁移性能差,不支持大key迁移
+### codis 3.x
+> * 最新release版本为codis 3.2，codis-server基于redis-3.2.8
+> * 支持slot同步迁移、异步迁移和并发迁移，对key大小无任何限制,迁移性能大幅度提升
+> * 相比2.0,重构了整个集群组件通信方式,codis-proxy与zookeeper实现了解耦，废弃了codis-config等
+> * codis slot等元数据存储支持etcd,zookeeper,fs等,可自行扩展支持新的存储,集群正常运行期间，即便元存储故障也不再影响codis集群，大大提升codis-proxy稳定性
+> * 对codis-proxy进行了大量性能优化,通过控制GC频率、减少对象创建、内存预分配、引入cgo、jemalloc等，使其吞吐还是延迟，都已达到codis项目中最佳
+> * proxy实现select命令,支持多DB
+> * proxy实现auth指令
+> * proxy支持读写分离、优先读同DC redis slave功能
+> * 基于redis-sentinel实现主备自动切换
+> * 实现动态pipeline缓存区
+> * proxy支持通过HTTP请求实时获取runtime metrics,便于监控、运维
+> * 支持通过influxdb和statsd采集proxy metrics
+> * slot auto rebalance算法从2.0的基于max memory policy变更成基于group下slot数量
+> * 提供了更加友好的dashboard和fe界面，新增了很多按钮、跳转链接、错误状态等，有利于快速发现、处理集群故障
+> * 新增SLOTSSCAN指令,便于获取集群各个slot下的所有key
+> * codis-proxy与codis-dashbaord支持docker部署
+
 Codis 3.x 由以下组件组成：
 
-* **Codis Server**：基于 redis-2.8.21 分支开发。增加了额外的数据结构，以支持 slot 有关的操作以及数据迁移指令。具体的修改可以参考文档 [redis 的修改](redis_change_zh.md)。
+* **Codis Server**：基于 redis-3.2.8 分支开发。增加了额外的数据结构，以支持 slot 有关的操作以及数据迁移指令。具体的修改可以参考文档 [redis 的修改](redis_change_zh.md)。
 
 * **Codis Proxy**：客户端连接的 Redis 代理服务, 实现了 Redis 协议。 除部分命令不支持以外([不支持的命令列表](unsupported_cmds.md))，表现的和原生的 Redis 没有区别（就像 Twemproxy）。
 
@@ -28,21 +58,23 @@ Codis 3.x 由以下组件组成：
 * **Storage**：为集群状态提供外部存储。
 
     + 提供 Namespace 概念，不同集群的会按照不同 product name 进行组织；
-    + 目前仅提供了 Zookeeper 和 Etcd 两种实现，但是提供了抽象的 interface 可自行扩展。
+    + 目前仅提供了 Zookeeper、Etcd、Fs 三种实现，但是提供了抽象的 interface 可自行扩展。
 
 ## 0. 下载与编译
-### 1.所需依赖包安装
-```
-yum install -y gcc make gcc-c++ automake lrzsz openssl-devel zlib-* bzip2-* readline* zlib-* bzip2-* git nmap unzip wget lsof xz net-tools mercurial vim
-```
 
-#### 2. 安装 Go 运行环境 [参考这里](https://golang.org/doc/install)
+### 下载[release binary](https://github.com/CodisLabs/codis/releases)文件安装
+如果是重要的生产环境使用，尽量不要选择alpha、rc版本。
+根据自己的部署平台，选择相应的文件下载即可。
+
+### 编译源码安装
+
+#### 1. 安装 Go 运行环境 [参考这里](https://golang.org/doc/install)
 
 安装完成后可以运行下列命令进行检测：
 
 ```bash
 $ go version
-go version go1.5.2 linux/amd64
+go version go1.7.3 linux/amd64
 ```
 
 ### 3. zookeeper环境配置 [参考这里](https://zookeeper.apache.org/doc/r3.1.2/zookeeperStarted.html)
@@ -85,7 +117,6 @@ make -j -C extern/redis-3.2.8/
 go build -i -o bin/codis-dashboard ./cmd/dashboard
 go build -i -o bin/codis-proxy ./cmd/proxy
 go build -i -o bin/codis-admin ./cmd/admin
-go build -i -o bin/codis-ha ./cmd/ha
 go build -i -o bin/codis-fe ./cmd/fe
 
 $ ls bin/
@@ -106,59 +137,96 @@ compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 
 
 ## 1. 快速启动
+2分钟快速构建一个单机版测试codis集群，无任何外部组件依赖.
 
-源码中提供了可供本地测试使用的脚本 `example/setup.py`，该脚本会生成一个本地集群。
+源码中admin文件夹提供了一系列脚本以便快速启动、停止各个组件，提高运维效率。
 
-**注意：脚本依赖 etcd 作为外部存储，启动时会创建一个占用 2379 端口的 etcd 实例；如果本地已经存在该实例，会导致可能污染该实例（写入测试程序所需配置文件）并最终启动失败。**
-
-+ 脚本会输出每一个进程的 PID，并将每个实例的日志会输出到 `tmp` 目录下；
-+ 启动后，可以通过 http://127.0.0.1:8080 来访问 codis-fe。
-
-```bash
-$ which etcd &>/dev/null || go get github.com/coreos/etcd
-$ python3 setup.py
-init etcd, done
-    >> server.port = 16379
-    >> server.port = 16380
-    >> server.port = 16381
-    >> server.port = 16382
-    >> server.port = 17379
-    >> server.port = 17380
-    >> server.port = 17381
-    >> server.port = 17382
-init codis-server, done
-    >> sentinel.port = 26379
-    >> sentinel.port = 26380
-    >> sentinel.port = 26381
-    >> sentinel.port = 26382
-    >> sentinel.port = 26383
-init codis-sentinel, done
-checkall, done
-    >> dashboard.admin_port = 18080
-init codis-dashboard, done
-checkall, done
-    >> proxy.admin_port = 11080
-    >> proxy.proxy_port = 19000
-    >> proxy.admin_port = 11081
-    >> proxy.proxy_port = 19001
-    >> proxy.admin_port = 11082
-    >> proxy.proxy_port = 19002
-    >> proxy.admin_port = 11083
-    >> proxy.proxy_port = 19003
-init codis-proxy, done
-    >> fe.listen = 8080
-init codis-fe, done
-checkall, done
-create groups, done
-add sentinels, done
-Mon Jan  4 15:10:44 CST 2016
-Mon Jan  4 15:11:14 CST 2016
-... ...
+### 启动codis-dashboard
+使用codis-dashboard-admin.sh脚本启动dashboard,并查看dashboard日志确认启动是否有异常.
 ```
+./admin/codis-dashboard-admin.sh start
+ tail -100 ./log/codis-dashboard.log.2017-04-08
+```
+```
+2017/04/08 15:16:57 fsclient.go:197: [INFO] fsclient - create /codis3/codis-demo/topom OK
+2017/04/08 15:16:57 main.go:140: [WARN] [0xc42025f7a0] dashboard is working ...
+2017/04/08 15:16:57 topom.go:424: [WARN] admin start service on [::]:18080
+
+```
+快速启动集群元数据存储使用filesystem,默认数据路径保存在/tmp/codis,若启动失败，请检查当前用户是否对该路径拥有读写权限.
+
+### 启动codis-proxy
+使用codis-proxy-admin.sh脚本启动codis-proxy,并查看proxy日志确认启动是否有异常.
+```
+./admin/codis-proxy-admin.sh start
+tail -100 ./log/codis-proxy.log.2017-04-08
+```
+
+```
+2017/04/08 15:39:37 proxy.go:293: [WARN] [0xc4200df760] set sentinels = []
+2017/04/08 15:39:37 main.go:320: [WARN] rpc online proxy seems OK
+2017/04/08 15:39:38 main.go:210: [WARN] [0xc4200df760] proxy is working ...
+```
+
+### 启动codis-server
+使用codis-server-admin.sh脚本启动codis-server,并查看redis日志确认启动是否有异常.
+```
+./admin/codis-server-admin.sh start
+tail -100 /tmp/redis_6379.log 
+```
+
+```
+5706:M 08 Apr 16:04:11.748 * DB loaded from disk: 0.000 seconds
+5706:M 08 Apr 16:04:11.748 * The server is now ready to accept connections on port 6379
+```
+redis.conf配置中pidfile,logfile默认保存在/tmp目录，若启动失败，请检查当前用户是否有该目录的读写权限。
+
+### 启动codis-fe
+使用codis-fe-admin.sh脚本启动codis-fe,并查看fe日志确认启动是否有异常.
+```
+./admin/codis-fe-admin.sh start
+tail -100 ./log/codis-fe.log.2017-04-08
+```
+```
+2017/04/08 16:12:13 main.go:100: [WARN] set ncpu = 1
+2017/04/08 16:12:13 main.go:103: [WARN] set listen = 0.0.0.0:9090
+2017/04/08 16:12:13 main.go:115: [WARN] set assets = /home/codis/go/src/github.com/CodisLabs/codis/admin/../bin/assets
+2017/04/08 16:12:13 main.go:153: [WARN] set --filesystem = /tmp/codis
+```
+
+### 通过fe添加group
+通过web浏览器访问集群管理页面(fe地址:127.0.0.1:9090)
+选择我们刚搭建的集群codis-demo，在Proxy栏可看到我们已经启动的Proxy,
+但是Group栏为空，因为我们启动的codis-server并未加入到集群
+添加NEW GROUP，NEW GROUP行输入1，再点击NEWGROUP即可
+添加Codis Server,Add Server行输入我们刚刚启动的codis-server地址，添加到我们刚新建的GROUP，然后再点击Add Server按钮即可，如下图所示
+
+![addgroup](pictures/addgroup.jpg)
+
+### 通过fe初始化slot
+新增的集群slot状态是offline,因此我们需要对它进行初始化（将1024个slot分配到各个group）,而初始化最快的方法可通过fe提供的rebalance all slots按钮来做，如下图所示，点击此按钮，我们即快速完成了一个集群的搭建。
+
+![rebalance_slots](pictures/rebalance_slots.jpg)
+
+
+## 通过ansible快速部署集群
+
+使用ansible可快速在单机、多机部署多套codis集群.
+ansible文件夹包含了部署codis集群的playbook,根据自己部署环境修改groups_var/all文件里参数，修改hosts文件添加部署的环境IP即可.
+ansible安装也及其简单,各部署机器无需安装任何额外的agent,彼此之间通过ssh通信。
+
+```
+git clone git://github.com/ansible/ansible.git -b stable-2.3
+cd ./ansible
+source ./hacking/env-setup
+cd $codis_dir/ansible
+ansible-playbook -i hosts site.yml
+```
+
 
 ## 2. 启动及参数
 
-**注意：请按照顺序逐步完成操作。默认使用 `zookeeper` 作为外部存储。**
+**注意：请按照顺序逐步完成操作。生产环境建议修改dashboard coordinator_name配置，使用 `zookeeper` 或`etctd`作为外部存储。**
 
 **注意：Codis 3.x 支持 AUTH，但是要求所有组件使用的 AUTH 必须完全相同。**
 

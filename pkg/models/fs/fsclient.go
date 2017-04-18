@@ -156,25 +156,23 @@ func (c *Client) writeFile(realpath string, data []byte, noexists bool) error {
 	}
 	defer f.Close()
 
-	var failed = true
-
-	defer func() {
-		if !failed {
-			return
+	var writeThenRename = func() error {
+		_, err := f.Write(data)
+		if err != nil {
+			return errors.Trace(err)
 		}
+		if err := f.Close(); err != nil {
+			return errors.Trace(err)
+		}
+		if err := os.Rename(f.Name(), realpath); err != nil {
+			return errors.Trace(err)
+		}
+		return nil
+	}
+	if err := writeThenRename(); err != nil {
 		os.Remove(f.Name())
-	}()
-
-	if _, err := f.Write(data); err != nil {
-		return errors.Trace(err)
+		return err
 	}
-	if err := f.Close(); err != nil {
-		return errors.Trace(err)
-	}
-	if err := os.Rename(f.Name(), realpath); err != nil {
-		return errors.Trace(err)
-	}
-	failed = false
 	return nil
 }
 
