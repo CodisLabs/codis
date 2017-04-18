@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-
-set -x
-set -e
-
-/opt/codis/bin/codis-admin --proxy=127.0.0.1:11082 $@

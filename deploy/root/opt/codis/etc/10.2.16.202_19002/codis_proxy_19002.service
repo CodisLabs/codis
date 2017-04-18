@@ -1,9 +1,0 @@
-[Unit]
-Description=Codis-[demo-beta]@19002
-[Service]
-ExecStart=/opt/codis/bin/codis-proxy --ncpu=4 --max-ncpu=8 \
-    --config=/opt/codis/etc/10.2.16.202:19002/proxy.toml --log=/opt/codis/log/10.2.16.202:19002/proxy.log --log-level=WARN
-Restart=always
-[Install]
-WantedBy=default.target
-
