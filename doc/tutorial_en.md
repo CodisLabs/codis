@@ -5,28 +5,28 @@ Codes is a distributed Redis solution, there is no obvious difference between co
 
 Codis 3.x consists of the following components:
 
-* ** Codis Server **: based on redis-3.2.8 branch development. Added additional data structures to support slot-related operations and data migration instructions. Specific changes can refer to the document [redis changes] (redis_change_zh.md).
+** Codis Server **: based on redis-3.2.8 branch development. Added additional data structures to support slot-related operations and data migration instructions. Specific changes can refer to the document [redis changes] (redis_change_zh.md).
 
-* ** Codis Proxy **: is the proxy service of client connections. Codis Proxy Implements Redis Protocol. In addition to some commands do not support ([unsupported command list] (unsupported_cmds.md)).
+** Codis Proxy **: is the proxy service of client connections. Codis Proxy Implements Redis Protocol. In addition to some commands do not support ([unsupported command list] (unsupported_cmds.md)).
 
     + For the same product cluster, you can deploy multiple codis-proxy instances at the same time;
     + Different codis-proxy by codis-dashboard to ensure state synchronization.
 
-* ** Codis Dashboard **: cluster management tools, support codis-proxy, codis-server add, delete, slot migrate(sync/async), and other operations. When a cluster state changes, the codis-dashboard maintains the consistency of all codis-proxy states under the cluster.
+** Codis Dashboard **: cluster management tools, support codis-proxy, codis-server add, delete, slot migrate(sync/async), and other operations. When a cluster state changes, the codis-dashboard maintains the consistency of all codis-proxy states under the cluster.
 
     + For the same product cluster, the same time codis-dashboard can only have 0 or 1;
     + All changes to the cluster must be done via codis-dashboard.
 
-* ** Codis Admin **: Command-line tool for cluster management.
+** Codis Admin **: Command-line tool for cluster management.
 
     + Can be used to control the codis-proxy, codis-dashboard status, and access external storage.
 
-* ** Codis FE **: cluster management Web Interface.
+** Codis FE **: cluster management Web Interface.
 
     + Multiple cluster instances can share the same front-end display page;
     + FE reads all cluster instances name from external storage.
 
-* ** Storage **: Provides external storage for cluster status, and saves cluster metadata.
+** Storage **: Provides external storage for cluster status, and saves cluster metadata.
 
     + Provide the concept of Namespace, different clusters will be organized according to different product name;
     + Currently only provides Zookeeper, Etcd, Fs three implementations, but provides an abstract interface can be self-expansion.
@@ -100,7 +100,7 @@ version = 2016-01-03 14:53:22 +0800 @51f06ae3b58a256a58f857f590430977638846a3
 compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 ```
 
-## 1. Running Codis Cluster
+## Running Codis Cluster
 
 Build a standalone codis cluster in 2 minutes,without any external component dependencies.
 The admin folder in the source code provides a series of scripts to quickly start, stop the codis components, improve the efficiency of operation and maintenance.
@@ -207,8 +207,5 @@ Codis's proxy is stateless so you can run more than one proxies to get high avai
 For Java users, you can use a modified Jedis, [Jodis](https://github.com/CodisLabs/jodis). It will watch the ZooKeeper to get the real-time available proxies, then query via them using a round robin policy to balance load and detect proxy online and offline automatically.
 If asynchronous request is required, you can use [Nedis](https://github.com/CodisLabs/nedis) which is implemented based on Netty.
 
-For redis instances, the designers of codis think when a master down, system administrator should know about it and promote a slave to master by hand, not automatically. Because a crashed master may result in the data in this group not consistent.
-But we also offer a solution: [codis-ha](https://github.com/ngaut/codis-ha)。It is a tool using codis rest api to promote a slave to master when it find the master down.
+Codis-server is stateful.Redis Sentinel provides high availability for Codis-Server.Codis uses it to check master and slave instances are working as expected and start a failover process where a slave is promoted to master, the other additional slaves are reconfigured to use the new master.
 
-When codis promote one slave instantce to master, other slaves will not change there status. These slaves will still try to sync from the old crashed master, so the data in this group is not consistent.
-Because the `slave of` command in redis will let a slave drop its data and sync from the new master, it will make the master a little slow on handling queries.So you should change the status by hand after your acknowledgement by using `codis-config server add <group_id> <redis_addr> slave` to refresh the status of remain slaves. Codis-ha won't do this.
