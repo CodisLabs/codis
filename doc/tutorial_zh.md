@@ -74,7 +74,7 @@ Codis 3.x 由以下组件组成：
 
 ```bash
 $ go version
-go version go1.5.2 linux/amd64
+go version go1.7.3 linux/amd64
 ```
 
 #### 2. 设置编译环境
@@ -94,7 +94,7 @@ Codis 源代码需要下载到 `$GOPATH/src/github.com/CodisLabs/codis`：
 
 ```bash
 $ mkdir -p $GOPATH/src/github.com/CodisLabs
-$ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.1
+$ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.2
 ```
 
 #### 4. 编译 Codis 源代码
