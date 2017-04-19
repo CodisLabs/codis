@@ -1,0 +1,9 @@
+[Unit]
+Description=Codis-[demo-beta]@18080
+[Service]
+ExecStart=/opt/codis/bin/codis-dashboard \
+    --config=/opt/codis/etc/10.4.10.100:18080/dashboard.toml --log=/opt/codis/log/10.4.10.100:18080/dashboard.log
+Restart=always
+[Install]
+WantedBy=default.target
+
