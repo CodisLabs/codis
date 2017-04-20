@@ -1,5 +1,5 @@
 ---
-codis_dir: /home/codis/codis 
+codis_dir: /home/codis/codis
 
 coordinator_name: filesystem
 

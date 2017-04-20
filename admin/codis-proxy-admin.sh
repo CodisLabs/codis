@@ -30,12 +30,12 @@ start)
     echo  "starting codis-proxy ... "
     if [ -f "$CODIS_PROXY_PID_FILE" ]; then
       if kill -0 `cat "$CODIS_PROXY_PID_FILE"` > /dev/null 2>&1; then
-         echo $command already running as process `cat "$CODIS_PROXY_PID_FILE"`. 
+         echo $command already running as process `cat "$CODIS_PROXY_PID_FILE"`.
          exit 0
       fi
     fi
     nohup "$CODIS_PROXY_BIN" "--config=${CODIS_PROXY_CONF_FILE}" "--dashboard=${CODIS_DASHBOARD_ADDR}" \
-    "--log=$CODIS_PROXY_LOG_FILE" "--log-level=INFO" "--ncpu=4" "--pidfile=$CODIS_PROXY_PID_FILE" > "$CODIS_PROXY_DAEMON_FILE" 2>&1 < /dev/null & 
+    "--log=$CODIS_PROXY_LOG_FILE" "--log-level=INFO" "--ncpu=4" "--pidfile=$CODIS_PROXY_PID_FILE" > "$CODIS_PROXY_DAEMON_FILE" 2>&1 < /dev/null &
     ;;
 start-foreground)
     $CODIS_PROXY_BIN "--config=${CODIS_PROXY_CONF_FILE}" "--dashboard=${CODIS_DASHBOARD_ADDR}" \

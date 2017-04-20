@@ -28,11 +28,11 @@ start)
     echo  "starting redis-sentinel ... "
     if [ -f "$REDIS_SENTINEL_PID_FILE" ]; then
       if kill -0 `cat "$REDIS_SENTINEL_PID_FILE"` > /dev/null 2>&1; then
-         echo $command already running as process `cat "$REDIS_SENTINEL_PID_FILE"`. 
+         echo $command already running as process `cat "$REDIS_SENTINEL_PID_FILE"`.
          exit 0
       fi
     fi
-    nohup "$REDIS_SENTINEL_BIN" "${REDIS_SENTINEL_CONF_FILE}" > "$REDIS_SENTINEL_DAEMON_FILE" 2>&1 < /dev/null & 
+    nohup "$REDIS_SENTINEL_BIN" "${REDIS_SENTINEL_CONF_FILE}" > "$REDIS_SENTINEL_DAEMON_FILE" 2>&1 < /dev/null &
     ;;
 stop)
     echo "stopping redis-sentinel ... "

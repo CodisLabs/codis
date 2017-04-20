@@ -2,14 +2,14 @@
 - name: Create codis server work directory
   file: path={{ codis_server_workdir }} state=directory owner=codis group=codis
 
-- name: Copy codis-server binary 
+- name: Copy codis-server binary
   copy: src={{ codis_dir }}/bin/codis-server dest={{ codis_install_dir }}/bin/codis-server mode=766
 
 - name: Copy codis-server configuration
   template: src=redis.conf dest={{ codis_install_dir }}/config/redis.conf
 
-- name: Copy codis-server admin script 
+- name: Copy codis-server admin script
   template: src=codis-server-admin.sh dest={{ codis_install_dir }}/admin/codis-server-admin.sh mode=766
 
-- name: Restart codis-server service 
+- name: Restart codis-server service
   command: "{{ codis_install_dir }}/admin/codis-server-admin.sh restart"

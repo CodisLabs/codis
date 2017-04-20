@@ -31,12 +31,12 @@ start)
     echo  "starting codis-fe ... "
     if [ -f "$CODIS_FE_PID_FILE" ]; then
       if kill -0 `cat "$CODIS_FE_PID_FILE"` > /dev/null 2>&1; then
-         echo $command already running as process `cat "$CODIS_FE_PID_FILE"`. 
+         echo $command already running as process `cat "$CODIS_FE_PID_FILE"`.
          exit 0
       fi
     fi
     nohup "$CODIS_FE_BIN" "--assets-dir=${CODIS_FE_ASSETS_DIR}" "--$COORDINATOR_NAME=$COORDINATOR_ADDR" \
-    "--log=$CODIS_FE_LOG_FILE" "--pidfile=$CODIS_FE_PID_FILE" "--log-level=INFO" "--listen=$CODIS_FE_ADDR" > "$CODIS_FE_DAEMON_FILE" 2>&1 < /dev/null & 
+    "--log=$CODIS_FE_LOG_FILE" "--pidfile=$CODIS_FE_PID_FILE" "--log-level=INFO" "--listen=$CODIS_FE_ADDR" > "$CODIS_FE_DAEMON_FILE" 2>&1 < /dev/null &
     ;;
 start-foreground)
     $CODIS_FE_BIN "--assets-dir=${CODIS_FE_ASSETS_DIR}" "--$COORDINATOR_NAME=$COORDINATOR_ADDR" \

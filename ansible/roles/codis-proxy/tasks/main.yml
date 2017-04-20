@@ -1,12 +1,12 @@
 ---
-- name: Copy codis-proxy binary 
+- name: Copy codis-proxy binary
   copy: src={{ codis_dir }}/bin/codis-proxy dest={{ codis_install_dir }}/bin/codis-proxy mode=766
 
 - name: Copy codis-proxy configuration
   template: src=proxy.toml dest={{ codis_install_dir }}/config/proxy.toml
 
-- name: Copy codis-proxy admin script 
+- name: Copy codis-proxy admin script
   template: src=codis-proxy-admin.sh dest={{ codis_install_dir }}/admin/codis-proxy-admin.sh mode=766
 
-- name: Restart codis-proxy service 
+- name: Restart codis-proxy service
   command: "{{ codis_install_dir }}/admin/codis-proxy-admin.sh restart"

@@ -28,11 +28,11 @@ start)
     echo  "starting codis-server ... "
     if [ -f "$CODIS_SERVER_PID_FILE" ]; then
       if kill -0 `cat "$CODIS_SERVER_PID_FILE"` > /dev/null 2>&1; then
-         echo $command already running as process `cat "$CODIS_SERVER_PID_FILE"`. 
+         echo $command already running as process `cat "$CODIS_SERVER_PID_FILE"`.
          exit 0
       fi
     fi
-    nohup "$CODIS_SERVER_BIN" "${CODIS_SERVER_CONF_FILE}" > "$CODIS_SERVER_DAEMON_FILE" 2>&1 < /dev/null & 
+    nohup "$CODIS_SERVER_BIN" "${CODIS_SERVER_CONF_FILE}" > "$CODIS_SERVER_DAEMON_FILE" 2>&1 < /dev/null &
     ;;
 stop)
     echo "stopping codis-server ... "

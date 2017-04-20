@@ -29,12 +29,12 @@ start)
     echo  "starting codis-dashboard ... "
     if [ -f "$CODIS_DASHBOARD_PID_FILE" ]; then
       if kill -0 `cat "$CODIS_DASHBOARD_PID_FILE"` > /dev/null 2>&1; then
-         echo $command already running as process `cat "$CODIS_DASHBOARD_PID_FILE"`. 
+         echo $command already running as process `cat "$CODIS_DASHBOARD_PID_FILE"`.
          exit 0
       fi
     fi
     nohup "$CODIS_DASHBOARD_BIN" "--config=${CODIS_DASHBOARD_CONF_FILE}" \
-    "--log=$CODIS_DASHBOARD_LOG_FILE" "--log-level=INFO" "--pidfile=$CODIS_DASHBOARD_PID_FILE" > "$CODIS_DASHBOARD_DAEMON_FILE" 2>&1 < /dev/null & 
+    "--log=$CODIS_DASHBOARD_LOG_FILE" "--log-level=INFO" "--pidfile=$CODIS_DASHBOARD_PID_FILE" > "$CODIS_DASHBOARD_DAEMON_FILE" 2>&1 < /dev/null &
     ;;
 start-foreground)
     $CODIS_DASHBOARD_BIN "--config=${CODIS_DASHBOARD_CONF_FILE}" \

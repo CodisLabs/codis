@@ -1,27 +1,27 @@
 ---
-- name: codis environment init 
-  hosts: all 
+- name: codis environment init
+  hosts: all
   remote_user: codis
   roles:
-    - common 
+    - common
 
 - name: Install codis-dashboard
   hosts: codis-dashboard-servers
   remote_user: codis
   roles:
-    - codis-dashboard 
+    - codis-dashboard
 
 - name: Install codis-proxy
   hosts: codis-proxy-servers
   remote_user: codis
   roles:
-    - codis-proxy 
+    - codis-proxy
 
 - name: Install codis-server
   hosts: codis-servers
   remote_user: codis
   roles:
-    - codis-server 
+    - codis-server
 
 - name: Install redis-sentinel
   hosts: redis-sentinel-servers
@@ -33,4 +33,4 @@
   hosts: codis-fe-servers
   remote_user: codis
   roles:
-    - codis-fe 
+    - codis-fe

@@ -2,14 +2,14 @@
 - name: Copy codis-admin binary
   copy: src={{ codis_dir }}/bin/codis-admin dest={{ codis_install_dir }}/bin/codis-admin mode=766
 
-- name: Copy codis-dashboard binary 
+- name: Copy codis-dashboard binary
   copy: src={{ codis_dir }}/bin/codis-dashboard dest={{ codis_install_dir }}/bin/codis-dashboard mode=766
 
 - name: Copy codis-dashboard configuration
   template: src=dashboard.toml dest={{ codis_install_dir }}/config/dashboard.toml
 
-- name: Copy codis-dashboard admin script 
+- name: Copy codis-dashboard admin script
   template: src=codis-dashboard-admin.sh dest={{ codis_install_dir }}/admin/codis-dashboard-admin.sh mode=766
 
-- name: Restart codis-dashboard service 
+- name: Restart codis-dashboard service
   command: "{{ codis_install_dir }}/admin/codis-dashboard-admin.sh restart"
