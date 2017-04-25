@@ -25,6 +25,13 @@ const DefaultConfig = `
 product_name = "codis-demo"
 product_auth = ""
 
+# Set auth for client session
+#   1. product_auth is used for auth validation among codis-dashboard,
+#      codis-proxy and codis-server.
+#   2. session_auth is different from product_auth, it requires clients
+#      to issue AUTH <PASSWORD> before processing any other commands.
+session_auth = ""
+
 # Set bind address for admin(rpc), tcp only.
 admin_addr = "0.0.0.0:11080"
 
@@ -135,6 +142,7 @@ type Config struct {
 
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
+	SessionAuth string `toml:"session_auth" json:"-"`
 
 	ProxyDataCenter      string         `toml:"proxy_datacenter" json:"proxy_datacenter"`
 	ProxyMaxClients      int            `toml:"proxy_max_clients" json:"proxy_max_clients"`

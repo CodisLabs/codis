@@ -264,7 +264,7 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 	}
 
 	if !s.authorized {
-		if s.config.ProductAuth != "" {
+		if s.config.SessionAuth != "" {
 			r.Resp = redis.NewErrorf("NOAUTH Authentication required")
 			return nil
 		}
@@ -309,9 +309,9 @@ func (s *Session) handleAuth(r *Request) error {
 		return nil
 	}
 	switch {
-	case s.config.ProductAuth == "":
+	case s.config.SessionAuth == "":
 		r.Resp = redis.NewErrorf("ERR Client sent AUTH, but no password is set")
-	case s.config.ProductAuth != string(r.Multi[1].Value):
+	case s.config.SessionAuth != string(r.Multi[1].Value):
 		s.authorized = false
 		r.Resp = redis.NewErrorf("ERR invalid password")
 	default:
