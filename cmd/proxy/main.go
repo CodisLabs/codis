@@ -25,6 +25,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/topom"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 )
 
 func main() {
@@ -90,13 +91,15 @@ Options:
 	if n, ok := utils.ArgumentInteger(d, "--ncpu"); ok {
 		ncpu = n
 	} else {
-		ncpu = runtime.NumCPU()
+		ncpu = 4
 	}
 	runtime.GOMAXPROCS(ncpu)
 
 	var maxncpu int
 	if n, ok := utils.ArgumentInteger(d, "--max-ncpu"); ok {
-		maxncpu = n
+		maxncpu = math2.MaxInt(ncpu, n)
+	} else {
+		maxncpu = math2.MaxInt(ncpu, runtime.NumCPU())
 	}
 	log.Warnf("set ncpu = %d, max-ncpu = %d", ncpu, maxncpu)
 
