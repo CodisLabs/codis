@@ -1093,11 +1093,11 @@ struct commandHelp {
         "hashkey command [arg ...]",
         "", 14, "codis3.2"
     },
-    {"SLOTSRESTORE-ASYNC SELECT",
+    {"SLOTSRESTORE-ASYNC-SELECT",
         "db",
         "", 14, "codis3.2"
     },
-    {"SLOTSRESTORE-ASYNC DEL",
+    {"SLOTSRESTORE-ASYNC DELETE",
         "key",
         "", 14, "codis3.2"
     },

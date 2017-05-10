@@ -1707,6 +1707,7 @@ void slotsmgrtAsyncStatusCommand(client *c);
 void slotsmgrtExecWrapperCommand(client *c);
 void slotsrestoreAsyncCommand(client *c);
 void slotsrestoreAsyncAuthCommand(client *c);
+void slotsrestoreAsyncSelectCommand(client *c);
 void slotsrestoreAsyncAckCommand(client *c);
 
 void slotsmgrtAsyncCleanup();
