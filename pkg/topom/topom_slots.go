@@ -564,9 +564,11 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 	var (
 		assigned = make(map[int]int)
 		pendings = make(map[int][]int)
+		moveout  = make(map[int]int)
+		docking  []int
 	)
 	var groupSize = func(gid int) int {
-		return assigned[gid] + len(pendings[gid])
+		return assigned[gid] + len(pendings[gid]) - moveout[gid]
 	}
 
 	// don't migrate slot if it's being migrated
@@ -592,11 +594,6 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 		}
 	}
 
-	// reverse pending list for each group
-	for _, list := range pendings {
-		sort.Sort(sort.Reverse(sort.IntSlice(list)))
-	}
-
 	var tree = rbtree.NewWith(func(x, y interface{}) int {
 		var gid1 = x.(int)
 		var gid2 = y.(int)
@@ -612,8 +609,6 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 		tree.Put(gid, nil)
 	}
 
-	var offline []int
-
 	// assign offline slots to the smallest group
 	for _, m := range ctx.slots {
 		if m.Action.State != models.ActionNothing {
@@ -622,77 +617,71 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 		if m.GroupId != 0 {
 			continue
 		}
-		gid := tree.Left().Key.(int)
-		tree.Remove(gid)
+		dest := tree.Left().Key.(int)
+		tree.Remove(dest)
 
-		assigned[gid]++
-		tree.Put(gid, nil)
+		docking = append(docking, m.Id)
+		moveout[dest]--
 
-		offline = append(offline, gid)
-	}
-	sort.Ints(offline)
-
-	var plans = make(map[int]int)
-
-	// create migration plans for offline slots
-	for _, m := range ctx.slots {
-		if m.Action.State != models.ActionNothing {
-			continue
-		}
-		if m.GroupId != 0 {
-			continue
-		}
-		if len(offline) != 0 {
-			plans[m.Id], offline = offline[0], offline[1:]
-		}
+		tree.Put(dest, nil)
 	}
 
 	var upperBound = (MaxSlotNum + len(groupIds) - 1) / len(groupIds)
 
-	var newPlan = func(from, dest int) bool {
-		var fromSize = groupSize(from)
-		var destSize = groupSize(dest)
-		if fromSize <= lowerBound {
-			return false
-		}
-		if destSize >= upperBound {
-			return false
-		}
-		if d := fromSize - destSize; d <= 1 {
-			return false
-		}
-		var list = pendings[from]
-		if len(list) == 0 {
-			return false
-		}
-		plans[list[0]] = dest
-		pendings[from] = list[1:]
-		assigned[dest]++
-		return true
-	}
-
 	// rebalance between different server groups
-
 	for tree.Size() >= 2 {
 		from := tree.Right().Key.(int)
 		tree.Remove(from)
 
-		if len(pendings[from]) == 0 {
+		if len(pendings[from]) == moveout[from] {
 			continue
 		}
-
 		dest := tree.Left().Key.(int)
 		tree.Remove(dest)
 
-		var updated bool
-		for newPlan(from, dest) {
-			updated = true
-		}
-		if !updated {
+		var (
+			fromSize = groupSize(from)
+			destSize = groupSize(dest)
+		)
+		if fromSize <= lowerBound {
 			break
 		}
+		if destSize >= upperBound {
+			break
+		}
+		if d := fromSize - destSize; d <= 1 {
+			break
+		}
+		moveout[from]++
+		moveout[dest]--
+
 		tree.Put(from, nil)
 		tree.Put(dest, nil)
+	}
+
+	for gid, n := range moveout {
+		if n < 0 {
+			continue
+		}
+		if n > 0 {
+			sids := pendings[gid]
+			sort.Sort(sort.Reverse(sort.IntSlice(sids)))
+
+			docking = append(docking, sids[0:n]...)
+			pendings[gid] = sids[n:]
+		}
+		delete(moveout, gid)
+	}
+	sort.Ints(docking)
+
+	var plans = make(map[int]int)
+
+	for _, gid := range groupIds {
+		var in = -moveout[gid]
+		for i := 0; i < in && len(docking) != 0; i++ {
+			plans[docking[0]] = gid
+			docking = docking[1:]
+		}
 	}
 
 	if !confirm {
