@@ -5,12 +5,14 @@ package topom
 
 import (
 	"sort"
+	"time"
 
 	rbtree "github.com/emirpasic/gods/trees/redblacktree"
 
 	"github.com/CodisLabs/codis/pkg/models"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/redis"
 )
 
@@ -412,7 +414,8 @@ func (s *Topom) newSlotActionExecutor(sid int) (func(db int) (remains int, nextd
 					MaxBulks: s.config.MigrationAsyncMaxBulks,
 					MaxBytes: s.config.MigrationAsyncMaxBytes.AsInt(),
 					NumKeys:  s.config.MigrationAsyncNumKeys,
-					Timeout:  s.config.MigrationTimeout.Duration(),
+					Timeout: math2.MinDuration(time.Second*5,
+						s.config.MigrationTimeout.Duration()),
 				}
 				do = func() (int, error) {
 					return c.MigrateSlotAsync(sid, dest, option)
