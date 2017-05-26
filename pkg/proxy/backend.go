@@ -456,9 +456,8 @@ func (s *sharedBackendConn) BackendConn(database int32, seed uint, must bool) *B
 		bc := s.single[database]
 		if must || bc.IsConnected() {
 			return bc
-		} else {
-			return nil
 		}
+		return nil
 	}
 
 	var parallel = s.conns[database]
