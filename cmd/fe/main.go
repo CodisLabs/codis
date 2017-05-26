@@ -105,7 +105,11 @@ Options:
 
 	var assets string
 	if s, ok := utils.Argument(d, "--assets-dir"); ok {
-		assets = s
+		abspath, err := filepath.Abs(s)
+		if err != nil {
+			log.PanicErrorf(err, "get absolute path of %s failed", s)
+		}
+		assets = abspath
 	} else {
 		binpath, err := filepath.Abs(filepath.Dir(os.Args[0]))
 		if err != nil {
@@ -115,12 +119,9 @@ Options:
 	}
 	log.Warnf("set assets = %s", assets)
 
-	fi, err := os.Stat(assets)
-	if err != nil {
-		log.PanicErrorf(err, "get stat of %s failed", assets)
-	}
-	if !fi.IsDir() {
-		log.Panicf("%s is not a directory", assets)
+	indexFile := filepath.Join(assets, "index.html")
+	if _, err := os.Stat(indexFile); err != nil {
+		log.PanicErrorf(err, "get stat of %s failed", indexFile)
 	}
 
 	var loader ConfigLoader
