@@ -1,5 +1,13 @@
 #!/bin/bash
 
+if [ $(kubectl get pods -l app=zk |grep Running |wc -l) == 0 ]; then
+    echo "start create zookeeper cluster"
+    kubectl create -f zookeeper/zookeeper-service.yaml
+    kubectl create -f zookeeper/zookeeper.yaml
+    while [ $(kubectl get pods -l app=zk |grep Running |wc -l) != 3 ]; do sleep 1; done;
+    echo "finish create zookeeper cluster"
+fi
+
 product_name="codis-test"
 #product_auth="auth"
 case "$1" in
@@ -7,14 +15,14 @@ case "$1" in
 ### 清理原来codis遗留数据
 cleanup)
     kubectl delete -f .
-    # 登陆上zk 机器 执行 zkCli.sh -server {zk-addr}:2181 rmr /codis3/$product_name
+    # 如果zookeeper不是在kurbernetes上，需要登陆上zk机器 执行 zkCli.sh -server {zk-addr}:2181 rmr /codis3/$product_name
     kubectl exec -it zk-0 -- zkCli.sh -server zk-0:2181 rmr /codis3/$product_name
     ;;
 
 ### 创建新的codis集群
 buildup)
     kubectl delete -f .
-    # 登陆上zk 机器 执行 zkCli.sh -server {zk-addr}:2181 rmr /codis3/$product_name
+    # 如果zookeeper不是在kurbernetes上，需要登陆上zk机器 执行 zkCli.sh -server {zk-addr}:2181 rmr /codis3/$product_name
     kubectl exec -it zk-0 -- zkCli.sh -server zk-0:2181 rmr /codis3/$product_name
     kubectl create -f codis-service.yaml
     kubectl create -f codis-dashboard.yaml

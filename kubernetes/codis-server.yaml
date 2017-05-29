@@ -34,7 +34,7 @@ spec:
         image: codis-image
         imagePullPolicy: IfNotPresent
         command: ["codis-server"]
-        args: ["$(CODIS_PATH)/config/redis.conf","--logfile","$(POD_NAME).log","--protected-mode", "no", "--save", "", "--bind", "$(POD_IP)", "--daemonize", "no"]
+        args: ["$(CODIS_PATH)/config/redis.conf","--logfile","$(POD_NAME).log","--protected-mode", "no", "--bind", "$(POD_IP)", "--daemonize", "no"]
         lifecycle:
           postStart:
             exec:
