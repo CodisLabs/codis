@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: codis-proxy
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: codis-proxy
+    spec:
+      imagePullSecrets:
+      - name: your-registry
+      containers:
+      - name: codis-proxy
+        image: codis-image
+        imagePullPolicy: IfNotPresent
+        command: ["codis-proxy"]
+        args: ["-l","log/$(POD_NAME).log","-c","$(CODIS_PATH)/config/proxy.toml","--host-admin","$(POD_IP):11080","--host-proxy","$(POD_IP):19000","--zookeeper","$(ZK_ADDR)","--product_name","$(PRODUCT_NAME)","--pidfile","log/proxy.pid"]
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "codis-admin --dashboard=${DASHBOARD_ADDR} --remove-proxy --addr=${POD_IP}:11080 1>/dev/null 2>&1"]
+        env:
+        - name: CODIS_PATH
+          value: "/gopath/src/github.com/CodisLabs/codis"
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: ZK_ADDR
+          value: "zookeeper:2181"
+        - name: DASHBOARD_ADDR
+          value: "codis-dashboard:18080"
+        - name: PRODUCT_NAME
+          value: "codis-test"
+        #- name: PRODUCT_AUTH
+        #  value: ""
+        ports:
+        - containerPort: 11080
+          name: proxy
+        - containerPort: 19000
+          name: admin
+        resources:
+          limits:
+            cpu: "4"
+            memory: 4Gi
+          requests:
+            cpu: "0.1"
+            memory: 0.1Gi
