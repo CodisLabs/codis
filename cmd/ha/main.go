@@ -20,7 +20,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-ha [--log=FILE] [--log-level=LEVEL] [--interval=SECONDS] --dashboard=ADDR
+	codis-ha [--log=FILE] [--log-level=LEVEL] [--interval=SECONDS] --dashboard=ADDR [--no-maintains]
 	codis-ha  --version
 
 Options:
@@ -66,6 +66,11 @@ Options:
 	log.Warnf("set dashboard = %s", dashboard)
 	log.Warnf("set interval = %d (seconds)", interval)
 
+	var noMaintains = false
+	if d["--no-maintains"].(bool) {
+		noMaintains = true
+	}
+
 	client := topom.NewApiClient(dashboard)
 
 	t, err := client.Model()
@@ -86,7 +91,9 @@ Options:
 		hc := newHealthyChecker(client)
 		hc.LogProxyStats()
 		hc.LogGroupStats()
-		hc.Maintains(client, interval*10, prodcutAuth)
+		if !noMaintains {
+			hc.Maintains(client, interval*10, prodcutAuth)
+		}
 
 		time.Sleep(time.Second * time.Duration(interval))
 	}
