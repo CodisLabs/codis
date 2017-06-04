@@ -76,7 +76,7 @@ backend_send_bufsize = "128kb"
 backend_send_timeout = "30s"
 
 # Set backend pipeline buffer size.
-backend_max_pipeline = 1024
+backend_max_pipeline = 20480
 
 # Set backend never read replica groups, default is false
 backend_primary_only = false

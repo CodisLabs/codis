@@ -337,7 +337,7 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 
 	p := c.FlushEncoder()
 	p.MaxInterval = time.Millisecond
-	p.MaxBuffered = math2.MinInt(256, cap(tasks))
+	p.MaxBuffered = cap(tasks) / 2
 
 	for r := range bc.input {
 		if r.IsReadOnly() && r.IsBroken() {
