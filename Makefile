@@ -31,8 +31,7 @@ codis-server:
 	@cp -f extern/redis-3.2.8/src/redis-benchmark bin/
 	@cp -f extern/redis-3.2.8/src/redis-cli bin/
 	@cp -f extern/redis-3.2.8/redis.conf config/
-	@cp -f extern/redis-3.2.8/sentinel.conf config/
-	@sed -e "s/^sentinel/# sentinel/g" config/sentinel.conf -i
+	@sed -e "s/^sentinel/# sentinel/g" extern/redis-3.2.8/sentinel.conf > config/sentinel.conf
 
 clean-gotest:
 	@rm -rf ./pkg/topom/gotest.tmp
