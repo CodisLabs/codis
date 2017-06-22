@@ -1,7 +1,7 @@
 From 697d3abeff1563936da2653a8fa8db78d5dff671 Mon Sep 17 00:00:00 2001
 From: antirez <antirez@gmail.com>
 Date: Tue, 11 Apr 2017 16:56:00 +0200
-Subject: [PATCH 6/8] Set lua-time-limit default value at safe place.
+Subject: [PATCH 07/19] Set lua-time-limit default value at safe place.
 
 Otherwise, as it was, it will overwrite whatever the user set.
 
@@ -36,5 +36,5 @@ index 71bcda7d..609f3966 100644
      server.lruclock = getLRUClock();
      resetServerSaveParams();
 -- 
-2.12.2
+2.13.1
 

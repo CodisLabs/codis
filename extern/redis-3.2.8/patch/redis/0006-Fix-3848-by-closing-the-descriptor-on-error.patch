@@ -1,7 +1,7 @@
 From c9c04b11b971bb0598307cf2aafe8954e7785641 Mon Sep 17 00:00:00 2001
 From: antirez <antirez@gmail.com>
 Date: Tue, 18 Apr 2017 16:24:06 +0200
-Subject: [PATCH 5/8] Fix #3848 by closing the descriptor on error.
+Subject: [PATCH 06/19] Fix #3848 by closing the descriptor on error.
 
 ---
  src/anet.c | 3 ++-
@@ -29,5 +29,5 @@ index ef1711d0..e16ce131 100644
  end:
      freeaddrinfo(servinfo);
 -- 
-2.12.2
+2.13.1
 

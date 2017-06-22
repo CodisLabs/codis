@@ -2,7 +2,7 @@ From d3b499245015b198fb3bd2814453b5852cad3d3f Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?=E5=BC=A0=E6=96=87=E5=BA=B7?=
  <zhangwenkang@zhangwenkangdeMacBook-Pro.local>
 Date: Tue, 18 Apr 2017 20:10:08 +0800
-Subject: [PATCH 4/8] update block->free after some diff data are written to
+Subject: [PATCH 05/19] update block->free after some diff data are written to
  the child process
 
 ---
@@ -22,5 +22,5 @@ index 862b5e13..cbd906c9 100644
          if (block->used == 0) listDelNode(server.aof_rewrite_buf_blocks,ln);
      }
 -- 
-2.12.2
+2.13.1
 

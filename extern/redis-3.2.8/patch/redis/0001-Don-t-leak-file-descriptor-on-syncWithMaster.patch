@@ -1,7 +1,7 @@
 From 10dbb5cd33cdc78edc70c1827e5c7c7f46eb9538 Mon Sep 17 00:00:00 2001
 From: antirez <antirez@gmail.com>
 Date: Mon, 20 Feb 2017 10:18:41 +0100
-Subject: [PATCH 1/8] Don't leak file descriptor on syncWithMaster().
+Subject: [PATCH 01/19] Don't leak file descriptor on syncWithMaster().
 
 Close #3804.
 ---
@@ -30,5 +30,5 @@ index e7194e59..8d9bcfbf 100644
      server.repl_transfer_s = -1;
      server.repl_state = REPL_STATE_CONNECT;
 -- 
-2.12.2
+2.13.1
 

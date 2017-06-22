@@ -284,8 +284,8 @@ struct redisCommand redisCommandTable[] = {
     {"wait",waitCommand,3,"s",0,NULL,0,0,0,0,0},
     {"command",commandCommand,0,"lt",0,NULL,0,0,0,0,0},
     {"geoadd",geoaddCommand,-5,"wm",0,NULL,1,1,1,0,0},
-    {"georadius",georadiusCommand,-6,"w",0,NULL,1,1,1,0,0},
-    {"georadiusbymember",georadiusByMemberCommand,-5,"w",0,NULL,1,1,1,0,0},
+    {"georadius",georadiusCommand,-6,"w",0,georadiusGetKeys,1,1,1,0,0},
+    {"georadiusbymember",georadiusByMemberCommand,-5,"w",0,georadiusGetKeys,1,1,1,0,0},
     {"geohash",geohashCommand,-2,"r",0,NULL,1,1,1,0,0},
     {"geopos",geoposCommand,-2,"r",0,NULL,1,1,1,0,0},
     {"geodist",geodistCommand,-4,"r",0,NULL,1,1,1,0,0},
@@ -1655,6 +1655,8 @@ void initServerConfig(void) {
     server.rpopCommand = lookupCommandByCString("rpop");
     server.sremCommand = lookupCommandByCString("srem");
     server.execCommand = lookupCommandByCString("exec");
+    server.expireCommand = lookupCommandByCString("expire");
+    server.pexpireCommand = lookupCommandByCString("pexpire");
 
     /* Slow log */
     server.slowlog_log_slower_than = CONFIG_DEFAULT_SLOWLOG_LOG_SLOWER_THAN;

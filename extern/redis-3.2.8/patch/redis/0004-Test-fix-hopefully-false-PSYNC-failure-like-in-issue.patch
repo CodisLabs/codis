@@ -1,7 +1,7 @@
 From 6a33952b8af18c4c0e778d93a69d97bc2adbc52e Mon Sep 17 00:00:00 2001
 From: antirez <antirez@gmail.com>
 Date: Fri, 14 Apr 2017 17:53:11 +0200
-Subject: [PATCH 3/8] Test: fix, hopefully, false PSYNC failure like in issue
+Subject: [PATCH 04/19] Test: fix, hopefully, false PSYNC failure like in issue
  #2715.
 
 And many other related Github issues... all reporting the same problem.
@@ -26,5 +26,5 @@ index 3a41ceb2..308d63d0 100644
      } $diskless 1
  
 -- 
-2.12.2
+2.13.1
 

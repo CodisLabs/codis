@@ -18,7 +18,7 @@ patch_patches() {
     done
 }
 
-reverse_patches() {
+revert_patches() {
     dir=$1; shift
     files=`ls -1 $dir/*.patch | sort --reverse`
     for i in $files; do
@@ -32,9 +32,9 @@ patch)
     patch_patches codis -p3
     ;;
 
-reverse)
-    reverse_patches redis -p1
-    reverse_patches codis -p3
+revert)
+    revert_patches redis -p1
+    revert_patches codis -p3
     ;;
 *)
     echo "wrong argument(s)"

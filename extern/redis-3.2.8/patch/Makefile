@@ -1,4 +1,4 @@
 all:
 
-patch reverse:
+patch revert:
 	@bash run.sh $@

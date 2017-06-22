@@ -1,7 +1,7 @@
 From b83f9fea81411c4809218bd7c51f974e4c4ad7a8 Mon Sep 17 00:00:00 2001
 From: "John.Koepi" <john.koepi@gmail.com>
 Date: Sat, 23 Jul 2016 16:31:56 +0200
-Subject: [PATCH 2/8] fix #2883, #2857 pipe fds leak when fork() failed on bg
+Subject: [PATCH 02/19] fix #2883, #2857 pipe fds leak when fork() failed on bg
  aof rw
 
 ---
@@ -21,5 +21,5 @@ index c6fbbb82..862b5e13 100644
          }
          serverLog(LL_NOTICE,
 -- 
-2.12.2
+2.13.1
 
