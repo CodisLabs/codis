@@ -101,6 +101,15 @@ func (c *Client) Select(database int) error {
 	return nil
 }
 
+func (c *Client) Shutdown() error {
+	_, err := c.Do("SHUTDOWN")
+	if err != nil {
+		c.Close()
+		return errors.Trace(err)
+	}
+	return nil
+}
+
 func (c *Client) Info() (map[string]string, error) {
 	text, err := redigo.String(c.Do("INFO"))
 	if err != nil {

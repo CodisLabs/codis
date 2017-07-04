@@ -1,0 +1,50 @@
+apiVersion: "apps/v1beta1"
+kind: StatefulSet
+metadata:
+  name: codis-ha
+spec:
+  replicas: 1
+  serviceName: codis-ha
+  template:
+    metadata:
+      labels:
+        app: codis-ha
+      annotations:
+        scheduler.alpha.kubernetes.io/affinity: >
+            {
+              "podAffinity": {
+                "requiredDuringSchedulingIgnoredDuringExecution": [{
+                  "labelSelector": {
+                    "matchExpressions": [{
+                      "key": "app",
+                      "operator": "In",
+                      "values": ["codis-dashboard"]
+                    }]
+                  },
+                  "topologyKey": "kubernetes.io/hostname"
+                }]
+              }
+            }
+    spec:
+      imagePullSecrets:
+      - name: your-registry
+      containers:
+      - name: codis-ha
+        image: codis-image
+        imagePullPolicy: IfNotPresent
+        command: ["codis-ha"]
+        args: ["-l","log/$(POD_NAME).log","--interval","5","--dashboard=$(DASHBOARD_ADDR)"]
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: DASHBOARD_ADDR
+          value: "codis-dashboard:18080"
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2Gi
+          requests:
+            cpu: "0.1"
+            memory: 0.1Gi
