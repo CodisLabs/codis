@@ -59,7 +59,7 @@ scale-server)
         while [ $(kubectl get pods -l app=codis-server |grep Running |wc -l) != $2 ]; do sleep 1; done;
         kubectl exec -it codis-server-0 -- codis-admin  --dashboard=codis-dashboard:18080 --rebalance --confirm
     else
-        echo "reduce the number of codis-server, does not support, plz wait"
+        echo "reduce the number of codis-server, does not support, please wait"
         # while [ $cur > $des ]
         # do
         #    cur=`expr $cur - 2`
@@ -72,8 +72,7 @@ scale-server)
         # kubectl scale statefulsets codis-server --replicas=$des
         # kubectl exec -it codis-server-0 -- codis-admin  --dashboard=codis-dashboard:18080 --rebalance --confirm
     fi
-
-    ;;    
+    ;;
 
 *)
     echo "wrong argument(s)"

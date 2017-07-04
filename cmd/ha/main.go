@@ -66,9 +66,9 @@ Options:
 	log.Warnf("set dashboard = %s", dashboard)
 	log.Warnf("set interval = %d (seconds)", interval)
 
-	var noMaintains = false
+	var maintains = true
 	if d["--no-maintains"].(bool) {
-		noMaintains = true
+		maintains = false
 	}
 
 	client := topom.NewApiClient(dashboard)
@@ -91,7 +91,7 @@ Options:
 		hc := newHealthyChecker(client)
 		hc.LogProxyStats()
 		hc.LogGroupStats()
-		if !noMaintains {
+		if maintains {
 			hc.Maintains(client, interval*10, prodcutAuth)
 		}
 

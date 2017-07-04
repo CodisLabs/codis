@@ -31,7 +31,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT] [--product_name=NAME] [--product_auth=AUTH] [--pidfile=FILE]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT] [--pidfile=FILE] [--product_name=NAME] [--product_auth=AUTH] [--session_auth=AUTH]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -166,11 +166,15 @@ Options:
 
 	if s, ok := utils.Argument(d, "--product_name"); ok {
 		config.ProductName = s
-		log.Warnf("option --product_nam = %s", s)
+		log.Warnf("option --product_name = %s", s)
 	}
 	if s, ok := utils.Argument(d, "--product_auth"); ok {
 		config.ProductAuth = s
 		log.Warnf("option --product_auth = %s", s)
+	}
+	if s, ok := utils.Argument(d, "--session_auth"); ok {
+		config.SessionAuth = s
+		log.Warnf("option --session_auth = %s", s)
 	}
 
 	s, err := proxy.New(config)

@@ -25,7 +25,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT] [--product_name=NAME] [--product_auth=AUTH] [--pidfile=FILE] [--remove-lock]
+	codis-dashboard [--ncpu=N] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--pidfile=FILE] [--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT] [--product_name=NAME] [--product_auth=AUTH] [--remove-lock]
 	codis-dashboard  --default-config
 	codis-dashboard  --version
 
@@ -92,17 +92,23 @@ Options:
 	case d["--zookeeper"] != nil:
 		config.CoordinatorName = "zookeeper"
 		config.CoordinatorAddr = utils.ArgumentMust(d, "--zookeeper")
+		log.Warnf("option --zookeeper = %s", config.CoordinatorAddr)
+
 	case d["--etcd"] != nil:
 		config.CoordinatorName = "etcd"
 		config.CoordinatorAddr = utils.ArgumentMust(d, "--etcd")
+		log.Warnf("option --etcd = %s", config.CoordinatorAddr)
+
 	case d["--filesystem"] != nil:
 		config.CoordinatorName = "filesystem"
 		config.CoordinatorAddr = utils.ArgumentMust(d, "--filesystem")
+		log.Warnf("option --filesystem = %s", config.CoordinatorAddr)
+
 	}
 
 	if s, ok := utils.Argument(d, "--product_name"); ok {
 		config.ProductName = s
-		log.Warnf("option --product_nam = %s", s)
+		log.Warnf("option --product_name = %s", s)
 	}
 	if s, ok := utils.Argument(d, "--product_auth"); ok {
 		config.ProductAuth = s
