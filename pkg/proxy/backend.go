@@ -20,9 +20,8 @@ import (
 )
 
 const (
-	stateConnected = 1
-	stateDataStale = 2
-	stateLoading   = 3
+	stateConnected = iota + 1
+	stateDataStale
 )
 
 type BackendConn struct {
@@ -124,6 +123,9 @@ func (bc *BackendConn) KeepAlive() bool {
 					if info["master_link_status"] == "down" {
 						return nil
 					}
+					if info["loading"] == "1" {
+						return nil
+					}
 					if bc.state.CompareAndSwap(stateDataStale, stateConnected) {
 						log.Warnf("backend conn [%p] to %s, db-%d state = Connected (keepalive)",
 							bc, bc.addr, bc.database)
@@ -138,55 +140,6 @@ func (bc *BackendConn) KeepAlive() bool {
 					bc, bc.addr, bc.database)
 			}
 		}
-
-	case stateLoading:
-		m := &Request{}
-		m.Multi = []*redis.Resp{
-			redis.NewBulkBytes([]byte("INFO")),
-		}
-		m.Batch = &sync.WaitGroup{}
-		bc.PushBack(m)
-
-		keepAliveCallback <- func() {
-			m.Batch.Wait()
-			var err = func() error {
-				if err := m.Err; err != nil {
-					return err
-				}
-				switch resp := m.Resp; {
-				case resp == nil:
-					return ErrRespIsRequired
-				case resp.IsError():
-					return fmt.Errorf("bad info resp: %s", resp.Value)
-				case resp.IsBulkBytes():
-					var info = make(map[string]string)
-					for _, line := range strings.Split(string(resp.Value), "\n") {
-						kv := strings.SplitN(line, ":", 2)
-						if len(kv) != 2 {
-							continue
-						}
-						if key := strings.TrimSpace(kv[0]); key != "" {
-							info[key] = strings.TrimSpace(kv[1])
-						}
-					}
-					if info["loading"] == "1" {
-						return nil
-					}
-					if bc.state.CompareAndSwap(stateLoading, stateConnected) {
-						log.Warnf("backend conn [%p] to %s, db-%d state = Connected (keepalive)",
-							bc, bc.addr, bc.database)
-					}
-					return nil
-				default:
-					return fmt.Errorf("bad info resp: should be string, but got %s", resp.Type)
-				}
-			}()
-			if err != nil && bc.closed.IsFalse() {
-				log.WarnErrorf(err, "backend conn [%p] to %s, db-%d recover from Loading failed",
-					bc, bc.addr, bc.database)
-			}
-		}
-
 	}
 	return true
 }
@@ -315,8 +268,10 @@ func (bc *BackendConn) run() {
 		bc, bc.addr, bc.database)
 }
 
-var errMasterDown = []byte("MASTERDOWN")
-var errLoading = []byte("LOADING")
+var (
+	errRespMasterDown = []byte("MASTERDOWN")
+	errRespLoading    = []byte("LOADING")
+)
 
 func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round int) (err error) {
 	defer func() {
@@ -334,14 +289,14 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 		}
 		if resp != nil && resp.IsError() {
 			switch {
-			case bytes.HasPrefix(resp.Value, errMasterDown):
+			case bytes.HasPrefix(resp.Value, errRespMasterDown):
 				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
 					log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'MASTERDOWN'",
 						bc, bc.addr, bc.database)
 				}
-			case bytes.HasPrefix(resp.Value, errLoading):
-				if bc.state.CompareAndSwap(stateConnected, stateLoading) {
-					log.Warnf("backend conn [%p] to %s, db-%d state = Loading",
+			case bytes.HasPrefix(resp.Value, errRespLoading):
+				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
+					log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'LOADING'",
 						bc, bc.addr, bc.database)
 				}
 			}
