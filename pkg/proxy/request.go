@@ -118,10 +118,10 @@ func (c *RequestChan) lockedPushBack(r *Request) int {
 	if c.closed {
 		panic("send on closed chan")
 	}
+	c.data = append(c.data, r)
 	if c.waits != 0 {
 		c.cond.Signal()
 	}
-	c.data = append(c.data, r)
 	return len(c.data)
 }
 
