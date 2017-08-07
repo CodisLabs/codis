@@ -1,7 +1,7 @@
 From 373facf81c8bc5ab45629b0043b13aca2a5285c4 Mon Sep 17 00:00:00 2001
 From: Aric Huang <arichuang@gmail.com>
 Date: Fri, 16 Jun 2017 16:10:00 -0700
-Subject: [PATCH 12/19] (fix) Update create-cluster README
+Subject: [PATCH 12/37] (fix) Update create-cluster README
 
 Fix a few typos/adjust wording in `create-cluster` README
 ---
@@ -41,5 +41,5 @@ index 1f43748e..f2a89839 100644
  
  Use the command "./create-cluster help" to get the full list of features.
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 

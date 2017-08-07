@@ -1,7 +1,7 @@
 From 351663bd7b01caf50d55c3d9aec18151268c9a9e Mon Sep 17 00:00:00 2001
 From: xuzhou <xuzhou1@jd.com>
 Date: Fri, 16 Jun 2017 17:51:38 +0800
-Subject: [PATCH 16/19] Fix set with ex/px option when propagated to aof
+Subject: [PATCH 16/37] Fix set with ex/px option when propagated to aof
 
 ---
  src/aof.c             | 17 +++++++++++++++++
@@ -90,5 +90,5 @@ index 0a50dd31..eddc7c30 100644
 +    }
  }
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 

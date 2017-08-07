@@ -1,7 +1,7 @@
 From 13546adcb9cb83dd021b6f8e068d00f6b0669d20 Mon Sep 17 00:00:00 2001
 From: cbgbt <sean.kelly.2992@gmail.com>
 Date: Thu, 1 Dec 2016 02:33:01 -0800
-Subject: [PATCH 13/19] cli: Only print elapsed time on OUTPUT_STANDARD
+Subject: [PATCH 13/37] cli: Only print elapsed time on OUTPUT_STANDARD
 
 ---
  src/redis-cli.c | 4 +++-
@@ -23,5 +23,5 @@ index 40f91762..3c711402 100644
                      }
                  }
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 

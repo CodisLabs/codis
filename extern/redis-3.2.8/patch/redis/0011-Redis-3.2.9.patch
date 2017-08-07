@@ -1,7 +1,7 @@
 From 5116130d42afdaece3de1816174acc69b6d0ccbf Mon Sep 17 00:00:00 2001
 From: antirez <antirez@gmail.com>
 Date: Wed, 17 May 2017 17:39:00 +0200
-Subject: [PATCH 11/19] Redis 3.2.9.
+Subject: [PATCH 11/37] Redis 3.2.9.
 
 ---
  00-RELEASENOTES | 46 ++++++++++++++++++++++++++++++++++++++++++++++
@@ -12,10 +12,11 @@ diff --git a/00-RELEASENOTES b/00-RELEASENOTES
 index ecc04e83..72cfd624 100644
 --- a/00-RELEASENOTES
 +++ b/00-RELEASENOTES
-@@ -11,6 +11,52 @@ CRITICAL: There is a critical bug affecting MOST USERS. Upgrade ASAP.
+@@ -10,6 +10,52 @@ HIGH:     There is a critical bug that may affect a subset of users. Upgrade!
+ CRITICAL: There is a critical bug affecting MOST USERS. Upgrade ASAP.
  --------------------------------------------------------------------------------
  
- ================================================================================
++================================================================================
 +Redis 3.2.9     Released Mon May 17 17:35:38 CEST 2017
 +================================================================================
 +
@@ -61,10 +62,9 @@ index ecc04e83..72cfd624 100644
 + Don't leak file descriptor on syncWithMaster().
 + 1 file changed, 2 insertions(+), 1 deletion(-)
 +
-+================================================================================
+ ================================================================================
  Redis 3.2.8     Released Sun Feb 12 16:11:18 CET 2017
  ================================================================================
- 
 diff --git a/src/version.h b/src/version.h
 index d4e33a6d..4d7dbc2e 100644
 --- a/src/version.h
@@ -73,5 +73,5 @@ index d4e33a6d..4d7dbc2e 100644
 -#define REDIS_VERSION "3.2.8"
 +#define REDIS_VERSION "3.2.9"
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 

@@ -1,7 +1,7 @@
 From ad949f23292eba906ec5d35340b09d92f8068078 Mon Sep 17 00:00:00 2001
 From: antirez <antirez@gmail.com>
 Date: Mon, 19 Jun 2017 09:41:11 +0200
-Subject: [PATCH 17/19] redis-benchmark: add -t hset target.
+Subject: [PATCH 17/37] redis-benchmark: add -t hset target.
 
 ---
  src/redis-benchmark.c | 7 +++++++
@@ -26,5 +26,5 @@ index 50905c87..7f560ce7 100644
              len = redisFormatCommand(&cmd,"SPOP myset");
              benchmark("SPOP",cmd,len);
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 

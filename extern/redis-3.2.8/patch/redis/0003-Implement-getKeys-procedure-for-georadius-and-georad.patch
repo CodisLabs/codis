@@ -1,7 +1,7 @@
 From bacb04f89fe22b98881f86523ce8f7b8b6542084 Mon Sep 17 00:00:00 2001
 From: Qu Chen <quchen@amazon.com>
 Date: Fri, 7 Apr 2017 22:31:11 +0000
-Subject: [PATCH 03/19] Implement getKeys procedure for georadius and
+Subject: [PATCH 03/37] Implement getKeys procedure for georadius and
  georadiusbymember commands.
 
 ---
@@ -87,5 +87,5 @@ index 3fa7c3ac..4ca73a25 100644
  /* Cluster */
  void clusterInit(void);
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 

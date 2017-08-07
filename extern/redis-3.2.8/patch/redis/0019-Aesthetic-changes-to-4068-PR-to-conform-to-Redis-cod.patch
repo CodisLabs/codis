@@ -1,7 +1,7 @@
 From d067e3342fefe0be14ce5294a53ea2c76a2a0d04 Mon Sep 17 00:00:00 2001
 From: antirez <antirez@gmail.com>
 Date: Thu, 22 Jun 2017 11:00:21 +0200
-Subject: [PATCH 19/19] Aesthetic changes to #4068 PR to conform to Redis
+Subject: [PATCH 19/37] Aesthetic changes to #4068 PR to conform to Redis
  coding standard.
 
 1. Inline if ... statement if short.
@@ -39,5 +39,5 @@ index ea9ac47a..3b80ca1d 100644
          /* All the other commands don't need translation or need the
           * same translation already operated in the command vector
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 

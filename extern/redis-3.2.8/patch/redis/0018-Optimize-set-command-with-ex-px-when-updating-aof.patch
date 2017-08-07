@@ -1,7 +1,7 @@
 From 2b0f03e4f219a25b06c006e3ee3a4c8da0045d19 Mon Sep 17 00:00:00 2001
 From: xuzhou <xuzhou1@jd.com>
 Date: Thu, 22 Jun 2017 11:06:40 +0800
-Subject: [PATCH 18/19] Optimize set command with ex/px when updating aof.
+Subject: [PATCH 18/37] Optimize set command with ex/px when updating aof.
 
 ---
  src/aof.c | 6 +++---
@@ -32,5 +32,5 @@ index 4a179bd6..ea9ac47a 100644
          }
          serverAssert(!(exarg && pxarg));
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 

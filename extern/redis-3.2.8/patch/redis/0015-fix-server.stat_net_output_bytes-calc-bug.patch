@@ -1,7 +1,7 @@
 From d70ac1d105ddc72afc32a13a6f1690b47d452335 Mon Sep 17 00:00:00 2001
 From: "minghang.zmh" <minghang.zmh@alibaba-inc.com>
 Date: Fri, 10 Feb 2017 20:13:01 +0800
-Subject: [PATCH 15/19] fix server.stat_net_output_bytes calc bug
+Subject: [PATCH 15/37] fix server.stat_net_output_bytes calc bug
 
 ---
  src/networking.c | 2 +-
@@ -25,5 +25,5 @@ index fb5341ec..c81a1307 100644
          if (errno == EAGAIN) {
              nwritten = 0;
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 

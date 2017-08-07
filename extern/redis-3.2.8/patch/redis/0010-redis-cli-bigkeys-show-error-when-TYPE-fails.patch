@@ -1,7 +1,7 @@
 From 3b46cf97de6c5d7f2602dda924703db4f87efcc3 Mon Sep 17 00:00:00 2001
 From: antirez <antirez@gmail.com>
 Date: Mon, 15 May 2017 11:22:28 +0200
-Subject: [PATCH 10/19] redis-cli --bigkeys: show error when TYPE fails.
+Subject: [PATCH 10/37] redis-cli --bigkeys: show error when TYPE fails.
 
 Close #3993.
 ---
@@ -29,5 +29,5 @@ index 9c1de0a2..40f91762 100644
          }
  
 -- 
-2.13.1
+2.14.0.rc1.383.gd1ce394fe2-goog
 
