@@ -45,6 +45,7 @@ migration_async_numkeys = 500
 migration_timeout = "30s"
 
 # Set configs for redis sentinel.
+sentinel_client_timeout = "10s"
 sentinel_quorum = 2
 sentinel_parallel_syncs = 1
 sentinel_down_after = "30s"
@@ -71,6 +72,7 @@ type Config struct {
 	MigrationAsyncNumKeys  int               `toml:"migration_async_numkeys" json:"migration_async_numkeys"`
 	MigrationTimeout       timesize.Duration `toml:"migration_timeout" json:"migration_timeout"`
 
+	SentinelClientTimeout        timesize.Duration `toml:"sentinel_client_timeout" json:"sentinel_client_timeout"`
 	SentinelQuorum               int               `toml:"sentinel_quorum" json:"sentinel_quorum"`
 	SentinelParallelSyncs        int               `toml:"sentinel_parallel_syncs" json:"sentinel_parallel_syncs"`
 	SentinelDownAfter            timesize.Duration `toml:"sentinel_down_after" json:"sentinel_down_after"`
@@ -136,6 +138,9 @@ func (c *Config) Validate() error {
 	}
 	if c.MigrationTimeout <= 0 {
 		return errors.New("invalid migration_timeout")
+	}
+	if c.SentinelClientTimeout <= 0 {
+		return errors.New("invalid sentinel_client_timeout")
 	}
 	if c.SentinelQuorum <= 0 {
 		return errors.New("invalid sentinel_quorum")
