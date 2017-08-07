@@ -220,12 +220,10 @@ func (s *Sentinel) Subscribe(sentinels []string, timeout time.Duration, onMajori
 
 func (s *Sentinel) existsCommand(client *Client, names []string) (map[string]bool, error) {
 	go func() {
-		var pending int
 		for _, name := range names {
-			pending++
 			client.conn.Send("SENTINEL", "get-master-addr-by-name", name)
 		}
-		if pending != 0 {
+		if len(names) != 0 {
 			client.conn.Flush()
 		}
 	}()
@@ -442,7 +440,6 @@ func (s *Sentinel) monitorGroupsCommand(client *Client, sentniel string, config 
 		}
 	}
 	go func() {
-		var pending int
 		for gid := range groups {
 			var args = []interface{}{"set", s.NodeName(gid)}
 			if config.ParallelSyncs != 0 {
@@ -463,13 +460,9 @@ func (s *Sentinel) monitorGroupsCommand(client *Client, sentniel string, config 
 			if config.ClientReconfigScript != "" {
 				args = append(args, "client-reconfig-script", config.ClientReconfigScript)
 			}
-			if len(args) == 2 {
-				continue
-			}
-			pending++
 			client.conn.Send("SENTINEL", args...)
 		}
-		if pending != 0 {
+		if len(groups) != 0 {
 			client.conn.Flush()
 		}
 	}()
