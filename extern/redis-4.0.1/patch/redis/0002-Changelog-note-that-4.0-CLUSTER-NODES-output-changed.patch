@@ -1,0 +1,29 @@
+From f2b2897f8076e9e626b3a16eb56a4e7252617aeb Mon Sep 17 00:00:00 2001
+From: antirez <antirez@gmail.com>
+Date: Wed, 2 Aug 2017 13:07:45 +0200
+Subject: [PATCH 2/2] Changelog: note that 4.0 CLUSTER NODES output changed.
+
+---
+ 00-RELEASENOTES | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/00-RELEASENOTES b/00-RELEASENOTES
+index 1f66354b..652ca1d1 100644
+--- a/00-RELEASENOTES
++++ b/00-RELEASENOTES
+@@ -3719,6 +3719,12 @@ non-backward compatible changes introduced in the 4.0 release:
+   Cluster. SO in order to upgrade a Redis Cluster to 4.0, a mass restart of
+   all the instances is needed.
+ 
++* Redis Cluster CLUSTER NODES output is now slightly different. Nodes
++  addresses are now in the form host:port@bus-port instead of host:port.
++  Clients should use CLUSTER SLOTS in order to fetch the cluster configuration
++  however if they are still using CLUSTER NODES, they should be modified in
++  order to ignore the @bus-port part.
++
+ * Writable slaves do not propagate writes to their sub-slaves, so writes to
+   writable slaves remain just local.
+ 
+-- 
+2.14.0.rc1.383.gd1ce394fe2-goog
+
