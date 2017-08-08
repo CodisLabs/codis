@@ -52,6 +52,14 @@ void hashTypeTryConversion(robj *o, robj **argv, int start, int end) {
     }
 }
 
+/* Encode given objects in-place when the hash uses a dict. */
+void hashTypeTryObjectEncoding(robj *subject, robj **o1, robj **o2) {
+    if (subject->encoding == OBJ_ENCODING_HT) {
+        if (o1) *o1 = tryObjectEncoding(*o1);
+        if (o2) *o2 = tryObjectEncoding(*o2);
+    }
+}
+
 /* Get the value from a ziplist encoded hash, identified by field.
  * Returns -1 when the field cannot be found. */
 int hashTypeGetFromZiplist(robj *o, sds field,

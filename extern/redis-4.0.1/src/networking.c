@@ -133,6 +133,8 @@ client *createClient(int fd) {
     c->pubsub_channels = dictCreate(&objectKeyPointerValueDictType,NULL);
     c->pubsub_patterns = listCreate();
     c->peerid = NULL;
+    c->slotsmgrt_flags = 0;
+    c->slotsmgrt_fenceq = NULL;
     listSetFreeMethod(c->pubsub_patterns,decrRefCountVoid);
     listSetMatchMethod(c->pubsub_patterns,listMatchObjects);
     if (fd != -1) listAddNodeTail(server.clients,c);
@@ -797,6 +799,8 @@ void freeClient(client *c) {
         serverLog(LL_WARNING,"Connection with slave %s lost.",
             replicationGetSlaveName(c));
     }
+
+    slotsmgrtAsyncUnlinkClient(c);
 
     /* Free the query buffer */
     sdsfree(c->querybuf);
@@ -1862,6 +1866,10 @@ char *getClientTypeName(int class) {
 int checkClientOutputBufferLimits(client *c) {
     int soft = 0, hard = 0, class;
     unsigned long used_mem = getClientOutputBufferMemoryUsage(c);
+
+    if (c->slotsmgrt_flags & CLIENT_SLOTSMGRT_ASYNC_CACHED_CLIENT) {
+        return 0;
+    }
 
     class = getClientType(c);
     /* For the purpose of output buffer limiting, masters are handled
