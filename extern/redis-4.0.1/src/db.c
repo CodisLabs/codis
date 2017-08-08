@@ -161,6 +161,16 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
     sds copy = sdsdup(key->ptr);
     int retval = dictAdd(db->dict, copy, val);
 
+    do {
+        uint32_t crc;
+        int hastag;
+        int slot = slots_num(key->ptr, &crc, &hastag);
+        dictAdd(db->hash_slots[slot], copy, (void *)(long)crc);
+        if (hastag) {
+            zslInsert(db->tagged_keys, (double)crc, sdsdup(key->ptr));
+        }
+    } while (0);
+
     serverAssertWithInfo(NULL,key,retval == DICT_OK);
     if (val->type == OBJ_LIST) signalListAsReady(db, key);
     if (server.cluster_enabled) slotToKeyAdd(key);
@@ -239,6 +249,18 @@ int dbSyncDelete(redisDb *db, robj *key) {
     /* Deleting an entry from the expires dict will not free the sds of
      * the key, because it is shared with the main dictionary. */
     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
+
+    do {
+        uint32_t crc;
+        int hastag;
+        int slot = slots_num(key->ptr, &crc, &hastag);
+        if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK) {
+            if (hastag) {
+                zslDelete(db->tagged_keys, (double)crc, key->ptr, NULL);
+            }
+        }
+    } while (0);
+
     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
         if (server.cluster_enabled) slotToKeyDel(key);
         return 1;
@@ -307,6 +329,7 @@ robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
  * database(s). Otherwise -1 is returned in the specific case the
  * DB number is out of range, and errno is set to EINVAL. */
 long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
+    int i;
     int j, async = (flags & EMPTYDB_ASYNC);
     long long removed = 0;
 
@@ -318,6 +341,13 @@ long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
     for (j = 0; j < server.dbnum; j++) {
         if (dbnum != -1 && dbnum != j) continue;
         removed += dictSize(server.db[j].dict);
+        for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
+            dictEmpty(server.db[j].hash_slots[i], NULL);
+        }
+        if (server.db[j].tagged_keys->length != 0) {
+            zslFree(server.db[j].tagged_keys);
+            server.db[j].tagged_keys = zslCreate();
+        }
         if (async) {
             emptyDbAsync(&server.db[j]);
         } else {
@@ -390,10 +420,18 @@ int getFlushCommandFlags(client *c, int *flags) {
  *
  * Flushes the currently SELECTed Redis DB. */
 void flushdbCommand(client *c) {
+    int i;
     int flags;
 
     if (getFlushCommandFlags(c,&flags) == C_ERR) return;
     signalFlushedDb(c->db->id);
+    for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
+        dictEmpty(c->db->hash_slots[i], NULL);
+    }
+    if (c->db->tagged_keys->length != 0) {
+        zslFree(c->db->tagged_keys);
+        c->db->tagged_keys = zslCreate();
+    }
     server.dirty += emptyDb(c->db->id,flags,NULL);
     addReply(c,shared.ok);
 }
@@ -820,7 +858,15 @@ void shutdownCommand(client *c) {
      * Also when in Sentinel mode clear the SAVE flag and force NOSAVE. */
     if (server.loading || server.sentinel_mode)
         flags = (flags & ~SHUTDOWN_SAVE) | SHUTDOWN_NOSAVE;
-    if (prepareForShutdown(flags) == C_OK) exit(0);
+    if (prepareForShutdown(flags) == C_OK) {
+        for (int j = 0; j < server.dbnum; j ++) {
+            for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
+                dictRelease(server.db[j].hash_slots[i]);
+            }
+            zslFree(server.db[j].tagged_keys);
+        }
+        exit(0);
+    }
     addReplyError(c,"Errors trying to SHUTDOWN. Check logs.");
 }
 

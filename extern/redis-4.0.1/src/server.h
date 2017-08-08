@@ -249,6 +249,9 @@ typedef long long mstime_t; /* millisecond time type. */
 #define CLIENT_LUA_DEBUG_SYNC (1<<26)  /* EVAL debugging without fork() */
 #define CLIENT_MODULE (1<<27) /* Non connected client used by some module. */
 
+#define CLIENT_SLOTSMGRT_ASYNC_CACHED_CLIENT (1 << 0)
+#define CLIENT_SLOTSMGRT_ASYNC_NORMAL_CLIENT (1 << 1)
+
 /* Client block type (btype field in client structure)
  * if CLIENT_BLOCKED flag is set. */
 #define BLOCKED_NONE 0    /* Not blocked, no CLIENT_BLOCKED flag set. */
@@ -604,6 +607,16 @@ typedef struct redisObject {
 
 struct evictionPoolEntry; /* Defined in evict.c */
 
+void crc32_init();
+uint32_t crc32_checksum(const char *buf, int len);
+
+long long timeInMilliseconds(void);
+
+#define HASH_SLOTS_MASK 0x000003ff
+#define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
+
+struct zskiplist;
+
 /* Redis database representation. There are multiple databases identified
  * by integers from 0 (the default database) up to the max configured
  * database. The database number is the 'id' field in the structure. */
@@ -613,6 +626,9 @@ typedef struct redisDb {
     dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP)*/
     dict *ready_keys;           /* Blocked keys that received a PUSH */
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
+    dict *hash_slots[HASH_SLOTS_SIZE];
+    int hash_slots_rehashing;
+    struct zskiplist *tagged_keys;
     int id;                     /* Database ID */
     long long avg_ttl;          /* Average TTL, just for stats */
 } redisDb;
@@ -722,6 +738,9 @@ typedef struct client {
     dict *pubsub_channels;  /* channels a client is interested in (SUBSCRIBE) */
     list *pubsub_patterns;  /* patterns a client is interested in (SUBSCRIBE) */
     sds peerid;             /* Cached peer ID. */
+
+    long slotsmgrt_flags;
+    list *slotsmgrt_fenceq;
 
     /* Response buffer */
     int bufpos;
@@ -870,6 +889,19 @@ struct clusterState;
 #define CHILD_INFO_TYPE_RDB 0
 #define CHILD_INFO_TYPE_AOF 1
 
+typedef struct {
+    client *c;
+    int used;
+    sds host;
+    int port;
+    long long timeout;
+    long long lastuse;
+    long sending_msgs;
+    void *batched_iter;
+    list *blocked_list;
+} slotsmgrtAsyncClient;
+
+
 struct redisServer {
     /* General */
     pid_t pid;                  /* Main process pid. */
@@ -919,6 +951,11 @@ struct redisServer {
     int clients_paused;         /* True if clients are currently paused */
     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
+
+    dict *slotsmgrt_cached_sockfds;
+    void *slotsmgrt_lazy_release;
+    slotsmgrtAsyncClient *slotsmgrt_cached_clients;
+
     dict *migrate_cached_sockets;/* MIGRATE cached sockets */
     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
     int protected_mode;         /* Don't accept external connections. */
@@ -1424,6 +1461,8 @@ void touchWatchedKeysOnFlush(int dbid);
 void discardTransaction(client *c);
 void flagTransaction(client *c);
 void execCommandPropagateMulti(client *c);
+
+#define OBJ_SHARED_REFCOUNT INT_MAX
 
 /* Redis object implementation */
 void decrRefCount(robj *o);
@@ -1990,6 +2029,39 @@ void pfdebugCommand(client *c);
 void latencyCommand(client *c);
 void moduleCommand(client *c);
 void securityWarningCommand(client *c);
+
+void slotsinfoCommand(client *c);
+void slotsscanCommand(client *c);
+void slotsdelCommand(client *c);
+void slotsmgrtslotCommand(client *c);
+void slotsmgrtoneCommand(client *c);
+void slotsmgrttagslotCommand(client *c);
+void slotsmgrttagoneCommand(client *c);
+void slotshashkeyCommand(client *c);
+void slotscheckCommand(client *c);
+void slotsrestoreCommand(client *c);
+
+void slotsmgrtSlotAsyncCommand(client *c);
+void slotsmgrtTagSlotAsyncCommand(client *c);
+void slotsmgrtOneAsyncCommand(client *c);
+void slotsmgrtOneAsyncDumpCommand(client *c);
+void slotsmgrtTagOneAsyncCommand(client *c);
+void slotsmgrtTagOneAsyncDumpCommand(client *c);
+void slotsmgrtAsyncFenceCommand(client *c);
+void slotsmgrtAsyncCancelCommand(client *c);
+void slotsmgrtAsyncStatusCommand(client *c);
+void slotsmgrtExecWrapperCommand(client *c);
+void slotsrestoreAsyncCommand(client *c);
+void slotsrestoreAsyncAuthCommand(client *c);
+void slotsrestoreAsyncSelectCommand(client *c);
+void slotsrestoreAsyncAckCommand(client *c);
+
+void slotsmgrtAsyncCleanup();
+void slotsmgrtAsyncUnlinkClient(client *c);
+void slotsmgrtInitLazyReleaseWorkerThread();
+
+void slotsmgrt_cleanup();
+int slots_num(const sds s, uint32_t *pcrc, int *phastag);
 
 #if defined(__GNUC__)
 void *calloc(size_t count, size_t size) __attribute__ ((deprecated));
