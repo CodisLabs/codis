@@ -39,7 +39,7 @@ func (f OpFlag) IsReadOnly() bool {
 
 func (f OpFlag) IsMasterOnly() bool {
 	const mask = FlagWrite | FlagMayWrite | FlagMasterOnly
-	return (f & mask) == 0
+	return (f & mask) != 0
 }
 
 type OpInfo struct {
