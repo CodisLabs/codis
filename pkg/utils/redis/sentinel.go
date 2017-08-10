@@ -433,7 +433,7 @@ func (s *Sentinel) monitorGroupsCommand(client *Client, sentniel string, config 
 			client.conn.Flush()
 		}
 	}()
-	for _ = range groups {
+	for range groups {
 		_, err := client.Receive()
 		if err != nil {
 			return errors.Trace(err)
@@ -466,7 +466,7 @@ func (s *Sentinel) monitorGroupsCommand(client *Client, sentniel string, config 
 			client.conn.Flush()
 		}
 	}()
-	for _ = range groups {
+	for range groups {
 		_, err := client.Receive()
 		if err != nil {
 			return errors.Trace(err)
