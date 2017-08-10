@@ -348,7 +348,7 @@ func (s *Proxy) rewatchSentinels(servers []string) {
 				}
 			}()
 			go func() {
-				for _ = range trigger {
+				for range trigger {
 					var success int
 					for i := 0; i != 10 && !p.IsCanceled() && success != 2; i++ {
 						timeout := time.Second * 5

@@ -218,7 +218,7 @@ func (d *forwardHelper) forward2(s *Slot, r *Request) *BackendConn {
 	if s.migrate.bc == nil && !r.IsMasterOnly() && len(s.replicaGroups) != 0 {
 		for _, group := range s.replicaGroups {
 			var i = seed
-			for _ = range group {
+			for range group {
 				i = (i + 1) % uint(len(group))
 				if bc := group[i].BackendConn(database, seed, false); bc != nil {
 					return bc

@@ -511,7 +511,7 @@ func (s *Sentinel) MonitorGroups(sentinels []string, timeout time.Duration, conf
 	}
 
 	var last error
-	for _ = range sentinels {
+	for range sentinels {
 		select {
 		case <-cntx.Done():
 			if last != nil {
@@ -576,7 +576,7 @@ func (s *Sentinel) RemoveGroups(sentinels []string, timeout time.Duration, group
 	}
 
 	var last error
-	for _ = range sentinels {
+	for range sentinels {
 		select {
 		case <-cntx.Done():
 			if last != nil {
@@ -633,7 +633,7 @@ func (s *Sentinel) RemoveGroupsAll(sentinels []string, timeout time.Duration) er
 	}
 
 	var last error
-	for _ = range sentinels {
+	for range sentinels {
 		select {
 		case <-cntx.Done():
 			if last != nil {

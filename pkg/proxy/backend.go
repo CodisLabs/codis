@@ -474,7 +474,7 @@ func (s *sharedBackendConn) BackendConn(database int32, seed uint, must bool) *B
 	var parallel = s.conns[database]
 
 	var i = seed
-	for _ = range parallel {
+	for range parallel {
 		i = (i + 1) % uint(len(parallel))
 		if bc := parallel[i]; bc.IsConnected() {
 			return bc
