@@ -28,10 +28,10 @@ type Client interface {
 	CreateEphemeralInOrder(path string, data []byte) (<-chan struct{}, string, error)
 }
 
-func NewClient(coordinator string, addrlist string, timeout time.Duration) (Client, error) {
+func NewClient(coordinator string, addrlist string, auth string, timeout time.Duration) (Client, error) {
 	switch coordinator {
 	case "zk", "zookeeper":
-		return zkclient.New(addrlist, timeout)
+		return zkclient.New(addrlist, auth, timeout)
 	case "etcd":
 		return etcdclient.New(addrlist, timeout)
 	case "fs", "filesystem":

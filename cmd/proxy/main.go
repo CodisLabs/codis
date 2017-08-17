@@ -131,6 +131,7 @@ Options:
 	var coordinator struct {
 		name string
 		addr string
+		auth string
 	}
 
 	switch {
@@ -138,6 +139,9 @@ Options:
 	case d["--zookeeper"] != nil:
 		coordinator.name = "zookeeper"
 		coordinator.addr = utils.ArgumentMust(d, "--zookeeper")
+		if d["--zookeeper-auth"] != nil {
+			coordinator.auth = utils.ArgumentMust(d, "--zookeeper-auth")
+		}
 
 	case d["--etcd"] != nil:
 		coordinator.name = "etcd"
@@ -213,7 +217,7 @@ Options:
 	case dashboard != "":
 		go AutoOnlineWithDashboard(s, dashboard)
 	case coordinator.name != "":
-		go AutoOnlineWithCoordinator(s, coordinator.name, coordinator.addr)
+		go AutoOnlineWithCoordinator(s, coordinator.name, coordinator.addr, coordinator.auth)
 	case slots != nil:
 		go AutoOnlineWithFillSlots(s, slots)
 	}
@@ -287,8 +291,8 @@ func AutoOnlineWithDashboard(p *proxy.Proxy, dashboard string) {
 	log.Panicf("online proxy failed")
 }
 
-func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr string) {
-	client, err := models.NewClient(name, addr, time.Minute)
+func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr string, auth string) {
+	client, err := models.NewClient(name, addr, auth, time.Minute)
 	if err != nil {
 		log.PanicErrorf(err, "create '%s' client to '%s' failed", name, addr)
 	}

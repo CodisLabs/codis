@@ -115,7 +115,7 @@ Options:
 		log.Warnf("option --product_auth = %s", s)
 	}
 
-	client, err := models.NewClient(config.CoordinatorName, config.CoordinatorAddr, time.Minute)
+	client, err := models.NewClient(config.CoordinatorName, config.CoordinatorAddr, config.CoordinatorAuth, time.Minute)
 	if err != nil {
 		log.PanicErrorf(err, "create '%s' client to '%s' failed", config.CoordinatorName, config.CoordinatorAddr)
 	}

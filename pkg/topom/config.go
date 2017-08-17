@@ -23,11 +23,13 @@ const DefaultConfig = `
 ##################################################
 
 # Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
+# for zookeeper, coorinator_auth accept "user:password" 
 # Quick Start
 coordinator_name = "filesystem"
 coordinator_addr = "/tmp/codis"
 #coordinator_name = "zookeeper"
 #coordinator_addr = "127.0.0.1:2181"
+#coordinator_auth = ""
 
 # Set Codis Product Name/Auth.
 product_name = "codis-demo"
@@ -57,6 +59,7 @@ sentinel_client_reconfig_script = ""
 type Config struct {
 	CoordinatorName string `toml:"coordinator_name" json:"coordinator_name"`
 	CoordinatorAddr string `toml:"coordinator_addr" json:"coordinator_addr"`
+	CoordinatorAuth string `toml:"coordinator_auth" json:"coordinator_auth"`
 
 	AdminAddr string `toml:"admin_addr" json:"admin_addr"`
 
