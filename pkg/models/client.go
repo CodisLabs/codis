@@ -33,7 +33,7 @@ func NewClient(coordinator string, addrlist string, auth string, timeout time.Du
 	case "zk", "zookeeper":
 		return zkclient.New(addrlist, auth, timeout)
 	case "etcd":
-		return etcdclient.New(addrlist, timeout)
+		return etcdclient.New(addrlist, auth, timeout)
 	case "fs", "filesystem":
 		return fsclient.New(addrlist)
 	}

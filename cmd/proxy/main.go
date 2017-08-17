@@ -146,6 +146,9 @@ Options:
 	case d["--etcd"] != nil:
 		coordinator.name = "etcd"
 		coordinator.addr = utils.ArgumentMust(d, "--etcd")
+		if d["--etcd-auth"] != nil {
+			coordinator.auth = utils.ArgumentMust(d, "--etcd-auth")
+		}
 
 	case d["--filesystem"] != nil:
 		coordinator.name = "filesystem"
