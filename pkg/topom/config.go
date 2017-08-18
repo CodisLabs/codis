@@ -23,7 +23,7 @@ const DefaultConfig = `
 ##################################################
 
 # Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
-# for zookeeper, coorinator_auth accept "user:password" 
+# for zookeeper/etcd, coorinator_auth accept "user:password" 
 # Quick Start
 coordinator_name = "filesystem"
 coordinator_addr = "/tmp/codis"
