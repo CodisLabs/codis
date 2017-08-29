@@ -165,7 +165,7 @@ func (c *Client) mkdir(conn *zk.Conn, path string) error {
 	var acl []zk.ACL
 
 	if c.auth != "" {
-                auth := strings.Split(c.auth, ":")
+		auth := strings.Split(c.auth, ":")
 		acl = zk.DigestACL(zk.PermAll, auth[0], auth[1])
 	} else {
 		acl = zk.WorldACL(zk.PermAll)
