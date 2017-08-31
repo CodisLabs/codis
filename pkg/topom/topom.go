@@ -195,6 +195,11 @@ func (s *Topom) Start(routines bool) error {
 	if !routines {
 		return nil
 	}
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+	s.rewatchSentinels(ctx.sentinel.Servers)
 
 	go func() {
 		for !s.IsClosed() {

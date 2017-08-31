@@ -25,12 +25,13 @@ import (
 	"github.com/CodisLabs/codis/pkg/topom"
 	"github.com/CodisLabs/codis/pkg/utils"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 )
 
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT] [--pidfile=FILE]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT] [--pidfile=FILE] [--product_name=NAME] [--product_auth=AUTH] [--session_auth=AUTH]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -90,13 +91,15 @@ Options:
 	if n, ok := utils.ArgumentInteger(d, "--ncpu"); ok {
 		ncpu = n
 	} else {
-		ncpu = runtime.NumCPU()
+		ncpu = 4
 	}
 	runtime.GOMAXPROCS(ncpu)
 
 	var maxncpu int
 	if n, ok := utils.ArgumentInteger(d, "--max-ncpu"); ok {
-		maxncpu = n
+		maxncpu = math2.MaxInt(ncpu, n)
+	} else {
+		maxncpu = math2.MaxInt(ncpu, runtime.NumCPU())
 	}
 	log.Warnf("set ncpu = %d, max-ncpu = %d", ncpu, maxncpu)
 
@@ -159,6 +162,19 @@ Options:
 		if err := json.Unmarshal(b, &slots); err != nil {
 			log.PanicErrorf(err, "decode slots from json failed")
 		}
+	}
+
+	if s, ok := utils.Argument(d, "--product_name"); ok {
+		config.ProductName = s
+		log.Warnf("option --product_name = %s", s)
+	}
+	if s, ok := utils.Argument(d, "--product_auth"); ok {
+		config.ProductAuth = s
+		log.Warnf("option --product_auth = %s", s)
+	}
+	if s, ok := utils.Argument(d, "--session_auth"); ok {
+		config.SessionAuth = s
+		log.Warnf("option --session_auth = %s", s)
 	}
 
 	s, err := proxy.New(config)

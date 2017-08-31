@@ -2,7 +2,7 @@
 
 export GO15VENDOREXPERIMENT=1
 
-build-all: codis-server codis-dashboard codis-proxy codis-admin codis-fe clean-gotest
+build-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe clean-gotest
 
 codis-deps:
 	@mkdir -p bin config && bash version
@@ -19,6 +19,9 @@ codis-proxy: codis-deps
 codis-admin: codis-deps
 	go build -i -o bin/codis-admin ./cmd/admin
 
+codis-ha: codis-deps
+	go build -i -o bin/codis-ha ./cmd/ha
+
 codis-fe: codis-deps
 	go build -i -o bin/codis-fe ./cmd/fe
 	@rm -rf bin/assets; cp -rf cmd/fe/assets bin/
@@ -31,7 +34,7 @@ codis-server:
 	@cp -f extern/redis-3.2.8/src/redis-benchmark bin/
 	@cp -f extern/redis-3.2.8/src/redis-cli bin/
 	@cp -f extern/redis-3.2.8/redis.conf config/
-	@cp -f extern/redis-3.2.8/sentinel.conf config/
+	@sed -e "s/^sentinel/# sentinel/g" extern/redis-3.2.8/sentinel.conf > config/sentinel.conf
 
 clean-gotest:
 	@rm -rf ./pkg/topom/gotest.tmp

@@ -786,7 +786,8 @@ struct redisServer {
     off_t loading_process_events_interval_bytes;
     /* Fast pointers to often looked up command */
     struct redisCommand *delCommand, *multiCommand, *lpushCommand, *lpopCommand,
-                        *rpopCommand, *sremCommand, *execCommand;
+                        *rpopCommand, *sremCommand, *execCommand, *expireCommand,
+                        *pexpireCommand;
     /* Fields used only for stats */
     time_t stat_starttime;          /* Server start time */
     long long stat_numcommands;     /* Number of processed commands */
@@ -1472,6 +1473,7 @@ int *zunionInterGetKeys(struct redisCommand *cmd,robj **argv, int argc, int *num
 int *evalGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
 int *sortGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
 int *migrateGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
+int *georadiusGetKeys(struct redisCommand *cmd, robj **argv, int argc, int *numkeys);
 
 /* Cluster */
 void clusterInit(void);
@@ -1707,6 +1709,7 @@ void slotsmgrtAsyncStatusCommand(client *c);
 void slotsmgrtExecWrapperCommand(client *c);
 void slotsrestoreAsyncCommand(client *c);
 void slotsrestoreAsyncAuthCommand(client *c);
+void slotsrestoreAsyncSelectCommand(client *c);
 void slotsrestoreAsyncAckCommand(client *c);
 
 void slotsmgrtAsyncCleanup();

@@ -1,0 +1,189 @@
+From 88b32ba356cb52971fd0da00b7d610266913d71f Mon Sep 17 00:00:00 2001
+From: spinlock <wnzheng@gmail.com>
+Date: Wed, 10 May 2017 13:29:12 +0800
+Subject: [PATCH] extern: new command SLOTSRESTORE-ASYNC-SELECT
+
+---
+ extern/redis-3.2.8/src/help.h        |  4 +--
+ extern/redis-3.2.8/src/server.c      | 15 +++++-----
+ extern/redis-3.2.8/src/server.h      |  1 +
+ extern/redis-3.2.8/src/slots_async.c | 54 ++++++++++++++++++------------------
+ 4 files changed, 38 insertions(+), 36 deletions(-)
+
+diff --git a/extern/redis-3.2.8/src/help.h b/extern/redis-3.2.8/src/help.h
+index f4ffcb9..32810e1 100644
+--- a/extern/redis-3.2.8/src/help.h
++++ b/extern/redis-3.2.8/src/help.h
+@@ -1093,11 +1093,11 @@ struct commandHelp {
+         "hashkey command [arg ...]",
+         "", 14, "codis3.2"
+     },
+-    {"SLOTSRESTORE-ASYNC SELECT",
++    {"SLOTSRESTORE-ASYNC-SELECT",
+         "db",
+         "", 14, "codis3.2"
+     },
+-    {"SLOTSRESTORE-ASYNC DEL",
++    {"SLOTSRESTORE-ASYNC DELETE",
+         "key",
+         "", 14, "codis3.2"
+     },
+diff --git a/extern/redis-3.2.8/src/server.c b/extern/redis-3.2.8/src/server.c
+index 4e2abbe..9b7e6a4 100644
+--- a/extern/redis-3.2.8/src/server.c
++++ b/extern/redis-3.2.8/src/server.c
+@@ -307,18 +307,19 @@ struct redisCommand redisCommandTable[] = {
+     {"slotshashkey",slotshashkeyCommand,-1,"rF",0,NULL,0,0,0,0,0},
+     {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
+     {"slotsrestore",slotsrestoreCommand,-4,"wm",0,NULL,0,0,0,0,0},
+-    {"slotsmgrtslot-async",slotsmgrtSlotAsyncCommand,8,"w",0,NULL,0,0,0,0,0},
+-    {"slotsmgrttagslot-async",slotsmgrtTagSlotAsyncCommand,8,"w",0,NULL,0,0,0,0,0},
+-    {"slotsmgrtone-async",slotsmgrtOneAsyncCommand,-7,"w",0,NULL,0,0,0,0,0},
+-    {"slotsmgrttagone-async",slotsmgrtTagOneAsyncCommand,-7,"w",0,NULL,0,0,0,0,0},
++    {"slotsmgrtslot-async",slotsmgrtSlotAsyncCommand,8,"ws",0,NULL,0,0,0,0,0},
++    {"slotsmgrttagslot-async",slotsmgrtTagSlotAsyncCommand,8,"ws",0,NULL,0,0,0,0,0},
++    {"slotsmgrtone-async",slotsmgrtOneAsyncCommand,-7,"ws",0,NULL,0,0,0,0,0},
++    {"slotsmgrttagone-async",slotsmgrtTagOneAsyncCommand,-7,"ws",0,NULL,0,0,0,0,0},
+     {"slotsmgrtone-async-dump",slotsmgrtOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
+     {"slotsmgrttagone-async-dump",slotsmgrtTagOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
+-    {"slotsmgrt-async-fence",slotsmgrtAsyncFenceCommand,0,"r",0,NULL,0,0,0,0,0},
++    {"slotsmgrt-async-fence",slotsmgrtAsyncFenceCommand,0,"rs",0,NULL,0,0,0,0,0},
+     {"slotsmgrt-async-cancel",slotsmgrtAsyncCancelCommand,0,"F",0,NULL,0,0,0,0,0},
+     {"slotsmgrt-async-status",slotsmgrtAsyncStatusCommand,0,"F",0,NULL,0,0,0,0,0},
+     {"slotsmgrt-exec-wrapper",slotsmgrtExecWrapperCommand,-3,"wm",0,NULL,0,0,0,0,0},
+-    {"slotsrestore-async",slotsrestoreAsyncCommand,-2,"w",0,NULL,0,0,0,0,0},
+-    {"slotsrestore-async-auth",slotsrestoreAsyncAuthCommand,2,"F",0,NULL,0,0,0,0,0},
++    {"slotsrestore-async",slotsrestoreAsyncCommand,-2,"wm",0,NULL,0,0,0,0,0},
++    {"slotsrestore-async-auth",slotsrestoreAsyncAuthCommand,2,"sltF",0,NULL,0,0,0,0,0},
++    {"slotsrestore-async-select",slotsrestoreAsyncSelectCommand,2,"lF",0,NULL,0,0,0,0,0},
+     {"slotsrestore-async-ack",slotsrestoreAsyncAckCommand,3,"w",0,NULL,0,0,0,0,0},
+ };
+ 
+diff --git a/extern/redis-3.2.8/src/server.h b/extern/redis-3.2.8/src/server.h
+index f7a4d50..291aec0 100644
+--- a/extern/redis-3.2.8/src/server.h
++++ b/extern/redis-3.2.8/src/server.h
+@@ -1707,6 +1707,7 @@ void slotsmgrtAsyncStatusCommand(client *c);
+ void slotsmgrtExecWrapperCommand(client *c);
+ void slotsrestoreAsyncCommand(client *c);
+ void slotsrestoreAsyncAuthCommand(client *c);
++void slotsrestoreAsyncSelectCommand(client *c);
+ void slotsrestoreAsyncAckCommand(client *c);
+ 
+ void slotsmgrtAsyncCleanup();
+diff --git a/extern/redis-3.2.8/src/slots_async.c b/extern/redis-3.2.8/src/slots_async.c
+index c506942..71558aa 100644
+--- a/extern/redis-3.2.8/src/slots_async.c
++++ b/extern/redis-3.2.8/src/slots_async.c
+@@ -260,20 +260,19 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
+                     leading_msgs += 1;
+                 }
+                 do {
+-                    /* SLOTSRESTORE-ASYNC select $db */
+-                    addReplyMultiBulkLen(c, 3);
+-                    addReplyBulkCString(c, "SLOTSRESTORE-ASYNC");
+-                    addReplyBulkCString(c, "select");
++                    /* SLOTSRESTORE-ASYNC-SELECT $db */
++                    addReplyMultiBulkLen(c, 2);
++                    addReplyBulkCString(c, "SLOTSRESTORE-ASYNC-SELECT");
+                     addReplyBulkLongLong(c, c->db->id);
+                     leading_msgs += 1;
+                 } while (0);
+             }
+         }
+ 
+-        /* SLOTSRESTORE-ASYNC del $key */
++        /* SLOTSRESTORE-ASYNC delete $key */
+         addReplyMultiBulkLen(c, 3);
+         addReplyBulkCString(c, "SLOTSRESTORE-ASYNC");
+-        addReplyBulkCString(c, "del");
++        addReplyBulkCString(c, "delete");
+         addReplyBulk(c, key);
+ 
+         long n = numberOfRestoreCommandsFromObject(val, maxbulks);
+@@ -1306,7 +1305,7 @@ slotsmgrtExecWrapperCommand(client *c) {
+ /* ============================ SlotsrestoreAsync Commands ================================= */
+ 
+ static void
+-slotsrestoreReplyAck(client *c, int errcode, const char *fmt, ...) {
++slotsrestoreReplyAck(client *c, int err_code, const char *fmt, ...) {
+     va_list ap;
+     va_start(ap, fmt);
+     sds s = sdscatvprintf(sdsempty(), fmt, ap);
+@@ -1314,8 +1313,12 @@ slotsrestoreReplyAck(client *c, int errcode, const char *fmt, ...) {
+ 
+     addReplyMultiBulkLen(c, 3);
+     addReplyBulkCString(c, "SLOTSRESTORE-ASYNC-ACK");
+-    addReplyBulkLongLong(c, errcode);
++    addReplyBulkLongLong(c, err_code);
+     addReplyBulkSds(c, s);
++
++    if (err_code != 0) {
++        c->flags |= CLIENT_CLOSE_AFTER_REPLY;
++    }
+ }
+ 
+ extern int verifyDumpPayload(unsigned char *p, size_t len);
+@@ -1333,21 +1336,6 @@ slotsrestoreAsyncHandle(client *c) {
+     }
+     cmd = c->argv[1]->ptr;
+ 
+-    /* SLOTSRESTORE-ASYNC select $db */
+-    if (!strcasecmp(cmd, "select")) {
+-        long long db;
+-        if (c->argc != 3) {
+-            goto bad_arguments_number;
+-        }
+-        if (getLongLongFromObject(c->argv[2], &db) != C_OK ||
+-                !(db >= 0 && db <= INT_MAX) || selectDb(c, db) != C_OK) {
+-            slotsrestoreReplyAck(c, -1, "invalid DB index (DB=%s)", c->argv[2]->ptr);
+-            return C_ERR;
+-        }
+-        slotsrestoreReplyAck(c, 0, "%d", c->db->id);
+-        return C_OK;
+-    }
+-
+     /* ==================================================== */
+     /* SLOTSRESTORE-ASYNC $cmd $key [$ttl $arg1, $arg2 ...] */
+     /* ==================================================== */
+@@ -1358,8 +1346,8 @@ slotsrestoreAsyncHandle(client *c) {
+ 
+     robj *key = c->argv[2];
+ 
+-    /* SLOTSRESTORE-ASYNC del $key */
+-    if (!strcasecmp(cmd, "del")) {
++    /* SLOTSRESTORE-ASYNC delete $key */
++    if (!strcasecmp(cmd, "delete")) {
+         if (c->argc != 3) {
+             goto bad_arguments_number;
+         }
+@@ -1635,8 +1623,7 @@ success_common:
+ 
+ 
+ /* *
+- * SLOTSRESTORE-ASYNC select $db
+- *                    del    $key
++ * SLOTSRESTORE-ASYNC delete $key
+  *                    expire $key $ttl
+  *                    object $key $ttl $payload
+  *                    string $key $ttl $payload
+@@ -1768,3 +1755,16 @@ slotsrestoreAsyncAuthCommand(client *c) {
+     }
+ }
+ 
++/* *
++ * SLOTSRESTORE-ASYNC-SELECT $db
++ * */
++void
++slotsrestoreAsyncSelectCommand(client *c) {
++    long long db;
++    if (getLongLongFromObject(c->argv[1], &db) != C_OK ||
++            !(db >= 0 && db <= INT_MAX) || selectDb(c, db) != C_OK) {
++        slotsrestoreReplyAck(c, -1, "invalid DB index (%s)", c->argv[1]->ptr);
++    } else {
++        slotsrestoreReplyAck(c, 0, "OK");
++    }
++}
+-- 
+2.12.2
+

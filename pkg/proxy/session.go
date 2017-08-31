@@ -197,11 +197,14 @@ func (s *Session) loopWriter(tasks *RequestChan) (err error) {
 		s.flushOpStats(true)
 	}()
 
-	var breakOnFailure = s.config.SessionBreakOnFailure
+	var (
+		breakOnFailure = s.config.SessionBreakOnFailure
+		maxPipelineLen = s.config.SessionMaxPipeline
+	)
 
 	p := s.Conn.FlushEncoder()
 	p.MaxInterval = time.Millisecond
-	p.MaxBuffered = 256
+	p.MaxBuffered = maxPipelineLen / 2
 
 	return tasks.PopFrontAll(func(r *Request) error {
 		resp, err := s.handleResponse(r)
@@ -264,7 +267,7 @@ func (s *Session) handleRequest(r *Request, d *Router) error {
 	}
 
 	if !s.authorized {
-		if s.config.ProductAuth != "" {
+		if s.config.SessionAuth != "" {
 			r.Resp = redis.NewErrorf("NOAUTH Authentication required")
 			return nil
 		}
@@ -309,9 +312,9 @@ func (s *Session) handleAuth(r *Request) error {
 		return nil
 	}
 	switch {
-	case s.config.ProductAuth == "":
+	case s.config.SessionAuth == "":
 		r.Resp = redis.NewErrorf("ERR Client sent AUTH, but no password is set")
-	case s.config.ProductAuth != string(r.Multi[1].Value):
+	case s.config.SessionAuth != string(r.Multi[1].Value):
 		s.authorized = false
 		r.Resp = redis.NewErrorf("ERR invalid password")
 	default:

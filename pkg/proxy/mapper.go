@@ -37,6 +37,11 @@ func (f OpFlag) IsReadOnly() bool {
 	return (f & mask) == 0
 }
 
+func (f OpFlag) IsMasterOnly() bool {
+	const mask = FlagWrite | FlagMayWrite | FlagMasterOnly
+	return (f & mask) != 0
+}
+
 type OpInfo struct {
 	Name string
 	Flag OpFlag
@@ -44,6 +49,7 @@ type OpInfo struct {
 
 const (
 	FlagWrite = 1 << iota
+	FlagMasterOnly
 	FlagMayWrite
 	FlagNotAllow
 )
@@ -104,7 +110,7 @@ func init() {
 		{"HLEN", 0},
 		{"HMGET", 0},
 		{"HMSET", FlagWrite},
-		{"HSCAN", 0},
+		{"HSCAN", FlagMasterOnly},
 		{"HSET", FlagWrite},
 		{"HSETNX", FlagWrite},
 		{"HSTRLEN", 0},
@@ -150,6 +156,7 @@ func init() {
 		{"PUBLISH", FlagNotAllow},
 		{"PUBSUB", 0},
 		{"PUNSUBSCRIBE", FlagNotAllow},
+		{"QUIT", 0},
 		{"RANDOMKEY", FlagNotAllow},
 		{"READONLY", FlagNotAllow},
 		{"READWRITE", FlagNotAllow},
@@ -165,7 +172,7 @@ func init() {
 		{"RPUSHX", FlagWrite},
 		{"SADD", FlagWrite},
 		{"SAVE", FlagNotAllow},
-		{"SCAN", FlagNotAllow},
+		{"SCAN", FlagMasterOnly | FlagNotAllow},
 		{"SCARD", 0},
 		{"SCRIPT", FlagNotAllow},
 		{"SDIFF", 0},
@@ -184,14 +191,25 @@ func init() {
 		{"SLOTSCHECK", FlagNotAllow},
 		{"SLOTSDEL", FlagWrite | FlagNotAllow},
 		{"SLOTSHASHKEY", 0},
-		{"SLOTSINFO", 0},
+		{"SLOTSINFO", FlagMasterOnly},
 		{"SLOTSMAPPING", 0},
 		{"SLOTSMGRTONE", FlagWrite | FlagNotAllow},
 		{"SLOTSMGRTSLOT", FlagWrite | FlagNotAllow},
 		{"SLOTSMGRTTAGONE", FlagWrite | FlagNotAllow},
 		{"SLOTSMGRTTAGSLOT", FlagWrite | FlagNotAllow},
 		{"SLOTSRESTORE", FlagWrite},
-		{"SLOTSSCAN", 0},
+		{"SLOTSMGRTONE-ASYNC", FlagWrite | FlagNotAllow},
+		{"SLOTSMGRTSLOT-ASYNC", FlagWrite | FlagNotAllow},
+		{"SLOTSMGRTTAGONE-ASYNC", FlagWrite | FlagNotAllow},
+		{"SLOTSMGRTTAGSLOT-ASYNC", FlagWrite | FlagNotAllow},
+		{"SLOTSMGRT-ASYNC-FENCE", FlagNotAllow},
+		{"SLOTSMGRT-ASYNC-CANCEL", FlagNotAllow},
+		{"SLOTSMGRT-ASYNC-STATUS", FlagNotAllow},
+		{"SLOTSMGRT-EXEC-WRAPPER", FlagWrite | FlagNotAllow},
+		{"SLOTSRESTORE-ASYNC", FlagWrite | FlagNotAllow},
+		{"SLOTSRESTORE-ASYNC-AUTH", FlagWrite | FlagNotAllow},
+		{"SLOTSRESTORE-ASYNC-ACK", FlagWrite | FlagNotAllow},
+		{"SLOTSSCAN", FlagMasterOnly},
 		{"SLOWLOG", FlagNotAllow},
 		{"SMEMBERS", 0},
 		{"SMOVE", FlagWrite},
@@ -199,7 +217,7 @@ func init() {
 		{"SPOP", FlagWrite},
 		{"SRANDMEMBER", 0},
 		{"SREM", FlagWrite},
-		{"SSCAN", 0},
+		{"SSCAN", FlagMasterOnly},
 		{"STRLEN", 0},
 		{"SUBSCRIBE", FlagNotAllow},
 		{"SUBSTR", 0},
@@ -232,7 +250,7 @@ func init() {
 		{"ZREVRANGEBYLEX", 0},
 		{"ZREVRANGEBYSCORE", 0},
 		{"ZREVRANK", 0},
-		{"ZSCAN", 0},
+		{"ZSCAN", FlagMasterOnly},
 		{"ZSCORE", 0},
 		{"ZUNIONSTORE", FlagWrite},
 	} {

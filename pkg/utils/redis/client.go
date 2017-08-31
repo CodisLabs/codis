@@ -64,17 +64,6 @@ func (c *Client) Do(cmd string, args ...interface{}) (interface{}, error) {
 	return r, nil
 }
 
-func (c *Client) Flush(cmd string, args ...interface{}) error {
-	if err := c.conn.Send(cmd, args...); err != nil {
-		return errors.Trace(err)
-	}
-	if err := c.conn.Flush(); err != nil {
-		return errors.Trace(err)
-	}
-	c.LastUse = time.Now()
-	return nil
-}
-
 func (c *Client) Receive() (interface{}, error) {
 	r, err := c.conn.Receive()
 	if err != nil {
@@ -98,6 +87,15 @@ func (c *Client) Select(database int) error {
 		return errors.Trace(err)
 	}
 	c.Database = database
+	return nil
+}
+
+func (c *Client) Shutdown() error {
+	_, err := c.Do("SHUTDOWN")
+	if err != nil {
+		c.Close()
+		return errors.Trace(err)
+	}
 	return nil
 }
 
