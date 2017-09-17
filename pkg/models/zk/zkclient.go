@@ -28,7 +28,8 @@ type Client struct {
 	conn *zk.Conn
 
 	addrlist string
-	auth     string
+	username string
+	password string
 	timeout  time.Duration
 
 	logger *zkLogger
@@ -55,8 +56,16 @@ func NewWithLogfunc(addrlist string, auth string, timeout time.Duration, logfunc
 		timeout = time.Second * 5
 	}
 	c := &Client{
-		addrlist: addrlist, auth: auth, timeout: timeout,
+		addrlist: addrlist, timeout: timeout,
 		logger: &zkLogger{logfunc},
+	}
+	if auth != "" {
+		split := strings.Split(auth, ":")
+		if len(split) != 2 || split[0] == "" {
+			return nil, errors.Errorf("invalid auth")
+		}
+		c.username = split[0]
+		c.password = split[1]
 	}
 	if err := c.reset(); err != nil {
 		return nil, err
@@ -78,8 +87,9 @@ func (c *Client) reset() error {
 
 	c.logger.Printf("zkclient setup new connection to %s", c.addrlist)
 
-	if c.auth != "" {
-		if err := c.conn.AddAuth("digest", []byte(c.auth)); err != nil {
+	if c.username != "" {
+		var auth = fmt.Sprintf("%s:%s", c.username, c.password)
+		if err := c.conn.AddAuth("digest", []byte(auth)); err != nil {
 			return errors.Trace(err)
 		}
 	}
@@ -162,15 +172,13 @@ func (c *Client) mkdir(conn *zk.Conn, path string) error {
 	if err := c.mkdir(conn, filepath.Dir(path)); err != nil {
 		return err
 	}
-	var acl []zk.ACL
-
-	if c.auth != "" {
-		auth := strings.Split(c.auth, ":")
-		acl = zk.DigestACL(zk.PermAll, auth[0], auth[1])
-	} else {
-		acl = zk.WorldACL(zk.PermAll)
-	}
-	_, err := conn.Create(path, []byte{}, 0, acl)
+	_, err := conn.Create(path, []byte{}, 0, func() []zk.ACL {
+		const perm = zk.PermAll
+		if c.username != "" {
+			return zk.DigestACL(perm, c.username, c.password)
+		}
+		return zk.WorldACL(perm)
+	}())
 	if err != nil && errors.NotEqual(err, zk.ErrNodeExists) {
 		return errors.Trace(err)
 	}
@@ -228,16 +236,13 @@ func (c *Client) create(conn *zk.Conn, path string, data []byte, flag int32) (st
 	if err := c.mkdir(conn, filepath.Dir(path)); err != nil {
 		return "", err
 	}
-
-	var acl []zk.ACL
-
-	if c.auth != "" {
-		auth := strings.Split(c.auth, ":")
-		acl = zk.DigestACL(zk.PermAdmin|zk.PermRead|zk.PermWrite, auth[0], auth[1])
-	} else {
-		acl = zk.WorldACL(zk.PermAdmin|zk.PermRead|zk.PermWrite)
-	}
-	p, err := conn.Create(path, data, flag, acl)
+	p, err := conn.Create(path, data, flag, func() []zk.ACL {
+		const perm = zk.PermAdmin | zk.PermRead | zk.PermWrite
+		if c.username != "" {
+			return zk.DigestACL(perm, c.username, c.password)
+		}
+		return zk.WorldACL(perm)
+	}())
 	if err != nil {
 		return "", errors.Trace(err)
 	}

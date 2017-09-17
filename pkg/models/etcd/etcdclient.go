@@ -45,15 +45,18 @@ func New(addrlist string, auth string, timeout time.Duration) (*Client, error) {
 		timeout = time.Second * 5
 	}
 
-        config := client.Config{
+	config := client.Config{
 		Endpoints: endpoints, Transport: client.DefaultTransport,
 		HeaderTimeoutPerRequest: time.Second * 5,
 	}
 
 	if auth != "" {
-		a := strings.Split(auth, ":")
-		config.Username = a[0]
-		config.Password = a[1]
+		split := strings.Split(auth, ":")
+		if len(split) != 2 || split[0] == "" {
+			return nil, errors.Errorf("invalid auth")
+		}
+		config.Username = split[0]
+		config.Password = split[1]
 	}
 
 	c, err := client.New(config)

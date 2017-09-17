@@ -294,7 +294,7 @@ func AutoOnlineWithDashboard(p *proxy.Proxy, dashboard string) {
 	log.Panicf("online proxy failed")
 }
 
-func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr string, auth string) {
+func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr, auth string) {
 	client, err := models.NewClient(name, addr, auth, time.Minute)
 	if err != nil {
 		log.PanicErrorf(err, "create '%s' client to '%s' failed", name, addr)
