@@ -42,13 +42,15 @@ proxy_addr = "0.0.0.0:19000"
 # Set jodis address & session timeout
 #   1. jodis_name is short for jodis_coordinator_name, only accept "zookeeper" & "etcd".
 #   2. jodis_addr is short for jodis_coordinator_addr
-#   3. proxy will be registered as node:
+#   3. jodis_auth is short for jodis_coordinator_auth, for zookeeper/etcd, "user:password" is accepted.
+#   4. proxy will be registered as node:
 #        if jodis_compatible = true (not suggested):
 #          /zk/codis/db_{PRODUCT_NAME}/proxy-{HASHID} (compatible with Codis2.0)
 #        or else
 #          /jodis/{PRODUCT_NAME}/proxy-{HASHID}
 jodis_name = ""
 jodis_addr = ""
+jodis_auth = ""
 jodis_timeout = "20s"
 jodis_compatible = false
 
@@ -137,6 +139,7 @@ type Config struct {
 
 	JodisName       string            `toml:"jodis_name" json:"jodis_name"`
 	JodisAddr       string            `toml:"jodis_addr" json:"jodis_addr"`
+	JodisAuth       string            `toml:"jodis_auth" json:"jodis_auth"`
 	JodisTimeout    timesize.Duration `toml:"jodis_timeout" json:"jodis_timeout"`
 	JodisCompatible bool              `toml:"jodis_compatible" json:"jodis_compatible"`
 
