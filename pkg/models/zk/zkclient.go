@@ -60,7 +60,7 @@ func NewWithLogfunc(addrlist string, auth string, timeout time.Duration, logfunc
 		logger: &zkLogger{logfunc},
 	}
 	if auth != "" {
-		split := strings.Split(auth, ":")
+		split := strings.SplitN(auth, ":", 2)
 		if len(split) != 2 || split[0] == "" {
 			return nil, errors.Errorf("invalid auth")
 		}

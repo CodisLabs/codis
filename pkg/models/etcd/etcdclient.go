@@ -51,7 +51,7 @@ func New(addrlist string, auth string, timeout time.Duration) (*Client, error) {
 	}
 
 	if auth != "" {
-		split := strings.Split(auth, ":")
+		split := strings.SplitN(auth, ":", 2)
 		if len(split) != 2 || split[0] == "" {
 			return nil, errors.Errorf("invalid auth")
 		}
