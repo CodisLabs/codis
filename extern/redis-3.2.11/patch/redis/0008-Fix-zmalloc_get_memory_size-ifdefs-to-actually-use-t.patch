@@ -1,0 +1,27 @@
+From dd80fedf6fd10556cac7d8318fa4b34fa67a1c81 Mon Sep 17 00:00:00 2001
+From: antirez <antirez@gmail.com>
+Date: Tue, 11 Apr 2017 16:45:08 +0200
+Subject: [PATCH 08/39] Fix zmalloc_get_memory_size() ifdefs to actually use
+ the else branch.
+
+Close #3927.
+---
+ src/zmalloc.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/src/zmalloc.c b/src/zmalloc.c
+index 640ee19e..d795f448 100644
+--- a/src/zmalloc.c
++++ b/src/zmalloc.c
+@@ -413,8 +413,6 @@ size_t zmalloc_get_memory_size(void) {
+     if (sysctl(mib, 2, &size, &len, NULL, 0) == 0)
+         return (size_t)size;
+     return 0L;          /* Failed? */
+-#endif /* sysctl and sysconf variants */
+-
+ #else
+     return 0L;          /* Unknown OS. */
+ #endif
+-- 
+2.14.1
+

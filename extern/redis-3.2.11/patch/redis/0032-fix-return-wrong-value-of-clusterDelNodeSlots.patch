@@ -1,0 +1,29 @@
+From 41963fe67649f9034dcdd715dc3c1973b3cc6ea2 Mon Sep 17 00:00:00 2001
+From: Leon Chen <chen.bao.yi@qq.com>
+Date: Thu, 20 Jul 2017 17:24:38 +0800
+Subject: [PATCH 32/39] fix return wrong value of clusterDelNodeSlots
+
+---
+ src/cluster.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/cluster.c b/src/cluster.c
+index f8321e2c..6ca68367 100644
+--- a/src/cluster.c
++++ b/src/cluster.c
+@@ -3441,8 +3441,10 @@ int clusterDelNodeSlots(clusterNode *node) {
+     int deleted = 0, j;
+ 
+     for (j = 0; j < CLUSTER_SLOTS; j++) {
+-        if (clusterNodeGetSlotBit(node,j)) clusterDelSlot(j);
+-        deleted++;
++        if (clusterNodeGetSlotBit(node,j)) {
++            clusterDelSlot(j);
++            deleted++;
++        }
+     }
+     return deleted;
+ }
+-- 
+2.14.1
+

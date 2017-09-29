@@ -1,0 +1,27 @@
+From a309388dff549f26f865bcae189b96950e6d0510 Mon Sep 17 00:00:00 2001
+From: Suraj Narkhede <surajn.vnit@gmail.com>
+Date: Fri, 23 Jun 2017 00:30:21 -0700
+Subject: [PATCH 25/39] Fix following issues in blocking commands: 1. brpop
+ last key index, thus checking all keys for slots. 2. Memory leak in
+ clusterRedirectBlockedClientIfNeeded. 3. Remove while loop in
+ clusterRedirectBlockedClientIfNeeded.
+
+---
+ src/cluster.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/cluster.c b/src/cluster.c
+index 81f1bec2..8eb7e429 100644
+--- a/src/cluster.c
++++ b/src/cluster.c
+@@ -5223,6 +5223,7 @@ int clusterRedirectBlockedClientIfNeeded(client *c) {
+                     clusterRedirectClient(c,node,slot,
+                         CLUSTER_REDIR_MOVED);
+                 }
++                dictReleaseIterator(di);
+                 return 1;
+             }
+         }
+-- 
+2.14.1
+

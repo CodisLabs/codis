@@ -1,0 +1,34 @@
+From 10dbb5cd33cdc78edc70c1827e5c7c7f46eb9538 Mon Sep 17 00:00:00 2001
+From: antirez <antirez@gmail.com>
+Date: Mon, 20 Feb 2017 10:18:41 +0100
+Subject: [PATCH 01/39] Don't leak file descriptor on syncWithMaster().
+
+Close #3804.
+---
+ src/replication.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/replication.c b/src/replication.c
+index e7194e59..8d9bcfbf 100644
+--- a/src/replication.c
++++ b/src/replication.c
+@@ -1385,7 +1385,7 @@ int slaveTryPartialResynchronization(int fd, int read_reply) {
+ 
+ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
+     char tmpfile[256], *err = NULL;
+-    int dfd, maxtries = 5;
++    int dfd = -1, maxtries = 5;
+     int sockerr = 0, psync_result;
+     socklen_t errlen = sizeof(sockerr);
+     UNUSED(el);
+@@ -1640,6 +1640,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
+ 
+ error:
+     aeDeleteFileEvent(server.el,fd,AE_READABLE|AE_WRITABLE);
++    if (dfd != -1) close(dfd);
+     close(fd);
+     server.repl_transfer_s = -1;
+     server.repl_state = REPL_STATE_CONNECT;
+-- 
+2.14.1
+

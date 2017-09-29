@@ -1,0 +1,27 @@
+From 13546adcb9cb83dd021b6f8e068d00f6b0669d20 Mon Sep 17 00:00:00 2001
+From: cbgbt <sean.kelly.2992@gmail.com>
+Date: Thu, 1 Dec 2016 02:33:01 -0800
+Subject: [PATCH 13/39] cli: Only print elapsed time on OUTPUT_STANDARD
+
+---
+ src/redis-cli.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/src/redis-cli.c b/src/redis-cli.c
+index 40f91762..3c711402 100644
+--- a/src/redis-cli.c
++++ b/src/redis-cli.c
+@@ -1351,7 +1351,9 @@ static void repl(void) {
+                     }
+ 
+                     elapsed = mstime()-start_time;
+-                    if (elapsed >= 500) {
++                    if (elapsed >= 500 &&
++                        config.output == OUTPUT_STANDARD)
++                    {
+                         printf("(%.2fs)\n",(double)elapsed/1000);
+                     }
+                 }
+-- 
+2.14.1
+
