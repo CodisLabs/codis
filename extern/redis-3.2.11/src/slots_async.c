@@ -57,6 +57,43 @@ slotsmgrtInitLazyReleaseWorkerThread() {
     server.slotsmgrt_lazy_release = createLazyReleaseWorkerThread();
 }
 
+void
+dictObjectAsyncDestructor(void *privdata, void *data) {
+    DICT_NOTUSED(privdata);
+    if (data == NULL) {
+        return;
+    }
+    long long numbulks = 0;
+    robj *val = data;
+    switch (val->type) {
+    case OBJ_LIST:
+        if (val->encoding == OBJ_ENCODING_QUICKLIST) {
+            numbulks = listTypeLength(val);
+        }
+        break;
+    case OBJ_HASH:
+        if (val->encoding == OBJ_ENCODING_HT) {
+            numbulks = hashTypeLength(val) * 2;
+        }
+        break;
+    case OBJ_SET:
+        if (val->encoding == OBJ_ENCODING_HT) {
+            numbulks = setTypeSize(val);
+        }
+        break;
+    case OBJ_ZSET:
+        if (val->encoding == OBJ_ENCODING_SKIPLIST) {
+            numbulks = zsetLength(val) * 2;
+        }
+        break;
+    }
+    if (val->refcount != 1 || numbulks <= 1024) {
+        decrRefCount(val);
+    } else {
+        lazyReleaseObject(val);
+    }
+}
+
 /* ============================ Iterator for Data Migration ================================ */
 
 #define STAGE_PREPARE 0
