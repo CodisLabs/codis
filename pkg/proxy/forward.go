@@ -215,10 +215,10 @@ func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, database int3
 
 func (d *forwardHelper) forward2(s *Slot, r *Request) *BackendConn {
 	var database, seed = r.Database, r.Seed16()
-	if s.migrate.bc == nil && r.IsReadOnly() && len(s.replicaGroups) != 0 {
+	if s.migrate.bc == nil && !r.IsMasterOnly() && len(s.replicaGroups) != 0 {
 		for _, group := range s.replicaGroups {
 			var i = seed
-			for _ = range group {
+			for range group {
 				i = (i + 1) % uint(len(group))
 				if bc := group[i].BackendConn(database, seed, false); bc != nil {
 					return bc

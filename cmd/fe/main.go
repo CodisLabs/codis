@@ -56,7 +56,7 @@ func init() {
 func main() {
 	const usage = `
 Usage:
-	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] [--pidfile=FILE] (--dashboard-list=FILE|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT) --listen=ADDR
+	codis-fe [--ncpu=N] [--log=FILE] [--log-level=LEVEL] [--assets-dir=PATH] [--pidfile=FILE] (--dashboard-list=FILE|--zookeeper=ADDR [--zookeeper-auth=USR:PWD]|--etcd=ADDR [--etcd-auth=USR:PWD]|--filesystem=ROOT) --listen=ADDR
 	codis-fe  --version
 
 Options:
@@ -133,16 +133,23 @@ Options:
 		var coordinator struct {
 			name string
 			addr string
+			auth string
 		}
 
 		switch {
 		case d["--zookeeper"] != nil:
 			coordinator.name = "zookeeper"
 			coordinator.addr = utils.ArgumentMust(d, "--zookeeper")
+			if d["--zookeeper-auth"] != nil {
+				coordinator.auth = utils.ArgumentMust(d, "--zookeeper-auth")
+			}
 
 		case d["--etcd"] != nil:
 			coordinator.name = "etcd"
 			coordinator.addr = utils.ArgumentMust(d, "--etcd")
+			if d["--etcd-auth"] != nil {
+				coordinator.auth = utils.ArgumentMust(d, "--etcd-auth")
+			}
 
 		case d["--filesystem"] != nil:
 			coordinator.name = "filesystem"
@@ -154,7 +161,7 @@ Options:
 
 		log.Warnf("set --%s = %s", coordinator.name, coordinator.addr)
 
-		c, err := models.NewClient(coordinator.name, coordinator.addr, time.Minute)
+		c, err := models.NewClient(coordinator.name, coordinator.addr, coordinator.auth, time.Minute)
 		if err != nil {
 			log.PanicErrorf(err, "create '%s' client to '%s' failed", coordinator.name, coordinator.addr)
 		}

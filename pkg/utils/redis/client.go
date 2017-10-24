@@ -64,17 +64,6 @@ func (c *Client) Do(cmd string, args ...interface{}) (interface{}, error) {
 	return r, nil
 }
 
-func (c *Client) Flush(cmd string, args ...interface{}) error {
-	if err := c.conn.Send(cmd, args...); err != nil {
-		return errors.Trace(err)
-	}
-	if err := c.conn.Flush(); err != nil {
-		return errors.Trace(err)
-	}
-	c.LastUse = time.Now()
-	return nil
-}
-
 func (c *Client) Receive() (interface{}, error) {
 	r, err := c.conn.Receive()
 	if err != nil {

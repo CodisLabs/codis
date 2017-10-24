@@ -31,7 +31,7 @@ import (
 func main() {
 	const usage = `
 Usage:
-	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR|--etcd=ADDR|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT] [--pidfile=FILE] [--product_name=NAME] [--product_auth=AUTH] [--session_auth=AUTH]
+	codis-proxy [--ncpu=N [--max-ncpu=MAX]] [--config=CONF] [--log=FILE] [--log-level=LEVEL] [--host-admin=ADDR] [--host-proxy=ADDR] [--dashboard=ADDR|--zookeeper=ADDR [--zookeeper-auth=USR:PWD]|--etcd=ADDR [--etcd-auth=USR:PWD]|--filesystem=ROOT|--fillslots=FILE] [--ulimit=NLIMIT] [--pidfile=FILE] [--product_name=NAME] [--product_auth=AUTH] [--session_auth=AUTH]
 	codis-proxy  --default-config
 	codis-proxy  --version
 
@@ -131,6 +131,7 @@ Options:
 	var coordinator struct {
 		name string
 		addr string
+		auth string
 	}
 
 	switch {
@@ -138,10 +139,16 @@ Options:
 	case d["--zookeeper"] != nil:
 		coordinator.name = "zookeeper"
 		coordinator.addr = utils.ArgumentMust(d, "--zookeeper")
+		if d["--zookeeper-auth"] != nil {
+			coordinator.auth = utils.ArgumentMust(d, "--zookeeper-auth")
+		}
 
 	case d["--etcd"] != nil:
 		coordinator.name = "etcd"
 		coordinator.addr = utils.ArgumentMust(d, "--etcd")
+		if d["--etcd-auth"] != nil {
+			coordinator.auth = utils.ArgumentMust(d, "--etcd-auth")
+		}
 
 	case d["--filesystem"] != nil:
 		coordinator.name = "filesystem"
@@ -213,7 +220,7 @@ Options:
 	case dashboard != "":
 		go AutoOnlineWithDashboard(s, dashboard)
 	case coordinator.name != "":
-		go AutoOnlineWithCoordinator(s, coordinator.name, coordinator.addr)
+		go AutoOnlineWithCoordinator(s, coordinator.name, coordinator.addr, coordinator.auth)
 	case slots != nil:
 		go AutoOnlineWithFillSlots(s, slots)
 	}
@@ -287,8 +294,8 @@ func AutoOnlineWithDashboard(p *proxy.Proxy, dashboard string) {
 	log.Panicf("online proxy failed")
 }
 
-func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr string) {
-	client, err := models.NewClient(name, addr, time.Minute)
+func AutoOnlineWithCoordinator(p *proxy.Proxy, name, addr, auth string) {
+	client, err := models.NewClient(name, addr, auth, time.Minute)
 	if err != nil {
 		log.PanicErrorf(err, "create '%s' client to '%s' failed", name, addr)
 	}
