@@ -1,0 +1,15 @@
+diff --git a/extern/redis-3.2.8/src/help.h b/extern/redis-3.2.8/src/help.h
+index bf27662..f4ffcb9 100644
+--- a/extern/redis-3.2.8/src/help.h
++++ b/extern/redis-3.2.8/src/help.h
+@@ -1093,10 +1093,6 @@ struct commandHelp {
+         "hashkey command [arg ...]",
+         "", 14, "codis3.2"
+     },
+-    {"SLOTSMGRT-LAZY-RELEASE",
+-        "[microseconds]",
+-        "", 14, "codis3.2"
+-    },
+     {"SLOTSRESTORE-ASYNC SELECT",
+         "db",
+         "", 14, "codis3.2"
