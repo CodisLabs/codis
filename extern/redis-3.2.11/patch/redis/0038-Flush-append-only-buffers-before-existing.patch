@@ -1,0 +1,30 @@
+From 13e8e53806e466682444b262af2f3170541e2043 Mon Sep 17 00:00:00 2001
+From: Oran Agra <oran@redislabs.com>
+Date: Sun, 17 Sep 2017 07:22:16 +0300
+Subject: [PATCH 38/39] Flush append only buffers before existing.
+
+when SHUTDOWN command is recived it is possible that some of the recent
+command were not yet flushed from the AOF buffer, and the server
+experiences data loss at shutdown.
+---
+ src/server.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/server.c b/src/server.c
+index aeff9488..6565b0b7 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -2595,8 +2595,9 @@ int prepareForShutdown(int flags) {
+                 "There is a child rewriting the AOF. Killing it!");
+             kill(server.aof_child_pid,SIGUSR1);
+         }
+-        /* Append only file: fsync() the AOF and exit */
++        /* Append only file: flush buffers and fsync() the AOF at exit */
+         serverLog(LL_NOTICE,"Calling fsync() on the AOF file.");
++        flushAppendOnlyFile(1);
+         aof_fsync(server.aof_fd);
+     }
+ 
+-- 
+2.14.1
+

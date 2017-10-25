@@ -1,0 +1,25 @@
+From 7018d27dfe1e1af55b9e90b142f51d07f4b1f6e1 Mon Sep 17 00:00:00 2001
+From: antirez <antirez@gmail.com>
+Date: Fri, 30 Jun 2017 12:12:00 +0200
+Subject: [PATCH 27/39] Fix abort typo in Lua debugger help screen.
+
+---
+ src/scripting.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/scripting.c b/src/scripting.c
+index 216dfbf1..5b5cb71d 100644
+--- a/src/scripting.c
++++ b/src/scripting.c
+@@ -2271,7 +2271,7 @@ ldbLog(sdsnew("[e]eval <code>       Execute some Lua code (in a different callfr
+ ldbLog(sdsnew("[r]edis <cmd>        Execute a Redis command."));
+ ldbLog(sdsnew("[m]axlen [len]       Trim logged Redis replies and Lua var dumps to len."));
+ ldbLog(sdsnew("                     Specifying zero as <len> means unlimited."));
+-ldbLog(sdsnew("[a]abort             Stop the execution of the script. In sync"));
++ldbLog(sdsnew("[a]bort              Stop the execution of the script. In sync"));
+ ldbLog(sdsnew("                     mode dataset changes will be retained."));
+ ldbLog(sdsnew(""));
+ ldbLog(sdsnew("Debugger functions you can call from Lua scripts:"));
+-- 
+2.14.1
+

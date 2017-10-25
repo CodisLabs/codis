@@ -1,0 +1,33 @@
+From c9c04b11b971bb0598307cf2aafe8954e7785641 Mon Sep 17 00:00:00 2001
+From: antirez <antirez@gmail.com>
+Date: Tue, 18 Apr 2017 16:24:06 +0200
+Subject: [PATCH 06/39] Fix #3848 by closing the descriptor on error.
+
+---
+ src/anet.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/anet.c b/src/anet.c
+index ef1711d0..e16ce131 100644
+--- a/src/anet.c
++++ b/src/anet.c
+@@ -462,7 +462,7 @@ static int anetV6Only(char *err, int s) {
+ 
+ static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backlog)
+ {
+-    int s, rv;
++    int s = -1, rv;
+     char _port[6];  /* strlen("65535") */
+     struct addrinfo hints, *servinfo, *p;
+ 
+@@ -491,6 +491,7 @@ static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backl
+     }
+ 
+ error:
++    if (s != -1) close(s);
+     s = ANET_ERR;
+ end:
+     freeaddrinfo(servinfo);
+-- 
+2.14.1
+

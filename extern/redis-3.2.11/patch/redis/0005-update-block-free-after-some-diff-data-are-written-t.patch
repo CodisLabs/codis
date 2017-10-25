@@ -1,0 +1,26 @@
+From d3b499245015b198fb3bd2814453b5852cad3d3f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E5=BC=A0=E6=96=87=E5=BA=B7?=
+ <zhangwenkang@zhangwenkangdeMacBook-Pro.local>
+Date: Tue, 18 Apr 2017 20:10:08 +0800
+Subject: [PATCH 05/39] update block->free after some diff data are written to
+ the child process
+
+---
+ src/aof.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/aof.c b/src/aof.c
+index 862b5e13..cbd906c9 100644
+--- a/src/aof.c
++++ b/src/aof.c
+@@ -115,6 +115,7 @@ void aofChildWriteDiffData(aeEventLoop *el, int fd, void *privdata, int mask) {
+             if (nwritten <= 0) return;
+             memmove(block->buf,block->buf+nwritten,block->used-nwritten);
+             block->used -= nwritten;
++            block->free += nwritten;
+         }
+         if (block->used == 0) listDelNode(server.aof_rewrite_buf_blocks,ln);
+     }
+-- 
+2.14.1
+

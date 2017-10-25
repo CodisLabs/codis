@@ -1,0 +1,26 @@
+From ab900303b88c2cd4f09c8404cfd21577c3eefb85 Mon Sep 17 00:00:00 2001
+From: Byron Grobe <grobe0ba@gmail.com>
+Date: Thu, 11 Sep 2014 10:21:05 -0400
+Subject: [PATCH 34/39] Fixed issue #1996 (Missing '-' in help message for
+ redis-benchmark)
+
+---
+ src/redis-benchmark.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/redis-benchmark.c b/src/redis-benchmark.c
+index 7f560ce7..dee2c163 100644
+--- a/src/redis-benchmark.c
++++ b/src/redis-benchmark.c
+@@ -573,7 +573,7 @@ usage:
+ " -c <clients>       Number of parallel connections (default 50)\n"
+ " -n <requests>      Total number of requests (default 100000)\n"
+ " -d <size>          Data size of SET/GET value in bytes (default 2)\n"
+-" -dbnum <db>        SELECT the specified db number (default 0)\n"
++" --dbnum <db>        SELECT the specified db number (default 0)\n"
+ " -k <boolean>       1=keep alive 0=reconnect (default 1)\n"
+ " -r <keyspacelen>   Use random keys for SET/GET/INCR, random values for SADD\n"
+ "  Using this option the benchmark will expand the string __rand_int__\n"
+-- 
+2.14.1
+

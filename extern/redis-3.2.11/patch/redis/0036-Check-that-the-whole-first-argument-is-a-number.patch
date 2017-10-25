@@ -1,0 +1,30 @@
+From bf50875353a1ba57ad09d89828383250cee62562 Mon Sep 17 00:00:00 2001
+From: Jan-Erik Rediger <janerik@fnordig.de>
+Date: Wed, 7 Jan 2015 22:31:45 +0100
+Subject: [PATCH 36/39] Check that the whole first argument is a number
+
+Fixes #2258
+---
+ src/redis-cli.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/redis-cli.c b/src/redis-cli.c
+index 3c711402..1b6cebd3 100644
+--- a/src/redis-cli.c
++++ b/src/redis-cli.c
+@@ -1330,9 +1330,10 @@ static void repl(void) {
+                 } else {
+                     long long start_time = mstime(), elapsed;
+                     int repeat, skipargs = 0;
++                    char *endptr;
+ 
+-                    repeat = atoi(argv[0]);
+-                    if (argc > 1 && repeat) {
++                    repeat = strtol(argv[0], &endptr, 10);
++                    if (argc > 1 && *endptr == '\0' && repeat) {
+                         skipargs = 1;
+                     } else {
+                         repeat = 1;
+-- 
+2.14.1
+

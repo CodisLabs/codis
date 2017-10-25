@@ -1,0 +1,34 @@
+From 8774228cc5c2d3f60f430f81a4b005f78d5760a9 Mon Sep 17 00:00:00 2001
+From: WuYunlong <xzsyeb@126.com>
+Date: Sat, 15 Jul 2017 10:20:56 +0800
+Subject: [PATCH 35/39] fix rewrite config: auto-aof-rewrite-min-size
+
+---
+ src/config.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/config.c b/src/config.c
+index 18cd12ca..c1919f27 100644
+--- a/src/config.c
++++ b/src/config.c
+@@ -910,8 +910,6 @@ void configSetCommand(client *c) {
+       "timeout",server.maxidletime,0,LONG_MAX) {
+     } config_set_numerical_field(
+       "auto-aof-rewrite-percentage",server.aof_rewrite_perc,0,LLONG_MAX){
+-    } config_set_numerical_field(
+-      "auto-aof-rewrite-min-size",server.aof_rewrite_min_size,0,LLONG_MAX) {
+     } config_set_numerical_field(
+       "hash-max-ziplist-entries",server.hash_max_ziplist_entries,0,LLONG_MAX) {
+     } config_set_numerical_field(
+@@ -986,6 +984,8 @@ void configSetCommand(client *c) {
+         }
+     } config_set_memory_field("repl-backlog-size",ll) {
+         resizeReplicationBacklog(ll);
++    } config_set_memory_field("auto-aof-rewrite-min-size",ll) {
++        server.aof_rewrite_min_size = ll;
+ 
+     /* Enumeration fields.
+      * config_set_enum_field(name,var,enum_var) */
+-- 
+2.14.1
+
