@@ -5,7 +5,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
+	//"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -72,8 +72,8 @@ Options:
 	}
 
 	if d["--version"].(bool) {
-		fmt.Println("version:", utils.Version)
-		fmt.Println("compile:", utils.Compile)
+		//fmt.Println("version:", utils.Version)
+		//fmt.Println("compile:", utils.Compile)
 		return
 	}
 
@@ -112,6 +112,7 @@ Options:
 			log.PanicErrorf(err, "get path of binary failed")
 		}
 		assets = filepath.Join(binpath, "assets")
+		assets = "/Users/wujiang/project/gopath/src/github.com/CodisLabs/codis/cmd/fe/assets"
 	}
 	log.Warnf("set assets = %s", assets)
 

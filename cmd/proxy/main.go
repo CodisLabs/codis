@@ -55,8 +55,8 @@ Options:
 		return
 
 	case d["--version"].(bool):
-		fmt.Println("version:", utils.Version)
-		fmt.Println("compile:", utils.Compile)
+		//fmt.Println("version:", utils.Version)
+		//fmt.Println("compile:", utils.Compile)
 		return
 
 	}

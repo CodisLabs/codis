@@ -452,8 +452,8 @@ func (s *Topom) Overview() (*Overview, error) {
 		return nil, err
 	} else {
 		return &Overview{
-			Version: utils.Version,
-			Compile: utils.Compile,
+			//Version: utils.Version,
+			//Compile: utils.Compile,
 			Config:  s.Config(),
 			Model:   s.Model(),
 			Stats:   stats,
