@@ -6,7 +6,7 @@
 ##################################################
 
 # Set Codis Product Name/Auth.
-product_name = "codis-demo"
+product_name = "codis-wujiang1"
 product_auth = ""
 
 # Set auth for client session
@@ -17,11 +17,11 @@ product_auth = ""
 session_auth = ""
 
 # Set bind address for admin(rpc), tcp only.
-admin_addr = "0.0.0.0:11080"
+admin_addr = "127.0.0.1:11080"
 
 # Set bind address for proxy, proto_type can be "tcp", "tcp4", "tcp6", "unix" or "unixpacket".
 proto_type = "tcp4"
-proxy_addr = "0.0.0.0:19000"
+proxy_addr = "127.0.0.1:19000"
 
 # Set jodis address & session timeout
 #   1. jodis_name is short for jodis_coordinator_name, only accept "zookeeper" & "etcd".
