@@ -197,11 +197,14 @@ func (s *Session) loopWriter(tasks *RequestChan) (err error) {
 		s.flushOpStats(true)
 	}()
 
-	var breakOnFailure = s.config.SessionBreakOnFailure
+	var (
+		breakOnFailure = s.config.SessionBreakOnFailure
+		maxPipelineLen = s.config.SessionMaxPipeline
+	)
 
 	p := s.Conn.FlushEncoder()
 	p.MaxInterval = time.Millisecond
-	p.MaxBuffered = 256
+	p.MaxBuffered = maxPipelineLen / 2
 
 	return tasks.PopFrontAll(func(r *Request) error {
 		resp, err := s.handleResponse(r)

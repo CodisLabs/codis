@@ -1,0 +1,24 @@
+From 9ce105add50662b66ea4fd42dfdc22c0fb52d6d6 Mon Sep 17 00:00:00 2001
+From: Antonio Mallia <me@antoniomallia.it>
+Date: Sun, 4 Jun 2017 15:26:53 +0100
+Subject: [PATCH 22/39] Removed duplicate 'sys/socket.h'  include
+
+---
+ src/cluster.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/src/cluster.c b/src/cluster.c
+index c2450901..a72c0450 100644
+--- a/src/cluster.c
++++ b/src/cluster.c
+@@ -37,7 +37,6 @@
+ #include <arpa/inet.h>
+ #include <fcntl.h>
+ #include <unistd.h>
+-#include <sys/socket.h>
+ #include <sys/stat.h>
+ #include <sys/file.h>
+ #include <math.h>
+-- 
+2.14.1
+

@@ -142,7 +142,7 @@ func (s *Proxy) setup(config *Config) error {
 	)
 
 	if config.JodisAddr != "" {
-		c, err := models.NewClient(config.JodisName, config.JodisAddr, config.JodisTimeout.Duration())
+		c, err := models.NewClient(config.JodisName, config.JodisAddr, config.JodisAuth, config.JodisTimeout.Duration())
 		if err != nil {
 			return err
 		}
@@ -348,7 +348,7 @@ func (s *Proxy) rewatchSentinels(servers []string) {
 				}
 			}()
 			go func() {
-				for _ = range trigger {
+				for range trigger {
 					var success int
 					for i := 0; i != 10 && !p.IsCanceled() && success != 2; i++ {
 						timeout := time.Second * 5

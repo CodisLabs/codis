@@ -1,0 +1,26 @@
+From 5aa2525006b2b93e0d84353a0ea81699ffe0a54f Mon Sep 17 00:00:00 2001
+From: antirez <antirez@gmail.com>
+Date: Tue, 11 Jul 2017 12:44:56 +0200
+Subject: [PATCH 28/39] Fix isHLLObjectOrReply() to handle integer encoded
+ strings.
+
+Close #3766.
+---
+ src/hyperloglog.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/hyperloglog.c b/src/hyperloglog.c
+index 8ccc16be..a48f977a 100644
+--- a/src/hyperloglog.c
++++ b/src/hyperloglog.c
+@@ -1128,6 +1128,7 @@ int isHLLObjectOrReply(client *c, robj *o) {
+     if (checkType(c,o,OBJ_STRING))
+         return C_ERR; /* Error already sent. */
+ 
++    if (!sdsEncodedObject(o)) goto invalid;
+     if (stringObjectLen(o) < sizeof(*hdr)) goto invalid;
+     hdr = o->ptr;
+ 
+-- 
+2.14.1
+

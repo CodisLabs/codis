@@ -1,6 +1,6 @@
 # Codis Tutorial
 
-Codes is a distributed Redis solution, there is no obvious difference between connecting to a Codis proxy and an original Redis server(?), top layer application can connect to Codis as normal standalone Redis, Codis will forward low layer requests. Hot data migration and all things in the shadow are transparent to client. Simply treat Coids as a Redis service with unlimited RAM. 
+Codis is a distributed Redis solution, there is no obvious difference between connecting to a Codis proxy and an original Redis server, top layer application can connect to Codis as normal standalone Redis, Codis will forward low layer requests. Hot data migration and all things in the shadow are transparent to client. Simply treat Coids as a Redis service with unlimited RAM. 
 
 
 Codis 3.x consists of the following components:
