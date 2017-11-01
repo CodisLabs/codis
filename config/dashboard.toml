@@ -6,7 +6,7 @@
 ##################################################
 
 # Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
-# for zookeeper/etcd, coorinator_auth accept "user:password" 
+# for zookeeper/etcd, coorinator_auth accept "user:password"
 # Quick Start
 coordinator_name = "filesystem"
 coordinator_addr = "/tmp/codis"
@@ -38,3 +38,13 @@ sentinel_failover_timeout = "5m"
 sentinel_notification_script = ""
 sentinel_client_reconfig_script = ""
 
+# Settings for read&write seperation
+# Disconncted slaves will be removed from group to increase success rate while reading
+# default is false
+auto_remove_failedSlaves = false
+# After being removed, once the slave recovers, it would automatically
+# join the previous group and serve for read requests
+slave_auto_online = false
+# Maximum number of disconnected slaves in one group, which should be fewer
+# than the overall count of slaves in a group
+max_fail_slaves = 10

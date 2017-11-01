@@ -82,6 +82,9 @@ type Config struct {
 	SentinelFailoverTimeout      timesize.Duration `toml:"sentinel_failover_timeout" json:"sentinel_failover_timeout"`
 	SentinelNotificationScript   string            `toml:"sentinel_notification_script" json:"sentinel_notification_script"`
 	SentinelClientReconfigScript string            `toml:"sentinel_client_reconfig_script" json:"sentinel_client_reconfig_script"`
+	AutoRemoveFailedSlaves       bool              `toml:"auto_remove_failedSlaves" json:"auto_remove_failedSlaves"`
+	SlaveAutoOnline              bool              `toml:"slave_auto_online" json:"slave_auto_online"`
+	MaxFailSlaves        		 int               `toml:"max_fail_slaves" json:"max_fail_slaves"`
 }
 
 func NewDefaultConfig() *Config {

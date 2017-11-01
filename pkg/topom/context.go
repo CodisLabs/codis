@@ -152,12 +152,21 @@ func (ctx *context) toReplicaGroups(gid int, p *models.Proxy) [][]string {
 		}
 	}
 	var groups [3][]string
-	for _, s := range g.Servers {
-		if s.ReplicaGroup {
-			p := getPriority(s)
-			groups[p] = append(groups[p], s.Addr)
+	addReplica := func(servers []*models.GroupServer) {
+		var start int
+		if len(servers) > 1 {
+			start = 1
+		}else if len(servers) == 1 {
+			start = 0
+		}
+		for i:=start;i<len(servers);i++ {
+			if servers[i].ReplicaGroup {
+				p := getPriority(servers[i])
+				groups[p] = append(groups[p], servers[i].Addr)
+			}
 		}
 	}
+	addReplica(g.Servers)
 	var replicas [][]string
 	for _, l := range groups {
 		if len(l) != 0 {
