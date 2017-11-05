@@ -385,10 +385,10 @@ func (p *Pool) getClientFromCache(addr string) (*Client, error) {
 	return nil, nil
 }
 
-func (p *Pool) PutClient(c *Client) {
+func (p *Pool) PutClient(c *Client, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.closed || !p.isRecyclable(c) {
+	if err != nil || p.closed || !p.isRecyclable(c) {
 		c.Close()
 	} else {
 		cache := p.pool[c.Addr]
@@ -400,22 +400,30 @@ func (p *Pool) PutClient(c *Client) {
 	}
 }
 
-func (p *Pool) Info(addr string) (map[string]string, error) {
+func (p *Pool) Info(addr string) (_ map[string]string, err error) {
 	c, err := p.GetClient(addr)
 	if err != nil {
 		return nil, err
 	}
-	defer p.PutClient(c)
-	return c.Info()
+	defer p.PutClient(c, err)
+	m, err := c.Info()
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
-func (p *Pool) InfoFull(addr string) (map[string]string, error) {
+func (p *Pool) InfoFull(addr string) (_ map[string]string, err error) {
 	c, err := p.GetClient(addr)
 	if err != nil {
 		return nil, err
 	}
-	defer p.PutClient(c)
-	return c.InfoFull()
+	defer p.PutClient(c, err)
+	m, err := c.InfoFull()
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 type InfoCache struct {
