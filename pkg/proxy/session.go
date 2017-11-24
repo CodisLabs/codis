@@ -118,6 +118,7 @@ func (s *Session) Start(d *Router) {
 				s.Conn.Encode(redis.NewErrorf("ERR max number of clients reached"), true)
 				s.CloseWithError(ErrTooManySessions)
 				s.incrFails()
+				s.flushOpStats(true)
 			}()
 			decrSessions()
 			return
@@ -128,6 +129,7 @@ func (s *Session) Start(d *Router) {
 				s.Conn.Encode(redis.NewErrorf("ERR router is not online"), true)
 				s.CloseWithError(ErrRouterNotOnline)
 				s.incrFails()
+				s.flushOpStats(true)
 			}()
 			decrSessions()
 			return
@@ -166,6 +168,7 @@ func (s *Session) loopReader(tasks *RequestChan, d *Router) (err error) {
 
 		if tasks.Buffered() > maxPipelineLen {
 			s.incrFails()
+			s.flushOpStats(true)
 			return ErrTooManyPipelinedRequests
 		}
 
