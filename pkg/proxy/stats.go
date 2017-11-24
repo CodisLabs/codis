@@ -149,6 +149,10 @@ func incrOpTotal(n int64) {
 	cmdstats.total.Add(n)
 }
 
+func incrOpFails(n int64) {
+	cmdstats.fails.Add(n)
+}
+
 func incrOpStats(e *opStats) {
 	s := getOpStats(e.opstr, true)
 	s.calls.Add(e.calls.Swap(0))

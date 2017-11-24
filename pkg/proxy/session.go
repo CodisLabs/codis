@@ -34,6 +34,7 @@ type Session struct {
 	stats struct {
 		opmap map[string]*opStats
 		total atomic2.Int64
+		fails atomic2.Int64
 		flush struct {
 			n    uint
 			nano int64
@@ -116,6 +117,7 @@ func (s *Session) Start(d *Router) {
 			go func() {
 				s.Conn.Encode(redis.NewErrorf("ERR max number of clients reached"), true)
 				s.CloseWithError(ErrTooManySessions)
+				s.incrFails()
 			}()
 			decrSessions()
 			return
@@ -125,6 +127,7 @@ func (s *Session) Start(d *Router) {
 			go func() {
 				s.Conn.Encode(redis.NewErrorf("ERR router is not online"), true)
 				s.CloseWithError(ErrRouterNotOnline)
+				s.incrFails()
 			}()
 			decrSessions()
 			return
@@ -162,6 +165,7 @@ func (s *Session) loopReader(tasks *RequestChan, d *Router) (err error) {
 		s.incrOpTotal()
 
 		if tasks.Buffered() > maxPipelineLen {
+			s.incrFails()
 			return ErrTooManyPipelinedRequests
 		}
 
@@ -629,6 +633,10 @@ func (s *Session) incrOpTotal() {
 	s.stats.total.Incr()
 }
 
+func (s *Session) incrFails() {
+	s.stats.fails.Incr()
+}
+
 func (s *Session) getOpStats(opstr string) *opStats {
 	e := s.stats.opmap[opstr]
 	if e == nil {
@@ -665,6 +673,7 @@ func (s *Session) flushOpStats(force bool) {
 	s.stats.flush.nano = nano
 
 	incrOpTotal(s.stats.total.Swap(0))
+	incrOpFails(s.stats.fails.Swap(0))
 	for _, e := range s.stats.opmap {
 		if e.calls.Int64() != 0 || e.fails.Int64() != 0 {
 			incrOpStats(e)
