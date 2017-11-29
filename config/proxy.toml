@@ -42,7 +42,7 @@ jodis_compatible = false
 proxy_datacenter = ""
 
 # Set max number of alive sessions.
-proxy_max_clients = 1000
+proxy_max_clients = 20000
 
 # Set max offheap memory size. (0 to disable)
 proxy_max_offheap_size = "1024mb"

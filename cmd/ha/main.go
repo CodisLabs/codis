@@ -75,7 +75,7 @@ Options:
 
 	t, err := client.Model()
 	if err != nil {
-		log.PanicErrorf(err, "rpc fetch model failed")
+		log.ErrorErrorf(err, "rpc fetch model failed")
 	}
 	log.Warnf("topom =\n%s", t.Encode())
 
@@ -83,7 +83,7 @@ Options:
 
 	overview, err := client.Overview()
 	if err != nil {
-		log.PanicErrorf(err, "rpc fetch overview failed")
+		log.ErrorErrorf(err, "rpc fetch overview failed")
 	}
 	prodcutAuth := overview.Config.ProductAuth
 
@@ -329,6 +329,8 @@ Groups:
 							n, err := strconv.Atoi(stats.Stats["master_link_down_since_seconds"])
 							if err != nil {
 								log.WarnErrorf(err, "try to get %s master_link_down_since_seconds failed", addr)
+								// some backend server like pika doen't support master_link_down_since_seconds, temp resolution
+								picked = i
 								continue
 							}
 							if n >= 0 && n < mindown {
