@@ -176,8 +176,8 @@ func (p *Proxy) startMetricsStatsd() {
 }
 
 func (p *Proxy) startMetricsPrometheus() {
-	server := p.config.MetricsReportPromethuesServer
-	period := p.config.MetricsReportPromethuesPeriod.Duration()
+	server := p.config.MetricsReportPrometheusServer
+	period := p.config.MetricsReportPrometheusPeriod.Duration()
 	if !server {
 		return
 	}

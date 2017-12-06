@@ -128,9 +128,9 @@ metrics_report_statsd_server = ""
 metrics_report_statsd_period = "1s"
 metrics_report_statsd_prefix = ""
 
-# Set promethues server (such as localhost:11080/proxy/metrics), proxy will be scrape by promethues.
-metrics_report_promethues_server = false
-metrics_report_promethues_period = "2s"
+# Set prometheus server (such as localhost:11080/proxy/metrics), proxy will be scrape by prometheus.
+metrics_report_prometheus_server = false
+metrics_report_prometheus_period = "2s"
 `
 
 type Config struct {
@@ -186,8 +186,8 @@ type Config struct {
 	MetricsReportStatsdServer     string            `toml:"metrics_report_statsd_server" json:"metrics_report_statsd_server"`
 	MetricsReportStatsdPeriod     timesize.Duration `toml:"metrics_report_statsd_period" json:"metrics_report_statsd_period"`
 	MetricsReportStatsdPrefix     string            `toml:"metrics_report_statsd_prefix" json:"metrics_report_statsd_prefix"`
-	MetricsReportPromethuesServer bool              `toml:"metrics_report_promethues_server" json:"metrics_report_promethues_server"`
-	MetricsReportPromethuesPeriod timesize.Duration `toml:"metrics_report_promethues_period" json:"metrics_report_promethues_period"`
+	MetricsReportPrometheusServer bool              `toml:"metrics_report_prometheus_server" json:"metrics_report_prometheus_server"`
+	MetricsReportPrometheusPeriod timesize.Duration `toml:"metrics_report_prometheus_period" json:"metrics_report_prometheus_period"`
 }
 
 func NewDefaultConfig() *Config {
