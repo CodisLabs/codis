@@ -112,3 +112,6 @@ metrics_report_statsd_server = ""
 metrics_report_statsd_period = "1s"
 metrics_report_statsd_prefix = ""
 
+# Set promethues server (such as localhost:11080/proxy/metrics), proxy will be scrape by promethues.
+metrics_report_promethues_server = false
+metrics_report_promethues_period = "2s"

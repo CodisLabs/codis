@@ -20,6 +20,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type apiServer struct {
@@ -65,6 +66,7 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Get("/model", api.Model)
 		r.Get("/stats", api.StatsNoXAuth)
 		r.Get("/slots", api.SlotsNoXAuth)
+		r.Get("/metrics", promhttp.Handler())
 	})
 	r.Group("/api/proxy", func(r martini.Router) {
 		r.Get("/model", api.Model)

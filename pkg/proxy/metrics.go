@@ -6,6 +6,7 @@ package proxy
 import (
 	"strings"
 	"time"
+	"reflect"
 
 	influxdbClient "github.com/influxdata/influxdb/client/v2"
 	statsdClient "gopkg.in/alexcesaro/statsd.v2"
@@ -14,6 +15,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func (p *Proxy) startMetricsReporter(d time.Duration, do, cleanup func() error) {
@@ -169,6 +171,71 @@ func (p *Proxy) startMetricsStatsd() {
 		return nil
 	}, func() error {
 		c.Close()
+		return nil
+	})
+}
+
+func (p *Proxy) startMetricsPrometheus() {
+	server := p.config.MetricsReportPromethuesServer
+	period := p.config.MetricsReportPromethuesPeriod.Duration()
+	if !server {
+		return
+	}
+	period = math2.MaxDuration(time.Second, period)
+
+	var (
+		model    = p.Model()
+		replacer = strings.NewReplacer(".", "_", ":", "_", "-", "_")
+		segs     = []string{
+			replacer.Replace(model.ProductName),
+			replacer.Replace(model.AdminAddr),
+			replacer.Replace(model.ProxyAddr),
+		}
+
+		m_stats = prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: strings.Join(segs, "_"),
+				Help: "Information about the proxy",
+			},
+			[]string{"target"},
+		)
+	)
+	prometheus.MustRegister(m_stats)
+
+	p.startMetricsReporter(period, func() error {
+		stats := p.Stats(StatsRuntime)
+
+		fields := map[string]interface{}{
+			"ops_total":                stats.Ops.Total,
+			"ops_fails":                stats.Ops.Fails,
+			"ops_redis_errors":         stats.Ops.Redis.Errors,
+			"ops_qps":                  stats.Ops.QPS,
+			"sessions_total":           stats.Sessions.Total,
+			"sessions_alive":           stats.Sessions.Alive,
+			"rusage_mem":               stats.Rusage.Mem,
+			"rusage_cpu":               stats.Rusage.CPU,
+			"runtime_gc_num":           stats.Runtime.GC.Num,
+			"runtime_gc_total_pausems": stats.Runtime.GC.TotalPauseMs,
+			"runtime_num_procs":        stats.Runtime.NumProcs,
+			"runtime_num_goroutines":   stats.Runtime.NumGoroutines,
+			"runtime_num_cgo_call":     stats.Runtime.NumCgoCall,
+			"runtime_num_mem_offheap":  stats.Runtime.MemOffheap,
+		}
+                var floatType = reflect.TypeOf(float64(0))
+		for key, value := range fields {
+			v := reflect.Indirect(reflect.ValueOf(value))
+			if !v.Type().ConvertibleTo(floatType) {
+				continue
+			}
+			fv := v.Convert(floatType)
+
+			m_stats.With(prometheus.Labels{
+				"target": key,
+			}).Set(fv.Float())
+		}
+		return nil
+	}, func() error {
+		m_stats.Reset()
 		return nil
 	})
 }
