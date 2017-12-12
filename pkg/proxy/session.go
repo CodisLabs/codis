@@ -168,7 +168,6 @@ func (s *Session) loopReader(tasks *RequestChan, d *Router) (err error) {
 
 		if tasks.Buffered() > maxPipelineLen {
 			s.incrFails()
-			s.flushOpStats(true)
 			return ErrTooManyPipelinedRequests
 		}
 
