@@ -117,7 +117,7 @@ func (s *Session) Start(d *Router) {
 			go func() {
 				s.Conn.Encode(redis.NewErrorf("ERR max number of clients reached"), true)
 				s.CloseWithError(ErrTooManySessions)
-				s.incrFails()
+				s.incrOpFails(nil, nil)
 				s.flushOpStats(true)
 			}()
 			decrSessions()
@@ -128,7 +128,7 @@ func (s *Session) Start(d *Router) {
 			go func() {
 				s.Conn.Encode(redis.NewErrorf("ERR router is not online"), true)
 				s.CloseWithError(ErrRouterNotOnline)
-				s.incrFails()
+				s.incrOpFails(nil, nil)
 				s.flushOpStats(true)
 			}()
 			decrSessions()
@@ -167,8 +167,7 @@ func (s *Session) loopReader(tasks *RequestChan, d *Router) (err error) {
 		s.incrOpTotal()
 
 		if tasks.Buffered() > maxPipelineLen {
-			s.incrFails()
-			return ErrTooManyPipelinedRequests
+			return s.incrOpFails(nil, ErrTooManyPipelinedRequests)
 		}
 
 		start := time.Now()
@@ -635,10 +634,6 @@ func (s *Session) incrOpTotal() {
 	s.stats.total.Incr()
 }
 
-func (s *Session) incrFails() {
-	s.stats.fails.Incr()
-}
-
 func (s *Session) getOpStats(opstr string) *opStats {
 	e := s.stats.opmap[opstr]
 	if e == nil {
@@ -659,8 +654,12 @@ func (s *Session) incrOpStats(r *Request, t redis.RespType) {
 }
 
 func (s *Session) incrOpFails(r *Request, err error) error {
-	e := s.getOpStats(r.OpStr)
-	e.fails.Incr()
+	if r != nil {
+		e := s.getOpStats(r.OpStr)
+		e.fails.Incr()
+	} else {
+		s.stats.fails.Incr()
+	}
 	return err
 }
 
