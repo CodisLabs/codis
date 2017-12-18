@@ -110,8 +110,8 @@ func (s *Sentinel) subscribeCommand(client *Client, sentinel string,
 	onSubscribed func()) error {
 	var channels = []interface{}{"+switch-master"}
 	go func() {
-		client.conn.Send("SUBSCRIBE", channels...)
-		client.conn.Flush()
+		client.Send("SUBSCRIBE", channels...)
+		client.Flush()
 	}()
 	for _, sub := range channels {
 		values, err := redigo.Values(client.Receive())
@@ -221,10 +221,10 @@ func (s *Sentinel) Subscribe(sentinels []string, timeout time.Duration, onMajori
 func (s *Sentinel) existsCommand(client *Client, names []string) (map[string]bool, error) {
 	go func() {
 		for _, name := range names {
-			client.conn.Send("SENTINEL", "get-master-addr-by-name", name)
+			client.Send("SENTINEL", "get-master-addr-by-name", name)
 		}
 		if len(names) != 0 {
-			client.conn.Flush()
+			client.Flush()
 		}
 	}()
 	exists := make(map[string]bool, len(names))
@@ -250,10 +250,10 @@ func (s *Sentinel) slavesCommand(client *Client, names []string) (map[string][]m
 				continue
 			}
 			pending++
-			client.conn.Send("SENTINEL", "slaves", name)
+			client.Send("SENTINEL", "slaves", name)
 		}
 		if pending != 0 {
-			client.conn.Flush()
+			client.Flush()
 		}
 	}()
 	results := make(map[string][]map[string]string, len(names))
@@ -427,10 +427,10 @@ func (s *Sentinel) monitorGroupsCommand(client *Client, sentniel string, config 
 	go func() {
 		for gid, tcpAddr := range groups {
 			var ip, port = tcpAddr.IP.String(), tcpAddr.Port
-			client.conn.Send("SENTINEL", "monitor", s.NodeName(gid), ip, port, config.Quorum)
+			client.Send("SENTINEL", "monitor", s.NodeName(gid), ip, port, config.Quorum)
 		}
 		if len(groups) != 0 {
-			client.conn.Flush()
+			client.Flush()
 		}
 	}()
 	for range groups {
@@ -460,10 +460,10 @@ func (s *Sentinel) monitorGroupsCommand(client *Client, sentniel string, config 
 			if config.ClientReconfigScript != "" {
 				args = append(args, "client-reconfig-script", config.ClientReconfigScript)
 			}
-			client.conn.Send("SENTINEL", args...)
+			client.Send("SENTINEL", args...)
 		}
 		if len(groups) != 0 {
-			client.conn.Flush()
+			client.Flush()
 		}
 	}()
 	for range groups {
@@ -573,10 +573,10 @@ func (s *Sentinel) removeCommand(client *Client, names []string) error {
 				continue
 			}
 			pending++
-			client.conn.Send("SENTINEL", "remove", name)
+			client.Send("SENTINEL", "remove", name)
 		}
 		if pending != 0 {
-			client.conn.Flush()
+			client.Flush()
 		}
 	}()
 	for _, name := range names {
