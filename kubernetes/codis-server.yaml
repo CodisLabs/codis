@@ -1,0 +1,78 @@
+apiVersion: "apps/v1beta1"
+kind: StatefulSet
+metadata:
+  name: codis-server
+spec:
+  serviceName: codis-server
+  replicas: 4
+  template:
+    metadata:
+      labels:
+        app: codis-server
+      annotations:
+        scheduler.alpha.kubernetes.io/affinity: >
+            {
+              "podAntiAffinity": {
+                "preferredDuringSchedulingIgnoredDuringExecution": [{
+                  "weight":100,
+                  "labelSelector": {
+                    "matchExpressions": [{
+                      "key": "app",
+                      "operator": "In",
+                      "values": ["codis-server"]
+                    }]
+                  },
+                  "topologyKey": "kubernetes.io/hostname"
+                }]
+              }
+            }
+    spec:
+      imagePullSecrets:
+      - name: your-registry
+      containers:
+      - name: codis-server
+        image: codis-image
+        imagePullPolicy: IfNotPresent
+        command: ["codis-server"]
+        args: ["$(CODIS_PATH)/config/redis.conf","--logfile","$(POD_NAME).log","--protected-mode", "no", "--bind", "$(POD_IP)", "--daemonize", "no"]
+        lifecycle:
+          postStart:
+            exec:
+              command: ["/bin/sh", "-c", "codis-admin --dashboard=codis-dashboard:18080 --reload; if [ $? != 0 ]; then exit 1; fi; \
+                        sid=`hostname |awk -F'-' '{print $3}'`;gid=$(expr $sid / ${SERVER_REPLICA} + 1); \
+                        codis-admin --dashboard=codis-dashboard:18080 --create-group --gid=${gid} 1>/dev/null 2>&1; \
+                        codis-admin --dashboard=codis-dashboard:18080 --group-add --gid=${gid} --addr=${POD_IP}:6379; 
+                        if [ $? != 0  -a ${SERVER_REPLICA} -gt 1 ]; then exit 1; fi; \
+                        codis-admin --dashboard=codis-dashboard:18080 --sync-action --create --addr=${POD_IP}:6379 1>/dev/null 2>&1 "]
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "codis-admin --dashboard=codis-dashboard:18080 --reload; if [ $? != 0 ]; then exit 1; fi; \
+                        sid=`hostname |awk -F'-' '{print $3}'`;gid=$(expr $sid / ${SERVER_REPLICA} + 1); sleep 5;\
+                        codis-admin --dashboard=codis-dashboard:18080 --group-del --gid=${gid} --addr=${POD_IP}:6379"]
+        env:
+        - name: SERVER_REPLICA
+          value: "2"
+        - name: CODIS_PATH
+          value: "/gopath/src/github.com/CodisLabs/codis"
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - containerPort: 6379
+          name: service-port
+        resources:
+          limits:
+            cpu: "2"
+            memory: 6Gi
+          requests:
+            cpu: "0.1"
+            memory: 0.1Gi

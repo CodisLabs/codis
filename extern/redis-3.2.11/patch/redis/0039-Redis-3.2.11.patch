@@ -1,0 +1,46 @@
+From 1cb6effdc85183892dc56af054012cf875c264b7 Mon Sep 17 00:00:00 2001
+From: antirez <antirez@gmail.com>
+Date: Thu, 21 Sep 2017 16:20:18 +0200
+Subject: [PATCH 39/39] Redis 3.2.11.
+
+---
+ 00-RELEASENOTES | 15 +++++++++++++++
+ src/version.h   |  2 +-
+ 2 files changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/00-RELEASENOTES b/00-RELEASENOTES
+index 5361593f..06b04694 100644
+--- a/00-RELEASENOTES
++++ b/00-RELEASENOTES
+@@ -10,6 +10,21 @@ HIGH:     There is a critical bug that may affect a subset of users. Upgrade!
+ CRITICAL: There is a critical bug affecting MOST USERS. Upgrade ASAP.
+ --------------------------------------------------------------------------------
+ 
++================================================================================
++Redis 3.2.11     Released Thu Sep 21 15:47:53 CEST 2017
++================================================================================
++
++Upgrade urgency HIGH: Potentially critical bugs fixed.
++
++AOF flush on SHUTDOWN did not cared to really write the AOF buffers
++(not in the kernel but in the Redis process memory) to disk before exiting.
++Calling SHUTDOWN during traffic resulted into not every operation to be
++persisted on disk.
++
++Oran Agra (and also Buğra Gedik) in commit 8651e5d5:
++ Flush append only buffers before existing.
++ 1 file changed, 2 insertions(+), 1 deletion(-)
++
+ ================================================================================
+ Redis 3.2.10     Released Fri Jul 28 17:49:07 CEST 2017
+ ================================================================================
+diff --git a/src/version.h b/src/version.h
+index 8ccd9efc..60c3a539 100644
+--- a/src/version.h
++++ b/src/version.h
+@@ -1 +1 @@
+-#define REDIS_VERSION "3.2.10"
++#define REDIS_VERSION "3.2.11"
+-- 
+2.14.1
+

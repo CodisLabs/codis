@@ -1,0 +1,42 @@
+From 55442262e1c3fa82a51c3b8f20644569b8392fb7 Mon Sep 17 00:00:00 2001
+From: Suraj Narkhede <surajn.vnit@gmail.com>
+Date: Thu, 22 Jun 2017 23:52:00 -0700
+Subject: [PATCH 24/39] Fix brpop command table entry and redirect blocked
+ clients.
+
+---
+ src/cluster.c | 3 ++-
+ src/server.c  | 2 +-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/cluster.c b/src/cluster.c
+index a72c0450..81f1bec2 100644
+--- a/src/cluster.c
++++ b/src/cluster.c
+@@ -5203,8 +5203,9 @@ int clusterRedirectBlockedClientIfNeeded(client *c) {
+             return 1;
+         }
+ 
++        /* All keys must belong to the same slot, so check first key only. */
+         di = dictGetIterator(c->bpop.keys);
+-        while((de = dictNext(di)) != NULL) {
++        if ((de = dictNext(di)) != NULL) {
+             robj *key = dictGetKey(de);
+             int slot = keyHashSlot((char*)key->ptr, sdslen(key->ptr));
+             clusterNode *node = server.cluster->slots[slot];
+diff --git a/src/server.c b/src/server.c
+index 3e508e9a..7a14655f 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -148,7 +148,7 @@ struct redisCommand redisCommandTable[] = {
+     {"linsert",linsertCommand,5,"wm",0,NULL,1,1,1,0,0},
+     {"rpop",rpopCommand,2,"wF",0,NULL,1,1,1,0,0},
+     {"lpop",lpopCommand,2,"wF",0,NULL,1,1,1,0,0},
+-    {"brpop",brpopCommand,-3,"ws",0,NULL,1,1,1,0,0},
++    {"brpop",brpopCommand,-3,"ws",0,NULL,1,-2,1,0,0},
+     {"brpoplpush",brpoplpushCommand,4,"wms",0,NULL,1,2,1,0,0},
+     {"blpop",blpopCommand,-3,"ws",0,NULL,1,-2,1,0,0},
+     {"llen",llenCommand,2,"rF",0,NULL,1,1,1,0,0},
+-- 
+2.14.1
+

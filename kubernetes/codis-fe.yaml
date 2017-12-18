@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: codis-fe
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: codis-fe
+    spec:
+      imagePullSecrets:
+      - name: your-registry
+      containers:
+      - name: codis-fe
+        image: codis-image
+        imagePullPolicy: IfNotPresent
+        command: ["codis-fe"]
+        args: ["-l","log/$(POD_NAME).log","--zookeeper","$(ZK_ADDR)","--listen=$(POD_IP):8080","--assets=$(CODIS_PATH)/bin/assets"]
+        env:
+        - name: CODIS_PATH
+          value: "/gopath/src/github.com/CodisLabs/codis"
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: ZK_ADDR
+          value: "zookeeper:2181"
+        ports:
+        - containerPort: 8080
+          name: fe
+        resources:
+          limits:
+            cpu: "2"
+            memory: 2Gi
+          requests:
+            cpu: "0.1"
+            memory: 0.1Gi

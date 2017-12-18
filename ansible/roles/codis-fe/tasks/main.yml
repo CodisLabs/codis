@@ -3,7 +3,7 @@
   copy: src={{ codis_dir }}/bin/codis-fe dest={{ codis_install_dir }}/bin/codis-fe mode=766
 
 - name: Copy codis-fe assets
-  command: cp -r {{ codis_dir }}/bin/assets {{ codis_install_dir }}/bin
+  copy: src={{ codis_dir }}/bin/assets dest={{ codis_install_dir }}/bin
 
 - name: Copy codis-fe admin script
   template: src=codis-fe-admin.sh dest={{ codis_install_dir }}/admin/codis-fe-admin.sh mode=766

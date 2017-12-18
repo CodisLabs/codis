@@ -1,0 +1,25 @@
+From b83f9fea81411c4809218bd7c51f974e4c4ad7a8 Mon Sep 17 00:00:00 2001
+From: "John.Koepi" <john.koepi@gmail.com>
+Date: Sat, 23 Jul 2016 16:31:56 +0200
+Subject: [PATCH 02/19] fix #2883, #2857 pipe fds leak when fork() failed on bg
+ aof rw
+
+---
+ src/aof.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/aof.c b/src/aof.c
+index c6fbbb82..862b5e13 100644
+--- a/src/aof.c
++++ b/src/aof.c
+@@ -1295,6 +1295,7 @@ int rewriteAppendOnlyFileBackground(void) {
+             serverLog(LL_WARNING,
+                 "Can't rewrite append only file in background: fork: %s",
+                 strerror(errno));
++            aofClosePipes();
+             return C_ERR;
+         }
+         serverLog(LL_NOTICE,
+-- 
+2.13.1
+

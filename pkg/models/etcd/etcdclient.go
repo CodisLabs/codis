@@ -34,7 +34,7 @@ type Client struct {
 	context context.Context
 }
 
-func New(addrlist string, timeout time.Duration) (*Client, error) {
+func New(addrlist string, auth string, timeout time.Duration) (*Client, error) {
 	endpoints := strings.Split(addrlist, ",")
 	for i, s := range endpoints {
 		if s != "" && !strings.HasPrefix(s, "http://") {
@@ -45,10 +45,21 @@ func New(addrlist string, timeout time.Duration) (*Client, error) {
 		timeout = time.Second * 5
 	}
 
-	c, err := client.New(client.Config{
+	config := client.Config{
 		Endpoints: endpoints, Transport: client.DefaultTransport,
 		HeaderTimeoutPerRequest: time.Second * 5,
-	})
+	}
+
+	if auth != "" {
+		split := strings.SplitN(auth, ":", 2)
+		if len(split) != 2 || split[0] == "" {
+			return nil, errors.Errorf("invalid auth")
+		}
+		config.Username = split[0]
+		config.Password = split[1]
+	}
+
+	c, err := client.New(config)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

@@ -1,0 +1,69 @@
+From 84a4f20278204c09172b7103827316feb6605111 Mon Sep 17 00:00:00 2001
+From: antirez <antirez@gmail.com>
+Date: Thu, 20 Jul 2017 15:17:35 +0200
+Subject: [PATCH 29/39] Make representClusterNodeFlags() more robust.
+
+This function failed when an internal-only flag was set as an only flag
+in a node: the string was trimmed expecting a final comma before
+exiting the function, causing a crash. See issue #4142.
+Moreover generation of flags representation only needed at DEBUG log
+level was always performed: a waste of CPU time. This is fixed as well
+by this commit.
+---
+ src/cluster.c | 33 +++++++++++++++++----------------
+ 1 file changed, 17 insertions(+), 16 deletions(-)
+
+diff --git a/src/cluster.c b/src/cluster.c
+index 8eb7e429..ea9b8c0a 100644
+--- a/src/cluster.c
++++ b/src/cluster.c
+@@ -1299,13 +1299,15 @@ void clusterProcessGossipSection(clusterMsg *hdr, clusterLink *link) {
+         clusterNode *node;
+         sds ci;
+ 
+-        ci = representClusterNodeFlags(sdsempty(), flags);
+-        serverLog(LL_DEBUG,"GOSSIP %.40s %s:%d %s",
+-            g->nodename,
+-            g->ip,
+-            ntohs(g->port),
+-            ci);
+-        sdsfree(ci);
++        if (server.verbosity == LL_DEBUG) {
++            ci = representClusterNodeFlags(sdsempty(), flags);
++            serverLog(LL_DEBUG,"GOSSIP %.40s %s:%d %s",
++                g->nodename,
++                g->ip,
++                ntohs(g->port),
++                ci);
++            sdsfree(ci);
++        }
+ 
+         /* Update our state accordingly to the gossip sections */
+         node = clusterLookupNode(g->nodename);
+@@ -3674,15 +3676,14 @@ static struct redisNodeFlags redisNodeFlagsTable[] = {
+ /* Concatenate the comma separated list of node flags to the given SDS
+  * string 'ci'. */
+ sds representClusterNodeFlags(sds ci, uint16_t flags) {
+-    if (flags == 0) {
+-        ci = sdscat(ci,"noflags,");
+-    } else {
+-        int i, size = sizeof(redisNodeFlagsTable)/sizeof(struct redisNodeFlags);
+-        for (i = 0; i < size; i++) {
+-            struct redisNodeFlags *nodeflag = redisNodeFlagsTable + i;
+-            if (flags & nodeflag->flag) ci = sdscat(ci, nodeflag->name);
+-        }
+-    }
++    size_t orig_len = sdslen(ci);
++    int i, size = sizeof(redisNodeFlagsTable)/sizeof(struct redisNodeFlags);
++    for (i = 0; i < size; i++) {
++        struct redisNodeFlags *nodeflag = redisNodeFlagsTable + i;
++        if (flags & nodeflag->flag) ci = sdscat(ci, nodeflag->name);
++    }
++    /* If no flag was added, add the "noflags" special flag. */
++    if (sdslen(ci) == orig_len) ci = sdscat(ci,"noflags,");
+     sdsIncrLen(ci,-1); /* Remove trailing comma. */
+     return ci;
+ }
+-- 
+2.14.1
+

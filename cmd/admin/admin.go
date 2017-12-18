@@ -40,16 +40,23 @@ func (t *cmdAdmin) newTopomClient(d map[string]interface{}) models.Client {
 	var coordinator struct {
 		name string
 		addr string
+		auth string
 	}
 
 	switch {
 	case d["--zookeeper"] != nil:
 		coordinator.name = "zookeeper"
 		coordinator.addr = utils.ArgumentMust(d, "--zookeeper")
+		if d["--zookeeper-auth"] != nil {
+			coordinator.auth = utils.ArgumentMust(d, "--zookeeper-auth")
+		}
 
 	case d["--etcd"] != nil:
 		coordinator.name = "etcd"
 		coordinator.addr = utils.ArgumentMust(d, "--etcd")
+		if d["--etcd-auth"] != nil {
+			coordinator.auth = utils.ArgumentMust(d, "--etcd-auth")
+		}
 
 	case d["--filesystem"] != nil:
 		coordinator.name = "filesystem"
@@ -59,7 +66,7 @@ func (t *cmdAdmin) newTopomClient(d map[string]interface{}) models.Client {
 		log.Panicf("invalid coordinator")
 	}
 
-	c, err := models.NewClient(coordinator.name, coordinator.addr, time.Minute)
+	c, err := models.NewClient(coordinator.name, coordinator.addr, coordinator.auth, time.Minute)
 	if err != nil {
 		log.PanicErrorf(err, "create '%s' client to '%s' failed", coordinator.name, coordinator.addr)
 	}

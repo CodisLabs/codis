@@ -1,0 +1,41 @@
+From e084a394a6cb548d8e187d4e87e3b90f8774d414 Mon Sep 17 00:00:00 2001
+From: Zachary Marquez <zachary.marquez@mediafire.com>
+Date: Thu, 1 Jun 2017 16:24:10 -0500
+Subject: [PATCH 21/39] Prevent expirations and evictions while paused
+
+Proposed fix to https://github.com/antirez/redis/issues/4027
+---
+ src/server.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/src/server.c b/src/server.c
+index 4964ff14..3e508e9a 100644
+--- a/src/server.c
++++ b/src/server.c
+@@ -777,6 +777,11 @@ void activeExpireCycle(int type) {
+     int dbs_per_call = CRON_DBS_PER_CALL;
+     long long start = ustime(), timelimit;
+ 
++    /* When clients are paused the dataset should be static not just from the
++     * POV of clients not being able to write, but also from the POV of
++     * expires and evictions of keys not being performed. */
++     if (clientsArePaused()) return;
++
+     if (type == ACTIVE_EXPIRE_CYCLE_FAST) {
+         /* Don't start a fast cycle if the previous cycle did not exited
+          * for time limt. Also don't repeat a fast cycle for the same period
+@@ -3464,6 +3469,11 @@ int freeMemoryIfNeeded(void) {
+     int slaves = listLength(server.slaves);
+     mstime_t latency, eviction_latency;
+ 
++    /* When clients are paused the dataset should be static not just from the
++     * POV of clients not being able to write, but also from the POV of
++     * expires and evictions of keys not being performed. */
++    if (clientsArePaused()) return C_OK;
++
+     /* Remove the size of slaves output buffers and AOF buffer from the
+      * count of used memory. */
+     mem_used = zmalloc_used_memory();
+-- 
+2.14.1
+

@@ -26,13 +26,15 @@ proxy_addr = "0.0.0.0:19000"
 # Set jodis address & session timeout
 #   1. jodis_name is short for jodis_coordinator_name, only accept "zookeeper" & "etcd".
 #   2. jodis_addr is short for jodis_coordinator_addr
-#   3. proxy will be registered as node:
+#   3. jodis_auth is short for jodis_coordinator_auth, for zookeeper/etcd, "user:password" is accepted.
+#   4. proxy will be registered as node:
 #        if jodis_compatible = true (not suggested):
 #          /zk/codis/db_{PRODUCT_NAME}/proxy-{HASHID} (compatible with Codis2.0)
 #        or else
 #          /jodis/{PRODUCT_NAME}/proxy-{HASHID}
 jodis_name = ""
 jodis_addr = ""
+jodis_auth = ""
 jodis_timeout = "20s"
 jodis_compatible = false
 
@@ -60,7 +62,7 @@ backend_send_bufsize = "128kb"
 backend_send_timeout = "30s"
 
 # Set backend pipeline buffer size.
-backend_max_pipeline = 1024
+backend_max_pipeline = 20480
 
 # Set backend never read replica groups, default is false
 backend_primary_only = false

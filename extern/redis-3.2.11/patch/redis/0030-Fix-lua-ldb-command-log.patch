@@ -1,0 +1,24 @@
+From e39849808c2e91262aa35b951c24e40a0f45498f Mon Sep 17 00:00:00 2001
+From: liangsijian <liangsijian@foxmail.com>
+Date: Mon, 24 Jul 2017 19:20:31 +0800
+Subject: [PATCH 30/39] Fix lua ldb command log
+
+---
+ src/scripting.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/src/scripting.c b/src/scripting.c
+index 5b5cb71d..a11322b3 100644
+--- a/src/scripting.c
++++ b/src/scripting.c
+@@ -443,6 +443,7 @@ int luaRedisGenericCommand(lua_State *lua, int raise_error) {
+             if (j == 10) {
+                 cmdlog = sdscatprintf(cmdlog," ... (%d more)",
+                     c->argc-j-1);
++                break;
+             } else {
+                 cmdlog = sdscatlen(cmdlog," ",1);
+                 cmdlog = sdscatsds(cmdlog,c->argv[j]->ptr);
+-- 
+2.14.1
+

@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	stateConnected = 1
-	stateDataStale = 2
+	stateConnected = iota + 1
+	stateDataStale
 )
 
 type BackendConn struct {
@@ -121,6 +121,9 @@ func (bc *BackendConn) KeepAlive() bool {
 						}
 					}
 					if info["master_link_status"] == "down" {
+						return nil
+					}
+					if info["loading"] == "1" {
 						return nil
 					}
 					if bc.state.CompareAndSwap(stateDataStale, stateConnected) {
@@ -265,7 +268,10 @@ func (bc *BackendConn) run() {
 		bc, bc.addr, bc.database)
 }
 
-var errMasterDown = []byte("MASTERDOWN")
+var (
+	errRespMasterDown = []byte("MASTERDOWN")
+	errRespLoading    = []byte("LOADING")
+)
 
 func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round int) (err error) {
 	defer func() {
@@ -283,9 +289,14 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 		}
 		if resp != nil && resp.IsError() {
 			switch {
-			case bytes.HasPrefix(resp.Value, errMasterDown):
+			case bytes.HasPrefix(resp.Value, errRespMasterDown):
 				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
 					log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'MASTERDOWN'",
+						bc, bc.addr, bc.database)
+				}
+			case bytes.HasPrefix(resp.Value, errRespLoading):
+				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
+					log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'LOADING'",
 						bc, bc.addr, bc.database)
 				}
 			}
@@ -337,7 +348,7 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 
 	p := c.FlushEncoder()
 	p.MaxInterval = time.Millisecond
-	p.MaxBuffered = math2.MinInt(256, cap(tasks))
+	p.MaxBuffered = cap(tasks) / 2
 
 	for r := range bc.input {
 		if r.IsReadOnly() && r.IsBroken() {
@@ -456,15 +467,14 @@ func (s *sharedBackendConn) BackendConn(database int32, seed uint, must bool) *B
 		bc := s.single[database]
 		if must || bc.IsConnected() {
 			return bc
-		} else {
-			return nil
 		}
+		return nil
 	}
 
 	var parallel = s.conns[database]
 
 	var i = seed
-	for _ = range parallel {
+	for range parallel {
 		i = (i + 1) % uint(len(parallel))
 		if bc := parallel[i]; bc.IsConnected() {
 			return bc

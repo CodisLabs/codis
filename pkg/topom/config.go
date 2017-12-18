@@ -23,11 +23,13 @@ const DefaultConfig = `
 ##################################################
 
 # Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
+# for zookeeper/etcd, coorinator_auth accept "user:password" 
 # Quick Start
 coordinator_name = "filesystem"
 coordinator_addr = "/tmp/codis"
 #coordinator_name = "zookeeper"
 #coordinator_addr = "127.0.0.1:2181"
+#coordinator_auth = ""
 
 # Set Codis Product Name/Auth.
 product_name = "codis-demo"
@@ -45,6 +47,7 @@ migration_async_numkeys = 500
 migration_timeout = "30s"
 
 # Set configs for redis sentinel.
+sentinel_client_timeout = "10s"
 sentinel_quorum = 2
 sentinel_parallel_syncs = 1
 sentinel_down_after = "30s"
@@ -56,6 +59,7 @@ sentinel_client_reconfig_script = ""
 type Config struct {
 	CoordinatorName string `toml:"coordinator_name" json:"coordinator_name"`
 	CoordinatorAddr string `toml:"coordinator_addr" json:"coordinator_addr"`
+	CoordinatorAuth string `toml:"coordinator_auth" json:"coordinator_auth"`
 
 	AdminAddr string `toml:"admin_addr" json:"admin_addr"`
 
@@ -71,6 +75,7 @@ type Config struct {
 	MigrationAsyncNumKeys  int               `toml:"migration_async_numkeys" json:"migration_async_numkeys"`
 	MigrationTimeout       timesize.Duration `toml:"migration_timeout" json:"migration_timeout"`
 
+	SentinelClientTimeout        timesize.Duration `toml:"sentinel_client_timeout" json:"sentinel_client_timeout"`
 	SentinelQuorum               int               `toml:"sentinel_quorum" json:"sentinel_quorum"`
 	SentinelParallelSyncs        int               `toml:"sentinel_parallel_syncs" json:"sentinel_parallel_syncs"`
 	SentinelDownAfter            timesize.Duration `toml:"sentinel_down_after" json:"sentinel_down_after"`
@@ -136,6 +141,9 @@ func (c *Config) Validate() error {
 	}
 	if c.MigrationTimeout <= 0 {
 		return errors.New("invalid migration_timeout")
+	}
+	if c.SentinelClientTimeout <= 0 {
+		return errors.New("invalid sentinel_client_timeout")
 	}
 	if c.SentinelQuorum <= 0 {
 		return errors.New("invalid sentinel_quorum")
