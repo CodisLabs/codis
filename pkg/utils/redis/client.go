@@ -54,6 +54,7 @@ func (c *Client) Close() error {
 func (c *Client) Do(cmd string, args ...interface{}) (interface{}, error) {
 	r, err := c.conn.Do(cmd, args...)
 	if err != nil {
+		c.Close()
 		return nil, errors.Trace(err)
 	}
 	c.LastUse = time.Now()
@@ -64,9 +65,26 @@ func (c *Client) Do(cmd string, args ...interface{}) (interface{}, error) {
 	return r, nil
 }
 
+func (c *Client) Send(cmd string, args ...interface{}) error {
+	if err := c.conn.Send(cmd, args...); err != nil {
+		c.Close()
+		return errors.Trace(err)
+	}
+	return nil
+}
+
+func (c *Client) Flush() error {
+	if err := c.conn.Flush(); err != nil {
+		c.Close()
+		return errors.Trace(err)
+	}
+	return nil
+}
+
 func (c *Client) Receive() (interface{}, error) {
 	r, err := c.conn.Receive()
 	if err != nil {
+		c.Close()
 		return nil, errors.Trace(err)
 	}
 	c.LastUse = time.Now()
@@ -170,11 +188,11 @@ func (c *Client) SetMaster(master string) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	c.conn.Send("MULTI")
-	c.conn.Send("CONFIG", "SET", "masterauth", c.Auth)
-	c.conn.Send("SLAVEOF", host, port)
-	c.conn.Send("CONFIG", "REWRITE")
-	c.conn.Send("CLIENT", "KILL", "TYPE", "normal")
+	c.Send("MULTI")
+	c.Send("CONFIG", "SET", "masterauth", c.Auth)
+	c.Send("SLAVEOF", host, port)
+	c.Send("CONFIG", "REWRITE")
+	c.Send("CLIENT", "KILL", "TYPE", "normal")
 	values, err := redigo.Values(c.Do("EXEC"))
 	if err != nil {
 		return errors.Trace(err)
@@ -385,10 +403,10 @@ func (p *Pool) getClientFromCache(addr string) (*Client, error) {
 	return nil, nil
 }
 
-func (p *Pool) PutClient(c *Client) {
+func (p *Pool) PutClient(c *Client, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.closed || !p.isRecyclable(c) {
+	if err != nil || p.closed || !p.isRecyclable(c) {
 		c.Close()
 	} else {
 		cache := p.pool[c.Addr]
@@ -400,22 +418,30 @@ func (p *Pool) PutClient(c *Client) {
 	}
 }
 
-func (p *Pool) Info(addr string) (map[string]string, error) {
+func (p *Pool) Info(addr string) (_ map[string]string, err error) {
 	c, err := p.GetClient(addr)
 	if err != nil {
 		return nil, err
 	}
-	defer p.PutClient(c)
-	return c.Info()
+	defer p.PutClient(c, err)
+	m, err := c.Info()
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
-func (p *Pool) InfoFull(addr string) (map[string]string, error) {
+func (p *Pool) InfoFull(addr string) (_ map[string]string, err error) {
 	c, err := p.GetClient(addr)
 	if err != nil {
 		return nil, err
 	}
-	defer p.PutClient(c)
-	return c.InfoFull()
+	defer p.PutClient(c, err)
+	m, err := c.InfoFull()
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 type InfoCache struct {
