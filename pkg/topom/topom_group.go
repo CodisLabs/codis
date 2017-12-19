@@ -10,6 +10,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/redis"
+	"github.com/CodisLabs/codis/pkg/utils/sync2"
 )
 
 func (s *Topom) CreateGroup(gid int) error {
@@ -380,6 +381,38 @@ func (s *Topom) trySwitchGroupMaster(gid int, master string, cache *redis.InfoCa
 	log.Warnf("group-[%d] will switch master to server[%d] = %s", g.Id, index, g.Servers[index].Addr)
 
 	g.Servers[0], g.Servers[index] = g.Servers[index], g.Servers[0]
+
+	go func(s *Topom, g *models.Group, ctx *context) {
+		s.cHashring.Remove(models.NewNode(g.Id, g.Servers[index].Addr))
+		s.cHashring.Add(models.NewNode(g.Id, g.Servers[0].Addr))
+		//ctx, err := s.newContext()
+		//if err != nil {
+		//	return err
+		//}
+		var fut sync2.Future
+		for _, p := range ctx.proxy {
+			fut.Add()
+			go func(p *models.Proxy) {
+				err := s.newProxyClient(p).SetHashring(s.cHashring)
+				if err != nil {
+					log.ErrorErrorf(err, "proxy-[%s] set hash ring failed", p.Token)
+				}
+				fut.Done(p.Token, err)
+			}(p)
+		}
+		for t, v := range fut.Wait() {
+			switch err := v.(type) {
+			case error:
+				if err != nil {
+					log.ErrorErrorf(err, "proxy-[%s] set hash ring failed", t)
+				}
+			}
+		}
+		if err := s.slotCreateActionByHashring(ctx); err != nil {
+			log.ErrorErrorf(err, "slots create action by hashring")
+		}
+	}(s, g, ctx)
+
 	g.OutOfSync = true
 	return s.storeUpdateGroup(g)
 }

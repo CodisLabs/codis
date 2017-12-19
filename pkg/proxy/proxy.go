@@ -369,6 +369,18 @@ func (s *Proxy) rewatchSentinels(servers []string) {
 	}
 }
 
+func (s *Proxy) SetHashring(cHashring *models.Consistent) error {
+	//todo: 这里有必要锁整个proxy吗
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
+	}
+	log.Infof("proxy-[%s] set hashring", s.model.ProxyAddr)
+	s.router.cHashring = cHashring
+	return nil
+}
+
 func (s *Proxy) serveAdmin() {
 	if s.IsClosed() {
 		return
@@ -442,7 +454,7 @@ func (s *Proxy) keepAlive(d time.Duration) {
 
 func (s *Proxy) acceptConn(l net.Listener) (net.Conn, error) {
 	var delay = &DelayExp2{
-		Min: 10, Max: 500,
+		Min:  10, Max: 500,
 		Unit: time.Millisecond,
 	}
 	for {
@@ -542,7 +554,7 @@ func (s StatsFlags) HasBit(m StatsFlags) bool {
 }
 
 const (
-	StatsCmds = StatsFlags(1 << iota)
+	StatsCmds    = StatsFlags(1 << iota)
 	StatsSlots
 	StatsRuntime
 
@@ -551,11 +563,11 @@ const (
 
 func (s *Proxy) Overview(flags StatsFlags) *Overview {
 	o := &Overview{
-		Version: utils.Version,
-		Compile: utils.Compile,
-		Config:  s.Config(),
-		Model:   s.Model(),
-		Stats:   s.Stats(flags),
+		//Version: utils.Version,
+		//Compile: utils.Compile,
+		Config: s.Config(),
+		Model:  s.Model(),
+		Stats:  s.Stats(flags),
 	}
 	if flags.HasBit(StatsSlots) {
 		o.Slots = s.Slots()

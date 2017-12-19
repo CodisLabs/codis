@@ -78,8 +78,10 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Put("/shutdown/:xauth", api.Shutdown)
 		r.Put("/loglevel/:xauth/:value", api.LogLevel)
 		r.Put("/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
+		r.Put("/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
 		r.Put("/sentinels/:xauth", binding.Json(models.Sentinel{}), api.SetSentinels)
 		r.Put("/sentinels/:xauth/rewatch", api.RewatchSentinels)
+		r.Put("/setHashring/:xauth", api.SetHashring)
 	})
 
 	m.MapTo(r, (*martini.Routes)(nil))
@@ -235,6 +237,16 @@ func (s *apiServer) RewatchSentinels(params martini.Params) (int, string) {
 	return rpc.ApiResponseJson("OK")
 }
 
+func (s *apiServer) SetHashring(cHashring *models.Consistent, params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	if err := s.proxy.SetHashring(cHashring); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	return rpc.ApiResponseJson("OK")
+}
+
 type ApiClient struct {
 	addr  string
 	xauth string
@@ -340,4 +352,9 @@ func (c *ApiClient) SetSentinels(sentinel *models.Sentinel) error {
 func (c *ApiClient) RewatchSentinels() error {
 	url := c.encodeURL("/api/proxy/sentinels/%s/rewatch", c.xauth)
 	return rpc.ApiPutJson(url, nil, nil)
+}
+
+func (c *ApiClient) SetHashring(cHashring *models.Consistent) error {
+	url := c.encodeURL("/api/proxy/setHashring/%s", c.xauth)
+	return rpc.ApiPutJson(url, cHashring, nil)
 }

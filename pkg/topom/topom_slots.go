@@ -14,6 +14,8 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/redis"
+	"github.com/CodisLabs/codis/pkg/utils/sync2"
+	"strconv"
 )
 
 func (s *Topom) SlotCreateAction(sid int, gid int) error {
@@ -712,4 +714,157 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 		}
 	}
 	return plans, nil
+}
+
+func (s *Topom) SlotCreateActionByHashring(hashNodes map[int]string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+	nodesToAdd := make(map[int]string, 20)
+	nodesToDelete := make(map[int]string, 20)
+	if len(s.hashNodeStatus) > 0 {
+		var oldGroupIds []int
+		var newGroupIds []int
+		for k, _ := range hashNodes {
+			newGroupIds = append(newGroupIds, k)
+		}
+		for k, _ := range s.hashNodeStatus {
+			oldGroupIds = append(oldGroupIds, k)
+		}
+		log.Infof("oldGroupIds: %v", oldGroupIds)
+		log.Infof("newGroupIds: %v", newGroupIds)
+		existInSlice := func(element int, groupIds []int) bool {
+			for _, v := range groupIds {
+				if element == v {
+					return true
+				}
+			}
+			return false
+		}
+		for _, v := range oldGroupIds {
+			if !existInSlice(v, newGroupIds) {
+				nodesToDelete[v] = s.hashNodeStatus[v]
+			} else {
+				if s.hashNodeStatus[v] != hashNodes[v] {
+					nodesToDelete[v] = s.hashNodeStatus[v]
+				}
+			}
+		}
+		for _, v := range newGroupIds {
+			if !existInSlice(v, oldGroupIds) {
+				nodesToAdd[v] = hashNodes[v]
+			} else {
+				if s.hashNodeStatus[v] != hashNodes[v] {
+					nodesToAdd[v] = hashNodes[v]
+				}
+			}
+		}
+	} else {
+		nodesToAdd = hashNodes
+	}
+	if len(nodesToDelete) > 0 || len(nodesToAdd) > 0 {
+		s.cHashring.Lock()
+		defer s.cHashring.Unlock()
+		log.Info("dashboard update hashring")
+		if s.cHashring == nil {
+			s.cHashring = models.NewConsistent()
+		}
+		if len(nodesToDelete) > 0 {
+			log.Infof("nodesTodelete: %v", nodesToDelete)
+			for k, v := range nodesToDelete {
+				s.cHashring.Remove(models.NewNode(k, v))
+			}
+		}
+		if len(nodesToAdd) > 0 {
+			log.Infof("nodesToadd: %v", nodesToAdd)
+			for k, v := range nodesToAdd {
+				s.cHashring.Add(models.NewNode(k, v))
+			}
+		}
+		var fut sync2.Future
+		for _, p := range ctx.proxy {
+			fut.Add()
+			go func(p *models.Proxy) {
+				err := s.newProxyClient(p).SetHashring(s.cHashring)
+				if err != nil {
+					log.ErrorErrorf(err, "proxy-[%s] set hash ring failed", p.Token)
+				}
+				fut.Done(p.Token, err)
+			}(p)
+		}
+		for t, v := range fut.Wait() {
+			switch err := v.(type) {
+			case error:
+				if err != nil {
+					return errors.Errorf("proxy-[%s] set hash ring failed", t)
+				}
+			}
+		}
+		if err := s.slotCreateActionByHashring(ctx); err != nil {
+			return err
+		}
+	}
+	s.hashNodeStatus = hashNodes
+
+	return nil
+}
+
+func (s *Topom) slotCreateActionByHashring(ctx *context) error {
+	pending := make(map[int]int, 1024)
+	if s.cHashring != nil {
+		for _, m := range ctx.slots {
+			if m.Action.State != models.ActionNothing {
+				continue
+			}
+			tmp,_ := s.cHashring.Get("slot" + strconv.Itoa(m.Id))
+			log.Infof("tmp: %v", tmp)
+			groupTo := tmp.Id
+			log.Infof("groupTo: %d", groupTo)
+			if groupTo != m.GroupId {
+				g, err := ctx.getGroup(groupTo)
+				if err != nil {
+					log.ErrorErrorf(err, "ctx get group-[%d] failed", g)
+				}
+				if len(g.Servers) == 0 {
+					log.Warnf("group-[%d] is empty", g.Id)
+				}
+				//pending = append(pending, m.Id)
+				pending[m.Id] = groupTo
+			}
+			//if m.GroupId != groupFrom {
+			//	continue
+			//}
+			//if m.GroupId == g.Id {
+			//	continue
+			//}
+		}
+	} else {
+		return errors.Errorf("hashring is empty")
+	}
+
+	if len(pending) > 0 {
+		log.Infof("pending: %v", pending)
+		for sid, gid := range pending {
+			m, err := ctx.getSlotMapping(sid)
+			if err != nil {
+				return err
+			}
+			defer s.dirtySlotsCache(m.Id)
+			//g, err := ctx.getGroup(groupTo)
+			//if err != nil {
+			//	return err
+			//}
+			m.Action.State = models.ActionPending
+			m.Action.Index = ctx.maxSlotActionIndex() + 1
+			m.Action.TargetId = gid
+			if err := s.storeUpdateSlotMapping(m); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

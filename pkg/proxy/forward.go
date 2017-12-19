@@ -12,11 +12,18 @@ import (
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"math/rand"
+	"strconv"
 )
+
+//type forwardMethod interface {
+//	GetId() int
+//	Forward(s *Slot, r *Request, hkey []byte) error
+//}
 
 type forwardMethod interface {
 	GetId() int
-	Forward(s *Slot, r *Request, hkey []byte) error
+	Forward(s *Slot, r *Request, hkey []byte, router *Router) error
 }
 
 var (
@@ -32,9 +39,20 @@ func (d *forwardSync) GetId() int {
 	return models.ForwardSync
 }
 
-func (d *forwardSync) Forward(s *Slot, r *Request, hkey []byte) error {
+//func (d *forwardSync) Forward(s *Slot, r *Request, hkey []byte) error {
+//	s.lock.RLock()
+//	bc, err := d.process(s, r, hkey)
+//	s.lock.RUnlock()
+//	if err != nil {
+//		return err
+//	}
+//	bc.PushBack(r)
+//	return nil
+//}
+
+func (d *forwardSync) Forward(s *Slot, r *Request, hkey []byte, router *Router) error {
 	s.lock.RLock()
-	bc, err := d.process(s, r, hkey)
+	bc, err := d.process(s, r, hkey, router)
 	s.lock.RUnlock()
 	if err != nil {
 		return err
@@ -43,7 +61,25 @@ func (d *forwardSync) Forward(s *Slot, r *Request, hkey []byte) error {
 	return nil
 }
 
-func (d *forwardSync) process(s *Slot, r *Request, hkey []byte) (*BackendConn, error) {
+//func (d *forwardSync) process(s *Slot, r *Request, hkey []byte) (*BackendConn, error) {
+//	if s.backend.bc == nil {
+//		log.Debugf("slot-%04d is not ready: hash key = '%s'",
+//			s.id, hkey)
+//		return nil, ErrSlotIsNotReady
+//	}
+//	if s.migrate.bc != nil && len(hkey) != 0 {
+//		if err := d.slotsmgrt(s, hkey, r.Database, r.Seed16()); err != nil {
+//			log.Debugf("slot-%04d migrate from = %s to %s failed: hash key = '%s', database = %d, error = %s",
+//				s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, r.Database, err)
+//			return nil, err
+//		}
+//	}
+//	r.Group = &s.refs
+//	r.Group.Add(1)
+//	return d.forward2(s, r), nil
+//}
+
+func (d *forwardSync) process(s *Slot, r *Request, hkey []byte, router *Router) (*BackendConn, error) {
 	if s.backend.bc == nil {
 		log.Debugf("slot-%04d is not ready: hash key = '%s'",
 			s.id, hkey)
@@ -58,7 +94,7 @@ func (d *forwardSync) process(s *Slot, r *Request, hkey []byte) (*BackendConn, e
 	}
 	r.Group = &s.refs
 	r.Group.Add(1)
-	return d.forward2(s, r), nil
+	return d.forward2(s, r, router), nil
 }
 
 type forwardSemiAsync struct {
@@ -69,11 +105,46 @@ func (d *forwardSemiAsync) GetId() int {
 	return models.ForwardSemiAsync
 }
 
-func (d *forwardSemiAsync) Forward(s *Slot, r *Request, hkey []byte) error {
+//func (d *forwardSemiAsync) Forward(s *Slot, r *Request, hkey []byte) error {
+//	var loop int
+//	for {
+//		s.lock.RLock()
+//		bc, retry, err := d.process(s, r, hkey)
+//		s.lock.RUnlock()
+//
+//		switch {
+//		case err != nil:
+//			return err
+//		case !retry:
+//			if bc != nil {
+//				bc.PushBack(r)
+//			}
+//			return nil
+//		}
+//
+//		var delay time.Duration
+//		switch {
+//		case loop < 5:
+//			delay = 0
+//		case loop < 20:
+//			delay = time.Millisecond * time.Duration(loop)
+//		default:
+//			delay = time.Millisecond * 20
+//		}
+//		time.Sleep(delay)
+//
+//		if r.IsBroken() {
+//			return ErrRequestIsBroken
+//		}
+//		loop += 1
+//	}
+//}
+
+func (d *forwardSemiAsync) Forward(s *Slot, r *Request, hkey []byte, router *Router) error {
 	var loop int
 	for {
 		s.lock.RLock()
-		bc, retry, err := d.process(s, r, hkey)
+		bc, retry, err := d.process(s, r, hkey, router)
 		s.lock.RUnlock()
 
 		switch {
@@ -104,7 +175,34 @@ func (d *forwardSemiAsync) Forward(s *Slot, r *Request, hkey []byte) error {
 	}
 }
 
-func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte) (_ *BackendConn, retry bool, _ error) {
+//func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte) (_ *BackendConn, retry bool, _ error) {
+//	if s.backend.bc == nil {
+//		log.Debugf("slot-%04d is not ready: hash key = '%s'",
+//			s.id, hkey)
+//		return nil, false, ErrSlotIsNotReady
+//	}
+//	if s.migrate.bc != nil && len(hkey) != 0 {
+//		resp, moved, err := d.slotsmgrtExecWrapper(s, hkey, r.Database, r.Seed16(), r.Multi)
+//		switch {
+//		case err != nil:
+//			log.Debugf("slot-%04d migrate from = %s to %s failed: hash key = '%s', error = %s",
+//				s.id, s.migrate.bc.Addr(), s.backend.bc.Addr(), hkey, err)
+//			return nil, false, err
+//		case !moved:
+//			switch {
+//			case resp != nil:
+//				r.Resp = resp
+//				return nil, false, nil
+//			}
+//			return nil, true, nil
+//		}
+//	}
+//	r.Group = &s.refs
+//	r.Group.Add(1)
+//	return d.forward2(s, r), false, nil
+//}
+
+func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte, router *Router) (_ *BackendConn, retry bool, _ error) {
 	if s.backend.bc == nil {
 		log.Debugf("slot-%04d is not ready: hash key = '%s'",
 			s.id, hkey)
@@ -128,7 +226,7 @@ func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte) (_ *Backend
 	}
 	r.Group = &s.refs
 	r.Group.Add(1)
-	return d.forward2(s, r), false, nil
+	return d.forward2(s, r, router), false, nil
 }
 
 type forwardHelper struct {
@@ -213,18 +311,94 @@ func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, database int3
 	}
 }
 
-func (d *forwardHelper) forward2(s *Slot, r *Request) *BackendConn {
+//func (d *forwardHelper) forward2(s *Slot, r *Request) *BackendConn {
+//	var database, seed = r.Database, r.Seed16()
+//	if s.migrate.bc == nil && !r.IsMasterOnly() && len(s.replicaGroups) != 0 {
+//		for _, group := range s.replicaGroups {
+//			var i = seed
+//			for range group {
+//				i = (i + 1) % uint(len(group))
+//				if bc := group[i].BackendConn(database, seed, false); bc != nil {
+//					return bc
+//				}
+//			}
+//		}
+//	}
+//	return s.backend.bc.BackendConn(database, seed, true)
+//}
+
+//func (d *forwardHelper) forward2(s *Slot, r *Request) *BackendConn {
+//	var database, seed = r.Database, r.Seed16()
+//	if s.migrate.bc == nil && r.IsReadOnly() && len(s.replicaGroups) != 0 {
+//		log.Info("replica: ",s.replicaGroups)
+//		for _, group := range s.replicaGroups {
+//			for _ = range group {
+//				log.Info("group: ",group)
+//				log.Info("group size: ",len(group))
+//				i:=randInt(0,len(group))
+//				log.Info("i: ",i)
+//				if bc := group[i].BackendConn(database, seed, false); bc != nil {
+//					log.Info("bc: ",bc)
+//					return bc
+//				}
+//			}
+//		}
+//	}
+//	return s.backend.bc.BackendConn(database, seed, true)
+//}
+
+func randInt(min, max int) int {
+	if min >= max || max == 0 {
+		return max
+	}
+	return rand.Intn(max-min) + min
+}
+
+func (d *forwardHelper) forward2(s *Slot, r *Request, router *Router) *BackendConn {
 	var database, seed = r.Database, r.Seed16()
-	if s.migrate.bc == nil && !r.IsMasterOnly() && len(s.replicaGroups) != 0 {
+	if s.migrate.bc == nil && r.IsReadOnly() && len(s.replicaGroups) != 0 {
+		log.Info("replica: ", s.replicaGroups)
 		for _, group := range s.replicaGroups {
-			var i = seed
-			for range group {
-				i = (i + 1) % uint(len(group))
+			for _ = range group {
+				log.Info("group: ", group)
+				log.Info("group size: ", len(group))
+				i := randInt(0, len(group))
+				log.Info("i: ", i)
 				if bc := group[i].BackendConn(database, seed, false); bc != nil {
+					log.Info("bc: ", bc)
 					return bc
 				}
 			}
 		}
 	}
-	return s.backend.bc.BackendConn(database, seed, true)
+
+	if bc := s.backend.bc.BackendConn(database, seed, false); bc != nil {
+		log.Info("bc: ", bc)
+		return bc
+	} else {
+		if router.cHashring != nil {
+			_, start := router.cHashring.Get("slot" + strconv.Itoa(s.id))
+			return findUsableServer(start, router, database, seed, 0)
+		} else {
+			log.Error("hashring of proxy is nil")
+			//todo:这里返回啥
+			return nil
+		}
+	}
+}
+
+func findUsableServer(start int, router *Router, database int32, seed uint, count int) *BackendConn {
+	count++
+	if count < len(router.cHashring.Nodes)-1 {
+		node, next := router.cHashring.GetNext(start)
+		if bc := router.pool.primary.Retain(node.Ip).BackendConn(database, seed, false); bc != nil {
+			return bc
+		} else {
+			return findUsableServer(next, router, database, seed, count)
+		}
+	} else {
+		node, _ := router.cHashring.GetNext(start)
+		return router.pool.primary.Retain(node.Ip).BackendConn(database, seed, true)
+	}
+
 }
