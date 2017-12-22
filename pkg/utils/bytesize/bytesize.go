@@ -5,6 +5,7 @@ package bytesize
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 
@@ -29,6 +30,23 @@ func (b Int64) Int64() int64 {
 
 func (b Int64) AsInt() int {
 	return int(b)
+}
+
+func (b Int64) HumanString() string {
+	switch abs := math.Abs(float64(b)); {
+	case abs > PB:
+		return fmt.Sprintf("%.2fpb", float64(b)/PB)
+	case abs > TB:
+		return fmt.Sprintf("%.2ftb", float64(b)/TB)
+	case abs > GB:
+		return fmt.Sprintf("%.2fgb", float64(b)/GB)
+	case abs > MB:
+		return fmt.Sprintf("%.2fmb", float64(b)/MB)
+	case abs > KB:
+		return fmt.Sprintf("%.2fkb", float64(b)/KB)
+	default:
+		return fmt.Sprintf("%d", b.Int64())
+	}
 }
 
 func (b Int64) MarshalText() ([]byte, error) {
