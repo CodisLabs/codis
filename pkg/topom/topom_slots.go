@@ -766,8 +766,8 @@ func (s *Topom) SlotCreateActionByHashring(hashNodes map[int]string) error {
 		nodesToAdd = hashNodes
 	}
 	if len(nodesToDelete) > 0 || len(nodesToAdd) > 0 {
-		s.cHashring.Lock()
-		defer s.cHashring.Unlock()
+		//s.cHashring.Lock()
+		//defer s.cHashring.Unlock()
 		log.Info("dashboard update hashring")
 		if s.cHashring == nil {
 			s.cHashring = models.NewConsistent()

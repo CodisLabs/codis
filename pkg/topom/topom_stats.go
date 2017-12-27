@@ -12,11 +12,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/redis"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
 	"github.com/CodisLabs/codis/pkg/utils/sync2"
-	"strconv"
-	"strings"
 )
-
-var slaveStatus = make(map[string]string)
 
 type RedisStats struct {
 	Stats map[string]string `json:"stats,omitempty"`
@@ -90,9 +86,6 @@ func (s *Topom) RefreshRedisStats(timeout time.Duration) (*sync2.Future, error) 
 			}
 			sentinel := redis.NewSentinel(s.config.ProductName, s.config.ProductAuth)
 			p, err := sentinel.MastersAndSlavesClient(c)
-			if s.config.AutoRemoveFailedSlaves{
-				s.monitorSlaves(p)
-			}
 			if err != nil {
 				return nil, err
 			}
@@ -176,59 +169,4 @@ func (s *Topom) RefreshProxyStats(timeout time.Duration) (*sync2.Future, error) 
 		s.stats.proxies = stats
 	}()
 	return &fut, nil
-}
-
-func (s *Topom) monitorSlaves(p map[string]*redis.SentinelGroup) {
-	slaveAutoOnline := s.config.SlaveAutoOnline
-	maxFailSlaves := s.config.MaxFailSlaves
-	var upSlaves = make([]string,0,maxFailSlaves)
-	var downSlaves = make([]string,0,maxFailSlaves)
-	for k, v := range p {
-		gid,_ := strconv.Atoi(k[len(k)-1:])
-		changeFlag := false
-		for _,slave := range v.Slaves{
-			if _, ok := slaveStatus[slave["name"]]; ok {
-				if slaveAutoOnline{
-					if !strings.Contains(slave["flags"],"disconnected") && strings.Contains(slaveStatus[slave["name"]],"disconnected") {
-						changeFlag = true
-						upSlaves = append(upSlaves,slave["name"])
-					}
-				}
-				if strings.Contains(slave["flags"],"disconnected") && !strings.Contains(slaveStatus[slave["name"]],"disconnected"){
-					changeFlag = true
-					downSlaves = append(downSlaves,slave["name"])
-				}
-			}
-			slaveStatus[slave["name"]] = slave["flags"]
-		}
-		if changeFlag{
-			if slaveAutoOnline{
-				if len(upSlaves) != 0{
-					for k,v := range upSlaves{
-						if err := s.GroupAddServer(gid,"",v);err == nil{
-							upSlaves = append(upSlaves[:k], upSlaves[k+1:]...)
-							s.EnableReplicaGroups(gid,v,true)
-						}
-					}
-				}
-			}
-			if len(downSlaves) !=0 {
-				for k,v := range downSlaves{
-					if !slaveAutoOnline{
-						delete(slaveStatus,v)
-					}
-					if err := s.GroupDelServer(gid,v);err == nil{
-						downSlaves = append(downSlaves[:k], downSlaves[k+1:]...)
-					}
-				}
-			}
-			if err := s.ResyncGroup(gid);err != nil{
-				log.WarnErrorf(err, "resync group [%d] failed", gid)
-			}
-			go s.ResyncSentinels()
-			if err := s.ResyncSentinels();err != nil{
-				log.WarnErrorf(err, "resync sentinels failed")
-			}
-		}
-	}
 }

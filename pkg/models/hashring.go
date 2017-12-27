@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const DEFAULT_REPLICAS = 200
+const DEFAULT_REPLICAS = 10
 
 type HashRing []uint32
 
@@ -51,7 +51,7 @@ func NewNode(id int, server string) *Node {
 type Consistent struct {
 	Nodes     map[uint32]Node
 	numReps   int
-	Resources map[int]bool
+	Resources map[int]int
 	ring      HashRing
 	sync.RWMutex
 }
@@ -60,7 +60,7 @@ func NewConsistent() *Consistent {
 	return &Consistent{
 		Nodes:     make(map[uint32]Node),
 		numReps:   DEFAULT_REPLICAS,
-		Resources: make(map[int]bool),
+		Resources: make(map[int]int),
 		ring:      HashRing{},
 	}
 }
@@ -78,7 +78,7 @@ func (c *Consistent) Add(node *Node) bool {
 		str := c.joinStr(i, node)
 		c.Nodes[c.hashStr(str)] = *(node)
 	}
-	c.Resources[node.Id] = true
+	c.Resources[node.Id] = node.Weight
 	c.sortHashRing()
 	return true
 }

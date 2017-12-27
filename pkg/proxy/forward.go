@@ -14,6 +14,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"math/rand"
 	"strconv"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 )
 
 //type forwardMethod interface {
@@ -376,25 +377,26 @@ func (d *forwardHelper) forward2(s *Slot, r *Request, router *Router) *BackendCo
 		log.Info("bc: ", bc)
 		return bc
 	} else {
+		retryTimes := math2.MinInt(router.config.RouterMaxRetryTimes, len(router.cHashring.Nodes)-1)
 		if router.cHashring != nil {
 			_, start := router.cHashring.Get("slot" + strconv.Itoa(s.id))
-			return findUsableServer(start, router, database, seed, 0)
+			return findUsableServer(start, router, database, seed, 0, retryTimes)
 		} else {
-			log.Error("hashring of proxy is nil")
+			log.Error("hashring of router is nil")
 			//todo:这里返回啥
 			return nil
 		}
 	}
 }
 
-func findUsableServer(start int, router *Router, database int32, seed uint, count int) *BackendConn {
+func findUsableServer(start int, router *Router, database int32, seed uint, count, retryTimes int) *BackendConn {
 	count++
-	if count < len(router.cHashring.Nodes)-1 {
+	if count < retryTimes {
 		node, next := router.cHashring.GetNext(start)
 		if bc := router.pool.primary.Retain(node.Ip).BackendConn(database, seed, false); bc != nil {
 			return bc
 		} else {
-			return findUsableServer(next, router, database, seed, count)
+			return findUsableServer(next, router, database, seed, count,retryTimes)
 		}
 	} else {
 		node, _ := router.cHashring.GetNext(start)

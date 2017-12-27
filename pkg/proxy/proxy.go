@@ -376,8 +376,8 @@ func (s *Proxy) SetHashring(cHashring *models.Consistent) error {
 	if s.closed {
 		return ErrClosedProxy
 	}
-	log.Infof("proxy-[%s] set hashring", s.model.ProxyAddr)
 	s.router.cHashring = cHashring
+	log.Infof("proxy-[%s] set hashring", s.model.ProxyAddr)
 	return nil
 }
 
