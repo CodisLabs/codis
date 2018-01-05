@@ -137,21 +137,6 @@ func (s *Router) isOnline() bool {
 	return s.online && !s.closed
 }
 
-//func (s *Router) dispatch(r *Request) error {
-//	hkey := getHashKey(r.Multi, r.OpStr)
-//	var id = Hash(hkey) % MaxSlotNum
-//	slot := &s.slots[id]
-//	return slot.forward(r, hkey)
-//}
-//
-//func (s *Router) dispatchSlot(r *Request, id int) error {
-//	if id < 0 || id >= MaxSlotNum {
-//		return ErrInvalidSlotId
-//	}
-//	slot := &s.slots[id]
-//	return slot.forward(r, nil)
-//}
-
 func (s *Router) dispatch(r *Request) error {
 	hkey := getHashKey(r.Multi, r.OpStr)
 	var id = Hash(hkey) % MaxSlotNum
