@@ -716,26 +716,34 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 	return plans, nil
 }
 
-func (s *Topom) SlotCreateActionByHashring(hashNodes map[int]string) error {
+func (s *Topom) SlotCreateActionByHashring(groupWeights map[int]int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ctx, err := s.newContext()
 	if err != nil {
 		return err
 	}
-	nodesToAdd := make(map[int]string, 20)
-	nodesToDelete := make(map[int]string, 20)
-	if len(s.hashNodeStatus) > 0 {
+	nodesToAdd := make(map[int]string)
+	nodesToDelete := make(map[int]string)
+	hashNodes := make(map[int]string)
+	for k, v := range groupWeights {
+		if masterAddr := ctx.getGroupMaster(k); masterAddr != "" {
+			hashNodes[k] = masterAddr + "-" + strconv.Itoa(v)
+		} else {
+			return errors.Errorf("group-%d does not exist or is empty", k)
+		}
+	}
+	log.Info("ctx.cHashring.nodeStatus: ",ctx.cHashring.NodeStatus)
+	if ctx.cHashring != nil && len(ctx.cHashring.NodeStatus) > 0 {
+		hashNodeStatus := ctx.cHashring.NodeStatus
 		var oldGroupIds []int
 		var newGroupIds []int
 		for k, _ := range hashNodes {
 			newGroupIds = append(newGroupIds, k)
 		}
-		for k, _ := range s.hashNodeStatus {
+		for k, _ := range hashNodeStatus {
 			oldGroupIds = append(oldGroupIds, k)
 		}
-		log.Infof("oldGroupIds: %v", oldGroupIds)
-		log.Infof("newGroupIds: %v", newGroupIds)
 		existInSlice := func(element int, groupIds []int) bool {
 			for _, v := range groupIds {
 				if element == v {
@@ -746,10 +754,10 @@ func (s *Topom) SlotCreateActionByHashring(hashNodes map[int]string) error {
 		}
 		for _, v := range oldGroupIds {
 			if !existInSlice(v, newGroupIds) {
-				nodesToDelete[v] = s.hashNodeStatus[v]
+				nodesToDelete[v] = hashNodeStatus[v]
 			} else {
-				if s.hashNodeStatus[v] != hashNodes[v] {
-					nodesToDelete[v] = s.hashNodeStatus[v]
+				if hashNodeStatus[v] != hashNodes[v] {
+					nodesToDelete[v] = hashNodeStatus[v]
 				}
 			}
 		}
@@ -757,7 +765,7 @@ func (s *Topom) SlotCreateActionByHashring(hashNodes map[int]string) error {
 			if !existInSlice(v, oldGroupIds) {
 				nodesToAdd[v] = hashNodes[v]
 			} else {
-				if s.hashNodeStatus[v] != hashNodes[v] {
+				if hashNodeStatus[v] != hashNodes[v] {
 					nodesToAdd[v] = hashNodes[v]
 				}
 			}
@@ -766,80 +774,75 @@ func (s *Topom) SlotCreateActionByHashring(hashNodes map[int]string) error {
 		nodesToAdd = hashNodes
 	}
 	if len(nodesToDelete) > 0 || len(nodesToAdd) > 0 {
-		//s.cHashring.Lock()
-		//defer s.cHashring.Unlock()
-		log.Info("dashboard update hashring")
-		if s.cHashring == nil {
-			s.cHashring = models.NewConsistent()
+		if ctx.cHashring == nil {
+			ctx.cHashring = models.NewConsistent()
 		}
 		if len(nodesToDelete) > 0 {
-			log.Infof("nodesTodelete: %v", nodesToDelete)
 			for k, v := range nodesToDelete {
-				s.cHashring.Remove(models.NewNode(k, v))
+				ctx.cHashring.Remove(models.NewNode(k, v))
 			}
 		}
 		if len(nodesToAdd) > 0 {
-			log.Infof("nodesToadd: %v", nodesToAdd)
 			for k, v := range nodesToAdd {
-				s.cHashring.Add(models.NewNode(k, v))
+				ctx.cHashring.Add(models.NewNode(k, v))
 			}
 		}
-		var fut sync2.Future
-		for _, p := range ctx.proxy {
-			fut.Add()
-			go func(p *models.Proxy) {
-				err := s.newProxyClient(p).SetHashring(s.cHashring)
-				if err != nil {
-					log.ErrorErrorf(err, "proxy-[%s] set hash ring failed", p.Token)
-				}
-				fut.Done(p.Token, err)
-			}(p)
-		}
-		for t, v := range fut.Wait() {
-			switch err := v.(type) {
-			case error:
-				if err != nil {
-					return errors.Errorf("proxy-[%s] set hash ring failed", t)
+		ctx.cHashring.NodeStatus = hashNodes
+		log.Info("ctx.chashring.Ring: ",ctx.cHashring.Ring)
+		defer s.dirtyHashringCache()
+
+		go func() {
+			var fut sync2.Future
+			for _, p := range ctx.proxy {
+				fut.Add()
+				go func(p *models.Proxy) {
+					err := s.newProxyClient(p).SetHashring(ctx.cHashring)
+					if err != nil {
+						log.ErrorErrorf(err, "proxy-[%s] set hash ring failed", p.Token)
+					}
+					fut.Done(p.Token, err)
+				}(p)
+			}
+			for t, v := range fut.Wait() {
+				switch err := v.(type) {
+				case error:
+					if err != nil {
+						log.Errorf("proxy-[%s] set hash ring failed", t)
+					}
 				}
 			}
+		}()
+
+		if err := s.storeUpdateHashring(ctx.cHashring); err != nil {
+			log.ErrorErrorf(err, "update hash ring failed")
 		}
-		if err := s.slotCreateActionByHashring(ctx); err != nil {
-			return err
-		}
+		return s.slotCreateActionByHashring(ctx)
 	}
-	s.hashNodeStatus = hashNodes
 
 	return nil
 }
 
 func (s *Topom) slotCreateActionByHashring(ctx *context) error {
 	pending := make(map[int]int, 1024)
-	if s.cHashring != nil {
+	if ctx.cHashring != nil {
 		for _, m := range ctx.slots {
 			if m.Action.State != models.ActionNothing {
 				continue
 			}
-			tmp,_ := s.cHashring.Get("slot" + strconv.Itoa(m.Id))
-			log.Infof("tmp: %v", tmp)
+			tmp, _ := ctx.cHashring.Get("slot" + strconv.Itoa(m.Id))
 			groupTo := tmp.Id
-			log.Infof("groupTo: %d", groupTo)
 			if groupTo != m.GroupId {
 				g, err := ctx.getGroup(groupTo)
 				if err != nil {
 					log.ErrorErrorf(err, "ctx get group-[%d] failed", g)
+					continue
 				}
 				if len(g.Servers) == 0 {
-					log.Warnf("group-[%d] is empty", g.Id)
+					log.Errorf("group-[%d] is empty", g.Id)
+					continue
 				}
-				//pending = append(pending, m.Id)
 				pending[m.Id] = groupTo
 			}
-			//if m.GroupId != groupFrom {
-			//	continue
-			//}
-			//if m.GroupId == g.Id {
-			//	continue
-			//}
 		}
 	} else {
 		return errors.Errorf("hashring is empty")
@@ -853,10 +856,6 @@ func (s *Topom) slotCreateActionByHashring(ctx *context) error {
 				return err
 			}
 			defer s.dirtySlotsCache(m.Id)
-			//g, err := ctx.getGroup(groupTo)
-			//if err != nil {
-			//	return err
-			//}
 			m.Action.State = models.ActionPending
 			m.Action.Index = ctx.maxSlotActionIndex() + 1
 			m.Action.TargetId = gid

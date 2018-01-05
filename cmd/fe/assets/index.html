@@ -22,6 +22,14 @@
                 width: 900px; /* New width for default modal */
             }
         }
+        .weightTable{
+            padding: 0px;
+        }
+        .weightTable .form-control{
+            border: 1px solid #ddd;
+            border-radius: 0px;
+            border-collapse: collapse;
+        }
     </style>
 </head>
 <body ng-controller="MainCodisCtrl">
@@ -238,8 +246,8 @@
                 <div id="slots_charts" style="min-width: 400px; height: 240px; margin: 0 auto"></div>
             </div>
 
-            <div class="col-md-12"
-                 style="padding-bottom: 10px;">
+            <div ng-show="workingMode === 'CP'" class="col-md-12"
+                 style="padding-bottom: 10px;" >
                 <form class="form-inline">
                     <span ng-if="codis_addr != 'NA'">
                         <button class="btn btn-warning btn-sm active" style="width: 120px; font-size: 14px; padding: 2px;"
@@ -263,7 +271,7 @@
                 </form>
             </div>
 
-            <div>
+            <div ng-show="workingMode ==='CP'">
                 <div class="row">
                     <div class="col-md-6" style="min-width:450px;">
                         <table class="table table-bordered" style="font-weight:bold;">
@@ -379,6 +387,61 @@
                     </div>
                 </div>
             </div>
+
+            <div ng-show="workingMode ==='AP'" class="col-md-12" style="padding-bottom:10px;">
+                <form name="weightForm" novalidate>
+                    <div class="row">
+                            <div class="col-xs-2 weightTable">
+                                <input type="text" class="form-control" value='group' style="font-weight:bold" disabled> 
+                            </div>
+                            <div class="col-xs-2 weightTable">
+                                <input type="text" class="form-control" value='weight' style="font-weight:bold" disabled> 
+                            </div>
+                            <div class="col-xs-2 weightTable">
+                                <input type="text" class="form-control" value='opration' style="font-weight:bold" disabled> 
+                            </div>
+                    </div>
+                    <div class="row" ng-repeat="weight in group_weight track by $index">
+                        <div class="col-xs-2 weightTable">
+                            <input type="number" class="form-control" ng-model ="weight.group" ng-disabled="onlyRead">
+                        </div>
+                        <div class="col-xs-2 weightTable">
+                            <input type="number" class="form-control"  ng-model="weight.weight" name="weight" ng-disabled="onlyRead" placeholder="请输入正整数值">
+                        </div>
+                        <div class="col-xs-2 weightTable">
+                            <div class="form-control">
+                                <span class="glyphicon glyphicon-plus" ng-click="addGroup($index)"></span>
+                                <span class="glyphicon glyphicon-minus" style="margin:auto 8px;" ng-click="deleteGroup($index)"></span>
+                                <span class="glyphicon glyphicon-pencil" ng-click="isEdit()"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row" ng-show="isError">
+                        <div class="col-xs-6 alert alert-warning " role="alert">
+                            <strong>Warning!</strong> All group ids and weights should be positive integer
+                        </div>
+                    </div>
+                    <div class="row" ng-show="isDuplicated">
+                        <div class="col-xs-6 alert alert-warning " role="alert">
+                            <strong>Warning!</strong> Group id duplicates
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-xs-5" style="padding:0px">
+                            <div class="col-xs-2 col-xs-offset-10" style="padding:0px">
+                                <button class="btn btn-success btn-xs active"
+                                        type="submit"
+                                        style="margin-top:10px; width: 80px;"
+                                        ng-click="submitWeightForm()">
+                                        confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>    
+        
+
         </div>
 
         <div class="row" style="min-width: 1200px">

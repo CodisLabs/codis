@@ -5,11 +5,143 @@ import (
 	"sort"
 	"strconv"
 	"sync"
-	"fmt"
 	"strings"
 )
 
-const DEFAULT_REPLICAS = 10
+const VIRTUAL_NODE_NUMBER = 120
+
+
+type Node struct {
+	Id int			`json:"node_id"`
+	Ip string		`json:"node_ip"`
+	Weight int      `json:"weight"`
+}
+
+func NewNode(id int, server string) *Node {
+	serverFields := strings.Split(server, "-")
+	addr := serverFields[0]
+	weight, _ := strconv.Atoi(serverFields[1])
+	return &Node{
+		Id: id,
+		Ip: addr,
+		Weight: weight,
+	}
+}
+
+type Consistent struct {
+	Nodes     map[uint32]Node  `json:"nodes,omitempty"`
+	VirtualNum   int			   `json:"virtualNum"`
+	NodeStatus map[int]string   `json:"nodeStatus"`
+	Ring      HashRing        `json:"ring,omitempty"`
+	sync.RWMutex
+}
+
+func (c *Consistent) Encode() []byte {
+	return jsonEncode(c)
+}
+
+func NewConsistent() *Consistent {
+	return &Consistent{
+		Nodes:     make(map[uint32]Node),
+		VirtualNum:   VIRTUAL_NODE_NUMBER,
+		NodeStatus: make(map[int]string),
+		Ring:      HashRing{},
+	}
+}
+
+func (c *Consistent) Add(node *Node) bool {
+	c.Lock()
+	defer c.Unlock()
+
+	if _, ok := c.NodeStatus[node.Id]; ok {
+		return false
+	}
+
+	count := c.VirtualNum * node.Weight
+	for i := 0; i < count; i++ {
+		str := c.joinStr(i, node)
+		c.Nodes[c.hashStr(str)] = *(node)
+	}
+	c.NodeStatus[node.Id] = node.Ip+"-"+strconv.Itoa(node.Weight)
+	c.sortHashRing()
+	return true
+}
+
+func (c *Consistent) sortHashRing() {
+	c.Ring = HashRing{}
+	for k := range c.Nodes {
+		c.Ring = append(c.Ring, k)
+	}
+	sort.Sort(c.Ring)
+}
+
+func (c *Consistent) Get(key string) (Node, int) {
+	c.RLock()
+	defer c.RUnlock()
+
+	hash := c.hashStr(key)
+
+	i := c.search(hash)
+
+	return c.Nodes[c.Ring[i]], i
+}
+
+func (c *Consistent) GetNext(i int) (Node, int) {
+	c.RLock()
+	defer c.RUnlock()
+
+	if i == len(c.Ring)-1 {
+		i = 0
+	} else {
+		i++
+	}
+
+	return c.Nodes[c.Ring[i]], i
+}
+
+func (c *Consistent) joinStr(i int, node *Node) string {
+	return strconv.Itoa(node.Id) +
+		"-" + strconv.Itoa(i) +
+		"-" + node.Ip +
+		"-" + strconv.Itoa(node.Weight)
+}
+
+func (c *Consistent) hashStr(key string) uint32 {
+	return crc32.ChecksumIEEE([]byte(key))
+}
+
+func (c *Consistent) search(hash uint32) int {
+
+	i := sort.Search(len(c.Ring), func(i int) bool { return c.Ring[i] >= hash })
+	if i < len(c.Ring) {
+		if i == len(c.Ring)-1 {
+			return 0
+		} else {
+			return i
+		}
+	} else {
+		return len(c.Ring) - 1
+	}
+}
+
+func (c *Consistent) Remove(node *Node) bool {
+	c.Lock()
+	defer c.Unlock()
+
+	if _, ok := c.NodeStatus[node.Id]; !ok {
+		return false
+	}
+
+	delete(c.NodeStatus, node.Id)
+
+	count := c.VirtualNum * node.Weight
+	for i := 0; i < count; i++ {
+		str := c.joinStr(i, node)
+		delete(c.Nodes, c.hashStr(str))
+	}
+	c.sortHashRing()
+	return true
+}
 
 type HashRing []uint32
 
@@ -23,183 +155,4 @@ func (c HashRing) Less(i, j int) bool {
 
 func (c HashRing) Swap(i, j int) {
 	c[i], c[j] = c[j], c[i]
-}
-
-type Node struct {
-	Id int
-	Ip string
-	//Port     int
-	//HostName string
-	Weight int
-}
-
-func NewNode(id int, server string) *Node {
-	serverFields := strings.Split(server, "-")
-	addr := serverFields[0]
-	weight, _ := strconv.Atoi(serverFields[1])
-	fmt.Println("addr:", addr)
-	fmt.Println("weight:", weight)
-	return &Node{
-		Id: id,
-		Ip: addr,
-		//Port:     port,
-		//HostName: name,
-		Weight: weight,
-	}
-}
-
-type Consistent struct {
-	Nodes     map[uint32]Node
-	numReps   int
-	Resources map[int]int
-	ring      HashRing
-	sync.RWMutex
-}
-
-func NewConsistent() *Consistent {
-	return &Consistent{
-		Nodes:     make(map[uint32]Node),
-		numReps:   DEFAULT_REPLICAS,
-		Resources: make(map[int]int),
-		ring:      HashRing{},
-	}
-}
-
-func (c *Consistent) Add(node *Node) bool {
-	c.Lock()
-	defer c.Unlock()
-
-	if _, ok := c.Resources[node.Id]; ok {
-		return false
-	}
-
-	count := c.numReps * node.Weight
-	for i := 0; i < count; i++ {
-		str := c.joinStr(i, node)
-		c.Nodes[c.hashStr(str)] = *(node)
-	}
-	c.Resources[node.Id] = node.Weight
-	c.sortHashRing()
-	return true
-}
-
-func (c *Consistent) sortHashRing() {
-	c.ring = HashRing{}
-	for k := range c.Nodes {
-		c.ring = append(c.ring, k)
-	}
-	sort.Sort(c.ring)
-}
-
-func (c *Consistent) joinStr(i int, node *Node) string {
-	//return node.Ip + "*" + strconv.Itoa(node.Weight) +
-	//	"-" + strconv.Itoa(i) +
-	//	"-" + strconv.Itoa(node.Id)
-	return strconv.Itoa(node.Id) +
-		"-" + strconv.Itoa(i) +
-		"-" + node.Ip +
-		"-" + strconv.Itoa(node.Weight)
-}
-
-// MurMurHash算法 :https://github.com/spaolacci/murmur3
-func (c *Consistent) hashStr(key string) uint32 {
-	return crc32.ChecksumIEEE([]byte(key))
-}
-
-func (c *Consistent) Get(key string) (Node, int) {
-	c.RLock()
-	defer c.RUnlock()
-
-	hash := c.hashStr(key)
-	fmt.Println("key:", key)
-
-	i := c.search(hash)
-	fmt.Println("i:", i)
-	fmt.Println("node id:", c.Nodes[c.ring[i]].Id)
-	fmt.Println("len(c.ring):", len(c.Nodes))
-
-	return c.Nodes[c.ring[i]], i
-}
-
-func (c *Consistent) GetNext(i int) (Node, int) {
-	c.RLock()
-	defer c.RUnlock()
-
-	//hash := c.hashStr(key)
-	//fmt.Println("key:", key)
-	//
-	//i := c.search(hash)
-	if i == len(c.ring)-1 {
-		i = 0
-	} else {
-		i++
-	}
-
-	return c.Nodes[c.ring[i]], i
-}
-
-func (c *Consistent) search(hash uint32) int {
-
-	i := sort.Search(len(c.ring), func(i int) bool { return c.ring[i] >= hash })
-	if i < len(c.ring) {
-		if i == len(c.ring)-1 {
-			return 0
-		} else {
-			return i
-		}
-	} else {
-		return len(c.ring) - 1
-	}
-}
-
-func (c *Consistent) Remove(node *Node) bool {
-	c.Lock()
-	defer c.Unlock()
-
-	if _, ok := c.Resources[node.Id]; !ok {
-		return false
-	}
-
-	delete(c.Resources, node.Id)
-
-	count := c.numReps * node.Weight
-	for i := 0; i < count; i++ {
-		str := c.joinStr(i, node)
-		delete(c.Nodes, c.hashStr(str))
-	}
-	c.sortHashRing()
-	return true
-}
-
-func main() {
-
-	cHashRing := NewConsistent()
-
-	for i := 0; i < 10; i++ {
-		//si := fmt.Sprintf("%d", i)
-		cHashRing.Add(NewNode(i, "10.202.94."+strconv.Itoa(i)+"-1"))
-	}
-
-	for k, v := range cHashRing.Nodes {
-		fmt.Println("Hash:", k, " Id:", v.Id)
-	}
-
-	idMap := make(map[int]int, 0)
-	for i := 0; i < 1024; i++ {
-		si := fmt.Sprintf("slot%d", i)
-		k, _ := cHashRing.Get(si)
-		if _, ok := idMap[k.Id]; ok {
-			idMap[k.Id] += 1
-		} else {
-			idMap[k.Id] = 1
-		}
-	}
-
-	sum := 0
-
-	for k, v := range idMap {
-		fmt.Println("Node Id:", k, " count:", v)
-		sum += v
-	}
-
 }

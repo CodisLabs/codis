@@ -80,7 +80,7 @@ func newApiServer(p *Proxy) http.Handler {
 		r.Put("/fillslots/:xauth", binding.Json([]*models.Slot{}), api.FillSlots)
 		r.Put("/sentinels/:xauth", binding.Json(models.Sentinel{}), api.SetSentinels)
 		r.Put("/sentinels/:xauth/rewatch", api.RewatchSentinels)
-		r.Put("/setHashring/:xauth", api.SetHashring)
+		r.Put("/setHashring/:xauth", binding.Json(models.Consistent{}), api.SetHashring)
 	})
 
 	m.MapTo(r, (*martini.Routes)(nil))
@@ -236,7 +236,7 @@ func (s *apiServer) RewatchSentinels(params martini.Params) (int, string) {
 	return rpc.ApiResponseJson("OK")
 }
 
-func (s *apiServer) SetHashring(cHashring *models.Consistent, params martini.Params) (int, string) {
+func (s *apiServer) SetHashring(cHashring models.Consistent, params martini.Params) (int, string) {
 	if err := s.verifyXAuth(params); err != nil {
 		return rpc.ApiResponseError(err)
 	}

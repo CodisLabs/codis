@@ -22,6 +22,7 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/redis"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
+	"encoding/json"
 )
 
 type apiServer struct {
@@ -108,6 +109,7 @@ func newApiServer(t *Topom) http.Handler {
 				r.Put("/remove/:xauth/:sid", api.SlotRemoveAction)
 				r.Put("/interval/:xauth/:value", api.SetSlotActionInterval)
 				r.Put("/disabled/:xauth/:value", api.SetSlotActionDisabled)
+				r.Put("/createByHashring/:xauth/:groupWeight", api.SlotCreateActionByHashring)
 			})
 			r.Put("/assign/:xauth", binding.Json([]*models.SlotMapping{}), api.SlotsAssignGroup)
 			r.Put("/assign/:xauth/offline", binding.Json([]*models.SlotMapping{}), api.SlotsAssignOffline)
@@ -713,6 +715,28 @@ func (s *apiServer) SetSlotActionDisabled(params martini.Params) (int, string) {
 	} else {
 		s.topom.SetSlotActionDisabled(value != 0)
 		return rpc.ApiResponseJson("OK")
+	}
+}
+
+func (s *apiServer) SlotCreateActionByHashring(params martini.Params) (int, string) {
+	if err := s.verifyXAuth(params); err != nil {
+		return rpc.ApiResponseError(err)
+	}
+	groupWeight := params["groupWeight"]
+	if groupWeight == "" {
+		return rpc.ApiResponseError(errors.New("missing groupWeight"))
+	} else {
+		weights := make(map[int]int)
+		if err := json.Unmarshal([]byte(groupWeight), &weights); err != nil {
+			return rpc.ApiResponseError(err)
+		} else {
+			log.Info("weights: ",weights)
+			if err := s.topom.SlotCreateActionByHashring(weights); err != nil {
+				return rpc.ApiResponseError(err)
+			}else{
+				return rpc.ApiResponseJson("OK")
+			}
+		}
 	}
 }
 
