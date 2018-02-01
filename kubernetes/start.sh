@@ -54,7 +54,7 @@ scale-server)
     echo $des
     if [ $cur == $des ]; then
         echo "current server == desired server, return"
-    elif [ $cur < $des ]; then
+    elif [ $cur -lt $des ]; then
         kubectl scale statefulsets codis-server --replicas=$des
         while [ $(kubectl get pods -l app=codis-server |grep Running |wc -l) != $2 ]; do sleep 1; done;
         kubectl exec -it codis-server-0 -- codis-admin  --dashboard=codis-dashboard:18080 --rebalance --confirm
