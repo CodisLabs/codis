@@ -108,6 +108,9 @@ func (s *Sentinel) dispatch(ctx context.Context, sentinel string, timeout time.D
 
 func (s *Sentinel) subscribeCommand(client *Client, sentinel string,
 	onSubscribed func()) error {
+	defer func() {
+		client.Close()
+	}()
 	var channels = []interface{}{"+switch-master"}
 	go func() {
 		client.Send("SUBSCRIBE", channels...)
@@ -219,6 +222,11 @@ func (s *Sentinel) Subscribe(sentinels []string, timeout time.Duration, onMajori
 }
 
 func (s *Sentinel) existsCommand(client *Client, names []string) (map[string]bool, error) {
+	defer func() {
+		if !client.isRecyclable() {
+			client.Close()
+		}
+	}()
 	go func() {
 		for _, name := range names {
 			client.Send("SENTINEL", "get-master-addr-by-name", name)
@@ -239,6 +247,11 @@ func (s *Sentinel) existsCommand(client *Client, names []string) (map[string]boo
 }
 
 func (s *Sentinel) slavesCommand(client *Client, names []string) (map[string][]map[string]string, error) {
+	defer func() {
+		if !client.isRecyclable() {
+			client.Close()
+		}
+	}()
 	exists, err := s.existsCommand(client, names)
 	if err != nil {
 		return nil, err
@@ -279,6 +292,11 @@ func (s *Sentinel) slavesCommand(client *Client, names []string) (map[string][]m
 }
 
 func (s *Sentinel) mastersCommand(client *Client) (map[int]map[string]string, error) {
+	defer func() {
+		if !client.isRecyclable() {
+			client.Close()
+		}
+	}()
 	values, err := redigo.Values(client.Do("SENTINEL", "masters"))
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -417,6 +435,11 @@ type MonitorConfig struct {
 }
 
 func (s *Sentinel) monitorGroupsCommand(client *Client, sentniel string, config *MonitorConfig, groups map[int]*net.TCPAddr) error {
+	defer func() {
+		if !client.isRecyclable() {
+			client.Close()
+		}
+	}()
 	var names []string
 	for gid := range groups {
 		names = append(names, s.NodeName(gid))
@@ -562,6 +585,11 @@ func (s *Sentinel) MonitorGroups(sentinels []string, timeout time.Duration, conf
 }
 
 func (s *Sentinel) removeCommand(client *Client, names []string) error {
+	defer func() {
+		if !client.isRecyclable() {
+			client.Close()
+		}
+	}()
 	exists, err := s.existsCommand(client, names)
 	if err != nil {
 		return err
@@ -708,6 +736,11 @@ type SentinelGroup struct {
 }
 
 func (s *Sentinel) MastersAndSlavesClient(client *Client) (map[string]*SentinelGroup, error) {
+	defer func() {
+		if !client.isRecyclable() {
+			client.Close()
+		}
+	}()
 	masters, err := s.mastersCommand(client)
 	if err != nil {
 		return nil, err
