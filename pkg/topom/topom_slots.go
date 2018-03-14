@@ -398,7 +398,7 @@ func (s *Topom) newSlotActionExecutor(sid int) (func(db int) (remains int, nextd
 			if err != nil {
 				return 0, -1, err
 			}
-			defer s.action.redisp.PutClient(c, err)
+			defer s.action.redisp.PutClient(c)
 
 			if err := c.Select(db); err != nil {
 				return 0, -1, err

@@ -26,6 +26,10 @@ type Client struct {
 
 	LastUse time.Time
 	Timeout time.Duration
+
+	Pipeline struct {
+		Send, Recv uint64
+	}
 }
 
 func NewClientNoAuth(addr string, timeout time.Duration) (*Client, error) {
@@ -51,6 +55,18 @@ func (c *Client) Close() error {
 	return c.conn.Close()
 }
 
+func (c *Client) isRecyclable() bool {
+	switch {
+	case c.conn.Err() != nil:
+		return false
+	case c.Pipeline.Send != c.Pipeline.Recv:
+		return false
+	case c.Timeout != 0 && c.Timeout <= time.Since(c.LastUse):
+		return false
+	}
+	return true
+}
+
 func (c *Client) Do(cmd string, args ...interface{}) (interface{}, error) {
 	r, err := c.conn.Do(cmd, args...)
 	if err != nil {
@@ -70,6 +86,7 @@ func (c *Client) Send(cmd string, args ...interface{}) error {
 		c.Close()
 		return errors.Trace(err)
 	}
+	c.Pipeline.Send++
 	return nil
 }
 
@@ -87,6 +104,8 @@ func (c *Client) Receive() (interface{}, error) {
 		c.Close()
 		return nil, errors.Trace(err)
 	}
+	c.Pipeline.Recv++
+
 	c.LastUse = time.Now()
 
 	if err, ok := r.(redigo.Error); ok {
@@ -327,13 +346,6 @@ func NewPool(auth string, timeout time.Duration) *Pool {
 	return p
 }
 
-func (p *Pool) isRecyclable(c *Client) bool {
-	if c.conn.Err() != nil {
-		return false
-	}
-	return p.timeout == 0 || time.Since(c.LastUse) < p.timeout
-}
-
 func (p *Pool) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -363,10 +375,10 @@ func (p *Pool) Cleanup() error {
 	for addr, list := range p.pool {
 		for i := list.Len(); i != 0; i-- {
 			c := list.Remove(list.Front()).(*Client)
-			if p.isRecyclable(c) {
-				list.PushBack(c)
-			} else {
+			if !c.isRecyclable() {
 				c.Close()
+			} else {
+				list.PushBack(c)
 			}
 		}
 		if list.Len() == 0 {
@@ -393,20 +405,20 @@ func (p *Pool) getClientFromCache(addr string) (*Client, error) {
 	if list := p.pool[addr]; list != nil {
 		for i := list.Len(); i != 0; i-- {
 			c := list.Remove(list.Front()).(*Client)
-			if p.isRecyclable(c) {
-				return c, nil
-			} else {
+			if !c.isRecyclable() {
 				c.Close()
+			} else {
+				return c, nil
 			}
 		}
 	}
 	return nil, nil
 }
 
-func (p *Pool) PutClient(c *Client, err error) {
+func (p *Pool) PutClient(c *Client) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if err != nil || p.closed || !p.isRecyclable(c) {
+	if !c.isRecyclable() || p.closed {
 		c.Close()
 	} else {
 		cache := p.pool[c.Addr]
@@ -423,12 +435,8 @@ func (p *Pool) Info(addr string) (_ map[string]string, err error) {
 	if err != nil {
 		return nil, err
 	}
-	defer p.PutClient(c, err)
-	m, err := c.Info()
-	if err != nil {
-		return nil, err
-	}
-	return m, nil
+	defer p.PutClient(c)
+	return c.Info()
 }
 
 func (p *Pool) InfoFull(addr string) (_ map[string]string, err error) {
@@ -436,12 +444,8 @@ func (p *Pool) InfoFull(addr string) (_ map[string]string, err error) {
 	if err != nil {
 		return nil, err
 	}
-	defer p.PutClient(c, err)
-	m, err := c.InfoFull()
-	if err != nil {
-		return nil, err
-	}
-	return m, nil
+	defer p.PutClient(c)
+	return c.InfoFull()
 }
 
 type InfoCache struct {

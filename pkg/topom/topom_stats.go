@@ -79,7 +79,7 @@ func (s *Topom) RefreshRedisStats(timeout time.Duration) (*sync2.Future, error) 
 			if err != nil {
 				return nil, err
 			}
-			defer s.ha.redisp.PutClient(c, err)
+			defer s.ha.redisp.PutClient(c)
 			m, err := c.Info()
 			if err != nil {
 				return nil, err

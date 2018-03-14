@@ -5,6 +5,7 @@ os:
     - osx
 
 go:
+    - 1.10.x
     - 1.9.x
     - 1.8.x
 
@@ -29,4 +30,4 @@ deploy:
     on:
         repo: CodisLabs/codis
         tags: true
-        condition: $TRAVIS_GO_VERSION =~ ^1\.[8-9]\.[0-9]+$
+        condition: $TRAVIS_GO_VERSION =~ ^1\.(1[0-9]|[8-9])\.[0-9]+$
