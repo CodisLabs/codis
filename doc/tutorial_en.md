@@ -192,7 +192,7 @@ Ansible installation is simple.Once Ansible is installed, there will be no daemo
 Ansible by default manages machines over the SSH protocol.
 
 ```
-git clone git://github.com/ansible/ansible.git -b stable-2.3
+git clone https://github.com/ansible/ansible.git -b stable-2.3
 cd ./ansible
 source ./hacking/env-setup
 cd $codis_dir/ansible
