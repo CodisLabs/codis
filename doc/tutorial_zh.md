@@ -208,7 +208,7 @@ ansible 文件夹包含了部署 codis 集群的 playbook，根据自己部署�
 ansible 安装也及其简单，各部署机器无需安装任何额外的 agent，彼此之间通过 ssh 通信。
 
 ```
-git clone git://github.com/ansible/ansible.git -b stable-2.3
+git clone https://github.com/ansible/ansible.git -b stable-2.3
 cd ./ansible
 source ./hacking/env-setup
 cd $codis_dir/ansible
