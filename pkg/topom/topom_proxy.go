@@ -137,6 +137,12 @@ func (s *Topom) reinitProxy(ctx *context, p *models.Proxy, c *proxy.ApiClient) e
 		log.ErrorErrorf(err, "proxy-[%s] set sentinels failed", p.Token)
 		return errors.Errorf("proxy-[%s] set sentinels failed", p.Token)
 	}
+	if ctx.cHashring != nil {
+		if err := c.SetHashring(ctx.cHashring); err != nil {
+			log.ErrorErrorf(err, "proxy-[%s] set hashring failed", p.Token)
+			return errors.Errorf("proxy-[%s] set hashring failed", p.Token)
+		}
+	}
 	return nil
 }
 

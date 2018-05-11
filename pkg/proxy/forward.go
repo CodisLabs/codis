@@ -12,11 +12,13 @@ import (
 	"github.com/CodisLabs/codis/pkg/proxy/redis"
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
+	"strconv"
+	"github.com/CodisLabs/codis/pkg/utils/math2"
 )
 
 type forwardMethod interface {
 	GetId() int
-	Forward(s *Slot, r *Request, hkey []byte) error
+	Forward(s *Slot, r *Request, hkey []byte, router *Router) error
 }
 
 var (
@@ -32,9 +34,9 @@ func (d *forwardSync) GetId() int {
 	return models.ForwardSync
 }
 
-func (d *forwardSync) Forward(s *Slot, r *Request, hkey []byte) error {
+func (d *forwardSync) Forward(s *Slot, r *Request, hkey []byte, router *Router) error {
 	s.lock.RLock()
-	bc, err := d.process(s, r, hkey)
+	bc, err := d.process(s, r, hkey, router)
 	s.lock.RUnlock()
 	if err != nil {
 		return err
@@ -43,7 +45,7 @@ func (d *forwardSync) Forward(s *Slot, r *Request, hkey []byte) error {
 	return nil
 }
 
-func (d *forwardSync) process(s *Slot, r *Request, hkey []byte) (*BackendConn, error) {
+func (d *forwardSync) process(s *Slot, r *Request, hkey []byte, router *Router) (*BackendConn, error) {
 	if s.backend.bc == nil {
 		log.Debugf("slot-%04d is not ready: hash key = '%s'",
 			s.id, hkey)
@@ -58,7 +60,7 @@ func (d *forwardSync) process(s *Slot, r *Request, hkey []byte) (*BackendConn, e
 	}
 	r.Group = &s.refs
 	r.Group.Add(1)
-	return d.forward2(s, r), nil
+	return d.forward2(s, r, router), nil
 }
 
 type forwardSemiAsync struct {
@@ -69,11 +71,11 @@ func (d *forwardSemiAsync) GetId() int {
 	return models.ForwardSemiAsync
 }
 
-func (d *forwardSemiAsync) Forward(s *Slot, r *Request, hkey []byte) error {
+func (d *forwardSemiAsync) Forward(s *Slot, r *Request, hkey []byte, router *Router) error {
 	var loop int
 	for {
 		s.lock.RLock()
-		bc, retry, err := d.process(s, r, hkey)
+		bc, retry, err := d.process(s, r, hkey, router)
 		s.lock.RUnlock()
 
 		switch {
@@ -104,7 +106,7 @@ func (d *forwardSemiAsync) Forward(s *Slot, r *Request, hkey []byte) error {
 	}
 }
 
-func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte) (_ *BackendConn, retry bool, _ error) {
+func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte, router *Router) (_ *BackendConn, retry bool, _ error) {
 	if s.backend.bc == nil {
 		log.Debugf("slot-%04d is not ready: hash key = '%s'",
 			s.id, hkey)
@@ -128,7 +130,7 @@ func (d *forwardSemiAsync) process(s *Slot, r *Request, hkey []byte) (_ *Backend
 	}
 	r.Group = &s.refs
 	r.Group.Add(1)
-	return d.forward2(s, r), false, nil
+	return d.forward2(s, r, router), false, nil
 }
 
 type forwardHelper struct {
@@ -213,7 +215,7 @@ func (d *forwardHelper) slotsmgrtExecWrapper(s *Slot, hkey []byte, database int3
 	}
 }
 
-func (d *forwardHelper) forward2(s *Slot, r *Request) *BackendConn {
+func (d *forwardHelper) forward2(s *Slot, r *Request, router *Router) *BackendConn {
 	var database, seed = r.Database, r.Seed16()
 	if s.migrate.bc == nil && !r.IsMasterOnly() && len(s.replicaGroups) != 0 {
 		for _, group := range s.replicaGroups {
@@ -226,5 +228,51 @@ func (d *forwardHelper) forward2(s *Slot, r *Request) *BackendConn {
 			}
 		}
 	}
-	return s.backend.bc.BackendConn(database, seed, true)
+
+	if router.cHashring == nil {
+		return s.backend.bc.BackendConn(database, seed, true)
+	} else {
+		if bc := s.backend.bc.BackendConn(database, seed, false); bc != nil {
+			log.Info("bc: ", bc)
+			return bc
+		} else {
+			var brokenList []string
+			brokenList = append(brokenList, s.backend.bc.addr)
+			retryTimes := math2.MinInt(router.config.RouterMaxRetryTimes, len(router.cHashring.Nodes)-1)
+			log.Info("retryTimes:", retryTimes)
+			_, start := router.cHashring.Get("slot" + strconv.Itoa(s.id))
+			log.Info("cHashring:", router.cHashring)
+			return findUsableServer(start, router, database, seed, 0, retryTimes, brokenList)
+		}
+	}
+}
+
+func findUsableServer(start int, router *Router, database int32, seed uint, count, retryTimes int, brokenList []string) *BackendConn {
+	count++
+	if count < retryTimes {
+		node, next := router.cHashring.GetNext(start)
+		if !existInSlice(node.Ip, brokenList) {
+			bc := router.pool.primary.Retain(node.Ip).BackendConn(database, seed, false)
+			if bc != nil {
+				return bc
+			} else {
+				brokenList = append(brokenList, node.Ip)
+				return findUsableServer(next, router, database, seed, count, retryTimes, brokenList)
+			}
+		}
+		return findUsableServer(next, router, database, seed, count, retryTimes, brokenList)
+	} else {
+		node, _ := router.cHashring.GetNext(start)
+		log.Warn("retry end, jump out")
+		return router.pool.primary.Retain(node.Ip).BackendConn(database, seed, true)
+	}
+}
+
+func existInSlice(element string, brokenList []string) bool {
+	for _, v := range brokenList {
+		if element == v {
+			return true
+		}
+	}
+	return false
 }

@@ -58,6 +58,10 @@ func SentinelPath(product string) string {
 	return filepath.Join(CodisDir, product, "sentinel")
 }
 
+func HashringPath(product string) string {
+	return filepath.Join(CodisDir, product, "hashring")
+}
+
 func LoadTopom(client Client, product string, must bool) (*Topom, error) {
 	b, err := client.Read(LockPath(product), must)
 	if err != nil || b == nil {
@@ -113,6 +117,10 @@ func (s *Store) ProxyPath(token string) string {
 
 func (s *Store) SentinelPath() string {
 	return SentinelPath(s.product)
+}
+
+func (s *Store) HashringPath() string {
+	return HashringPath(s.product)
 }
 
 func (s *Store) Acquire(topom *Topom) error {
@@ -253,6 +261,22 @@ func (s *Store) LoadSentinel(must bool) (*Sentinel, error) {
 
 func (s *Store) UpdateSentinel(p *Sentinel) error {
 	return s.client.Update(s.SentinelPath(), p.Encode())
+}
+
+func (s *Store) LoadHashring(must bool) (*Consistent, error) {
+	b, err := s.client.Read(s.HashringPath(), must)
+	if err != nil || b == nil {
+		return nil, err
+	}
+	c := NewConsistent()
+	if err := jsonDecode(c, b); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+func (s *Store) UpdateHashring(consistent *Consistent) error {
+	return s.client.Update(s.HashringPath(), consistent.Encode())
 }
 
 func ValidateProduct(name string) error {

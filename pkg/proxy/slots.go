@@ -65,6 +65,6 @@ func (s *Slot) unblock() {
 	s.lock.Unlock()
 }
 
-func (s *Slot) forward(r *Request, hkey []byte) error {
-	return s.method.Forward(s, r, hkey)
+func (s *Slot) forward(r *Request, hkey []byte,router *Router) error {
+	return s.method.Forward(s, r, hkey,router)
 }

@@ -29,6 +29,7 @@ type context struct {
 		m map[string]net.IP
 	}
 	method int
+	cHashring      *models.Consistent
 }
 
 func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {

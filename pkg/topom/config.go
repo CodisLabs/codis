@@ -54,6 +54,9 @@ sentinel_down_after = "30s"
 sentinel_failover_timeout = "5m"
 sentinel_notification_script = ""
 sentinel_client_reconfig_script = ""
+
+# Set work mode for codis cluster (only accept 'CP' & 'AP',default is 'CP').
+working_mode = "AP"
 `
 
 type Config struct {
@@ -82,6 +85,7 @@ type Config struct {
 	SentinelFailoverTimeout      timesize.Duration `toml:"sentinel_failover_timeout" json:"sentinel_failover_timeout"`
 	SentinelNotificationScript   string            `toml:"sentinel_notification_script" json:"sentinel_notification_script"`
 	SentinelClientReconfigScript string            `toml:"sentinel_client_reconfig_script" json:"sentinel_client_reconfig_script"`
+	WorkingMode                  string			   `toml:"working_mode" json:"working_mode"`
 }
 
 func NewDefaultConfig() *Config {

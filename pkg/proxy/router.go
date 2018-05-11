@@ -27,6 +27,7 @@ type Router struct {
 	config *Config
 	online bool
 	closed bool
+	cHashring *models.Consistent
 }
 
 func NewRouter(config *Config) *Router {
@@ -140,7 +141,7 @@ func (s *Router) dispatch(r *Request) error {
 	hkey := getHashKey(r.Multi, r.OpStr)
 	var id = Hash(hkey) % MaxSlotNum
 	slot := &s.slots[id]
-	return slot.forward(r, hkey)
+	return slot.forward(r, hkey,s)
 }
 
 func (s *Router) dispatchSlot(r *Request, id int) error {
@@ -148,7 +149,7 @@ func (s *Router) dispatchSlot(r *Request, id int) error {
 		return ErrInvalidSlotId
 	}
 	slot := &s.slots[id]
-	return slot.forward(r, nil)
+	return slot.forward(r, nil,s)
 }
 
 func (s *Router) dispatchAddr(r *Request, addr string) bool {

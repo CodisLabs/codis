@@ -38,6 +38,7 @@ type Topom struct {
 		proxy map[string]*models.Proxy
 
 		sentinel *models.Sentinel
+		cHashring    *models.Consistent
 	}
 
 	exit struct {
@@ -275,6 +276,7 @@ func (s *Topom) newContext() (*context, error) {
 			ctx.group = s.cache.group
 			ctx.proxy = s.cache.proxy
 			ctx.sentinel = s.cache.sentinel
+			ctx.cHashring = s.cache.cHashring
 			ctx.hosts.m = make(map[string]net.IP)
 			ctx.method, _ = models.ParseForwardMethod(s.config.MigrationMethod)
 			return ctx, nil
@@ -450,6 +452,8 @@ type Overview struct {
 	Config  *Config       `json:"config,omitempty"`
 	Model   *models.Topom `json:"model,omitempty"`
 	Stats   *Stats        `json:"stats,omitempty"`
+	WorkingMode string	  `json:"workingMode"`
+	GroupWeight  map[int]string   `json:"groupWeight"`
 }
 
 func (s *Topom) Overview() (*Overview, error) {
@@ -459,9 +463,22 @@ func (s *Topom) Overview() (*Overview, error) {
 		return &Overview{
 			Version: utils.Version,
 			Compile: utils.Compile,
-			Config:  s.Config(),
-			Model:   s.Model(),
-			Stats:   stats,
+			Config: s.Config(),
+			Model:  s.Model(),
+			Stats:  stats,
+			WorkingMode: s.config.WorkingMode,
+			GroupWeight: s.getGroupWeight(),
 		}, nil
 	}
+}
+
+func (s *Topom) getGroupWeight() map[int]string{
+	ctx, err := s.newContext()
+	if err != nil {
+		return nil
+	}
+	if ctx.cHashring == nil{
+		ctx.cHashring = models.NewConsistent()
+	}
+	return ctx.cHashring.NodeStatus
 }

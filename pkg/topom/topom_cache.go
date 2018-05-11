@@ -39,6 +39,12 @@ func (s *Topom) dirtySentinelCache() {
 	})
 }
 
+func (s *Topom) dirtyHashringCache() {
+	s.cache.hooks.PushBack(func() {
+		s.cache.cHashring = nil
+	})
+}
+
 func (s *Topom) dirtyCacheAll() {
 	s.cache.hooks.PushBack(func() {
 		s.cache.slots = nil
@@ -76,6 +82,12 @@ func (s *Topom) refillCache() error {
 		return errors.Errorf("store: load sentinel failed")
 	} else {
 		s.cache.sentinel = sentinel
+	}
+	if cHashring, err := s.refillCacheHashring(s.cache.cHashring); err != nil {
+		log.ErrorErrorf(err, "store: load hashring failed")
+		return errors.Errorf("store: load hashring failed")
+	} else {
+		s.cache.cHashring = cHashring
 	}
 	return nil
 }
@@ -157,6 +169,20 @@ func (s *Topom) refillCacheSentinel(sentinel *models.Sentinel) (*models.Sentinel
 	return &models.Sentinel{}, nil
 }
 
+func (s *Topom) refillCacheHashring(consistent *models.Consistent) (*models.Consistent, error) {
+	if consistent != nil {
+		return consistent, nil
+	}
+	p, err := s.store.LoadHashring(false)
+	if err != nil {
+		return nil, err
+	}
+	if p != nil {
+		return p, nil
+	}
+	return models.NewConsistent(), nil
+}
+
 func (s *Topom) storeUpdateSlotMapping(m *models.SlotMapping) error {
 	log.Warnf("update slot-[%d]:\n%s", m.Id, m.Encode())
 	if err := s.store.UpdateSlotMapping(m); err != nil {
@@ -225,6 +251,15 @@ func (s *Topom) storeUpdateSentinel(p *models.Sentinel) error {
 	if err := s.store.UpdateSentinel(p); err != nil {
 		log.ErrorErrorf(err, "store: update sentinel failed")
 		return errors.Errorf("store: update sentinel failed")
+	}
+	return nil
+}
+
+func (s *Topom) storeUpdateHashring(c *models.Consistent) error {
+	//log.Warnf("update hashring:\n%s", c.Encode())
+	if err := s.store.UpdateHashring(c); err != nil {
+		log.ErrorErrorf(err, "store: update hashring failed")
+		return errors.Errorf("store: update hashring failed")
 	}
 	return nil
 }

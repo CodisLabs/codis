@@ -214,12 +214,12 @@ function renderSlotsCharts(slots_array) {
         tooltip: {
             formatter: function () {
                 switch (this.point.x) {
-                case 0:
-                    return '<b>Slot-[' + this.point.beg + "," + this.point.end + "]</b> are <b>Offline</b>";
-                case 1:
-                    return '<b>Slot-[' + this.point.beg + "," + this.point.end + "]</b> will be moved to <b>Group-[" + this.point.group_id + "]</b>";
-                case 2:
-                    return '<b>Slot-[' + this.point.beg + "," + this.point.end + "]</b> --> <b>Group-[" + this.point.group_id + "]</b>";
+                    case 0:
+                        return '<b>Slot-[' + this.point.beg + "," + this.point.end + "]</b> are <b>Offline</b>";
+                    case 1:
+                        return '<b>Slot-[' + this.point.beg + "," + this.point.end + "]</b> will be moved to <b>Group-[" + this.point.group_id + "]</b>";
+                    case 2:
+                        return '<b>Slot-[' + this.point.beg + "," + this.point.end + "]</b> --> <b>Group-[" + this.point.group_id + "]</b>";
                 }
             }
         },
@@ -285,7 +285,7 @@ function processSentinels(codis_stats, group_stats, codis_name) {
         if (ha.model.servers == undefined) {
             ha.model.servers = []
         }
-        for (var i = 0; i < ha.model.servers.length; i ++) {
+        for (var i = 0; i < ha.model.servers.length; i++) {
             var x = {server: ha.model.servers[i]};
             var s = ha.stats[x.server];
             x.runid_error = "";
@@ -302,12 +302,12 @@ function processSentinels(codis_stats, group_stats, codis_name) {
                 x.sentinels = 0;
                 var masters = s.stats["sentinel_masters"];
                 if (masters != undefined) {
-                    for (var j = 0; j < masters; j ++) {
+                    for (var j = 0; j < masters; j++) {
                         var record = s.stats["master" + j];
                         if (record != undefined) {
                             var pairs = record.split(",");
                             var dict = {};
-                            for (var t = 0; t < pairs.length; t ++) {
+                            for (var t = 0; t < pairs.length; t++) {
                                 var ss = pairs[t].split("=");
                                 if (ss.length == 2) {
                                     dict[ss[0]] = ss[1];
@@ -323,9 +323,9 @@ function processSentinels(codis_stats, group_stats, codis_name) {
                             if (name.lastIndexOf("-") != codis_name.length) {
                                 continue;
                             }
-                            x.masters ++;
+                            x.masters++;
                             if (dict["status"] != "ok") {
-                                x.masters_down ++;
+                                x.masters_down++;
                             }
                             x.slaves += parseInt(dict["slaves"]);
                             x.sentinels += parseInt(dict["sentinels"]);
@@ -360,7 +360,7 @@ function processSentinels(codis_stats, group_stats, codis_name) {
                                 runids[o["runid"]] = o["ip"] + ":" + o["port"];
                             }
                             if (d.slaves != undefined) {
-                                for (var j = 0; j < d.slaves.length; j ++) {
+                                for (var j = 0; j < d.slaves.length; j++) {
                                     var o = d.slaves[j];
                                     runids[o["runid"]] = o["ip"] + ":" + o["port"];
                                 }
@@ -388,7 +388,7 @@ function processSentinels(codis_stats, group_stats, codis_name) {
     if (masters == undefined) {
         masters = {};
     }
-    return {servers:servers, masters:masters, out_of_sync: out_of_sync}
+    return {servers: servers, masters: masters, out_of_sync: out_of_sync}
 }
 
 function alertAction(text, callback) {
@@ -405,7 +405,7 @@ function alertAction(text, callback) {
             },
         }, {
             label: "CANCEL",
-            action: function(dialogItself){
+            action: function (dialogItself) {
                 dialogItself.close();
             }
         }],
@@ -427,7 +427,7 @@ function alertAction2(text, callback) {
             },
         }, {
             label: "CANCEL",
-            action: function(dialogItself){
+            action: function (dialogItself) {
                 dialogItself.close();
             }
         }],
@@ -498,7 +498,7 @@ function processGroupStats(codis_stats) {
                         if (j == 0) {
                             keys += v;
                         }
-                        x.keys.push(field+ ":" + s.stats[field]);
+                        x.keys.push(field + ":" + s.stats[field]);
                     }
                 }
                 if (s.stats["used_memory"]) {
@@ -620,6 +620,22 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                     return;
                 }
                 var overview = resp.data;
+                if (overview.workingMode === 'AP') {
+                    $scope.workingMode = 'AP'
+                } else {
+                    $scope.workingMode = 'CP'
+                }
+                $scope.group_weight = []
+                for (var key in overview.groupWeight) {
+                    $scope.group_weight.push({
+                        group: parseInt(key),
+                        weight: parseInt(overview.groupWeight[key].split("-")[1])
+                    })
+                }
+                console.log(overview.groupWeight)
+                if ($scope.group_weight.length == 0) {
+                    $scope.addGroup(0)
+                }
                 $scope.codis_addr = overview.model.admin_addr;
                 $scope.codis_coord_name = "[" + overview.config.coordinator_name.charAt(0).toUpperCase() + overview.config.coordinator_name.slice(1) + "]";
                 $scope.codis_coord_addr = overview.config.coordinator_addr;
@@ -632,7 +648,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             var group_stats = processGroupStats(codis_stats);
             var sentinel = processSentinels(codis_stats, group_stats, $scope.codis_name);
 
-            var merge = function(obj1, obj2) {
+            var merge = function (obj1, obj2) {
                 if (obj1 === null || obj2 === null) {
                     return obj2;
                 }
@@ -640,7 +656,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                     if (obj1.length != obj2.length) {
                         return obj2;
                     }
-                    for (var i = 0; i < obj1.length; i ++) {
+                    for (var i = 0; i < obj1.length; i++) {
                         obj1[i] = merge(obj1[i], obj2[i]);
                     }
                     return obj1;
@@ -681,11 +697,11 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
 
             if ($scope.sentinel_servers.length != 0) {
-                for (var i = 0; i < $scope.group_array.length; i ++) {
+                for (var i = 0; i < $scope.group_array.length; i++) {
                     var g = $scope.group_array[i];
                     var ha_master = sentinel.masters[g.id];
                     var ha_master_ingroup = false;
-                    for (var j = 0; j < g.servers.length; j ++) {
+                    for (var j = 0; j < g.servers.length; j++) {
                         var x = g.servers[j];
                         if (ha_master == undefined) {
                             x.ha_status = "ha_undefined";
@@ -782,16 +798,20 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
                 var confused = [];
-                for (var i = 0; i < $scope.group_array.length; i ++) {
+                for (var i = 0; i < $scope.group_array.length; i++) {
                     var group = $scope.group_array[i];
                     var ha_real_master = -1;
-                    for (var j = 0; j < group.servers.length; j ++) {
+                    for (var j = 0; j < group.servers.length; j++) {
                         if (group.servers[j].ha_status == "ha_real_master") {
                             ha_real_master = j;
                         }
                     }
                     if (ha_real_master >= 0) {
-                        confused.push({group: group.id, logical_master: group.servers[0].server, ha_real_master: group.servers[ha_real_master].server});
+                        confused.push({
+                            group: group.id,
+                            logical_master: group.servers[0].server,
+                            ha_real_master: group.servers[ha_real_master].server
+                        });
                     }
                 }
                 if (confused.length == 0) {
@@ -889,12 +909,12 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.resyncGroupAll = function() {
+        $scope.resyncGroupAll = function () {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
                 var ha_real_master = -1;
                 var gids = [];
-                for (var i = 0; i < $scope.group_array.length; i ++) {
+                for (var i = 0; i < $scope.group_array.length; i++) {
                     var group = $scope.group_array[i];
                     for (var j = 0; j < group.servers.length; j++) {
                         if (group.servers[j].ha_status == "ha_real_master") {
@@ -931,20 +951,24 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
                 var servers = [];
-                for (var i = 0; i < $scope.sentinel_servers.length; i ++) {
+                for (var i = 0; i < $scope.sentinel_servers.length; i++) {
                     servers.push($scope.sentinel_servers[i].server);
                 }
                 var confused = [];
-                for (var i = 0; i < $scope.group_array.length; i ++) {
+                for (var i = 0; i < $scope.group_array.length; i++) {
                     var group = $scope.group_array[i];
                     var ha_real_master = -1;
-                    for (var j = 0; j < group.servers.length; j ++) {
+                    for (var j = 0; j < group.servers.length; j++) {
                         if (group.servers[j].ha_status == "ha_real_master") {
                             ha_real_master = j;
                         }
                     }
                     if (ha_real_master >= 0) {
-                        confused.push({group: group.id, logical_master: group.servers[0].server, ha_real_master: group.servers[ha_real_master].server});
+                        confused.push({
+                            group: group.id,
+                            logical_master: group.servers[0].server,
+                            ha_real_master: group.servers[ha_real_master].server
+                        });
                     }
                 }
                 if (confused.length == 0) {
@@ -1240,25 +1264,27 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.rebalanceAllSlots = function() {
+        $scope.rebalanceAllSlots = function () {
             var codis_name = $scope.codis_name;
             if (isValidInput(codis_name)) {
                 var xauth = genXAuth(codis_name);
                 var url = concatUrl("/api/topom/slots/rebalance/" + xauth + "/0", codis_name);
                 $http.put(url).then(function (resp) {
                     var actions = []
-                    for (var i = 0; i < $scope.group_array.length; i ++) {
+                    for (var i = 0; i < $scope.group_array.length; i++) {
                         var g = $scope.group_array[i];
                         var slots = [], beg = 0, end = -1;
-                        for (var sid = 0; sid < 1024; sid ++) {
+                        for (var sid = 0; sid < 1024; sid++) {
                             if (resp.data[sid] == g.id) {
                                 if (beg > end) {
-                                    beg = sid; end = sid;
+                                    beg = sid;
+                                    end = sid;
                                 } else if (end == sid - 1) {
                                     end = sid;
                                 } else {
                                     slots.push("[" + beg + "," + end + "]");
-                                    beg = sid; end = sid;
+                                    beg = sid;
+                                    end = sid;
                                 }
                             }
                         }
@@ -1298,6 +1324,59 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             ticker++;
             $timeout(autoRefreshStats, 1000);
         }());
+
+        //添加权重设置++
+        $scope.onlyRead = true;
+        $scope.isEdit = function () {
+            $scope.onlyRead = !$scope.onlyRead
+        };
+        $scope.addGroup = function (index) {
+            $scope.group_weight.splice(index + 1, 0, {
+                group: '',
+                weight: ''
+            })
+        };
+        $scope.deleteGroup = function (index) {
+            debugger
+            if ($scope.group_weight.length > 1) {
+                $scope.group_weight.splice(index, 1)
+            } else {
+                return false
+            }
+        }
+        $scope.submitWeightForm = function () {
+            var groupWeight = {}
+            for (var i = 0; i < $scope.group_weight.length; i++) {
+                if (!$scope.group_weight[i].group || !$scope.group_weight[i].weight || !(/^[1-9][0-9]*$/).test($scope.group_weight[i].weight)) {
+                    $scope.isError = true
+                    $scope.isDuplicated = false
+                    groupWeight = {}
+                    return false
+                } else {
+                    $scope.isError = false
+                    if(groupWeight[$scope.group_weight[i].group] > 0){
+                        $scope.isDuplicated = true
+                        return false
+                    }
+                    $scope.isDuplicated = false
+                    groupWeight[$scope.group_weight[i].group]=$scope.group_weight[i].weight
+                }
+            }
+            groupWeight = JSON.stringify(groupWeight)
+            var codis_name = $scope.codis_name;
+            if (isValidInput(codis_name)) {
+                console.log(groupWeight)
+                var xauth = genXAuth(codis_name);
+                var url = concatUrl("/api/topom/slots/action/createByHashring/" + xauth + "/" + groupWeight, codis_name);
+                $http.put(url).then(function (resp) {
+                    console.log(resp)
+                    $scope.refreshStats();
+                }, function (failedResp) {
+                    alertErrorResp(failedResp);
+                });
+            }
+            console.log(angular.toJson($scope.group_weight))
+        }
+
     }
 ])
-;

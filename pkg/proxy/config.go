@@ -127,6 +127,9 @@ metrics_report_influxdb_database = ""
 metrics_report_statsd_server = ""
 metrics_report_statsd_period = "1s"
 metrics_report_statsd_prefix = ""
+
+# Set the maximum retry times before router finds a usable server to handle requests.
+router_max_retry_times = 10
 `
 
 type Config struct {
@@ -182,6 +185,7 @@ type Config struct {
 	MetricsReportStatsdServer     string            `toml:"metrics_report_statsd_server" json:"metrics_report_statsd_server"`
 	MetricsReportStatsdPeriod     timesize.Duration `toml:"metrics_report_statsd_period" json:"metrics_report_statsd_period"`
 	MetricsReportStatsdPrefix     string            `toml:"metrics_report_statsd_prefix" json:"metrics_report_statsd_prefix"`
+	RouterMaxRetryTimes           int               `toml:"router_max_retry_times" json:"router_max_retry_times"`
 }
 
 func NewDefaultConfig() *Config {
@@ -303,6 +307,9 @@ func (c *Config) Validate() error {
 	}
 	if c.MetricsReportStatsdPeriod < 0 {
 		return errors.New("invalid metrics_report_statsd_period")
+	}
+	if c.RouterMaxRetryTimes < 1 {
+		return errors.New("invalid router_max_retry_times")
 	}
 	return nil
 }

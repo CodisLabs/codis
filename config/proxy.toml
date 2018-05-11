@@ -112,3 +112,5 @@ metrics_report_statsd_server = ""
 metrics_report_statsd_period = "1s"
 metrics_report_statsd_prefix = ""
 
+# Set the maximum retry times before router finds a usable server to handle requests.
+router_max_retry_times = 10

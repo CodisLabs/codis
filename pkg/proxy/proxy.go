@@ -369,6 +369,17 @@ func (s *Proxy) rewatchSentinels(servers []string) {
 	}
 }
 
+func (s *Proxy) SetHashring(cHashring models.Consistent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosedProxy
+	}
+	s.router.cHashring = &cHashring
+	log.Infof("proxy-[%s] set hashring", s.model.ProxyAddr)
+	return nil
+}
+
 func (s *Proxy) serveAdmin() {
 	if s.IsClosed() {
 		return

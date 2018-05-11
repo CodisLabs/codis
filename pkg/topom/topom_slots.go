@@ -14,6 +14,8 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/math2"
 	"github.com/CodisLabs/codis/pkg/utils/redis"
+	"github.com/CodisLabs/codis/pkg/utils/sync2"
+	"strconv"
 )
 
 func (s *Topom) SlotCreateAction(sid int, gid int) error {
@@ -712,4 +714,156 @@ func (s *Topom) SlotsRebalance(confirm bool) (map[int]int, error) {
 		}
 	}
 	return plans, nil
+}
+
+func (s *Topom) SlotCreateActionByHashring(groupWeights map[int]int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, err := s.newContext()
+	if err != nil {
+		return err
+	}
+	nodesToAdd := make(map[int]string)
+	nodesToDelete := make(map[int]string)
+	hashNodes := make(map[int]string)
+	for k, v := range groupWeights {
+		if masterAddr := ctx.getGroupMaster(k); masterAddr != "" {
+			hashNodes[k] = masterAddr + "-" + strconv.Itoa(v)
+		} else {
+			return errors.Errorf("group-%d does not exist or is empty", k)
+		}
+	}
+	log.Info("ctx.cHashring.nodeStatus: ",ctx.cHashring.NodeStatus)
+	if ctx.cHashring != nil && len(ctx.cHashring.NodeStatus) > 0 {
+		hashNodeStatus := ctx.cHashring.NodeStatus
+		var oldGroupIds []int
+		var newGroupIds []int
+		for k, _ := range hashNodes {
+			newGroupIds = append(newGroupIds, k)
+		}
+		for k, _ := range hashNodeStatus {
+			oldGroupIds = append(oldGroupIds, k)
+		}
+		existInSlice := func(element int, groupIds []int) bool {
+			for _, v := range groupIds {
+				if element == v {
+					return true
+				}
+			}
+			return false
+		}
+		for _, v := range oldGroupIds {
+			if !existInSlice(v, newGroupIds) {
+				nodesToDelete[v] = hashNodeStatus[v]
+			} else {
+				if hashNodeStatus[v] != hashNodes[v] {
+					nodesToDelete[v] = hashNodeStatus[v]
+				}
+			}
+		}
+		for _, v := range newGroupIds {
+			if !existInSlice(v, oldGroupIds) {
+				nodesToAdd[v] = hashNodes[v]
+			} else {
+				if hashNodeStatus[v] != hashNodes[v] {
+					nodesToAdd[v] = hashNodes[v]
+				}
+			}
+		}
+	} else {
+		nodesToAdd = hashNodes
+	}
+	if len(nodesToDelete) > 0 || len(nodesToAdd) > 0 {
+		if ctx.cHashring == nil {
+			ctx.cHashring = models.NewConsistent()
+		}
+		if len(nodesToDelete) > 0 {
+			for k, v := range nodesToDelete {
+				ctx.cHashring.Remove(models.NewNode(k, v))
+			}
+		}
+		if len(nodesToAdd) > 0 {
+			for k, v := range nodesToAdd {
+				ctx.cHashring.Add(models.NewNode(k, v))
+			}
+		}
+		ctx.cHashring.NodeStatus = hashNodes
+		log.Info("ctx.chashring.Ring: ",ctx.cHashring.Ring)
+		defer s.dirtyHashringCache()
+
+		go func() {
+			var fut sync2.Future
+			for _, p := range ctx.proxy {
+				fut.Add()
+				go func(p *models.Proxy) {
+					err := s.newProxyClient(p).SetHashring(ctx.cHashring)
+					if err != nil {
+						log.ErrorErrorf(err, "proxy-[%s] set hash ring failed", p.Token)
+					}
+					fut.Done(p.Token, err)
+				}(p)
+			}
+			for t, v := range fut.Wait() {
+				switch err := v.(type) {
+				case error:
+					if err != nil {
+						log.Errorf("proxy-[%s] set hash ring failed", t)
+					}
+				}
+			}
+		}()
+
+		if err := s.storeUpdateHashring(ctx.cHashring); err != nil {
+			log.ErrorErrorf(err, "update hash ring failed")
+		}
+		return s.slotCreateActionByHashring(ctx)
+	}
+
+	return nil
+}
+
+func (s *Topom) slotCreateActionByHashring(ctx *context) error {
+	pending := make(map[int]int, 1024)
+	if ctx.cHashring != nil {
+		for _, m := range ctx.slots {
+			if m.Action.State != models.ActionNothing {
+				continue
+			}
+			tmp, _ := ctx.cHashring.Get("slot" + strconv.Itoa(m.Id))
+			groupTo := tmp.Id
+			if groupTo != m.GroupId {
+				g, err := ctx.getGroup(groupTo)
+				if err != nil {
+					log.ErrorErrorf(err, "ctx get group-[%d] failed", g)
+					continue
+				}
+				if len(g.Servers) == 0 {
+					log.Errorf("group-[%d] is empty", g.Id)
+					continue
+				}
+				pending[m.Id] = groupTo
+			}
+		}
+	} else {
+		return errors.Errorf("hashring is empty")
+	}
+
+	if len(pending) > 0 {
+		log.Infof("pending: %v", pending)
+		for sid, gid := range pending {
+			m, err := ctx.getSlotMapping(sid)
+			if err != nil {
+				return err
+			}
+			defer s.dirtySlotsCache(m.Id)
+			m.Action.State = models.ActionPending
+			m.Action.Index = ctx.maxSlotActionIndex() + 1
+			m.Action.TargetId = gid
+			if err := s.storeUpdateSlotMapping(m); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

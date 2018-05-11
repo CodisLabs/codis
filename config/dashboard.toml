@@ -6,7 +6,7 @@
 ##################################################
 
 # Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
-# for zookeeper/etcd, coorinator_auth accept "user:password" 
+# for zookeeper/etcd, coorinator_auth accept "user:password"
 # Quick Start
 coordinator_name = "filesystem"
 coordinator_addr = "/tmp/codis"
@@ -38,3 +38,5 @@ sentinel_failover_timeout = "5m"
 sentinel_notification_script = ""
 sentinel_client_reconfig_script = ""
 
+# Set work mode for codis cluster (only accept 'CP' & 'AP',default is 'CP').
+working_mode = "CP"
