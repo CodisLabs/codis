@@ -164,6 +164,9 @@ func (s *Session) loopReader(tasks *RequestChan, d *Router) (err error) {
 		if err != nil {
 			return err
 		}
+		if multi == nil {
+			continue
+		}
 		s.incrOpTotal()
 
 		if tasks.Buffered() > maxPipelineLen {
