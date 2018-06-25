@@ -164,7 +164,7 @@ func (s *Session) loopReader(tasks *RequestChan, d *Router) (err error) {
 		if err != nil {
 			return err
 		}
-		if multi == nil {
+		if len(multi) == 0 {
 			continue
 		}
 		s.incrOpTotal()
