@@ -211,6 +211,9 @@ func (d *Decoder) decodeSingleLineMultiBulk() ([]*Resp, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(b) == 0 {
+		return nil, nil
+	}
 	multi := make([]*Resp, 0, 8)
 	for l, r := 0, 0; r <= len(b); r++ {
 		if r == len(b) || b[r] == ' ' {
