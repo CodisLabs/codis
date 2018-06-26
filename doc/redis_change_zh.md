@@ -1,7 +1,7 @@
-### redis 修改部分（增加若干指令） ###
+### redis 修改部分（增加若干指令） 
 --------------------------------
 
-#####SLOTSINFO [start] [count]#####
+##### SLOTSINFO [start] [count] 
 
 + 命令说明：获取 redis 中 slot 的个数以及每个 slot 的大小
 
@@ -32,7 +32,7 @@
             2) 1) (integer) 29
                2) (integer) 1
 
-#####SLOTSSCAN slotnum cursor [COUNT count]
+##### SLOTSSCAN slotnum cursor [COUNT count]
 
 + 命令说明：获取指定 slotnum 下的 key 列表
 
@@ -65,7 +65,7 @@
                 9) "{a}9211"
                10) "{a}6596"
 
-#####SLOTSDEL slot1 [slot2 …]#####
+##### SLOTSDEL slot1 [slot2 …]
 
 + 命令说明：删除 redis 中若干 slot 下的全部 key-value
 
@@ -81,7 +81,7 @@
             2) 1) (integer) 990
                2) (integer) 0
 
-####数据迁移####
+#### 数据迁移
 ---------------
 
 **以下4个命令是一族命令：**
@@ -103,7 +103,7 @@
     将与指定 key 具有相同 tag 的所有 key-value 对迁移到目标机
 
 
-#####SLOTSMGRTSLOT host port timeout slot#####
+##### SLOTSMGRTSLOT host port timeout slot
 
 + 命令说明：随机选择 slot 下的 1 个 key-value 到迁移到目标机（同步 IO 操作）
 
@@ -161,7 +161,7 @@
             (integer) 0                      # 成功成功个数为 0；当前 slot 已经空了
 
 
-#####SLOTSMGRTONE host port timeout key#####
+##### SLOTSMGRTONE host port timeout key
 
 + 命令说明：迁移 key 到目标机，与 slotsmgrtslot 相同
 
@@ -186,7 +186,7 @@
         localhost:6379> slotsmgrtone 127.0.0.1 6380 100 a
             (integer) 0                      # 放弃迁移，本地已经不存在了
 
-#####SLOTSMGRTTAGONE host port timeout key#####
+##### SLOTSMGRTTAGONE host port timeout key
 
 + 命令说明：迁移与 key 有相同的 tag 的所有 key 到目标机
 
@@ -221,13 +221,13 @@
             2) 1) "a{tag}"
                2) "b{tag}"
 
-#####SLOTSMGRTTAGSLOT host port timeout slot#####
+##### SLOTSMGRTTAGSLOT host port timeout slot
 
 + 命令说明：与 slotsmgrtslot 对应的迁移指令
 
     - 其他说明参考 slotsmgrtslot 以及 slotsmgrttagone 的解释即可
 
-#####SLOTSRESTORE key1 ttl1 val1 [key2 ttl2 val2 …]#####
+##### SLOTSRESTORE key1 ttl1 val1 [key2 ttl2 val2 …]
 
 + 命令说明：该命令是对 redis-2.8 的 restore 命令的扩展
 
@@ -237,10 +237,10 @@
 
 + **备注：与 restore 不同的是，slotsrestore 只支持 replace，即一定** ***覆盖旧值*** **。如果旧值已经存在，那么只可能是 redis-slots 或者 proxy 的实现 bug，程序会通过 redisLog 打印一条冲突记录。**
 
-####调试相关####
+#### 调试相关
 ---------------
 
-#####SLOTSHASHKEY key1 [key2 …]#####
+##### SLOTSHASHKEY key1 [key2 …]
 
 + 命令说明：计算并返回给定 key 的 slot 序号
 
@@ -260,7 +260,7 @@
             2) (integer) 1017
             3) (integer) 879
 
-#####SLOTSCHECK#####
+##### SLOTSCHECK
 
 + 命令说明：对 redis 内的 slots 进行一致性检查，即满足如下两条
 
