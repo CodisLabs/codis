@@ -22,6 +22,8 @@ func init() {
 			charmap[i] = c
 		case c >= 'a' && c <= 'z':
 			charmap[i] = c - 'a' + 'A'
+		case c == ':':
+			charmap[i] = ':'
 		}
 	}
 }
@@ -110,6 +112,7 @@ func init() {
 		{"HLEN", 0},
 		{"HMGET", 0},
 		{"HMSET", FlagWrite},
+		{"HOST:", FlagNotAllow},
 		{"HSCAN", FlagMasterOnly},
 		{"HSET", FlagWrite},
 		{"HSETNX", FlagWrite},
@@ -149,6 +152,7 @@ func init() {
 		{"PFMERGE", FlagWrite},
 		{"PFSELFTEST", 0},
 		{"PING", 0},
+		{"POST", FlagNotAllow},
 		{"PSETEX", FlagWrite},
 		{"PSUBSCRIBE", FlagNotAllow},
 		{"PSYNC", FlagNotAllow},
