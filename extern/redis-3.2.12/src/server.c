@@ -298,7 +298,31 @@ struct redisCommand redisCommandTable[] = {
     {"pfdebug",pfdebugCommand,-3,"w",0,NULL,0,0,0,0,0},
     {"post",securityWarningCommand,-1,"lt",0,NULL,0,0,0,0,0},
     {"host:",securityWarningCommand,-1,"lt",0,NULL,0,0,0,0,0},
-    {"latency",latencyCommand,-2,"aslt",0,NULL,0,0,0,0,0}
+    {"latency",latencyCommand,-2,"aslt",0,NULL,0,0,0,0,0},
+    {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
+    {"slotsscan",slotsscanCommand,-3,"rR",0,NULL,0,0,0,0,0},
+    {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
+    {"slotsmgrtslot",slotsmgrtslotCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone",slotsmgrtoneCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotshashkey",slotshashkeyCommand,-1,"rF",0,NULL,0,0,0,0,0},
+    {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
+    {"slotsrestore",slotsrestoreCommand,-4,"wm",0,NULL,0,0,0,0,0},
+    {"slotsmgrtslot-async",slotsmgrtSlotAsyncCommand,8,"ws",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagslot-async",slotsmgrtTagSlotAsyncCommand,8,"ws",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone-async",slotsmgrtOneAsyncCommand,-7,"ws",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone-async",slotsmgrtTagOneAsyncCommand,-7,"ws",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone-async-dump",slotsmgrtOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone-async-dump",slotsmgrtTagOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-async-fence",slotsmgrtAsyncFenceCommand,0,"rs",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-async-cancel",slotsmgrtAsyncCancelCommand,0,"F",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-async-status",slotsmgrtAsyncStatusCommand,0,"F",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-exec-wrapper",slotsmgrtExecWrapperCommand,-3,"wm",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async",slotsrestoreAsyncCommand,-2,"wm",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async-auth",slotsrestoreAsyncAuthCommand,2,"sltF",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async-select",slotsrestoreAsyncSelectCommand,2,"lF",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async-ack",slotsrestoreAsyncAckCommand,3,"w",0,NULL,0,0,0,0,0},
 };
 
 struct evictionPoolEntry *evictionPoolAlloc(void);
@@ -566,6 +590,15 @@ dictType dbDictType = {
     dictObjectDestructor   /* val destructor */
 };
 
+dictType hashSlotType = {
+    dictSdsHash,                /* hash function */
+    NULL,                       /* key dup */
+    NULL,                       /* val dup */
+    dictSdsKeyCompare,          /* key compare */
+    NULL,                       /* key destructor */
+    NULL                        /* val destructor */
+};
+
 /* server.lua_scripts sha (as sds string) -> scripts (as robj) cache. */
 dictType shaScriptObjectDictType = {
     dictSdsCaseHash,            /* hash function */
@@ -675,8 +708,15 @@ int htNeedsResize(dict *dict) {
 /* If the percentage of used slots in the HT reaches HASHTABLE_MIN_FILL
  * we resize the hash table to save memory */
 void tryResizeHashTables(int dbid) {
-    if (htNeedsResize(server.db[dbid].dict))
+    if (htNeedsResize(server.db[dbid].dict)) {
         dictResize(server.db[dbid].dict);
+        for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
+            dict *d = server.db[dbid].hash_slots[i];
+            if (htNeedsResize(d)) {
+                dictResize(d);
+            }
+        }
+    }
     if (htNeedsResize(server.db[dbid].expires))
         dictResize(server.db[dbid].expires);
 }
@@ -692,6 +732,22 @@ int incrementallyRehash(int dbid) {
     /* Keys dictionary */
     if (dictIsRehashing(server.db[dbid].dict)) {
         dictRehashMilliseconds(server.db[dbid].dict,1);
+        server.db[dbid].hash_slots_rehashing = 1;
+        return 1; /* already used our millisecond for this loop... */
+    }
+    if (server.db[dbid].hash_slots_rehashing) {
+        long long start = timeInMilliseconds();
+        for (int i = 0; i < HASH_SLOTS_SIZE; i ++) {
+            int idx = ((i + start) & HASH_SLOTS_MASK);
+            dict *d = server.db[dbid].hash_slots[idx];
+            if (dictIsRehashing(d)) {
+                dictRehashMilliseconds(d, 1);
+                if (timeInMilliseconds() != start) {
+                    return 1; /* already used our millisecond for this loop... */
+                }
+            }
+        }
+        server.db[dbid].hash_slots_rehashing = 0;
         return 1; /* already used our millisecond for this loop... */
     }
     /* Expires */
@@ -1293,6 +1349,11 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
         if (server.sentinel_mode) sentinelTimer();
     }
 
+    run_with_period(1000) {
+        slotsmgrt_cleanup();
+        slotsmgrtAsyncCleanup();
+    }
+
     /* Cleanup expired MIGRATE cached sockets. */
     run_with_period(1000) {
         migrateCloseTimedoutSockets();
@@ -1441,7 +1502,8 @@ void createSharedObjects(void) {
     shared.lpop = createStringObject("LPOP",4);
     shared.lpush = createStringObject("LPUSH",5);
     for (j = 0; j < OBJ_SHARED_INTEGERS; j++) {
-        shared.integers[j] = createObject(OBJ_STRING,(void*)(long)j);
+        shared.integers[j] =
+            makeObjectShared(createObject(OBJ_STRING,(void*)(long)j));
         shared.integers[j]->encoding = OBJ_ENCODING_INT;
     }
     for (j = 0; j < OBJ_SHARED_BULKHDR_LEN; j++) {
@@ -1873,11 +1935,13 @@ void resetServerStats(void) {
 }
 
 void initServer(void) {
-    int j;
+    int i, j;
 
     signal(SIGHUP, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
     setupSignalHandlers();
+
+    crc32_init();
 
     if (server.syslog_enabled) {
         openlog(server.syslog_ident, LOG_PID | LOG_NDELAY | LOG_NOWAIT,
@@ -1903,6 +1967,14 @@ void initServer(void) {
     adjustOpenFilesLimit();
     server.el = aeCreateEventLoop(server.maxclients+CONFIG_FDSET_INCR);
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
+
+    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
+    server.slotsmgrt_cached_clients = zmalloc(sizeof(slotsmgrtAsyncClient) * server.dbnum);
+    for (j = 0; j < server.dbnum; j ++) {
+        slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
+        memset(ac, 0, sizeof(*ac));
+    }
+    slotsmgrtInitLazyReleaseWorkerThread();
 
     /* Open the TCP listening socket for the user commands. */
     if (server.port != 0 &&
@@ -1937,6 +2009,11 @@ void initServer(void) {
         server.db[j].eviction_pool = evictionPoolAlloc();
         server.db[j].id = j;
         server.db[j].avg_ttl = 0;
+        for (i = 0; i < HASH_SLOTS_SIZE; i ++) {
+            server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
+        }
+        server.db[j].hash_slots_rehashing = 0;
+        server.db[j].tagged_keys = zslCreate();
     }
     server.pubsub_channels = dictCreate(&keylistDictType,NULL);
     server.pubsub_patterns = listCreate();
@@ -2391,7 +2468,9 @@ int processCommand(client *c) {
     }
 
     /* Check if the user is authenticated */
-    if (server.requirepass && !c->authenticated && c->cmd->proc != authCommand)
+    if (server.requirepass && !c->authenticated
+            && c->cmd->proc != authCommand
+            && c->cmd->proc != slotsrestoreAsyncAuthCommand)
     {
         flagTransaction(c);
         addReply(c,shared.noautherr);
