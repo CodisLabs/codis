@@ -92,17 +92,6 @@ func (d *Decoder) Decode() (*Resp, error) {
 	return r, d.Err
 }
 
-func (d *Decoder) DecodeMultiBulk() ([]*Resp, error) {
-	if d.Err != nil {
-		return nil, errors.Trace(ErrFailedDecoder)
-	}
-	m, err := d.decodeMultiBulk()
-	if err != nil {
-		d.Err = err
-	}
-	return m, err
-}
-
 func Decode(r io.Reader) (*Resp, error) {
 	return NewDecoder(r).Decode()
 }
@@ -111,16 +100,12 @@ func DecodeFromBytes(p []byte) (*Resp, error) {
 	return NewDecoder(bytes.NewReader(p)).Decode()
 }
 
-func DecodeMultiBulkFromBytes(p []byte) ([]*Resp, error) {
-	return NewDecoder(bytes.NewReader(p)).DecodeMultiBulk()
-}
-
 func (d *Decoder) decodeResp() (*Resp, error) {
 	b, err := d.br.ReadByte()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	r := &Resp{}
+	r := AcquireResp()
 	r.Type = RespType(b)
 	switch r.Type {
 	default:
@@ -130,7 +115,7 @@ func (d *Decoder) decodeResp() (*Resp, error) {
 	case TypeBulkBytes:
 		r.Value, err = d.decodeBulkBytes()
 	case TypeArray:
-		r.Array, err = d.decodeArray()
+		err = d.decodeArray(r)
 	}
 	return r, err
 }
@@ -182,84 +167,30 @@ func (d *Decoder) decodeBulkBytes() ([]byte, error) {
 	return b[:n], nil
 }
 
-func (d *Decoder) decodeArray() ([]*Resp, error) {
+func (d *Decoder) decodeArray(r *Resp) error {
 	n, err := d.decodeInt()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	switch {
 	case n < -1:
-		return nil, errors.Trace(ErrBadArrayLen)
+		return errors.Trace(ErrBadArrayLen)
 	case n > MaxArrayLen:
-		return nil, errors.Trace(ErrBadArrayLenTooLong)
+		return errors.Trace(ErrBadArrayLenTooLong)
 	case n == -1:
-		return nil, nil
+		return nil
 	}
-	array := make([]*Resp, n)
-	for i := range array {
-		r, err := d.decodeResp()
+	if r.Array == nil {
+		r.Array = make([]*Resp, 0, n+2)
+	} else {
+		r.Array = r.Array[:0]
+	}
+	for i := int64(0); i < n; i++ {
+		sub, err := d.decodeResp()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		array[i] = r
+		r.Array = append(r.Array, sub)
 	}
-	return array, nil
-}
-
-func (d *Decoder) decodeSingleLineMultiBulk() ([]*Resp, error) {
-	b, err := d.decodeTextBytes()
-	if err != nil {
-		return nil, err
-	}
-	if len(b) == 0 {
-		return nil, nil
-	}
-	multi := make([]*Resp, 0, 8)
-	for l, r := 0, 0; r <= len(b); r++ {
-		if r == len(b) || b[r] == ' ' {
-			if l < r {
-				multi = append(multi, NewBulkBytes(b[l:r]))
-			}
-			l = r + 1
-		}
-	}
-	if len(multi) == 0 {
-		return nil, errors.Trace(ErrBadMultiBulkLen)
-	}
-	return multi, nil
-}
-
-func (d *Decoder) decodeMultiBulk() ([]*Resp, error) {
-	b, err := d.br.PeekByte()
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	if RespType(b) != TypeArray {
-		return d.decodeSingleLineMultiBulk()
-	}
-	if _, err := d.br.ReadByte(); err != nil {
-		return nil, errors.Trace(err)
-	}
-	n, err := d.decodeInt()
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	switch {
-	case n <= 0:
-		return nil, errors.Trace(ErrBadArrayLen)
-	case n > MaxArrayLen:
-		return nil, errors.Trace(ErrBadArrayLenTooLong)
-	}
-	multi := make([]*Resp, n)
-	for i := range multi {
-		r, err := d.decodeResp()
-		if err != nil {
-			return nil, err
-		}
-		if r.Type != TypeBulkBytes {
-			return nil, errors.Trace(ErrBadMultiBulkContent)
-		}
-		multi[i] = r
-	}
-	return multi, nil
+	return nil
 }

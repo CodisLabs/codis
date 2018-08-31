@@ -301,6 +301,7 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 				}
 			}
 		}
+		r.respForRelease = resp
 		bc.setResponse(r, resp, nil)
 	}
 	return nil

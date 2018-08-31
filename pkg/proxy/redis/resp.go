@@ -3,7 +3,10 @@
 
 package redis
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 type RespType byte
 
@@ -37,6 +40,31 @@ type Resp struct {
 
 	Value []byte
 	Array []*Resp
+}
+
+var respPool = &sync.Pool{
+	New: func() interface{} {
+		return &Resp{Array: make([]*Resp, 0, 8)}
+	},
+}
+
+func AcquireResp() *Resp {
+	return respPool.Get().(*Resp)
+}
+
+func ReleaseResp(r *Resp) {
+	r.Type = 0
+	r.Value = nil
+	if r.Array == nil {
+		r.Array = make([]*Resp, 0, 8)
+	} else {
+		for i := 0; i < len(r.Array); i++ {
+			ReleaseResp(r.Array[i])
+			r.Array[i] = nil
+		}
+		r.Array = r.Array[:0]
+	}
+	respPool.Put(r)
 }
 
 func (r *Resp) IsString() bool {
