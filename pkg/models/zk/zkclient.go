@@ -228,7 +228,7 @@ func (c *Client) CreateEphemeral(path string, data []byte) (<-chan struct{}, err
 		log.Debugf("zkclient create-ephemeral node %s failed: %s", path, err)
 		return nil, err
 	}
-	log.Debugf("zkclient create-ephemeral OK", path)
+	log.Debugf("zkclient create-ephemeral OK: %q", path)
 	return signal, nil
 }
 
