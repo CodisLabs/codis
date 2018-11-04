@@ -1,13 +1,13 @@
 # Codis Tutorial
 
-Codis is a distributed Redis solution, there is no obvious difference between connecting to a Codis proxy and an original Redis server, top layer application can connect to Codis as normal standalone Redis, Codis will forward low layer requests. Hot data migration and all things in the shadow are transparent to client. Simply treat Coids as a Redis service with unlimited RAM. 
+Codis is a distributed Redis solution, there is no obvious difference between connecting to a Codis proxy and an original Redis server, top layer application can connect to Codis as normal standalone Redis, Codis will forward low layer requests. Hot data migration and all things in the shadow are transparent to client. Simply treat Codis as a Redis service with unlimited RAM. 
 
 
 Codis 3.x consists of the following components:
 
-* **Codis Server**: based on redis-3.2.8 branch development. Added additional data structures to support slot-related operations and data migration instructions. Specific changes can refer to the document [redis changes] (redis_change_zh.md).
+* **Codis Server**: based on redis-3.2.8 branch development. Added additional data structures to support slot-related operations and data migration instructions. Specific changes can refer to the document [redis changes](redis_change_zh.md).
 
-* **Codis Proxy**: is the proxy service of client connections. Codis Proxy Implements Redis Protocol. In addition to some commands do not support ([unsupported command list] (unsupported_cmds.md)).
+* **Codis Proxy**: is the proxy service of client connections. Codis Proxy Implements Redis Protocol. In addition to some commands do not support ([unsupported command list](unsupported_cmds.md)).
 
     + For the same product cluster, you can deploy multiple codis-proxy instances at the same time;
     + Different codis-proxy by codis-dashboard to ensure state synchronization.
