@@ -58,10 +58,10 @@ Group
 Sentinel
 ![sentinel](doc/pictures/snapshots4.png)
 
-##Benchmarks
+## Benchmarks
 [See benchmark results](doc/benchmark.md)
 
-##Authors
+## Authors
 
 Active authors:
 * [@spinlock9](https://github.com/spinlock) [微博@斯宾洛克](http://weibo.com/spinlock9)
