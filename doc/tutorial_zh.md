@@ -76,7 +76,15 @@ $ go version
 go version go1.7.3 linux/amd64
 ```
 
-#### 2. 设置编译环境
+### 3. zookeeper环境配置 [参考这里](https://zookeeper.apache.org/doc/r3.1.2/zookeeperStarted.html)
+安装完成后运行以下命令查看zookeeper状态是否正常：
+
+```
+cd $zkPATH/bin
+./zkServer.sh status
+```
+
+#### 4. 设置Codis编译环境
 
 **注意 `$GOPATH` 是本机所有第三方库 go 项目所在目录，Codis 仅是其中之一。**
 
@@ -87,7 +95,7 @@ $ go env GOPATH
 /home/codis/gopath
 ```
 
-#### 3. 下载 Codis 源代码
+#### 5. 下载 Codis 源代码
 
 Codis 源代码需要下载到 `$GOPATH/src/github.com/CodisLabs/codis`：
 
@@ -96,7 +104,7 @@ $ mkdir -p $GOPATH/src/github.com/CodisLabs
 $ cd $_ && git clone https://github.com/CodisLabs/codis.git -b release3.2
 ```
 
-#### 4. 编译 Codis 源代码
+#### 6. 编译 Codis 源代码
 
 * 直接通过 make 进行编译，会看到如下输出：
 
@@ -125,6 +133,7 @@ $ cat bin/version
 version = 2016-01-03 14:53:22 +0800 @51f06ae3b58a256a58f857f590430977638846a3
 compile = 2016-01-04 15:00:17 +0800 by go version go1.5.2 linux/amd64
 ```
+
 
 ## 1. 快速启动
 2分钟快速构建一个单机版测试 codis 集群，无任何外部组件依赖.
@@ -554,3 +563,5 @@ Codis 3.x 的组件兼容 Jodis 协议。
 因为 Codis 2.x 与 Codis 3.x 在外部存储中的组织结构不同，所以可以安全的 `kill` 掉全部 Codis 2.x 组件。
 
 **注意：关闭过程请不要使用 `kill -9`，因为旧组件在退出时会自动清理部分注册信息。**
+
+
