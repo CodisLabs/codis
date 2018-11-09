@@ -12,6 +12,9 @@ import (
 )
 
 type Request struct {
+	reqForRelease  *redis.Resp
+	respForRelease *redis.Resp
+
 	Multi []*redis.Resp
 	Batch *sync.WaitGroup
 	Group *sync.WaitGroup
@@ -28,6 +31,33 @@ type Request struct {
 	Err error
 
 	Coalesce func() error
+}
+
+var requestPool = &sync.Pool{
+	New: func() interface{} {
+		return &Request{
+			Batch: &sync.WaitGroup{},
+		}
+	},
+}
+
+func AcquireRequest() *Request {
+	return requestPool.Get().(*Request)
+}
+
+func ReleaseRequest(r *Request) {
+	r.reqForRelease = nil
+	r.respForRelease = nil
+	r.Multi = nil
+	r.Group = nil
+	r.OpStr = ""
+	r.OpFlag = OpFlag(0)
+	r.Database = 0
+	r.UnixNano = 0
+	r.Resp = nil
+	r.Err = nil
+	r.Coalesce = nil
+	requestPool.Put(r)
 }
 
 func (r *Request) IsBroken() bool {

@@ -53,23 +53,6 @@ func TestDecodeSimpleRequest1(t *testing.T) {
 }
 
 func TestDecodeSimpleRequest2(t *testing.T) {
-	test := []string{
-		"hello world\r\n",
-		"hello world    \r\n",
-		"    hello world    \r\n",
-		"    hello     world\r\n",
-		"    hello     world    \r\n",
-	}
-	for _, s := range test {
-		a, err := DecodeMultiBulkFromBytes([]byte(s))
-		assert.MustNoError(err)
-		assert.Must(len(a) == 2)
-		assert.Must(bytes.Equal(a[0].Value, []byte("hello")))
-		assert.Must(bytes.Equal(a[1].Value, []byte("world")))
-	}
-}
-
-func TestDecodeSimpleRequest3(t *testing.T) {
 	test := []string{"\r", "\n", " \n"}
 	for _, s := range test {
 		_, err := DecodeFromBytes([]byte(s))
@@ -139,9 +122,9 @@ func newBenchmarkDecoder(n int) *Decoder {
 func benchmarkDecode(b *testing.B, n int) {
 	d := newBenchmarkDecoder(n)
 	for i := 0; i < b.N; i++ {
-		multi, err := d.DecodeMultiBulk()
+		resp, err := d.Decode()
 		assert.MustNoError(err)
-		assert.Must(len(multi) == 1 && len(multi[0].Value) == n)
+		assert.Must(len(resp.Array) == 1 && len(resp.Array[0].Value) == n)
 	}
 }
 

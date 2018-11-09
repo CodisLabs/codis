@@ -160,11 +160,12 @@ func (s *Session) loopReader(tasks *RequestChan, d *Router) (err error) {
 	)
 
 	for !s.quit {
-		multi, err := s.Conn.DecodeMultiBulk()
+		req, err := s.Conn.Decode()
 		if err != nil {
 			return err
 		}
-		if len(multi) == 0 {
+		if len(req.Array) == 0 {
+			redis.ReleaseResp(req)
 			continue
 		}
 		s.incrOpTotal()
@@ -177,9 +178,9 @@ func (s *Session) loopReader(tasks *RequestChan, d *Router) (err error) {
 		s.LastOpUnix = start.Unix()
 		s.Ops++
 
-		r := &Request{}
-		r.Multi = multi
-		r.Batch = &sync.WaitGroup{}
+		r := AcquireRequest()
+		r.reqForRelease = req
+		r.Multi = req.Array
 		r.Database = s.database
 		r.UnixNano = start.UnixNano()
 
@@ -215,6 +216,14 @@ func (s *Session) loopWriter(tasks *RequestChan) (err error) {
 	p.MaxBuffered = maxPipelineLen / 2
 
 	return tasks.PopFrontAll(func(r *Request) error {
+		defer func() {
+			redis.ReleaseResp(r.reqForRelease)
+			if r.respForRelease != nil {
+				redis.ReleaseResp(r.respForRelease)
+			}
+			ReleaseRequest(r)
+		}()
+
 		resp, err := s.handleResponse(r)
 		if err != nil {
 			resp = redis.NewErrorf("ERR handle response, %s", err)
