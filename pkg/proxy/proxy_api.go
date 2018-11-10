@@ -20,6 +20,8 @@ import (
 	"github.com/CodisLabs/codis/pkg/utils/errors"
 	"github.com/CodisLabs/codis/pkg/utils/log"
 	"github.com/CodisLabs/codis/pkg/utils/rpc"
+        "github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type apiServer struct {
@@ -45,10 +47,18 @@ func newApiServer(p *Proxy) http.Handler {
 		}
 		c.Next()
 	})
-	m.Use(gzip.All())
 	m.Use(func(c martini.Context, w http.ResponseWriter) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	})
+        // metrics endpoint should execute before gzip middleware.
+	m.Use(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != "GET" || req.URL.Path != "/metrics" {
+			return
+		}
+		promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}).
+			ServeHTTP(w, req)
+	})
+	m.Use(gzip.All())
 
 	api := &apiServer{proxy: p}
 
