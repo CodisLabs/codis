@@ -16,7 +16,7 @@ Codis支持水平扩容/缩容，扩容可以直接界面的 "Auto Rebalance" �
 可以, 使用codis项目内的redis-port工具, 可以实时的同步 twemproxy 底下的 redis 数据到你的 codis 集群上. 搞定了以后, 只需要你修改一下你的配置, 将 twemproxy 的地址改成 codis 的地址就好了. 除此之外, 你什么事情都不用做.
 
 2) 原来使用 Redis 的用户:
-如果你使用了[doc/unsupported_cmds](https://github.com/CodisLabs/codis/blob/master/doc/unsupported_cmds.md)中提到的命令，是无法直接迁移到 Codis 上的. 你需要修改你的代码, 用其他的方式实现.
+如果你使用了[doc/unsupported_cmds](unsupported_cmds.md)中提到的命令，是无法直接迁移到 Codis 上的. 你需要修改你的代码, 用其他的方式实现.
 
 ### 相对于twemproxy的优劣？
 codis和twemproxy最大的区别有两个：一个是codis支持动态水平扩展，对client完全透明不影响服务的情况下可以完成增减redis实例的操作；一个是codis是用go语言写的并支持多线程而twemproxy用C并只用单线程。
