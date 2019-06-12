@@ -18,3 +18,11 @@ type Topom struct {
 func (t *Topom) Encode() []byte {
 	return jsonEncode(t)
 }
+
+func Decode(b []byte) (*Topom, error) {
+	s := &Topom{}
+	if err := jsonDecode(s, b); err != nil {
+		return nil,err
+	}
+	return s,nil
+}

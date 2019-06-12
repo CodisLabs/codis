@@ -123,6 +123,19 @@ func (s *Store) Release() error {
 	return s.client.Delete(s.LockPath())
 }
 
+func (s *Store) ReleaseByToken(token string) error {
+	if b, err := s.client.Read(s.LockPath(),false); err != nil {
+		return err
+	} else if b != nil {
+		if t, err := Decode(b); err != nil {
+			return err
+		} else if t.Token == token {
+			return s.Release()
+		}
+	}
+	return nil
+}
+
 func (s *Store) LoadTopom(must bool) (*Topom, error) {
 	return LoadTopom(s.client, s.product, must)
 }
