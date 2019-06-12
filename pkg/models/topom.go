@@ -22,7 +22,7 @@ func (t *Topom) Encode() []byte {
 func Decode(b []byte) (*Topom, error) {
 	s := &Topom{}
 	if err := jsonDecode(s, b); err != nil {
-		return nil,err
+		return nil, err
 	}
-	return s,nil
+	return s, nil
 }
