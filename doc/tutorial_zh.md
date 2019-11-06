@@ -29,7 +29,7 @@ codis目前主要release版本如下:
 > * slot auto rebalance 算法从 2.0 的基于 max memory policy 变更成基于 group 下 slot 数量
 > * 提供了更加友好的 dashboard 和 fe 界面，新增了很多按钮、跳转链接、错误状态等，有利于快速发现、处理集群故障
 > * 新增 `SLOTSSCAN` 指令，便于获取集群各个 slot 下的所有 key
-> * codis-proxy 与 codis-dashbaord 支持 docker 部署
+> * codis-proxy 与 codis-dashboard 支持 docker 部署
 
 Codis 3.x 由以下组件组成：
 
