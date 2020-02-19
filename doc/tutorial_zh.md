@@ -205,7 +205,7 @@ tail -100 ./log/codis-fe.log.2017-04-08
 
 使用 ansible 可快速在单机、多机部署多套 codis 集群。
 ansible 文件夹包含了部署 codis 集群的 playbook，根据自己部署环境修改 `groups_var/all` 文件里参数，修改 hosts 文件添加部署的环境 IP 即可。
-ansible 安装也及其简单，各部署机器无需安装任何额外的 agent，彼此之间通过 ssh 通信。
+ansible 安装也极其简单，各部署机器无需安装任何额外的 agent，彼此之间通过 ssh 通信。
 
 ```
 git clone https://github.com/ansible/ansible.git -b stable-2.3
