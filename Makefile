@@ -29,13 +29,13 @@ codis-fe: codis-deps
 codis-server:
 	@mkdir -p bin
 	@rm -f bin/codis-server*
-	make -j4 -C extern/redis-3.2.11/
-	@cp -f extern/redis-3.2.11/src/redis-server  bin/codis-server
-	@cp -f extern/redis-3.2.11/src/redis-benchmark bin/
-	@cp -f extern/redis-3.2.11/src/redis-cli bin/
-	@cp -f extern/redis-3.2.11/src/redis-sentinel bin/
-	@cp -f extern/redis-3.2.11/redis.conf config/
-	@sed -e "s/^sentinel/# sentinel/g" extern/redis-3.2.11/sentinel.conf > config/sentinel.conf
+	make -j4 -C extern/redis-5.0.8/
+	@cp -f extern/redis-5.0.8/src/redis-server  bin/codis-server
+	@cp -f extern/redis-5.0.8/src/redis-benchmark bin/
+	@cp -f extern/redis-5.0.8/src/redis-cli bin/
+	@cp -f extern/redis-5.0.8/src/redis-sentinel bin/
+	@cp -f extern/redis-5.0.8/redis.conf config/
+	@sed -e "s/^sentinel/# sentinel/g" extern/redis-5.0.8/sentinel.conf > config/sentinel.conf
 
 clean-gotest:
 	@rm -rf ./pkg/topom/gotest.tmp
@@ -45,7 +45,7 @@ clean: clean-gotest
 	@rm -rf scripts/tmp
 
 distclean: clean
-	@make --no-print-directory --quiet -C extern/redis-3.2.11 distclean
+	@make --no-print-directory --quiet -C extern/redis-5.0.8 distclean
 	@make --no-print-directory --quiet -C vendor/github.com/spinlock/jemalloc-go/ distclean
 
 gotest: codis-deps
