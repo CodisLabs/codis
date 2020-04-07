@@ -182,8 +182,7 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
         dictAdd(db->hash_slots[slot], copy, (void *)(long)crc);
         if (hastag)
         {
-            incrRefCount(key);
-            zslInsert(db->tagged_keys, (double)crc, key);
+            zslInsert(db->tagged_keys, (double)crc, sdsdup(key->ptr));
         }
     } while (0);
 
@@ -282,6 +281,10 @@ robj *dbRandomKey(redisDb *db) {
 
 /* Delete a key, value, and associated expiration entry if any, from the DB */
 int dbSyncDelete(redisDb *db, robj *key) {
+    /* Deleting an entry from the expires dict will not free the sds of
+     * the key, because it is shared with the main dictionary. */
+    if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
+
     do
     {
         uint32_t crc;
@@ -296,9 +299,6 @@ int dbSyncDelete(redisDb *db, robj *key) {
         }
     } while (0);
 
-    /* Deleting an entry from the expires dict will not free the sds of
-     * the key, because it is shared with the main dictionary. */
-    if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
         if (server.cluster_enabled) slotToKeyDel(key);
         return 1;
@@ -367,6 +367,7 @@ robj *dbUnshareStringValue(redisDb *db, robj *key, robj *o) {
  * database(s). Otherwise -1 is returned in the specific case the
  * DB number is out of range, and errno is set to EINVAL. */
 long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
+    int i;
     int async = (flags & EMPTYDB_ASYNC);
     long long removed = 0;
 
@@ -386,7 +387,7 @@ long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
     for (int j = startdb; j <= enddb; j++) {
         removed += dictSize(server.db[j].dict);
 
-        for (int i = 0; i < HASH_SLOTS_SIZE; i++)
+        for (i = 0; i < HASH_SLOTS_SIZE; i++)
         {
             dictEmpty(server.db[j].hash_slots[i], NULL);
         }
@@ -468,11 +469,13 @@ int getFlushCommandFlags(client *c, int *flags) {
  *
  * Flushes the currently SELECTed Redis DB. */
 void flushdbCommand(client *c) {
+    int i;
     int flags;
 
     if (getFlushCommandFlags(c,&flags) == C_ERR) return;
     signalFlushedDb(c->db->id);
-    for (int i = 0; i < HASH_SLOTS_SIZE; i++)
+    
+    for (i = 0; i < HASH_SLOTS_SIZE; i++)
     {
         dictEmpty(c->db->hash_slots[i], NULL);
     }
@@ -481,6 +484,7 @@ void flushdbCommand(client *c) {
         zslFree(c->db->tagged_keys);
         c->db->tagged_keys = zslCreate();
     }
+
     server.dirty += emptyDb(c->db->id,flags,NULL);
     addReply(c,shared.ok);
 }
@@ -909,8 +913,7 @@ void shutdownCommand(client *c) {
      * Also when in Sentinel mode clear the SAVE flag and force NOSAVE. */
     if (server.loading || server.sentinel_mode)
         flags = (flags & ~SHUTDOWN_SAVE) | SHUTDOWN_NOSAVE;
-    if (prepareForShutdown(flags) == C_OK)
-    {
+    if (prepareForShutdown(flags) == C_OK) {
         for (int j = 0; j < server.dbnum; j++)
         {
             for (int i = 0; i < HASH_SLOTS_SIZE; i++)

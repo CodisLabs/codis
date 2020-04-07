@@ -597,12 +597,11 @@ slotscheckCommand(client *c) {
     }
     zskiplistNode *node = c->db->tagged_keys->header->level[0].forward;
     while (node != NULL && bug == NULL) {
-        // Codis Update:
-        // "node->obj" to "node->ele"
-        // "sdsdup(node->obj->ptr)" to "sdsdup(node->ele)"
-        if (lookupKeyRead(c->db, node->ele) == NULL) {
+        robj *key = createObject(OBJ_STRING, sdsdup(node->ele));
+        if (lookupKeyRead(c->db, key) == NULL) {
             bug = sdsdup(node->ele);
         }
+        decrRefCount(key);
         node = node->level[0].forward;
     }
     if (bug != NULL) {
@@ -652,7 +651,8 @@ slotsrestoreCommand(client *c) {
         }
         rioInitWithBuffer(&payload, val->ptr);
         if (((type = rdbLoadObjectType(&payload)) == -1) ||
-                ((vals[i] = rdbLoadObject(type, &payload, NULL)) == NULL)) {
+            ((vals[i] = rdbLoadObject(type, &payload, NULL)) == NULL))
+        {
             addReplyError(c, "bad data format");
             goto cleanup;
         }
@@ -719,8 +719,8 @@ slotsmgrttag_command(client *c, sds host, sds port, int timeout, robj *key) {
 
     zskiplistNode *node = zslFirstInRange(c->db->tagged_keys, &range);
     while (node != NULL && node->score == (double)crc) {
-        listAddNodeTail(l, node->ele);
-        incrRefCount(node->ele);
+        robj *listNode = createObject(OBJ_STRING, sdsdup(node->ele));
+        listAddNodeTail(l, listNode);
         node = node->level[0].forward;
     }
 

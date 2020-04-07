@@ -56,6 +56,20 @@ int dbAsyncDelete(redisDb *db, robj *key) {
      * the key, because it is shared with the main dictionary. */
     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
 
+    do
+    {
+        uint32_t crc;
+        int hastag;
+        int slot = slots_num(key->ptr, &crc, &hastag);
+        if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK)
+        {
+            if (hastag)
+            {
+                zslDelete(db->tagged_keys, (double)crc, key->ptr, NULL);
+            }
+        }
+    } while (0);
+    
     /* If the value is composed of a few allocations, to free in a lazy way
      * is actually just slower... So under a certain limit we just free
      * the object synchronously. */
@@ -78,21 +92,6 @@ int dbAsyncDelete(redisDb *db, robj *key) {
             dictSetVal(db->dict,de,NULL);
         }
     }
-
-    do
-    {
-        uint32_t crc;
-        int hastag;
-        int slot = slots_num(key->ptr, &crc, &hastag);
-        if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK)
-        {
-            if (hastag)
-            {
-                sds copy = sdsdup(key->ptr);
-                zslDelete(db->tagged_keys, (double)crc, copy, NULL);
-            }
-        }
-    } while (0);
 
     /* Release the key-val pair, or just the key if we set the val
      * field to NULL in order to lazy free it later. */

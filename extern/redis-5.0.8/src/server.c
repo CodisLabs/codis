@@ -798,12 +798,12 @@ void tryResizeHashTables(int dbid) {
  * is returned. */
 int incrementallyRehash(int dbid) {
     /* Keys dictionary */
-    if (dictIsRehashing(server.db[dbid].dict)) {
-        dictRehashMilliseconds(server.db[dbid].dict,1);
+    if (dictIsRehashing(server.db[dbid].dict))
+    {
+        dictRehashMilliseconds(server.db[dbid].dict, 1);
         server.db[dbid].hash_slots_rehashing = 1;
         return 1; /* already used our millisecond for this loop... */
     }
-
     if (server.db[dbid].hash_slots_rehashing)
     {
         long long start = timeInMilliseconds();
@@ -823,7 +823,6 @@ int incrementallyRehash(int dbid) {
         server.db[dbid].hash_slots_rehashing = 0;
         return 1; /* already used our millisecond for this loop... */
     }
-
     /* Expires */
     if (dictIsRehashing(server.db[dbid].expires)) {
         dictRehashMilliseconds(server.db[dbid].expires,1);
@@ -1409,14 +1408,15 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     /* Run the Sentinel timer if we are in sentinel mode. */
     if (server.sentinel_mode) sentinelTimer();
 
-    run_with_period(1000) {
-        slotsmgrt_cleanup();
-        slotsmgrtAsyncCleanup();
-    }
-
     /* Cleanup expired MIGRATE cached sockets. */
     run_with_period(1000) {
         migrateCloseTimedoutSockets();
+    }
+
+    run_with_period(1000)
+    {
+        slotsmgrt_cleanup();
+        slotsmgrtAsyncCleanup();
     }
 
     /* Start a scheduled BGSAVE if the corresponding flag is set. This is
@@ -2144,7 +2144,8 @@ void initServer(void) {
 
     server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
     server.slotsmgrt_cached_clients = zmalloc(sizeof(slotsmgrtAsyncClient) * server.dbnum);
-    for (j = 0; j < server.dbnum; j ++) {
+    for (j = 0; j < server.dbnum; j++)
+    {
         slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
         memset(ac, 0, sizeof(*ac));
     }
@@ -2695,10 +2696,7 @@ int processCommand(client *c) {
     }
 
     /* Check if the user is authenticated */
-    if (server.requirepass 
-        && !c->authenticated 
-        && c->cmd->proc != authCommand 
-        && c->cmd->proc != slotsrestoreAsyncAuthCommand )
+    if (server.requirepass && !c->authenticated && c->cmd->proc != authCommand && c->cmd->proc != slotsrestoreAsyncAuthCommand)
     {
         flagTransaction(c);
         addReply(c,shared.noautherr);

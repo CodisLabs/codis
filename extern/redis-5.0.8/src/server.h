@@ -259,7 +259,6 @@ typedef long long ustime_t; /* microsecond time type. */
 #define CLIENT_MODULE (1<<27) /* Non connected client used by some module. */
 #define CLIENT_PROTECTED (1<<28) /* Client should not be freed for now. */
 
-/* Codis Const */
 #define CLIENT_SLOTSMGRT_ASYNC_CACHED_CLIENT (1 << 0)
 #define CLIENT_SLOTSMGRT_ASYNC_NORMAL_CLIENT (1 << 1)
 
@@ -637,15 +636,6 @@ typedef struct redisObject {
     _var.ptr = _ptr; \
 } while(0)
 
-struct evictionPoolEntry; /* Defined in evict.c */
-
-/* This structure is used in order to represent the output buffer of a client,
- * which is actually a linked list of blocks like that, that is: client->reply. */
-typedef struct clientReplyBlock {
-    size_t size, used;
-    char buf[];
-} clientReplyBlock;
-
 void crc32_init();
 uint32_t crc32_checksum(const char *buf, int len);
 
@@ -656,6 +646,15 @@ long long timeInMilliseconds(void);
 
 struct zskiplist;
 
+struct evictionPoolEntry; /* Defined in evict.c */
+
+/* This structure is used in order to represent the output buffer of a client,
+ * which is actually a linked list of blocks like that, that is: client->reply. */
+typedef struct clientReplyBlock {
+    size_t size, used;
+    char buf[];
+} clientReplyBlock;
+
 /* Redis database representation. There are multiple databases identified
  * by integers from 0 (the default database) up to the max configured
  * database. The database number is the 'id' field in the structure. */
@@ -665,12 +664,13 @@ typedef struct redisDb {
     dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP)*/
     dict *ready_keys;           /* Blocked keys that received a PUSH */
     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
-    dict *hash_slots[HASH_SLOTS_SIZE];
-    int hash_slots_rehashing;
-    struct zskiplist *tagged_keys;
     int id;                     /* Database ID */
     long long avg_ttl;          /* Average TTL, just for stats */
     list *defrag_later;         /* List of key names to attempt to defrag one by one, gradually. */
+
+    dict *hash_slots[HASH_SLOTS_SIZE];
+    int hash_slots_rehashing;
+    struct zskiplist *tagged_keys;
 } redisDb;
 
 /* Client MULTI/EXEC state */
@@ -796,7 +796,6 @@ typedef struct client {
     int bufpos;
     char buf[PROTO_REPLY_CHUNK_BYTES];
 
-    /* Codis Props */
     long slotsmgrt_flags;
     list *slotsmgrt_fenceq;
 } client;
@@ -1029,12 +1028,6 @@ struct redisServer {
     int clients_paused;         /* True if clients are currently paused */
     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
-
-    /* Codis Sever */
-    dict *slotsmgrt_cached_sockfds;
-    void *slotsmgrt_lazy_release;
-    slotsmgrtAsyncClient *slotsmgrt_cached_clients;
-
     dict *migrate_cached_sockets;/* MIGRATE cached sockets */
     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
     int protected_mode;         /* Don't accept external connections. */
@@ -1338,6 +1331,10 @@ struct redisServer {
     pthread_mutex_t lruclock_mutex;
     pthread_mutex_t next_client_id_mutex;
     pthread_mutex_t unixtime_mutex;
+
+    dict *slotsmgrt_cached_sockfds;
+    void *slotsmgrt_lazy_release;
+    slotsmgrtAsyncClient *slotsmgrt_cached_clients;
 };
 
 typedef struct pubsubPattern {
@@ -1576,6 +1573,8 @@ void touchWatchedKeysOnFlush(int dbid);
 void discardTransaction(client *c);
 void flagTransaction(client *c);
 void execCommandPropagateMulti(client *c);
+
+#define OBJ_SHARED_REFCOUNT INT_MAX
 
 /* Redis object implementation */
 void decrRefCount(robj *o);
@@ -1846,7 +1845,6 @@ sds hashTypeCurrentObjectNewSds(hashTypeIterator *hi, int what);
 robj *hashTypeLookupWriteOrCreate(client *c, robj *key);
 robj *hashTypeGetValueObject(robj *o, sds field);
 int hashTypeSet(robj *o, sds field, sds value, int flags);
-int hashTypeSetWithoutFlags(robj *o, robj *field, robj *value);
 
 /* Pub / Sub */
 int pubsubUnsubscribeAllChannels(client *c, int notify);
@@ -2188,7 +2186,7 @@ void xdelCommand(client *c);
 void xtrimCommand(client *c);
 void lolwutCommand(client *c);
 
-/* Codis command*/
+// Codis command
 void slotsinfoCommand(client *c);
 void slotsscanCommand(client *c);
 void slotsdelCommand(client *c);
@@ -2218,9 +2216,6 @@ void slotsrestoreAsyncAckCommand(client *c);
 void slotsmgrtAsyncCleanup();
 void slotsmgrtAsyncUnlinkClient(client *c);
 void slotsmgrtInitLazyReleaseWorkerThread();
-
-void slotsmgrt_cleanup();
-int slots_num(const sds s, uint32_t *pcrc, int *phastag);
 
 #if defined(__GNUC__)
 void *calloc(size_t count, size_t size) __attribute__ ((deprecated));

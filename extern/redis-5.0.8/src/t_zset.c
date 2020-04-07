@@ -97,29 +97,8 @@ zskiplist *zslCreate(void) {
 /* Free the specified skiplist node. The referenced SDS string representation
  * of the element is freed too, unless node->ele is set to NULL before calling
  * this function. */
-
-typedef struct zskiplistNodeOld
-{
-    robj *obj;
-    double score;
-    struct zskiplistNodeOld *backward;
-    struct zskiplistLevelOld
-    {
-        struct zskiplistNodeOld *forward;
-        unsigned int span;
-    } level[];
-} zskiplistNodeOld;
-
 void zslFreeNode(zskiplistNode *node) {
-    if (sizeof(*(node->ele)) == sizeof(robj))
-    {
-        sdsfree(node->ele);
-    }
-    else
-    {
-        decrRefCount(((zskiplistNodeOld *)node)->obj);
-    }
-    
+    sdsfree(node->ele);
     zfree(node);
 }
 
@@ -276,8 +255,7 @@ int zslDelete(zskiplist *zsl, double score, sds ele, zskiplistNode **node) {
  * element, which is more costly.
  *
  * The function returns the updated element skiplist node pointer. */
-zskiplistNode *zslUpdateScore(zskiplist *zsl, double curscore, sds ele, double newscore)
-{
+zskiplistNode *zslUpdateScore(zskiplist *zsl, double curscore, sds ele, double newscore) {
     zskiplistNode *update[ZSKIPLIST_MAXLEVEL], *x;
     int i;
 

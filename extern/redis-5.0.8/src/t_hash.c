@@ -52,6 +52,18 @@ void hashTypeTryConversion(robj *o, robj **argv, int start, int end) {
     }
 }
 
+/* Encode given objects in-place when the hash uses a dict. */
+void hashTypeTryObjectEncoding(robj *subject, robj **o1, robj **o2)
+{
+    if (subject->encoding == OBJ_ENCODING_HT)
+    {
+        if (o1)
+            *o1 = tryObjectEncoding(*o1);
+        if (o2)
+            *o2 = tryObjectEncoding(*o2);
+    }
+}
+
 /* Get the value from a ziplist encoded hash, identified by field.
  * Returns -1 when the field cannot be found. */
 int hashTypeGetFromZiplist(robj *o, sds field,
@@ -271,75 +283,6 @@ int hashTypeSet(robj *o, sds field, sds value, int flags) {
      * want this function to be responsible. */
     if (flags & HASH_SET_TAKE_FIELD && field) sdsfree(field);
     if (flags & HASH_SET_TAKE_VALUE && value) sdsfree(value);
-    return update;
-}
-
-/* Codis used old API*/
-/* Add an element, discard the old if the key already exists.
- * Return 0 on insert and 1 on update.
- * This function will take care of incrementing the reference count of the
- * retained fields and value objects. */
-int hashTypeSetWithoutFlags(robj *o, robj *field, robj *value)
-{
-    int update = 0;
-
-    if (o->encoding == OBJ_ENCODING_ZIPLIST)
-    {
-        unsigned char *zl, *fptr, *vptr;
-
-        field = getDecodedObject(field);
-        value = getDecodedObject(value);
-
-        zl = o->ptr;
-        fptr = ziplistIndex(zl, ZIPLIST_HEAD);
-        if (fptr != NULL)
-        {
-            fptr = ziplistFind(fptr, field->ptr, sdslen(field->ptr), 1);
-            if (fptr != NULL)
-            {
-                /* Grab pointer to the value (fptr points to the field) */
-                vptr = ziplistNext(zl, fptr);
-                serverAssert(vptr != NULL);
-                update = 1;
-
-                /* Delete value */
-                zl = ziplistDelete(zl, &vptr);
-
-                /* Insert new value */
-                zl = ziplistInsert(zl, vptr, value->ptr, sdslen(value->ptr));
-            }
-        }
-
-        if (!update)
-        {
-            /* Push new field/value pair onto the tail of the ziplist */
-            zl = ziplistPush(zl, field->ptr, sdslen(field->ptr), ZIPLIST_TAIL);
-            zl = ziplistPush(zl, value->ptr, sdslen(value->ptr), ZIPLIST_TAIL);
-        }
-        o->ptr = zl;
-        decrRefCount(field);
-        decrRefCount(value);
-
-        /* Check if the ziplist needs to be converted to a hash table */
-        if (hashTypeLength(o) > server.hash_max_ziplist_entries)
-            hashTypeConvert(o, OBJ_ENCODING_HT);
-    }
-    else if (o->encoding == OBJ_ENCODING_HT)
-    {
-        if (dictReplace(o->ptr, field, value))
-        { /* Insert */
-            incrRefCount(field);
-        }
-        else
-        { /* Update */
-            update = 1;
-        }
-        incrRefCount(value);
-    }
-    else
-    {
-        serverPanic("Unknown hash encoding");
-    }
     return update;
 }
 
@@ -573,14 +516,6 @@ void hashTypeConvert(robj *o, int enc) {
         serverPanic("Not implemented");
     } else {
         serverPanic("Unknown hash encoding");
-    }
-}
-
-/* Encode given objects in-place when the hash uses a dict. */
-void hashTypeTryObjectEncoding(robj *subject, robj **o1, robj **o2) {
-    if (subject->encoding == OBJ_ENCODING_HT) {
-        if (o1) *o1 = tryObjectEncoding(*o1);
-        if (o2) *o2 = tryObjectEncoding(*o2);
     }
 }
 

@@ -409,8 +409,7 @@ singleObjectIteratorNext(client *c, singleObjectIterator *it,
             zskiplistNode *node = (rank >= 1) ? zslGetElementByRank(zs->zsl, rank) : NULL;
             do {
                 if (node != NULL) {
-                    robj *field = node->ele;
-                    incrRefCount(field);
+                    robj *field = createObject(OBJ_STRING, sdsdup(node->ele));
                     len += sdslenOrElse(field, 8);
                     listAddNodeTail(ll, field);
                     uint64_t bits = convertDoubleToRawBits(node->score);
@@ -493,10 +492,9 @@ createBatchedObjectIterator(dict *hash_slot, struct zskiplist *hash_tags,
 }
 
 static void
-freeBatchedObjectIterator(batchedObjectIterator *it)
-{
+freeBatchedObjectIterator(batchedObjectIterator *it) {
     zslFree(it->tags);
-    // dictRelease(it->keys);
+    dictRelease(it->keys);
     listRelease(it->list);
     listRelease(it->removed_keys);
     listRelease(it->chunked_vals);
@@ -537,7 +535,7 @@ batchedObjectIteratorNext(client *c, batchedObjectIterator *it) {
 
 static int
 batchedObjectIteratorContains(batchedObjectIterator *it, robj *key, int usetag) {
-    if (dictFind(it->keys, key) != NULL) {
+    if (dictFind(it->keys, key->ptr) != NULL) {
         return 1;
     }
     if (!usetag) {
@@ -559,7 +557,9 @@ batchedObjectIteratorContains(batchedObjectIterator *it, robj *key, int usetag) 
 
 static int
 batchedObjectIteratorAddKey(redisDb *db, batchedObjectIterator *it, robj *key) {
-    if (dictAdd(it->keys, key, NULL) != C_OK) {
+    sds keyCopy = sdsdup(key->ptr);
+    if (dictAdd(it->keys, keyCopy, NULL) != C_OK) {
+        sdsfree(keyCopy);
         return 0;
     }
     incrRefCount(key);
@@ -582,20 +582,20 @@ batchedObjectIteratorAddKey(redisDb *db, batchedObjectIterator *it, robj *key) {
     if (zslFirstInRange(it->tags, &range) != NULL) {
         goto out;
     }
-    incrRefCount(key);
-    zslInsert(it->tags, (double)crc, key);
+    zslInsert(it->tags, (double)crc, sdsdup(key->ptr));
 
     if (it->hash_tags == NULL) {
         goto out;
     }
     zskiplistNode *node = zslFirstInRange(it->hash_tags, &range);
     while (node != NULL && node->score == (double)crc) {
-        robj *key = node->ele;
         node = node->level[0].forward;
-        if (dictAdd(it->keys, key, NULL) != C_OK) {
+        keyCopy = sdsdup(node->ele);
+        if (dictAdd(it->keys, keyCopy, NULL) != C_OK) {
+            sdsfree(keyCopy);
             continue;
         }
-        incrRefCount(key);
+        robj *key = createObject(OBJ_STRING, sdsdup(node->ele));
         listAddNodeTail(it->list, createSingleObjectIterator(key));
         it->estimate_msgs += estimateNumberOfRestoreCommands(db, key, it->maxbulks);
     }
@@ -1508,7 +1508,7 @@ slotsrestoreAsyncHandle(client *c) {
         }
         for (int i = 0; i < xargc; i += 2) {
             hashTypeTryObjectEncoding(val, &xargv[i], &xargv[i + 1]);
-            hashTypeSet(val, xargv[i], xargv[i + 1], HASH_SET_TAKE_FIELD);
+            hashTypeSet(val, xargv[i]->ptr, xargv[i + 1]->ptr, HASH_SET_COPY);
         }
         slotsrestoreReplyAck(c, 0, "%d", hashTypeLength(val));
         goto success_common;
@@ -1540,7 +1540,7 @@ slotsrestoreAsyncHandle(client *c) {
         }
         for (int i = 0; i < xargc; i ++) {
             xargv[i] = tryObjectEncoding(xargv[i]);
-            setTypeAdd(val, xargv[i]);
+            setTypeAdd(val, xargv[i]->ptr);
         }
         slotsrestoreReplyAck(c, 0, "%d", setTypeSize(val));
         goto success_common;
@@ -1588,16 +1588,14 @@ slotsrestoreAsyncHandle(client *c) {
         }
         for (int i = 0, j = 0; i < xargc; i += 2, j ++) {
             robj *elem = xargv[i] = tryObjectEncoding(xargv[i]);
-            dictEntry *de = dictFind(zset->dict, elem);
+            dictEntry *de = dictFind(zset->dict, elem->ptr);
             if (de != NULL) {
                 double score = *(double *)dictGetVal(de);
                 zslDelete(zset->zsl, score, elem->ptr, NULL);
-                dictDelete(zset->dict, elem);
+                dictDelete(zset->dict, elem->ptr);
             }
-            zskiplistNode *znode = zslInsert(zset->zsl, scores[j], elem);
-            incrRefCount(elem);
-            dictAdd(zset->dict, elem, &(znode->score));
-            incrRefCount(elem);
+            zskiplistNode *znode = zslInsert(zset->zsl, scores[j], sdsdup(elem->ptr));
+            dictAdd(zset->dict, sdsdup(elem->ptr), &(znode->score));
         }
         zfree(scores);
         slotsrestoreReplyAck(c, 0, "%d", zsetLength(val));

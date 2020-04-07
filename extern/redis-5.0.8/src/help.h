@@ -1251,7 +1251,7 @@ struct commandHelp {
      "", 14, "codis3.2"},
     {"SLOTSRESTORE-ASYNC-AUTH",
      "passwd",
-     "", 14, "codis3.2"},
+     "", 14, "codis3.2"}
 };
 
 #endif
