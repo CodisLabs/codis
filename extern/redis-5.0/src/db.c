@@ -179,6 +179,17 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
         val->type == OBJ_ZSET)
         signalKeyAsReady(db, key);
     if (server.cluster_enabled) slotToKeyAdd(key);
+
+    /* Add the key to the slot for codis-server mode. */
+    do {
+        uint32_t crc;
+        int hastag;
+        int slot = slots_num(key->ptr, &crc, &hastag);
+        dictAdd(db->hash_slots[slot], copy, (void *)(long)crc);
+        if (hastag) {
+            zslInsert(db->tagged_keys, (double)crc, sdsdup(key->ptr));
+        }
+    } while(0);
 }
 
 /* Overwrite an existing key with a new value. Incrementing the reference
@@ -272,6 +283,18 @@ int dbSyncDelete(redisDb *db, robj *key) {
     /* Deleting an entry from the expires dict will not free the sds of
      * the key, because it is shared with the main dictionary. */
     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
+
+    /* Deleting the key from the slot for codis-server mode. */
+    do {
+        uint32_t crc;
+        int hastag;
+        int slot = slots_num(key->ptr, &crc, &hastag);
+        if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK) {
+            if (hastag) zslDelete(db->tagged_keys, (double)crc, key->ptr, NULL);
+        }
+    } while(0);
+
+    /* Deleting the key from the DB. */
     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
         if (server.cluster_enabled) slotToKeyDel(key);
         return 1;
@@ -358,6 +381,17 @@ long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
 
     for (int j = startdb; j <= enddb; j++) {
         removed += dictSize(server.db[j].dict);
+
+        /* Remove all the keys from the slot for codis-server mode. */
+        for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
+            dictEmpty(server.db[j].hash_slots[i], NULL);
+        }
+        /* Cleanup all the tagged keys for codis-server mode. */
+        if (server.db[j].tagged_keys->length != 0) {
+            zslFree(server.db[j].tagged_keys);
+            server.db[j].tagged_keys = zslCreate();
+        }
+
         if (async) {
             emptyDbAsync(&server.db[j]);
         } else {
@@ -862,7 +896,16 @@ void shutdownCommand(client *c) {
      * Also when in Sentinel mode clear the SAVE flag and force NOSAVE. */
     if (server.loading || server.sentinel_mode)
         flags = (flags & ~SHUTDOWN_SAVE) | SHUTDOWN_NOSAVE;
-    if (prepareForShutdown(flags) == C_OK) exit(0);
+    if (prepareForShutdown(flags) == C_OK) {
+        /* Cleanup all the hash_slots and tagged_keys for codis-server mode. */
+        for (int j = 0; j < server.dbnum; j++) {
+            for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
+                dictRelease(server.db[j].hash_slots[i]);
+            }
+            zslFree(server.db[j].tagged_keys);
+        }
+        exit(0);
+    }
     addReplyError(c,"Errors trying to SHUTDOWN. Check logs.");
 }
 

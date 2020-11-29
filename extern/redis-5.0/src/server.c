@@ -307,6 +307,15 @@ struct redisCommand redisCommandTable[] = {
     {"pfcount",pfcountCommand,-2,"r",0,NULL,1,-1,1,0,0},
     {"pfmerge",pfmergeCommand,-2,"wm",0,NULL,1,-1,1,0,0},
     {"pfdebug",pfdebugCommand,-3,"w",0,NULL,0,0,0,0,0},
+    {"slotshashkey",slotshashkeyCommand,-1,"rF",0,NULL,0,0,0,0,0},
+    {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
+    {"slotsmgrtslot",slotsmgrtslotCommand,5,"aw",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone",slotsmgrtoneCommand,5,"aw",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"aw",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"aw",0,NULL,0,0,0,0,0},
+    {"slotsrestore",slotsrestoreCommand,-4,"awm",0,NULL,1,1,1,0,0},
+    {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
+    {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
     {"xadd",xaddCommand,-5,"wmFR",0,NULL,1,1,1,0,0},
     {"xrange",xrangeCommand,-4,"r",0,NULL,1,1,1,0,0},
     {"xrevrange",xrevrangeCommand,-4,"r",0,NULL,1,1,1,0,0},
@@ -618,6 +627,16 @@ dictType dbDictType = {
     dictObjectDestructor   /* val destructor */
 };
 
+/* Db->hash_slots[i], keys are sds strings, vals are NULL. */
+dictType hashSlotType = {
+    dictSdsHash,                /* hash function */
+    NULL,                       /* key dup */
+    NULL,                       /* val dup */
+    dictSdsKeyCompare,          /* key compare */
+    NULL,                       /* key destructor */
+    NULL                        /* val destructor */
+};
+
 /* server.lua_scripts sha (as sds string) -> scripts (as robj) cache. */
 dictType shaScriptObjectDictType = {
     dictSdsCaseHash,            /* hash function */
@@ -739,8 +758,14 @@ int htNeedsResize(dict *dict) {
 /* If the percentage of used slots in the HT reaches HASHTABLE_MIN_FILL
  * we resize the hash table to save memory */
 void tryResizeHashTables(int dbid) {
-    if (htNeedsResize(server.db[dbid].dict))
+    if (htNeedsResize(server.db[dbid].dict)) {
         dictResize(server.db[dbid].dict);
+        /* Resize db->hash_slots for codis-server mode. */
+        for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
+            dict *d = server.db[dbid].hash_slots[i];
+            if (htNeedsResize(d)) dictResize(d);
+        }
+    }
     if (htNeedsResize(server.db[dbid].expires))
         dictResize(server.db[dbid].expires);
 }
@@ -756,6 +781,11 @@ int incrementallyRehash(int dbid) {
     /* Keys dictionary */
     if (dictIsRehashing(server.db[dbid].dict)) {
         dictRehashMilliseconds(server.db[dbid].dict,1);
+        /* Rehash db->hash_slots for codis-server mode. */
+        for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
+            dict *d = server.db[dbid].hash_slots[i];
+            if (dictIsRehashing(d)) dictRehashMilliseconds(d, 1);
+        }
         return 1; /* already used our millisecond for this loop... */
     }
     /* Expires */
@@ -1343,7 +1373,12 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     /* Run the Sentinel timer if we are in sentinel mode. */
     if (server.sentinel_mode) sentinelTimer();
 
-    /* Cleanup expired MIGRATE cached sockets. */
+    /* Cleanup expired slotsmgrt cached sockets for codis-server mode. */
+    run_with_period(1000) {
+        slotsmgrt_cleanup();
+    }
+
+    /* Cleanup expired MIGRATE cached sockets for cluster mode. */
     run_with_period(1000) {
         migrateCloseTimedoutSockets();
     }
@@ -1642,6 +1677,7 @@ void initServerConfig(void) {
     server.cluster_announce_bus_port = CONFIG_DEFAULT_CLUSTER_ANNOUNCE_BUS_PORT;
     server.cluster_module_flags = CLUSTER_MODULE_FLAG_NONE;
     server.migrate_cached_sockets = dictCreate(&migrateCacheDictType,NULL);
+    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
     server.next_client_id = 1; /* Client IDs, start from 1 .*/
     server.loading_process_events_interval_bytes = (1024*1024*2);
     server.lazyfree_lazy_eviction = CONFIG_DEFAULT_LAZYFREE_LAZY_EVICTION;
@@ -2035,6 +2071,9 @@ void initServer(void) {
     signal(SIGPIPE, SIG_IGN);
     setupSignalHandlers();
 
+    /* Init the crc32tab for codis-server mode. */
+    crc32_init();
+
     if (server.syslog_enabled) {
         openlog(server.syslog_ident, LOG_PID | LOG_NDELAY | LOG_NOWAIT,
             server.syslog_facility);
@@ -2101,6 +2140,10 @@ void initServer(void) {
         server.db[j].watched_keys = dictCreate(&keylistDictType,NULL);
         server.db[j].id = j;
         server.db[j].avg_ttl = 0;
+        for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
+            server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
+        }
+        server.db[j].tagged_keys = zslCreate();
         server.db[j].defrag_later = listCreate();
     }
     evictionPoolAlloc(); /* Initialize the LRU keys pool. */
