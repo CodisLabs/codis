@@ -539,9 +539,9 @@ long defragZsetSkiplist(redisDb *db, dictEntry *kde) {
         defragged++, zs->zsl = newzsl;
     if ((newheader = activeDefragAlloc(zs->zsl->header)))
         defragged++, zs->zsl->header = newheader;
-    if (dictSize(zs->dict) > server.active_defrag_max_scan_fields)
+    if (dictSize(zs->dict) > server.active_defrag_max_scan_fields) {
         defragLater(db, kde);
-    else {
+    } else {
         dictIterator *di = dictGetIterator(zs->dict);
         while((de = dictNext(di)) != NULL) {
             defragged += activeDefragZsetEntry(zs, de);
@@ -749,8 +749,9 @@ long defragStream(redisDb *db, dictEntry *kde) {
         if (newrax)
             defragged++, s->rax = newrax;
         defragLater(db, kde);
-    } else
+    } else {
         defragged += defragRadixTree(&s->rax, 1, NULL, NULL);
+    }
 
     if (s->cgroups)
         defragged += defragRadixTree(&s->cgroups, 1, defragStreamConsumerGroup, NULL);
@@ -778,6 +779,18 @@ long defragKey(redisDb *db, dictEntry *de) {
         uint64_t hash = dictGetHash(db->dict, de->key);
         replaceSateliteDictKeyPtrAndOrDefragDictEntry(db->expires, keysds, newsds, hash, &defragged);
     }
+    do {
+        /* Try to defrag the dict entry in the codis-server hash_slots.
+         *
+         * Dirty code:
+         * Just like the code above which for db->expires, we can't search in
+         * db->hash_slots[i] for that key after we already released the pointer
+         * it holds, it won't be able to do the string compare either. */
+        int slot = slots_num(de->key, NULL, NULL);
+        uint64_t hash = dictGetHash(db->hash_slots[slot], de->key);
+        replaceSateliteDictKeyPtrAndOrDefragDictEntry(db->hash_slots[slot],
+                keysds, newsds, hash, &defragged);
+    } while(0);
 
     /* Try to defrag robj and / or string value. */
     ob = dictGetVal(de);
@@ -1088,8 +1101,7 @@ void activeDefragCycle(void) {
                 if (server.active_defrag_running != 0 && ustime() < endtime)
                     continue;
                 break;
-            }
-            else if (current_db==0) {
+            } else if (current_db==0) {
                 /* Start a scan from the first database. */
                 start_scan = ustime();
                 start_stat = server.stat_active_defrag_hits;
