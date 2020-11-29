@@ -181,6 +181,9 @@ unsigned long dictScan(dict *d, unsigned long v, dictScanFunction *fn, dictScanB
 uint64_t dictGetHash(dict *d, const void *key);
 dictEntry **dictFindEntryRefByPtrAndHash(dict *d, const void *oldptr, uint64_t hash);
 
+/* Utils */
+long long timeInMilliseconds(void);
+
 /* Hash table types */
 extern dictType dictTypeHeapStringCopyKey;
 extern dictType dictTypeHeapStrings;
