@@ -1,0 +1,1351 @@
+diff --git a/extern/redis-5.0/src/Makefile b/extern/redis-5.0/src/Makefile
+index 4b2a31cc..6fab60f4 100644
+--- a/extern/redis-5.0/src/Makefile
++++ b/extern/redis-5.0/src/Makefile
+@@ -173,7 +173,7 @@ endif
+ 
+ REDIS_SERVER_NAME=redis-server
+ REDIS_SENTINEL_NAME=redis-sentinel
+-REDIS_SERVER_OBJ=adlist.o quicklist.o ae.o anet.o dict.o server.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o pubsub.o multi.o debug.o sort.o intset.o syncio.o cluster.o crc16.o endianconv.o slowlog.o scripting.o bio.o rio.o rand.o memtest.o crc64.o bitops.o sentinel.o notify.o setproctitle.o blocked.o hyperloglog.o latency.o sparkline.o redis-check-rdb.o redis-check-aof.o geo.o lazyfree.o module.o evict.o expire.o geohash.o geohash_helper.o childinfo.o defrag.o siphash.o rax.o t_stream.o listpack.o localtime.o lolwut.o lolwut5.o
++REDIS_SERVER_OBJ=adlist.o quicklist.o ae.o anet.o dict.o server.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o pubsub.o multi.o debug.o sort.o intset.o syncio.o cluster.o crc16.o endianconv.o slowlog.o scripting.o bio.o rio.o rand.o memtest.o crc64.o bitops.o sentinel.o notify.o setproctitle.o blocked.o hyperloglog.o latency.o sparkline.o redis-check-rdb.o redis-check-aof.o geo.o lazyfree.o module.o evict.o expire.o geohash.o geohash_helper.o childinfo.o defrag.o siphash.o rax.o t_stream.o listpack.o localtime.o lolwut.o lolwut5.o crc32.o slots.o
+ REDIS_CLI_NAME=redis-cli
+ REDIS_CLI_OBJ=anet.o adlist.o dict.o redis-cli.o zmalloc.o release.o anet.o ae.o crc64.o siphash.o crc16.o
+ REDIS_BENCHMARK_NAME=redis-benchmark
+diff --git a/extern/redis-5.0/src/crc32.c b/extern/redis-5.0/src/crc32.c
+new file mode 100644
+index 00000000..69b5807c
+--- /dev/null
++++ b/extern/redis-5.0/src/crc32.c
+@@ -0,0 +1,45 @@
++#include <stdint.h>
++
++/* A famous generator polynomial which was selected by IEEE802.3, and has been
++ * widely used in Ethernet, V.42, FDDI, Gzip, Zip, Png... */
++static const uint32_t IEEE_POLY = 0xedb88320;
++
++/* A table which cached the crc32 result for all the possible byte values. */
++static uint32_t crc32tab[256];
++
++/* Init the crc32tab with the given generator polynomial. */
++static void crc32_tabinit(uint32_t poly) {
++    int i, j;
++    for (i = 0; i < 256; i++) {
++        uint32_t crc = i;
++        for (j = 0; j < 8; j++) {
++            if (crc & 1) {
++                crc = (crc >> 1) ^ poly;
++            } else {
++                crc = (crc >> 1);
++            }
++        }
++        crc32tab[i] = crc;
++    }
++}
++
++/* Update the crc32 result with the new data buffer. */
++static uint32_t crc32_update(uint32_t crc, const char *buf, int len) {
++    int i;
++    crc = ~crc;
++    for (i = 0; i < len; i++) {
++        crc = crc32tab[(uint8_t)((char)crc ^ buf[i])] ^ (crc >> 8);
++    }
++    return ~crc;
++}
++
++
++/* Init the crc32tab with the widely used generator polynomial: IEEE_POLY. */
++void crc32_init() {
++    crc32_tabinit(IEEE_POLY);
++}
++
++/* Get the crc32 result of the given data buffer. */
++uint32_t crc32_checksum(const char *buf, int len) {
++    return crc32_update(0, buf, len);
++}
+diff --git a/extern/redis-5.0/src/db.c b/extern/redis-5.0/src/db.c
+index 583335dc..500dfc31 100644
+--- a/extern/redis-5.0/src/db.c
++++ b/extern/redis-5.0/src/db.c
+@@ -179,6 +179,17 @@ void dbAdd(redisDb *db, robj *key, robj *val) {
+         val->type == OBJ_ZSET)
+         signalKeyAsReady(db, key);
+     if (server.cluster_enabled) slotToKeyAdd(key);
++
++    /* Add the key to the slot for codis-server mode. */
++    do {
++        uint32_t crc;
++        int hastag;
++        int slot = slots_num(key->ptr, &crc, &hastag);
++        dictAdd(db->hash_slots[slot], copy, (void *)(long)crc);
++        if (hastag) {
++            zslInsert(db->tagged_keys, (double)crc, sdsdup(key->ptr));
++        }
++    } while(0);
+ }
+ 
+ /* Overwrite an existing key with a new value. Incrementing the reference
+@@ -272,6 +283,18 @@ int dbSyncDelete(redisDb *db, robj *key) {
+     /* Deleting an entry from the expires dict will not free the sds of
+      * the key, because it is shared with the main dictionary. */
+     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
++
++    /* Deleting the key from the slot for codis-server mode. */
++    do {
++        uint32_t crc;
++        int hastag;
++        int slot = slots_num(key->ptr, &crc, &hastag);
++        if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK) {
++            if (hastag) zslDelete(db->tagged_keys, (double)crc, key->ptr, NULL);
++        }
++    } while(0);
++
++    /* Deleting the key from the DB. */
+     if (dictDelete(db->dict,key->ptr) == DICT_OK) {
+         if (server.cluster_enabled) slotToKeyDel(key);
+         return 1;
+@@ -358,6 +381,17 @@ long long emptyDb(int dbnum, int flags, void(callback)(void*)) {
+ 
+     for (int j = startdb; j <= enddb; j++) {
+         removed += dictSize(server.db[j].dict);
++
++        /* Remove all the keys from the slot for codis-server mode. */
++        for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
++            dictEmpty(server.db[j].hash_slots[i], NULL);
++        }
++        /* Cleanup all the tagged keys for codis-server mode. */
++        if (server.db[j].tagged_keys->length != 0) {
++            zslFree(server.db[j].tagged_keys);
++            server.db[j].tagged_keys = zslCreate();
++        }
++
+         if (async) {
+             emptyDbAsync(&server.db[j]);
+         } else {
+@@ -862,7 +896,16 @@ void shutdownCommand(client *c) {
+      * Also when in Sentinel mode clear the SAVE flag and force NOSAVE. */
+     if (server.loading || server.sentinel_mode)
+         flags = (flags & ~SHUTDOWN_SAVE) | SHUTDOWN_NOSAVE;
+-    if (prepareForShutdown(flags) == C_OK) exit(0);
++    if (prepareForShutdown(flags) == C_OK) {
++        /* Cleanup all the hash_slots and tagged_keys for codis-server mode. */
++        for (int j = 0; j < server.dbnum; j++) {
++            for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
++                dictRelease(server.db[j].hash_slots[i]);
++            }
++            zslFree(server.db[j].tagged_keys);
++        }
++        exit(0);
++    }
+     addReplyError(c,"Errors trying to SHUTDOWN. Check logs.");
+ }
+ 
+diff --git a/extern/redis-5.0/src/defrag.c b/extern/redis-5.0/src/defrag.c
+index ea44b238..74af9e2f 100644
+--- a/extern/redis-5.0/src/defrag.c
++++ b/extern/redis-5.0/src/defrag.c
+@@ -539,9 +539,9 @@ long defragZsetSkiplist(redisDb *db, dictEntry *kde) {
+         defragged++, zs->zsl = newzsl;
+     if ((newheader = activeDefragAlloc(zs->zsl->header)))
+         defragged++, zs->zsl->header = newheader;
+-    if (dictSize(zs->dict) > server.active_defrag_max_scan_fields)
++    if (dictSize(zs->dict) > server.active_defrag_max_scan_fields) {
+         defragLater(db, kde);
+-    else {
++    } else {
+         dictIterator *di = dictGetIterator(zs->dict);
+         while((de = dictNext(di)) != NULL) {
+             defragged += activeDefragZsetEntry(zs, de);
+@@ -749,8 +749,9 @@ long defragStream(redisDb *db, dictEntry *kde) {
+         if (newrax)
+             defragged++, s->rax = newrax;
+         defragLater(db, kde);
+-    } else
++    } else {
+         defragged += defragRadixTree(&s->rax, 1, NULL, NULL);
++    }
+ 
+     if (s->cgroups)
+         defragged += defragRadixTree(&s->cgroups, 1, defragStreamConsumerGroup, NULL);
+@@ -778,6 +779,18 @@ long defragKey(redisDb *db, dictEntry *de) {
+         uint64_t hash = dictGetHash(db->dict, de->key);
+         replaceSateliteDictKeyPtrAndOrDefragDictEntry(db->expires, keysds, newsds, hash, &defragged);
+     }
++    do {
++        /* Try to defrag the dict entry in the codis-server hash_slots.
++         *
++         * Dirty code:
++         * Just like the code above which for db->expires, we can't search in
++         * db->hash_slots[i] for that key after we already released the pointer
++         * it holds, it won't be able to do the string compare either. */
++        int slot = slots_num(de->key, NULL, NULL);
++        uint64_t hash = dictGetHash(db->hash_slots[slot], de->key);
++        replaceSateliteDictKeyPtrAndOrDefragDictEntry(db->hash_slots[slot],
++                keysds, newsds, hash, &defragged);
++    } while(0);
+ 
+     /* Try to defrag robj and / or string value. */
+     ob = dictGetVal(de);
+@@ -1088,8 +1101,7 @@ void activeDefragCycle(void) {
+                 if (server.active_defrag_running != 0 && ustime() < endtime)
+                     continue;
+                 break;
+-            }
+-            else if (current_db==0) {
++            } else if (current_db==0) {
+                 /* Start a scan from the first database. */
+                 start_scan = ustime();
+                 start_stat = server.stat_active_defrag_hits;
+diff --git a/extern/redis-5.0/src/dict.h b/extern/redis-5.0/src/dict.h
+index 62018cc4..5f1a6516 100644
+--- a/extern/redis-5.0/src/dict.h
++++ b/extern/redis-5.0/src/dict.h
+@@ -181,6 +181,9 @@ unsigned long dictScan(dict *d, unsigned long v, dictScanFunction *fn, dictScanB
+ uint64_t dictGetHash(dict *d, const void *key);
+ dictEntry **dictFindEntryRefByPtrAndHash(dict *d, const void *oldptr, uint64_t hash);
+ 
++/* Utils */
++long long timeInMilliseconds(void);
++
+ /* Hash table types */
+ extern dictType dictTypeHeapStringCopyKey;
+ extern dictType dictTypeHeapStrings;
+diff --git a/extern/redis-5.0/src/lazyfree.c b/extern/redis-5.0/src/lazyfree.c
+index 8c65cbd3..aa19d427 100644
+--- a/extern/redis-5.0/src/lazyfree.c
++++ b/extern/redis-5.0/src/lazyfree.c
+@@ -80,6 +80,16 @@ int dbAsyncDelete(redisDb *db, robj *key) {
+      * the key, because it is shared with the main dictionary. */
+     if (dictSize(db->expires) > 0) dictDelete(db->expires,key->ptr);
+ 
++    /* Deleting the key from the slot for codis-server mode. */
++    do {
++        uint32_t crc;
++        int hastag;
++        int slot = slots_num(key->ptr, &crc, &hastag);
++        if (dictDelete(db->hash_slots[slot], key->ptr) == DICT_OK) {
++            if (hastag) zslDelete(db->tagged_keys, (double)crc, key->ptr, NULL);
++        }
++    } while(0);
++
+     /* If the value is composed of a few allocations, to free in a lazy way
+      * is actually just slower... So under a certain limit we just free
+      * the object synchronously. */
+diff --git a/extern/redis-5.0/src/server.c b/extern/redis-5.0/src/server.c
+index 03b4f03a..f6e4d0a5 100644
+--- a/extern/redis-5.0/src/server.c
++++ b/extern/redis-5.0/src/server.c
+@@ -307,6 +307,15 @@ struct redisCommand redisCommandTable[] = {
+     {"pfcount",pfcountCommand,-2,"r",0,NULL,1,-1,1,0,0},
+     {"pfmerge",pfmergeCommand,-2,"wm",0,NULL,1,-1,1,0,0},
+     {"pfdebug",pfdebugCommand,-3,"w",0,NULL,0,0,0,0,0},
++    {"slotshashkey",slotshashkeyCommand,-1,"rF",0,NULL,0,0,0,0,0},
++    {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
++    {"slotsmgrtslot",slotsmgrtslotCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsmgrtone",slotsmgrtoneCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"aw",0,NULL,0,0,0,0,0},
++    {"slotsrestore",slotsrestoreCommand,-4,"awm",0,NULL,1,1,1,0,0},
++    {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
++    {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
+     {"xadd",xaddCommand,-5,"wmFR",0,NULL,1,1,1,0,0},
+     {"xrange",xrangeCommand,-4,"r",0,NULL,1,1,1,0,0},
+     {"xrevrange",xrevrangeCommand,-4,"r",0,NULL,1,1,1,0,0},
+@@ -618,6 +627,16 @@ dictType dbDictType = {
+     dictObjectDestructor   /* val destructor */
+ };
+ 
++/* Db->hash_slots[i], keys are sds strings, vals are NULL. */
++dictType hashSlotType = {
++    dictSdsHash,                /* hash function */
++    NULL,                       /* key dup */
++    NULL,                       /* val dup */
++    dictSdsKeyCompare,          /* key compare */
++    NULL,                       /* key destructor */
++    NULL                        /* val destructor */
++};
++
+ /* server.lua_scripts sha (as sds string) -> scripts (as robj) cache. */
+ dictType shaScriptObjectDictType = {
+     dictSdsCaseHash,            /* hash function */
+@@ -739,8 +758,14 @@ int htNeedsResize(dict *dict) {
+ /* If the percentage of used slots in the HT reaches HASHTABLE_MIN_FILL
+  * we resize the hash table to save memory */
+ void tryResizeHashTables(int dbid) {
+-    if (htNeedsResize(server.db[dbid].dict))
++    if (htNeedsResize(server.db[dbid].dict)) {
+         dictResize(server.db[dbid].dict);
++        /* Resize db->hash_slots for codis-server mode. */
++        for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
++            dict *d = server.db[dbid].hash_slots[i];
++            if (htNeedsResize(d)) dictResize(d);
++        }
++    }
+     if (htNeedsResize(server.db[dbid].expires))
+         dictResize(server.db[dbid].expires);
+ }
+@@ -756,6 +781,19 @@ int incrementallyRehash(int dbid) {
+     /* Keys dictionary */
+     if (dictIsRehashing(server.db[dbid].dict)) {
+         dictRehashMilliseconds(server.db[dbid].dict,1);
++
++        /* Rehash db->hash_slots for codis-server mode. */
++        long long start = timeInMilliseconds();
++        for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
++            int idx = ((i + start) & HASH_SLOTS_MASK);
++            dict *d = server.db[dbid].hash_slots[idx];
++            if (dictIsRehashing(d)) {
++                dictRehashMilliseconds(d, 1);
++                if (timeInMilliseconds() != start) {
++                    break;
++                }
++            }
++        }
+         return 1; /* already used our millisecond for this loop... */
+     }
+     /* Expires */
+@@ -1343,7 +1381,12 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
+     /* Run the Sentinel timer if we are in sentinel mode. */
+     if (server.sentinel_mode) sentinelTimer();
+ 
+-    /* Cleanup expired MIGRATE cached sockets. */
++    /* Cleanup expired slotsmgrt cached sockets for codis-server mode. */
++    run_with_period(1000) {
++        slotsmgrt_cleanup();
++    }
++
++    /* Cleanup expired MIGRATE cached sockets for cluster mode. */
+     run_with_period(1000) {
+         migrateCloseTimedoutSockets();
+     }
+@@ -1642,6 +1685,7 @@ void initServerConfig(void) {
+     server.cluster_announce_bus_port = CONFIG_DEFAULT_CLUSTER_ANNOUNCE_BUS_PORT;
+     server.cluster_module_flags = CLUSTER_MODULE_FLAG_NONE;
+     server.migrate_cached_sockets = dictCreate(&migrateCacheDictType,NULL);
++    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
+     server.next_client_id = 1; /* Client IDs, start from 1 .*/
+     server.loading_process_events_interval_bytes = (1024*1024*2);
+     server.lazyfree_lazy_eviction = CONFIG_DEFAULT_LAZYFREE_LAZY_EVICTION;
+@@ -2035,6 +2079,9 @@ void initServer(void) {
+     signal(SIGPIPE, SIG_IGN);
+     setupSignalHandlers();
+ 
++    /* Init the crc32tab for codis-server mode. */
++    crc32_init();
++
+     if (server.syslog_enabled) {
+         openlog(server.syslog_ident, LOG_PID | LOG_NDELAY | LOG_NOWAIT,
+             server.syslog_facility);
+@@ -2101,6 +2148,10 @@ void initServer(void) {
+         server.db[j].watched_keys = dictCreate(&keylistDictType,NULL);
+         server.db[j].id = j;
+         server.db[j].avg_ttl = 0;
++        for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
++            server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
++        }
++        server.db[j].tagged_keys = zslCreate();
+         server.db[j].defrag_later = listCreate();
+     }
+     evictionPoolAlloc(); /* Initialize the LRU keys pool. */
+diff --git a/extern/redis-5.0/src/server.h b/extern/redis-5.0/src/server.h
+index a905c0e2..ce4b406d 100644
+--- a/extern/redis-5.0/src/server.h
++++ b/extern/redis-5.0/src/server.h
+@@ -642,6 +642,11 @@ typedef struct clientReplyBlock {
+     char buf[];
+ } clientReplyBlock;
+ 
++#define HASH_SLOTS_MASK 0x000003ff
++#define HASH_SLOTS_SIZE (HASH_SLOTS_MASK + 1)
++
++struct zskiplist;
++
+ /* Redis database representation. There are multiple databases identified
+  * by integers from 0 (the default database) up to the max configured
+  * database. The database number is the 'id' field in the structure. */
+@@ -651,6 +656,8 @@ typedef struct redisDb {
+     dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP)*/
+     dict *ready_keys;           /* Blocked keys that received a PUSH */
+     dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
++    dict *hash_slots[HASH_SLOTS_SIZE];
++    struct zskiplist *tagged_keys;
+     int id;                     /* Database ID */
+     long long avg_ttl;          /* Average TTL, just for stats */
+     list *defrag_later;         /* List of key names to attempt to defrag one by one, gradually. */
+@@ -995,6 +1002,7 @@ struct redisServer {
+     int clients_paused;         /* True if clients are currently paused */
+     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
+     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
++    dict *slotsmgrt_cached_sockfds;
+     dict *migrate_cached_sockets;/* MIGRATE cached sockets */
+     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
+     int protected_mode;         /* Don't accept external connections. */
+@@ -1943,6 +1951,14 @@ unsigned long LFUGetTimeInMinutes(void);
+ uint8_t LFULogIncr(uint8_t value);
+ unsigned long LFUDecrAndReturn(robj *o);
+ 
++/* crc32.c -- CRC32 implementation. */
++void crc32_init();
++uint32_t crc32_checksum(const char *buf, int len);
++
++/* slots.c -- handling of codis-server slots. */
++int slots_num(const sds s, uint32_t *pcrc, int *phastag);
++void slotsmgrt_cleanup();
++
+ /* Keys hashing / comparison functions for dict.c hash tables. */
+ uint64_t dictSdsHash(const void *key);
+ int dictSdsKeyCompare(void *privdata, const void *key1, const void *key2);
+@@ -2131,6 +2147,15 @@ void pfaddCommand(client *c);
+ void pfcountCommand(client *c);
+ void pfmergeCommand(client *c);
+ void pfdebugCommand(client *c);
++void slotshashkeyCommand(client *c);
++void slotsinfoCommand(client *c);
++void slotsmgrtslotCommand(client *c);
++void slotsmgrtoneCommand(client *c);
++void slotsmgrttagslotCommand(client *c);
++void slotsmgrttagoneCommand(client *c);
++void slotsrestoreCommand(client *c);
++void slotsdelCommand(client *c);
++void slotscheckCommand(client *c);
+ void latencyCommand(client *c);
+ void moduleCommand(client *c);
+ void securityWarningCommand(client *c);
+diff --git a/extern/redis-5.0/src/slots.c b/extern/redis-5.0/src/slots.c
+new file mode 100644
+index 00000000..4dd865bc
+--- /dev/null
++++ b/extern/redis-5.0/src/slots.c
+@@ -0,0 +1,829 @@
++#include "server.h"
++
++extern void createDumpPayload(rio *payload, robj *o);
++extern int verifyDumpPayload(unsigned char *p, size_t len);
++
++static int parse_int(client *c, robj *obj, int *p) {
++    long v;
++    if (getLongFromObjectOrReply(c, obj, &v, NULL) != C_OK) {
++        return -1;
++    }
++    *p = v;
++    return 0;
++}
++
++static int parse_timeout(client *c, robj *obj, int *p) {
++    int v;
++    if (parse_int(c, obj, &v) != 0) {
++        return -1;
++    }
++    if (v < 0) {
++        addReplyErrorFormat(c, "invalid timeout = %d", v);
++        return -1;
++    }
++    *p = (v == 0) ? 100 : v;
++    return 0;
++}
++
++static int parse_slot(client *c, robj *obj, int *p) {
++    int v;
++    if (parse_int(c, obj, &v) != 0) {
++        return -1;
++    }
++    if (v < 0 || v >= HASH_SLOTS_SIZE) {
++        addReplyErrorFormat(c, "invalid slot number = %d", v);
++        return -1;
++    }
++    *p = v;
++    return 0;
++}
++
++static void *slots_tag(const sds s, int *plen) {
++    int i, j, n = sdslen(s);
++    for (i = 0; i < n && s[i] != '{'; i++) {}
++    if (i == n) {
++        return NULL;
++    }
++    i++;
++    for (j = i; j < n && s[j] != '}'; j++) {}
++    if (j == n) {
++        return NULL;
++    }
++    if (plen != NULL) {
++        *plen = j - i;
++    }
++    return s + i;
++}
++
++int slots_num(const sds s, uint32_t *pcrc, int *phastag) {
++    int taglen;
++    int hastag = 0;
++    void *tag = slots_tag(s, &taglen);
++    if (tag == NULL) {
++        tag = s, taglen = sdslen(s);
++    } else {
++        hastag = 1;
++    }
++    uint32_t crc = crc32_checksum(tag, taglen);
++    if (pcrc != NULL) {
++        *pcrc = crc;
++    }
++    if (phastag != NULL) {
++        *phastag = hastag;
++    }
++    return crc & HASH_SLOTS_MASK;
++}
++
++/* *
++ * Usage: SlotsHashKey $key1 [$key2 $key3...]
++ *
++ * Return the slots num of the given keys.
++ * */
++void slotshashkeyCommand(client *c) {
++    int i;
++    addReplyMultiBulkLen(c, c->argc - 1);
++    for (i = 1; i < c->argc; i++) {
++        robj *key = c->argv[i];
++        addReplyLongLong(c, slots_num(key->ptr, NULL, NULL));
++    }
++}
++
++/* *
++ * Usage: SlotsInfo [$start] [$count]
++ *
++ * Return the count of keys which in the specified slots.
++ * */
++void slotsinfoCommand(client *c) {
++    int slots_slot[HASH_SLOTS_SIZE];
++    int slots_size[HASH_SLOTS_SIZE];
++    int n = 0, beg = 0, end = HASH_SLOTS_SIZE;
++    if (c->argc >= 2) {
++        if (parse_slot(c, c->argv[1], &beg) != 0) {
++            return;
++        }
++    }
++    if (c->argc >= 3) {
++        int v;
++        if (parse_int(c, c->argv[2], &v) != 0) {
++            return;
++        }
++        if (v < 0) {
++            addReplyErrorFormat(c, "invalid slot count = %d", v);
++            return;
++        }
++        if (beg + v < end) {
++            end = beg + v;
++        }
++    }
++    if (c->argc >= 4) {
++        addReplyErrorFormat(c, "wrong number of arguments for 'slotsinfo' command");
++        return;
++    }
++    int i;
++    for (i = beg; i < end; i++) {
++        int s = dictSize(c->db->hash_slots[i]);
++        if (s == 0) {
++            continue;
++        }
++        slots_slot[n] = i;
++        slots_size[n] = s;
++        n++;
++    }
++    addReplyMultiBulkLen(c, n);
++    for (i = 0; i < n; i++) {
++        addReplyMultiBulkLen(c, 2);
++        addReplyLongLong(c, slots_slot[i]);
++        addReplyLongLong(c, slots_size[i]);
++    }
++}
++
++typedef struct {
++    int fd;
++    int db;
++    int authorized;
++    time_t lasttime;
++} slotsmgrt_sockfd;
++
++static slotsmgrt_sockfd *slotsmgrt_get_sockfd(client *c, sds host, sds port, int timeout) {
++    sds name = sdsempty();
++    name = sdscatlen(name, host, sdslen(host));
++    name = sdscatlen(name, ":", 1);
++    name = sdscatlen(name, port, sdslen(port));
++
++    slotsmgrt_sockfd *pfd = dictFetchValue(server.slotsmgrt_cached_sockfds, name);
++    if (pfd != NULL) {
++        sdsfree(name);
++        pfd->lasttime = server.unixtime;
++        return pfd;
++    }
++
++    int fd = anetTcpNonBlockConnect(server.neterr, host, atoi(port));
++    if (fd == -1) {
++        serverLog(LL_WARNING, "slotsmgrt: connect to target %s:%s, error = '%s'",
++                host, port, server.neterr);
++        sdsfree(name);
++        addReplyErrorFormat(c,"Can't connect to target node: %s", server.neterr);
++        return NULL;
++    }
++    anetEnableTcpNoDelay(server.neterr, fd);
++    if ((aeWait(fd, AE_WRITABLE, timeout) & AE_WRITABLE) == 0) {
++        serverLog(LL_WARNING, "slotsmgrt: connect to target %s:%s, aewait error = '%s'",
++                host, port, server.neterr);
++        sdsfree(name);
++        close(fd);
++        addReplySds(c, sdsnew("-IOERR error or timeout connecting to the client\r\n"));
++        return NULL;
++    }
++    serverLog(LL_WARNING, "slotsmgrt: connect to target %s:%s", host, port);
++
++    pfd = zmalloc(sizeof(*pfd));
++    pfd->fd = fd;
++    pfd->db = -1;
++    pfd->authorized = (server.requirepass == NULL) ? 1 : 0;
++    pfd->lasttime = server.unixtime;
++    dictAdd(server.slotsmgrt_cached_sockfds, name, pfd);
++    return pfd;
++}
++
++static void slotsmgrt_close_socket(sds host, sds port) {
++    sds name = sdsempty();
++    name = sdscatlen(name, host, sdslen(host));
++    name = sdscatlen(name, ":", 1);
++    name = sdscatlen(name, port, sdslen(port));
++
++    slotsmgrt_sockfd *pfd = dictFetchValue(server.slotsmgrt_cached_sockfds, name);
++    if (pfd == NULL) {
++        serverLog(LL_WARNING, "slotsmgrt: close target %s:%s again", host, port);
++        sdsfree(name);
++        return;
++    } else {
++        serverLog(LL_WARNING, "slotsmgrt: close target %s:%s", host, port);
++    }
++    dictDelete(server.slotsmgrt_cached_sockfds, name);
++    close(pfd->fd);
++    zfree(pfd);
++    sdsfree(name);
++}
++
++void slotsmgrt_cleanup() {
++    dictIterator *di = dictGetSafeIterator(server.slotsmgrt_cached_sockfds);
++    dictEntry *de;
++    while((de = dictNext(di)) != NULL) {
++        slotsmgrt_sockfd *pfd = dictGetVal(de);
++        if ((server.unixtime - pfd->lasttime) > 15) {
++            serverLog(LL_WARNING, "slotsmgrt: timeout target %s, lasttime = %ld, now = %ld",
++                   (char *)dictGetKey(de), pfd->lasttime, server.unixtime);
++            dictDelete(server.slotsmgrt_cached_sockfds, dictGetKey(de));
++            close(pfd->fd);
++            zfree(pfd);
++        }
++    }
++    dictReleaseIterator(di);
++}
++
++static int slotsmgrt(client *c, sds host, sds port, slotsmgrt_sockfd *pfd,
++        int db, int timeout, robj *keys[], robj *vals[], int n) {
++    rio cmd;
++    rioInitWithBuffer(&cmd, sdsempty());
++
++    int needauth = 0;
++    if (pfd->authorized == 0 && server.requirepass != NULL) {
++        needauth = 1;
++        serverAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 2));
++        serverAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "AUTH", 4));
++        serverAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, server.requirepass, strlen(server.requirepass)));
++    }
++
++    int selectdb = 0;
++    if (pfd->db != db) {
++        selectdb = 1;
++        serverAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 2));
++        serverAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "SELECT", 6));
++        serverAssertWithInfo(c, NULL, rioWriteBulkLongLong(&cmd, db));
++    }
++
++    serverAssertWithInfo(c, NULL, rioWriteBulkCount(&cmd, '*', 1 + 3 * n));
++    serverAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, "SLOTSRESTORE", 12));
++
++    sds onekey = NULL;
++    for (int i = 0; i < n; i++) {
++        robj *key = keys[i], *val = vals[i];
++        long long ttl = 0, expireat = getExpire(c->db, key);
++        if (expireat != -1) {
++            ttl = expireat - mstime();
++            if (ttl < 1) {
++                ttl = 1;
++            }
++        }
++        sds skey = key->ptr;
++        serverAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, skey, sdslen(skey)));
++        serverAssertWithInfo(c, NULL, rioWriteBulkLongLong(&cmd, ttl));
++        do {
++            rio pld;
++            createDumpPayload(&pld, val);
++            sds buf = pld.io.buffer.ptr;
++            serverAssertWithInfo(c, NULL, rioWriteBulkString(&cmd, buf, sdslen(buf)));
++            sdsfree(buf);
++        } while (0);
++        if (onekey == NULL) {
++            onekey = skey;
++        }
++    }
++
++    do {
++        sds buf = cmd.io.buffer.ptr;
++        size_t pos = 0, towrite;
++        int nwritten = 0;
++        while ((towrite = sdslen(buf) - pos) > 0) {
++            towrite = (towrite > (64 * 1024) ? (64 * 1024) : towrite);
++            nwritten = syncWrite(pfd->fd, buf + pos, towrite, timeout);
++            if (nwritten != (signed)towrite) {
++                serverLog(LL_WARNING, "slotsmgrt: writing to target %s:%s, error '%s', "
++                        "nkeys = %d, onekey = '%s', cmd.len = %ld, pos = %ld, towrite = %ld",
++                        host, port, server.neterr, n, onekey, sdslen(buf), pos, towrite);
++                addReplySds(c, sdsnew("-IOERR error or timeout writing to target\r\n"));
++                sdsfree(buf);
++                return -1;
++            }
++            pos += nwritten;
++        }
++        sdsfree(buf);
++    } while (0);
++
++    do {
++        char buf[1024];
++        if (needauth) {
++            if (syncReadLine(pfd->fd, buf, sizeof(buf), timeout) <= 0) {
++                serverLog(LL_WARNING, "slotsmgrt: auth failed, reading from target %s:%s: nkeys = %d, onekey = '%s', error = '%s'",
++                        host, port, n, onekey, server.neterr);
++                addReplySds(c, sdsnew("-IOERR error or timeout reading from target\r\n"));
++                return -1;
++            }
++            if (buf[0] != '+') {
++                serverLog(LL_WARNING, "slotsmgrt: auth failed, reading from target %s:%s: nkeys = %d, onekey = '%s', response = '%s'",
++                        host, port, n, onekey, buf);
++                addReplyError(c, "error on slotsrestore, auth failed");
++                return -1;
++            }
++            pfd->authorized = 1;
++        }
++
++        if (selectdb) {
++            if (syncReadLine(pfd->fd, buf, sizeof(buf), timeout) <= 0) {
++                serverLog(LL_WARNING, "slotsmgrt: select failed, reading from target %s:%s: nkeys = %d, onekey = '%s', error = '%s'",
++                        host, port, n, onekey, server.neterr);
++                addReplySds(c, sdsnew("-IOERR error or timeout reading from target\r\n"));
++                return -1;
++            }
++            if (buf[0] != '+') {
++                serverLog(LL_WARNING, "slotsmgrt: select failed, reading from target %s:%s: nkeys = %d, onekey = '%s', response = '%s'",
++                        host, port, n, onekey, buf);
++                addReplyError(c, "error on slotsrestore, select failed");
++                return -1;
++            }
++            pfd->db = db;
++        }
++
++        if (syncReadLine(pfd->fd, buf, sizeof(buf), timeout) <= 0) {
++            serverLog(LL_WARNING, "slotsmgrt: migration failed, reading from target %s:%s: nkeys = %d, onekey = '%s', error = '%s'",
++                    host, port, n, onekey, server.neterr);
++            addReplySds(c, sdsnew("-IOERR error or timeout reading from target\r\n"));
++            return -1;
++        }
++        if (buf[0] == '-') {
++            serverLog(LL_WARNING, "slotsmgrt: migration failed, reading from target %s:%s: nkeys = %d, onekey = '%s', response = '%s'",
++                    host, port, n, onekey, buf);
++            addReplyError(c, "error on slotsrestore, migration failed");
++            return -1;
++        }
++    } while (0);
++
++    pfd->lasttime = server.unixtime;
++
++    serverLog(LL_VERBOSE, "slotsmgrt: migrate to %s:%s, nkeys = %d, onekey = '%s'", host, port, n, onekey);
++    return 0;
++}
++
++static void slotsremove(client *c, robj **keys, int n, int rewrite) {
++    for (int i = 0; i < n; i++) {
++        dbDelete(c->db, keys[i]);
++        signalModifiedKey(c->db, keys[i]);
++        server.dirty++;
++    }
++    if (!rewrite) {
++        return;
++    }
++    for (int i = 0; i < n; i++) {
++        incrRefCount(keys[i]);
++    }
++    for (int i = 0; i < c->argc; i++) {
++        decrRefCount(c->argv[i]);
++    }
++    zfree(c->argv);
++    c->argc = n + 1;
++    c->argv = zmalloc(sizeof(robj *) * c->argc);
++    c->argv[0] = createStringObject("DEL", 3);
++    for (int i = 0; i < n; i++) {
++        c->argv[i + 1] = keys[i];
++    }
++    c->cmd = lookupCommandOrOriginal(c->argv[0]->ptr);
++    serverAssertWithInfo(c, NULL, c->cmd != NULL);
++}
++
++/* *
++ * Migrate a key-value pair for slotsmgrtslot/slotsmgrtone commands
++ *
++ * Return value:
++ *    -1 - error happens
++ *   >=0 - # of success migration (0 or 1)
++ * */
++static int slotsmgrtone_command(client *c, sds host, sds port, int timeout, robj *key) {
++    slotsmgrt_sockfd *pfd = slotsmgrt_get_sockfd(c, host, port, timeout);
++    if (pfd == NULL) {
++        return -1;
++    }
++
++    robj *val = lookupKeyWrite(c->db, key);
++    if (val == NULL) {
++        return 0;
++    }
++    robj *keys[] = {key};
++    robj *vals[] = {val};
++    if (slotsmgrt(c, host, port, pfd, c->db->id, timeout, keys, vals, 1) != 0) {
++        slotsmgrt_close_socket(host, port);
++        return -1;
++    }
++    slotsremove(c, keys, 1, 1);
++    return 1;
++}
++
++/* *
++ * Usage: SlotsMgrtSlot $host $port $timeout $slot
++ *
++ * Randomly pick a key from the given slot and migrate it to the given server.
++ * */
++void slotsmgrtslotCommand(client *c) {
++    sds host = c->argv[1]->ptr;
++    sds port = c->argv[2]->ptr;
++    int timeout, slot;
++    if (parse_timeout(c, c->argv[3], &timeout) != 0) {
++        return;
++    }
++    if (parse_slot(c, c->argv[4], &slot) != 0) {
++        return;
++    }
++
++    dict *d = c->db->hash_slots[slot];
++    int succ = 0;
++    do {
++        const dictEntry *de = dictGetRandomKey(d);
++        if (de == NULL) {
++            break;
++        }
++        sds skey = dictGetKey(de);
++        robj *key = createStringObject(skey, sdslen(skey));
++        succ = slotsmgrtone_command(c, host, port, timeout, key);
++        decrRefCount(key);
++        if (succ < 0) {
++            return;
++        }
++    } while (0);
++    addReplyMultiBulkLen(c, 2);
++    addReplyLongLong(c, succ);
++    addReplyLongLong(c, dictSize(d));
++}
++
++/* *
++ * Usage: SlotsMgrtOne $host $port $timeout $key
++ *
++ * Migrate the specified key to the given server.
++ * */
++void slotsmgrtoneCommand(client *c) {
++    sds host = c->argv[1]->ptr;
++    sds port = c->argv[2]->ptr;
++    int timeout;
++    if (parse_timeout(c, c->argv[3], &timeout) != 0) {
++        return;
++    }
++
++    robj *key = c->argv[4];
++    int succ = slotsmgrtone_command(c, host, port, timeout, key);
++    if (succ < 0) {
++        return;
++    }
++    addReplyLongLong(c, succ);
++}
++
++/* *
++ * Migrate mutli key-val pairs for slotsmgrttagslot/slotsmgrttagone commands
++ *
++ * Return value:
++ *    -1 - error happens
++ *   >=0 - # of success migration
++ * */
++static int slotsmgrttag_command(client *c, sds host, sds port, int timeout, robj *key) {
++    uint32_t crc;
++    int hastag;
++    int slot = slots_num(key->ptr, &crc, &hastag);
++    if (!hastag) {
++        return slotsmgrtone_command(c, host, port, timeout, key);
++    }
++
++    slotsmgrt_sockfd *pfd = slotsmgrt_get_sockfd(c, host, port, timeout);
++    if (pfd == NULL) {
++        return -1;
++    }
++
++    dict *d = c->db->hash_slots[slot];
++    if (dictSize(d) == 0) {
++        return 0;
++    }
++
++    zrangespec range;
++    range.min = (double)crc;
++    range.minex = 0;
++    range.max = (double)crc;
++    range.maxex = 0;
++
++    list *l = listCreate();
++    listSetFreeMethod(l, decrRefCountVoid);
++
++    zskiplistNode *node = zslFirstInRange(c->db->tagged_keys, &range);
++    while (node != NULL && node->score == (double)crc) {
++        robj *key = createStringObject(node->ele, sdslen(node->ele));
++        listAddNodeTail(l, key);
++        incrRefCount(key);
++        node = node->level[0].forward;
++    }
++
++    int max = listLength(l);
++    if (max == 0) {
++        listRelease(l);
++        return 0;
++    }
++
++    robj **keys = zmalloc(sizeof(robj *) * max);
++    robj **vals = zmalloc(sizeof(robj *) * max);
++
++    int n = 0;
++    for (int i = 0; i < max; i++) {
++        listNode *head = listFirst(l);
++        robj *key = listNodeValue(head);
++        robj *val = lookupKeyWrite(c->db, key);
++        if (val != NULL) {
++            keys[n] = key;
++            vals[n] = val;
++            n++;
++            incrRefCount(key);
++            incrRefCount(val);
++        }
++        listDelNode(l, head);
++    }
++
++    int ret = 0;
++    if (n != 0) {
++        if (slotsmgrt(c, host, port, pfd, c->db->id, timeout, keys, vals, n) != 0) {
++            slotsmgrt_close_socket(host, port);
++            ret = -1;
++        } else {
++            slotsremove(c, keys, n, 1);
++            ret = n;
++        }
++    }
++
++    listRelease(l);
++    for (int i = 0; i < n; i++) {
++        decrRefCount(keys[i]);
++        decrRefCount(vals[i]);
++    }
++    zfree(keys);
++    zfree(vals);
++    return ret;
++}
++
++/* *
++ * Usage: SlotsMgrtTagSlot $host $port $timeout $slot
++ *
++ * Randomly pick a key from the given slot, and try to pick all the keys which
++ * have the same crc with the random one from the db->tagged_keys, then migrate
++ * all these keys to the given server.
++ * */
++void slotsmgrttagslotCommand(client *c) {
++    sds host = c->argv[1]->ptr;
++    sds port = c->argv[2]->ptr;
++    int timeout, slot;
++    if (parse_timeout(c, c->argv[3], &timeout) != 0) {
++        return;
++    }
++    if (parse_slot(c, c->argv[4], &slot) != 0) {
++        return;
++    }
++
++    dict *d = c->db->hash_slots[slot];
++    int succ = 0;
++    do {
++        const dictEntry *de = dictGetRandomKey(d);
++        if (de == NULL) {
++            break;
++        }
++        sds skey = dictGetKey(de);
++        robj *key = createStringObject(skey, sdslen(skey));
++        succ = slotsmgrttag_command(c, host, port, timeout, key);
++        decrRefCount(key);
++        if (succ < 0) {
++            return;
++        }
++    } while (0);
++    addReplyMultiBulkLen(c, 2);
++    addReplyLongLong(c, succ);
++    addReplyLongLong(c, dictSize(d));
++}
++
++/* *
++ * Usage: SlotsMgrtTagOne $host $port $timeout $key
++ *
++ * Try to pick all the keys which are both in the db->tagged_keys and have the
++ * same crc with the specified key if the given key has hashtag, then migrate
++ * all these keys to the given server.
++ * */
++void slotsmgrttagoneCommand(client *c) {
++    sds host = c->argv[1]->ptr;
++    sds port = c->argv[2]->ptr;
++    int timeout;
++    if (parse_timeout(c, c->argv[3], &timeout) != 0) {
++        return;
++    }
++
++    robj *key = c->argv[4];
++    int succ = slotsmgrttag_command(c, host, port, timeout, key);
++    if (succ < 0) {
++        return;
++    }
++    addReplyLongLong(c, succ);
++}
++
++static void slotsScanSdsKeyCallback(void *l, const dictEntry *de) {
++    sds skey = dictGetKey(de);
++    robj *key = createStringObject(skey, sdslen(skey));
++    listAddNodeTail((list *)l, key);
++}
++
++/* *
++ * Usage: SlotsRestore $key $ttl $val [$key $ttl $val ...]
++ *
++ * Restore all the key-value-ttl pairs to the current server.
++ * */
++void slotsrestoreCommand(client *c) {
++    if (c->argc < 4 || (c->argc - 1) % 3 != 0) {
++        addReplyErrorFormat(c, "wrong number of arguments for 'slotsrestore' command");
++        return;
++    }
++    int n = (c->argc - 1) / 3;
++
++    long long *ttls = zmalloc(sizeof(long long) * n);
++    robj **vals = zmalloc(sizeof(robj *) * n);
++    for (int i = 0; i < n; i++) {
++        vals[i] = NULL;
++    }
++
++    for (int i = 0; i < n; i++) {
++        robj *key = c->argv[i * 3 + 1];
++        robj *ttl = c->argv[i * 3 + 2];
++        robj *val = c->argv[i * 3 + 3];
++        if (lookupKeyWrite(c->db, key) != NULL) {
++            serverLog(LL_WARNING, "slotsrestore: slot = %d, key = '%s' already exists",
++                    slots_num(key->ptr, NULL, NULL), (char *)key->ptr);
++        }
++        if (getLongLongFromObjectOrReply(c, ttl, &ttls[i], NULL) != C_OK) {
++            goto cleanup;
++        } else if (ttls[i] < 0) {
++            addReplyError(c, "invalid ttl value, must be >= 0");
++            goto cleanup;
++        }
++        rio payload;
++        int type;
++        if (verifyDumpPayload(val->ptr, sdslen(val->ptr)) != C_OK) {
++            addReplyError(c, "dump payload version or checksum are wrong");
++            goto cleanup;
++        }
++        rioInitWithBuffer(&payload, val->ptr);
++        if (((type = rdbLoadObjectType(&payload)) == -1) ||
++                ((vals[i] = rdbLoadObject(type, &payload, key)) == NULL)) {
++            addReplyError(c, "bad data format");
++            goto cleanup;
++        }
++    }
++
++    for (int i = 0; i < n; i++) {
++        robj *key = c->argv[i * 3 + 1];
++        long long ttl = ttls[i];
++        robj *val = vals[i];
++        dbDelete(c->db, key);
++        dbAdd(c->db, key, val);
++        incrRefCount(val);
++        if (ttl) {
++            setExpire(c, c->db, key, mstime() + ttl);
++        }
++        signalModifiedKey(c->db, key);
++        server.dirty++;
++    }
++    addReply(c, shared.ok);
++
++cleanup:
++    for (int i = 0; i < n; i++) {
++        if (vals[i] != NULL) {
++            decrRefCount(vals[i]);
++        }
++    }
++    zfree(vals);
++    zfree(ttls);
++}
++
++/* *
++ * Usage: SlotsDel $slot1 [$slot2 ...]
++ *
++ * Delete all the key-value pairs which in the specified slots from the db.
++ * */
++void slotsdelCommand(client *c) {
++    int slots_slot[HASH_SLOTS_SIZE];
++    int n = 0;
++    if (c->argc <= 1) {
++        addReplyErrorFormat(c, "wrong number of arguments for 'slotsdel' command");
++        return;
++    }
++    int i;
++    for (i = 1; i < c->argc; i++) {
++        int slot;
++        if (parse_slot(c, c->argv[i], &slot) != 0) {
++            return;
++        }
++        slots_slot[n] = slot;
++        n++;
++    }
++    for (i = 0; i < n; i++) {
++        dict *d = c->db->hash_slots[slots_slot[i]];
++        int s = dictSize(d);
++        if (s == 0) {
++            continue;
++        }
++        list *l = listCreate();
++        listSetFreeMethod(l, decrRefCountVoid);
++        unsigned long cursor = 0;
++        do {
++            cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, NULL, l);
++        } while (cursor != 0);
++        while (1) {
++            listNode *head = listFirst(l);
++            if (head == NULL) {
++                break;
++            }
++            robj *key = listNodeValue(head);
++            robj *keys[] = {key};
++            slotsremove(c, keys, 1, 0);
++            listDelNode(l, head);
++        }
++        listRelease(l);
++    }
++    addReplyMultiBulkLen(c, n);
++    for (i = 0; i < n; i++) {
++        int n = slots_slot[i];
++        int s = dictSize(c->db->hash_slots[n]);
++        addReplyMultiBulkLen(c, 2);
++        addReplyLongLong(c, n);
++        addReplyLongLong(c, s);
++    }
++}
++
++/* *
++ * Usage: SlotsCheck
++ *
++ * Check the consistency between db->dict and db->hash_slots/db->tagged_keys.
++ * */
++void slotscheckCommand(client *c) {
++    sds bug = NULL;
++    int i;
++
++    /* Check if that every key in the db->hash_slots can be found in db->dict */
++    for (i = 0; i < HASH_SLOTS_SIZE && bug == NULL; i++) {
++        dict *d = c->db->hash_slots[i];
++        if (dictSize(d) == 0) {
++            continue;
++        }
++        list *l = listCreate();
++        listSetFreeMethod(l, decrRefCountVoid);
++        unsigned long cursor = 0;
++        do {
++            cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, NULL, l);
++            while (1) {
++                listNode *head = listFirst(l);
++                if (head == NULL) {
++                    break;
++                }
++                robj *key = listNodeValue(head);
++                if (lookupKeyRead(c->db, key) == NULL) {
++                    if (bug == NULL) {
++                        bug = sdsdup(key->ptr);
++                    }
++                }
++                listDelNode(l, head);
++            }
++        } while (cursor != 0 && bug == NULL);
++        listRelease(l);
++    }
++    if (bug != NULL) {
++        addReplyErrorFormat(c, "step 1, miss = '%s'", bug);
++        sdsfree(bug);
++        return;
++    }
++
++    /* Check if that every key in the db->dict can be found in the right
++     * db->hash_slots[i], where "i" is the slots num of each key. */
++    do {
++        dict *d = c->db->dict;
++        if (dictSize(d) == 0) {
++            break;
++        }
++        list *l = listCreate();
++        listSetFreeMethod(l, decrRefCountVoid);
++        unsigned long cursor = 0;
++        do {
++            cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, NULL, l);
++            while (1) {
++                listNode *head = listFirst(l);
++                if (head == NULL) {
++                    break;
++                }
++                robj *key = listNodeValue(head);
++                int slot = slots_num(key->ptr, NULL, NULL);
++                if (dictFind(c->db->hash_slots[slot], key->ptr) == NULL) {
++                    if (bug == NULL) {
++                        bug = sdsdup(key->ptr);
++                    }
++                }
++                listDelNode(l, head);
++            }
++        } while (cursor != 0 && bug == NULL);
++        listRelease(l);
++    } while (0);
++    if (bug != NULL) {
++        addReplyErrorFormat(c, "step 2, miss = '%s'", bug);
++        sdsfree(bug);
++        return;
++    }
++
++    /* Check if that every key in the db->tagged_keys can be found in db->dict */
++    zskiplistNode *node = c->db->tagged_keys->header->level[0].forward;
++    while (node != NULL && bug == NULL) {
++        robj *elem = createStringObject(node->ele, sdslen(node->ele));
++        if (lookupKeyRead(c->db, elem) == NULL) {
++            bug = sdsdup(node->ele);
++        }
++        node = node->level[0].forward;
++    }
++    if (bug != NULL) {
++        addReplyErrorFormat(c, "step 3, miss = '%s'", bug);
++        sdsfree(bug);
++        return;
++    }
++    addReply(c, shared.ok);
++}
+diff --git a/extern/redis-5.0/tests/unit/codis.tcl b/extern/redis-5.0/tests/unit/codis.tcl
+new file mode 100644
+index 00000000..2c7bc3b4
+--- /dev/null
++++ b/extern/redis-5.0/tests/unit/codis.tcl
+@@ -0,0 +1,98 @@
++# Check the basic logic of codis hash slot.
++#
++# Note! We will use some magic strings which can be hashed into the specified
++# slot in the cases below. Here are the magic strings:
++# ----------------------
++# | MagicString | Slot |
++# ----------------------
++# |   6qYGdH    |   0  |
++# |   2J8mrF    |   1  |
++# |   1yoSmd    |   2  |
++# |   0Czt10    | 1021 |
++# |   4Htdmu    | 1022 |
++# |   6jSAJI    | 1023 |
++# ----------------------
++
++start_server {tags {"codis"}} {
++    test "SLOTSHASHKEY return the correct slot for the given keys" {
++        assert_equal {0 1 2} [r slotshashkey 6qYGdH 2J8mrF 1yoSmd]
++        assert_equal {1023 1022 1021} [r slotshashkey 6jSAJI 4Htdmu 0Czt10]
++    }
++
++    test "SLOTSINFO basics" {
++        # init the env
++        r flushall;  # avoid the influence of the last case
++        r debug populate 3 "test" 3
++        assert_equal {3} [r exists "test:0" "test:1" "test:2"]
++        assert_equal {866 1012 590} [r slotshashkey "test:0" "test:1" "test:2"]
++
++        # test slotsinfo without any option
++        assert_equal {{590 1} {866 1} {1012 1}} [r slotsinfo]
++
++        # test slotsinfo with start option
++        assert_equal {{866 1} {1012 1}} [r slotsinfo 800]
++        catch {r slotsinfo -1} e1
++        assert_match {*ERR*invalid*slot*number*} $e1
++        catch {r slotsinfo 1024} e2
++        assert_match {*ERR*invalid*slot*number*} $e2
++
++        # test slotsinfo with start and count option
++        assert_equal {{866 1}} [r slotsinfo 800 100]
++        catch {r slotsinfo 800 -1} e3
++        assert_match {*ERR*invalid*slot*count*} $e3
++
++        # test slotsinfo after delete keys
++        r del "test:1"
++        assert_equal {{590 1} {866 1}} [r slotsinfo]
++        r del "test:0" "test:2"
++        assert_equal {} [r slotsinfo]
++    }
++
++    test "SLOTSINFO can work after SLOTSDEL/FLUSHDB" {
++        # init the env
++        r flushall;  # avoid the influence of the last case
++        r debug populate 10 "{6qYGdH}" 3;  # add 10 tagged keys into slot0
++        r debug populate 10 "{2J8mrF}" 3;  # add 10 tagged keys into slot1
++        r debug populate 10 "{1yoSmd}" 3;  # add 10 tagged keys into slot2
++        r debug populate 10 "{4Htdmu}" 3;  # add 10 tagged keys into slot1022
++        r debug populate 10 "{6jSAJI}" 3;  # add 10 tagged keys into slot1023
++        assert_equal {{0 10} {1 10} {2 10} {1022 10} {1023 10}} [r slotsinfo]
++
++        # test if the result of slotsinfo is right after slotsdel
++        r slotsdel 1022
++        assert_equal {{0 10} {1 10} {2 10} {1023 10}} [r slotsinfo]
++        r slotsdel 1 2
++        assert_equal {{0 10} {1023 10}} [r slotsinfo]
++
++        # test if the result of slotsinfo is right after flushdb
++        r flushdb
++        assert_equal {} [r slotsinfo]
++    }
++
++    test "SLOTSCHECK basics" {
++        # init the env
++        r flushall;  # avoid the influence of the last case
++
++        # test slotscheck for normal keys
++        r debug populate 5000 "test";  # at least 2 keys in each slot
++        assert_equal OK [r slotscheck]
++
++        # test slotscheck for mixed normal keys and tagged keys
++        r debug populate 111 "{6qYGdH}";  # add some tagged keys into slot0
++        r debug populate 222 "{2J8mrF}";  # add some tagged keys into slot1
++        r debug populate 333 "{1yoSmd}";  # add some tagged keys into slot2
++        assert_equal OK [r slotscheck]
++
++        # test slotscheck after delete keys
++        r del "{6qYGdH}:1" "{2J8mrF}:2" "{1yoSmd}:3" "test:1988" "test:818"
++        assert_equal OK [r slotscheck]
++
++        # test slotscheck after slotsdel
++        r slotsdel [randomInt 1024];  # randomly delete a slot
++        assert_equal OK [r slotscheck]
++
++        # test slotscheck for empty db
++        r flushdb
++        r slotscheck
++    } {OK}
++}
