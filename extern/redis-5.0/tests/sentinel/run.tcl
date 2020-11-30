@@ -9,8 +9,8 @@ set ::instances_count 5 ; # How many instances we use at max.
 
 proc main {} {
     parse_options
-    spawn_instance sentinel $::sentinel_base_port $::instances_count
-    spawn_instance redis $::redis_base_port $::instances_count
+    spawn_instance sentinel $::sentinel_base_port $::instances_count 0
+    spawn_instance redis $::redis_base_port $::instances_count 0
     run_tests
     cleanup
     end_tests

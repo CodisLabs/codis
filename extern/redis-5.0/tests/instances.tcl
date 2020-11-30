@@ -54,8 +54,9 @@ proc exec_instance {type cfgfile} {
 }
 
 # Spawn a redis or sentinel instance, depending on 'type'.
-proc spawn_instance {type base_port count {conf {}}} {
-    for {set j 0} {$j < $count} {incr j} {
+proc spawn_instance {type base_port count start {conf {}}} {
+    set max_id [expr {$start + $count}]
+    for {set j $start} {$j < $max_id} {incr j} {
         set port [find_available_port $base_port]
         incr base_port
         puts "Starting $type #$j at port $port"
@@ -341,7 +342,7 @@ proc Rn {n} {
     return [dict get [lindex $::redis_instances $n] link]
 }
 
-# Like R but to chat with Redis instances.
+# Like "S" but to chat with Redis instances.
 proc R {n args} {
     [Rn $n] {*}$args
 }
