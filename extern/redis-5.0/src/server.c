@@ -316,6 +316,7 @@ struct redisCommand redisCommandTable[] = {
     {"slotsrestore",slotsrestoreCommand,-4,"awm",0,NULL,1,1,1,0,0},
     {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
     {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
+    {"slotsscan",slotsscanCommand,-3,"rR",0,NULL,0,0,0,0,0},
     {"xadd",xaddCommand,-5,"wmFR",0,NULL,1,1,1,0,0},
     {"xrange",xrangeCommand,-4,"r",0,NULL,1,1,1,0,0},
     {"xrevrange",xrevrangeCommand,-4,"r",0,NULL,1,1,1,0,0},
@@ -2657,8 +2658,7 @@ int processCommand(client *c) {
     } else if ((c->cmd->arity > 0 && c->cmd->arity != c->argc) ||
                (c->argc < -c->cmd->arity)) {
         flagTransaction(c);
-        addReplyErrorFormat(c,"wrong number of arguments for '%s' command",
-            c->cmd->name);
+        addReplyErrorFormat(c,ERRFMT_WRONG_ARGC,c->cmd->name);
         return C_OK;
     }
 
@@ -3007,8 +3007,7 @@ void authCommand(client *c) {
 void pingCommand(client *c) {
     /* The command takes zero or one arguments. */
     if (c->argc > 2) {
-        addReplyErrorFormat(c,"wrong number of arguments for '%s' command",
-            c->cmd->name);
+        addReplyErrorFormat(c,ERRFMT_WRONG_ARGC,c->cmd->name);
         return;
     }
 

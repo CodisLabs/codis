@@ -8,6 +8,10 @@ static int parse_int(client *c, robj *obj, int *p) {
     if (getLongFromObjectOrReply(c, obj, &v, NULL) != C_OK) {
         return -1;
     }
+    if (v < INT_MIN || v > INT_MAX) {
+        addReplyError(c, "value is out of range");
+        return -1;
+    }
     *p = v;
     return 0;
 }
@@ -116,7 +120,7 @@ void slotsinfoCommand(client *c) {
         }
     }
     if (c->argc >= 4) {
-        addReplyErrorFormat(c, "wrong number of arguments for 'slotsinfo' command");
+        addReplyErrorFormat(c, ERRFMT_WRONG_ARGC, c->cmd->name);
         return;
     }
     int i;
@@ -615,7 +619,7 @@ static void slotsScanSdsKeyCallback(void *l, const dictEntry *de) {
  * */
 void slotsrestoreCommand(client *c) {
     if (c->argc < 4 || (c->argc - 1) % 3 != 0) {
-        addReplyErrorFormat(c, "wrong number of arguments for 'slotsrestore' command");
+        addReplyErrorFormat(c, ERRFMT_WRONG_ARGC, c->cmd->name);
         return;
     }
     int n = (c->argc - 1) / 3;
@@ -688,7 +692,7 @@ void slotsdelCommand(client *c) {
     int slots_slot[HASH_SLOTS_SIZE];
     int n = 0;
     if (c->argc <= 1) {
-        addReplyErrorFormat(c, "wrong number of arguments for 'slotsdel' command");
+        addReplyErrorFormat(c, ERRFMT_WRONG_ARGC, c->cmd->name);
         return;
     }
     int i;
@@ -826,4 +830,65 @@ void slotscheckCommand(client *c) {
         return;
     }
     addReply(c, shared.ok);
+}
+
+/* *
+ * Usage: SlotsScan $slot $cursor [COUNT $count]
+ *
+ * Iterate the set of keys which in the currently selected db's specified slot.
+ * */
+void slotsscanCommand(client *c) {
+    int slot;
+    if (parse_slot(c, c->argv[1], &slot) != 0) {
+        return;
+    }
+    unsigned long cursor;
+    if (parseScanCursorOrReply(c, c->argv[2], &cursor) == C_ERR) {
+        return;
+    }
+    unsigned long count = 10;
+    if (c->argc != 3 && c->argc != 5) {
+        addReplyErrorFormat(c, ERRFMT_WRONG_ARGC, c->cmd->name);
+        return;
+    }
+    if (c->argc == 5) {
+        if (strcasecmp(c->argv[3]->ptr, "count") != 0) {
+            addReply(c, shared.syntaxerr);
+            return;
+        }
+        int v;
+        if (parse_int(c, c->argv[4], &v) != 0) {
+            return;
+        }
+        if (v < 1) {
+            addReply(c, shared.syntaxerr);
+            return;
+        }
+        count = v;
+    }
+    dict *d = c->db->hash_slots[slot];
+    list *l = listCreate();
+    listSetFreeMethod(l, decrRefCountVoid);
+
+    long loops = count * 10;
+    do {
+        cursor = dictScan(d, cursor, slotsScanSdsKeyCallback, NULL, l);
+        loops --;
+    } while (cursor != 0 && loops > 0 && listLength(l) < count);
+
+    addReplyMultiBulkLen(c, 2);
+    addReplyBulkLongLong(c, cursor);
+
+    addReplyMultiBulkLen(c, listLength(l));
+    while (1) {
+        listNode *head = listFirst(l);
+        if (head == NULL) {
+            break;
+        }
+        robj *key = listNodeValue(head);
+        addReplyBulk(c, key);
+        listDelNode(l, head);
+    }
+
+    listRelease(l);
 }

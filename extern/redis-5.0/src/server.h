@@ -494,6 +494,9 @@ typedef long long ustime_t; /* microsecond time type. */
 #define REDISMODULE_AUX_BEFORE_RDB (1<<0)
 #define REDISMODULE_AUX_AFTER_RDB (1<<1)
 
+/* Error information format. */
+#define ERRFMT_WRONG_ARGC "wrong number of arguments for '%s' command"
+
 struct RedisModule;
 struct RedisModuleIO;
 struct RedisModuleDigest;
@@ -2156,6 +2159,7 @@ void slotsmgrttagoneCommand(client *c);
 void slotsrestoreCommand(client *c);
 void slotsdelCommand(client *c);
 void slotscheckCommand(client *c);
+void slotsscanCommand(client *c);
 void latencyCommand(client *c);
 void moduleCommand(client *c);
 void securityWarningCommand(client *c);
