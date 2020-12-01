@@ -1025,7 +1025,7 @@ struct redisServer {
     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
     dict *slotsmgrt_cached_sockfds;
-    list *slotsmgrt_lazy_release;
+    void *slotsmgrt_lazy_release;
     slotsmgrtAsyncClient *slotsmgrt_cached_clients;
     dict *migrate_cached_sockets;/* MIGRATE cached sockets */
     uint64_t next_client_id;    /* Next client unique ID. Incremental. */
@@ -1984,8 +1984,7 @@ int slots_num(const sds s, uint32_t *pcrc, int *phastag);
 void slotsmgrt_cleanup();
 
 /* slots_async.c -- handling of codis-server async migration. */
-void slotsmgrtLazyReleaseCleanup();
-void slotsmgrtLazyReleaseIncrementally();
+void slotsmgrtInitLazyReleaseWorkerThread();
 void slotsmgrtAsyncUnlinkClient(client *c);
 void slotsmgrtAsyncCleanup();
 
@@ -2187,7 +2186,6 @@ void slotsrestoreCommand(client *c);
 void slotsdelCommand(client *c);
 void slotscheckCommand(client *c);
 void slotsscanCommand(client *c);
-void slotsmgrtLazyReleaseCommand(client *c);
 void slotsmgrtOneAsyncDumpCommand(client *c);
 void slotsmgrtTagOneAsyncDumpCommand(client *c);
 void slotsmgrtOneAsyncCommand(client *c);

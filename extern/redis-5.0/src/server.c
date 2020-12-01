@@ -317,7 +317,6 @@ struct redisCommand redisCommandTable[] = {
     {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
     {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
     {"slotsscan",slotsscanCommand,-3,"rR",0,NULL,0,0,0,0,0},
-    {"slotsmgrt-lazy-release",slotsmgrtLazyReleaseCommand,-1,"r",0,NULL,0,0,0,0,0},
     {"slotsmgrtone-async-dump",slotsmgrtOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
     {"slotsmgrttagone-async-dump",slotsmgrtTagOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
     {"slotsmgrtone-async",slotsmgrtOneAsyncCommand,-7,"w",0,NULL,0,0,0,0,0},
@@ -1407,10 +1406,6 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
         slotsmgrtAsyncCleanup();
     }
 
-    run_with_period(100) {
-        slotsmgrtLazyReleaseCleanup();
-    }
-
     /* Cleanup expired MIGRATE cached sockets for cluster mode. */
     run_with_period(1000) {
         migrateCloseTimedoutSockets();
@@ -2147,7 +2142,7 @@ void initServer(void) {
         slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
         memset(ac, 0, sizeof(*ac));
     }
-    server.slotsmgrt_lazy_release = listCreate();
+    slotsmgrtInitLazyReleaseWorkerThread();
 
     /* Open the TCP listening socket for the user commands. */
     if (server.port != 0 &&
@@ -2848,10 +2843,6 @@ int processCommand(client *c) {
         flagTransaction(c);
         addReply(c, shared.slowscripterr);
         return C_OK;
-    }
-
-    if (c->cmd->proc != slotsrestoreAsyncAckCommand) {
-        slotsmgrtLazyReleaseIncrementally();
     }
 
     /* Exec the command */
