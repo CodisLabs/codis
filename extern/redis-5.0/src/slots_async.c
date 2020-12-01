@@ -582,25 +582,7 @@ out:
     return 1 + dictSize(it->keys) - size;
 }
 
-static void batchedObjectIteratorAddKeyCallback(void *data, const dictEntry *de) {
-    void **pd = (void **)data;
-    batchedObjectIterator *it = pd[0];
-    redisDb *db = pd[1];
-    long long numkeys = *(long long *)pd[2];
-
-    if (it->estimate_msgs >= numkeys) {
-        return;
-    }
-    sds skey = dictGetKey(de);
-    robj *key = createStringObject(skey, sdslen(skey));
-    long msgs = estimateNumberOfRestoreCommands(db, key, it->maxbulks);
-    if (it->estimate_msgs == 0 || it->estimate_msgs + msgs <= numkeys * 2) {
-        batchedObjectIteratorAddKey(db, it, key);
-    }
-    decrRefCount(key);
-}
-
-/* ================== Clients ============================================== */
+/* ================== AsyncMigration Clients =============================== */
 
 static slotsmgrtAsyncClient *getSlotsmgrtAsyncClient(int db) {
     return &server.slotsmgrt_cached_clients[db];
@@ -881,6 +863,12 @@ static long slotsmgrtAsyncNextMessagesMicroseconds(slotsmgrtAsyncClient *ac, lon
     return msgs;
 }
 
+static void slotsScanSdsKeyCallback(void *l, const dictEntry *de) {
+    sds skey = dictGetKey(de);
+    robj *key = createStringObject(skey, sdslen(skey));
+    listAddNodeTail((list *)l, key);
+}
+
 /* SLOTSMGRTONE-ASYNC     $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
 /* SLOTSMGRTTAGONE-ASYNC  $host $port $timeout $maxbulks $maxbytes $key1 [$key2 ...] */
 /* SLOTSMGRTSLOT-ASYNC    $host $port $timeout $maxbulks $maxbytes $slot $numkeys    */
@@ -972,7 +960,8 @@ static void slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
     batchedObjectIterator *it = createBatchedObjectIterator(hash_slot,
             usetag ? c->db->tagged_keys : NULL, timeout, maxbulks, maxbytes);
     if (!usekey) {
-        void *pd[] = {it, c->db, &numkeys};
+        list *ll = listCreate();
+        listSetFreeMethod(ll, decrRefCountVoid);
         for (int i = 2; i >= 0 && it->estimate_msgs < numkeys; i--) {
             unsigned long cursor = 0;
             if (i != 0) {
@@ -990,11 +979,21 @@ static void slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
                 loop = 100;
             }
             do {
-                cursor = dictScan(hash_slot, cursor, batchedObjectIteratorAddKeyCallback, NULL, pd);
+                cursor = dictScan(hash_slot, cursor, slotsScanSdsKeyCallback, NULL, ll);
+                while (listLength(ll) != 0 && it->estimate_msgs < numkeys) {
+                    listNode *head = listFirst(ll);
+                    robj *key = listNodeValue(head);
+                    long msgs = estimateNumberOfRestoreCommands(c->db, key, it->maxbulks);
+                    if (it->estimate_msgs == 0 || it->estimate_msgs + msgs <= numkeys * 2) {
+                        batchedObjectIteratorAddKey(c->db, it, key);
+                    }
+                    listDelNode(ll, head);
+                }
             } while (cursor != 0 && it->estimate_msgs < numkeys &&
                     dictSize(it->keys) < (unsigned long)numkeys &&
                     (--loop) >= 0);
         }
+        listRelease(ll);
     } else {
         for (int i = 6; i < c->argc; i++) {
             batchedObjectIteratorAddKey(c->db, it, c->argv[i]);
