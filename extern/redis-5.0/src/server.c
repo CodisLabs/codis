@@ -309,14 +309,27 @@ struct redisCommand redisCommandTable[] = {
     {"pfdebug",pfdebugCommand,-3,"w",0,NULL,0,0,0,0,0},
     {"slotshashkey",slotshashkeyCommand,-1,"rF",0,NULL,0,0,0,0,0},
     {"slotsinfo",slotsinfoCommand,-1,"rF",0,NULL,0,0,0,0,0},
-    {"slotsmgrtslot",slotsmgrtslotCommand,5,"aw",0,NULL,0,0,0,0,0},
-    {"slotsmgrtone",slotsmgrtoneCommand,5,"aw",0,NULL,0,0,0,0,0},
-    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"aw",0,NULL,0,0,0,0,0},
-    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"aw",0,NULL,0,0,0,0,0},
-    {"slotsrestore",slotsrestoreCommand,-4,"awm",0,NULL,1,1,1,0,0},
+    {"slotsmgrtslot",slotsmgrtslotCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone",slotsmgrtoneCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagslot",slotsmgrttagslotCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone",slotsmgrttagoneCommand,5,"w",0,NULL,0,0,0,0,0},
+    {"slotsrestore",slotsrestoreCommand,-4,"wm",0,NULL,1,1,1,0,0},
     {"slotsdel",slotsdelCommand,-2,"w",0,NULL,1,-1,1,0,0},
     {"slotscheck",slotscheckCommand,0,"r",0,NULL,0,0,0,0,0},
     {"slotsscan",slotsscanCommand,-3,"rR",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-lazy-release",slotsmgrtLazyReleaseCommand,-1,"r",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone-async-dump",slotsmgrtOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone-async-dump",slotsmgrtTagOneAsyncDumpCommand,-4,"rm",0,NULL,0,0,0,0,0},
+    {"slotsmgrtone-async",slotsmgrtOneAsyncCommand,-7,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagone-async",slotsmgrtTagOneAsyncCommand,-7,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrtslot-async",slotsmgrtSlotAsyncCommand,8,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrttagslot-async",slotsmgrtTagSlotAsyncCommand,8,"w",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-async-fence",slotsmgrtAsyncFenceCommand,0,"r",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-async-cancel",slotsmgrtAsyncCancelCommand,0,"F",0,NULL,0,0,0,0,0},
+    {"slotsmgrt-exec-wrapper",slotsmgrtExecWrapperCommand,-3,"wm",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async",slotsrestoreAsyncCommand,-2,"w",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async-auth",slotsrestoreAsyncAuthCommand,2,"F",0,NULL,0,0,0,0,0},
+    {"slotsrestore-async-ack",slotsrestoreAsyncAckCommand,3,"w",0,NULL,0,0,0,0,0},
     {"xadd",xaddCommand,-5,"wmFR",0,NULL,1,1,1,0,0},
     {"xrange",xrangeCommand,-4,"r",0,NULL,1,1,1,0,0},
     {"xrevrange",xrevrangeCommand,-4,"r",0,NULL,1,1,1,0,0},
@@ -783,6 +796,10 @@ int incrementallyRehash(int dbid) {
     if (dictIsRehashing(server.db[dbid].dict)) {
         dictRehashMilliseconds(server.db[dbid].dict,1);
 
+        server.db[dbid].hash_slots_rehashing = 1;
+        return 1; /* already used our millisecond for this loop... */
+    }
+    if (server.db[dbid].hash_slots_rehashing) {
         /* Rehash db->hash_slots for codis-server mode. */
         long long start = timeInMilliseconds();
         for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
@@ -791,10 +808,11 @@ int incrementallyRehash(int dbid) {
             if (dictIsRehashing(d)) {
                 dictRehashMilliseconds(d, 1);
                 if (timeInMilliseconds() != start) {
-                    break;
+                    return 1; /* already used our millisecond for this loop... */
                 }
             }
         }
+        server.db[dbid].hash_slots_rehashing = 0;
         return 1; /* already used our millisecond for this loop... */
     }
     /* Expires */
@@ -1385,6 +1403,11 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     /* Cleanup expired slotsmgrt cached sockets for codis-server mode. */
     run_with_period(1000) {
         slotsmgrt_cleanup();
+        slotsmgrtAsyncCleanup();
+    }
+
+    run_with_period(100) {
+        slotsmgrtLazyReleaseCleanup();
     }
 
     /* Cleanup expired MIGRATE cached sockets for cluster mode. */
@@ -1686,7 +1709,6 @@ void initServerConfig(void) {
     server.cluster_announce_bus_port = CONFIG_DEFAULT_CLUSTER_ANNOUNCE_BUS_PORT;
     server.cluster_module_flags = CLUSTER_MODULE_FLAG_NONE;
     server.migrate_cached_sockets = dictCreate(&migrateCacheDictType,NULL);
-    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
     server.next_client_id = 1; /* Client IDs, start from 1 .*/
     server.loading_process_events_interval_bytes = (1024*1024*2);
     server.lazyfree_lazy_eviction = CONFIG_DEFAULT_LAZYFREE_LAZY_EVICTION;
@@ -2117,6 +2139,15 @@ void initServer(void) {
     }
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
+    /* Create slotsmgrt cached sockets and clients for codis-server mode.*/
+    server.slotsmgrt_cached_sockfds = dictCreate(&migrateCacheDictType, NULL);
+    server.slotsmgrt_cached_clients = zmalloc(sizeof(slotsmgrtAsyncClient) * server.dbnum);
+    for (j = 0; j < server.dbnum; j ++) {
+        slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
+        memset(ac, 0, sizeof(*ac));
+    }
+    server.slotsmgrt_lazy_release = listCreate();
+
     /* Open the TCP listening socket for the user commands. */
     if (server.port != 0 &&
         listenToPort(server.port,server.ipfd,&server.ipfd_count) == C_ERR)
@@ -2152,6 +2183,7 @@ void initServer(void) {
         for (int i = 0; i < HASH_SLOTS_SIZE; i++) {
             server.db[j].hash_slots[i] = dictCreate(&hashSlotType, NULL);
         }
+        server.db[j].hash_slots_rehashing = 0;
         server.db[j].tagged_keys = zslCreate();
         server.db[j].defrag_later = listCreate();
     }
@@ -2663,7 +2695,9 @@ int processCommand(client *c) {
     }
 
     /* Check if the user is authenticated */
-    if (server.requirepass && !c->authenticated && c->cmd->proc != authCommand)
+    if (server.requirepass && !c->authenticated
+            && c->cmd->proc != authCommand
+            && c->cmd->proc != slotsrestoreAsyncAuthCommand)
     {
         flagTransaction(c);
         addReply(c,shared.noautherr);
@@ -2813,6 +2847,10 @@ int processCommand(client *c) {
         flagTransaction(c);
         addReply(c, shared.slowscripterr);
         return C_OK;
+    }
+
+    if (c->cmd->proc != slotsrestoreAsyncAckCommand) {
+        slotsmgrtLazyReleaseIncrementally();
     }
 
     /* Exec the command */
