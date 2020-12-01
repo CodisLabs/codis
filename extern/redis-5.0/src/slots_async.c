@@ -243,20 +243,19 @@ static int singleObjectIteratorNext(client *c, singleObjectIterator *it,
                     leading_msgs += 1;
                 }
                 do {
-                    /* SLOTSRESTORE-ASYNC select $db */
-                    addReplyMultiBulkLen(c, 3);
-                    addReplyBulkCString(c, "SLOTSRESTORE-ASYNC");
-                    addReplyBulkCString(c, "select");
+                    /* SLOTSRESTORE-ASYNC-SELECT $db */
+                    addReplyMultiBulkLen(c, 2);
+                    addReplyBulkCString(c, "SLOTSRESTORE-ASYNC-SELECT");
                     addReplyBulkLongLong(c, c->db->id);
                     leading_msgs += 1;
                 } while (0);
             }
         }
 
-        /* SLOTSRESTORE-ASYNC del $key */
+        /* SLOTSRESTORE-ASYNC delete $key */
         addReplyMultiBulkLen(c, 3);
         addReplyBulkCString(c, "SLOTSRESTORE-ASYNC");
-        addReplyBulkCString(c, "del");
+        addReplyBulkCString(c, "delete");
         addReplyBulk(c, key);
 
         long n = numberOfRestoreCommandsFromObject(val, maxbulks);
@@ -1274,6 +1273,10 @@ static void slotsrestoreReplyAck(client *c, int errcode, const char *fmt, ...) {
     addReplyBulkCString(c, "SLOTSRESTORE-ASYNC-ACK");
     addReplyBulkLongLong(c, errcode);
     addReplyBulkSds(c, s);
+
+    if (errcode != 0) {
+        c->flags |= CLIENT_CLOSE_AFTER_REPLY;
+    }
 }
 
 extern int verifyDumpPayload(unsigned char *p, size_t len);
@@ -1290,21 +1293,6 @@ static int slotsrestoreAsyncHandle(client *c) {
     }
     cmd = c->argv[1]->ptr;
 
-    /* SLOTSRESTORE-ASYNC select $db */
-    if (!strcasecmp(cmd, "select")) {
-        long long db;
-        if (c->argc != 3) {
-            goto bad_arguments_number;
-        }
-        if (getLongLongFromObject(c->argv[2], &db) != C_OK ||
-                !(db >= 0 && db <= INT_MAX) || selectDb(c, db) != C_OK) {
-            slotsrestoreReplyAck(c, -1, "invalid DB index (DB=%s)", c->argv[2]->ptr);
-            return C_ERR;
-        }
-        slotsrestoreReplyAck(c, 0, "%d", c->db->id);
-        return C_OK;
-    }
-
     /* ==================================================== */
     /* SLOTSRESTORE-ASYNC $cmd $key [$ttl $arg1, $arg2 ...] */
     /* ==================================================== */
@@ -1315,8 +1303,8 @@ static int slotsrestoreAsyncHandle(client *c) {
 
     robj *key = c->argv[2];
 
-    /* SLOTSRESTORE-ASYNC del $key */
-    if (!strcasecmp(cmd, "del")) {
+    /* SLOTSRESTORE-ASYNC delete $key */
+    if (!strcasecmp(cmd, "delete")) {
         if (c->argc != 3) {
             goto bad_arguments_number;
         }
@@ -1595,8 +1583,7 @@ success_common:
 
 
 /* *
- * SLOTSRESTORE-ASYNC select $db
- *                    del    $key
+ * SLOTSRESTORE-ASYNC delete $key
  *                    expire $key $ttl
  *                    object $key $ttl $payload
  *                    string $key $ttl $payload
@@ -1724,3 +1711,15 @@ void slotsrestoreAsyncAuthCommand(client *c) {
     }
 }
 
+/* *
+ * SLOTSRESTORE-ASYNC-SELECT $db
+ * */
+void slotsrestoreAsyncSelectCommand(client *c) {
+    long long db;
+    if (getLongLongFromObject(c->argv[1], &db) != C_OK ||
+            !(db >= 0 && db <= INT_MAX) || selectDb(c, db) != C_OK) {
+        slotsrestoreReplyAck(c, -1, "invalid DB index (%s)", c->argv[1]->ptr);
+    } else {
+        slotsrestoreReplyAck(c, 0, "OK");
+    }
+}
