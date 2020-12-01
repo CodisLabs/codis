@@ -229,7 +229,7 @@ typedef struct {
     unsigned long cursor;
     unsigned long lindex;
     unsigned long zindex;
-    int chunked;
+    unsigned long chunked_msgs;
 } singleObjectIterator;
 
 static singleObjectIterator *createSingleObjectIterator(robj *key) {
@@ -242,7 +242,7 @@ static singleObjectIterator *createSingleObjectIterator(robj *key) {
     it->cursor = 0;
     it->lindex = 0;
     it->zindex = 0;
-    it->chunked = 0;
+    it->chunked_msgs = 0;
     return it;
 }
 
@@ -389,18 +389,18 @@ static int singleObjectIteratorNext(client *c, singleObjectIterator *it,
         incrRefCount(it->val);
         it->expire = getExpire(c->db, key);
 
-        int extra_msgs = 0;
+        int leading_msgs = 0;
 
-        slotsmgrtAsyncClient *client = getSlotsmgrtAsyncClient(c->db->id);
-        if (client->c == c) {
-            if (client->used == 0) {
-                client->used = 1;
+        slotsmgrtAsyncClient *ac = getSlotsmgrtAsyncClient(c->db->id);
+        if (ac->c == c) {
+            if (ac->used == 0) {
+                ac->used = 1;
                 if (server.requirepass != NULL) {
                     /* SLOTSRESTORE-ASYNC-AUTH $password */
                     addReplyMultiBulkLen(c, 2);
                     addReplyBulkCString(c, "SLOTSRESTORE-ASYNC-AUTH");
                     addReplyBulkCString(c, server.requirepass);
-                    extra_msgs += 1;
+                    leading_msgs += 1;
                 }
                 do {
                     /* SLOTSRESTORE-ASYNC select $db */
@@ -408,7 +408,7 @@ static int singleObjectIteratorNext(client *c, singleObjectIterator *it,
                     addReplyBulkCString(c, "SLOTSRESTORE-ASYNC");
                     addReplyBulkCString(c, "select");
                     addReplyBulkLongLong(c, c->db->id);
-                    extra_msgs += 1;
+                    leading_msgs += 1;
                 } while (0);
             }
         }
@@ -419,13 +419,15 @@ static int singleObjectIteratorNext(client *c, singleObjectIterator *it,
         addReplyBulkCString(c, "del");
         addReplyBulk(c, key);
 
-        if (numberOfRestoreCommandsFromObject(val, maxbulks) != 1) {
+        long n = numberOfRestoreCommandsFromObject(val, maxbulks);
+        if (n >= 2) {
             it->stage = STAGE_CHUNKED;
-            it->chunked = 1;
+            it->chunked_msgs = n;
         } else {
             it->stage = STAGE_PAYLOAD;
+            it->chunked_msgs = 0;
         }
-        return 1 + extra_msgs;
+        return 1 + leading_msgs;
     }
 
     robj *val = it->val;
@@ -654,7 +656,7 @@ static int batchedObjectIteratorHasNext(batchedObjectIterator *it) {
         if (sp->val != NULL) {
             incrRefCount(sp->key);
             listAddNodeTail(it->removed_keys, sp->key);
-            if (sp->chunked) {
+            if (sp->chunked_msgs != 0) {
                 incrRefCount(sp->val);
                 listAddNodeTail(it->chunked_vals, sp->val);
             }
@@ -947,7 +949,7 @@ static int getSlotsmgrtAsyncClientMigrationStatusOrBlock(client *c, robj *key, i
     return 1;
 }
 
-/* ================== Slotsmgrt{One,TagOne}AsyncDumpCommand ================ */
+/* ================== SlotsMgrt{One,TagOne}AsyncDumpCommand ================ */
 
 /* SLOTSMGRTONE-ASYNC-DUMP    $timeout $maxbulks $key1 [$key2 ...] */
 /* SLOTSMGRTTAGONE-ASYNC-DUMP $timeout $maxbulks $key1 [$key2 ...] */
@@ -975,7 +977,7 @@ static void slotsmgrtAsyncDumpGenericCommand(client *c, int usetag) {
 
     batchedObjectIterator *it = createBatchedObjectIterator(NULL,
             usetag ? c->db->tagged_keys : NULL, timeout, maxbulks, INT_MAX);
-    for (int i = 3; i < c->argc; i ++) {
+    for (int i = 3; i < c->argc; i++) {
         batchedObjectIteratorAddKey(c->db, it, c->argv[i]);
     }
 
@@ -1010,7 +1012,7 @@ void slotsmgrtTagOneAsyncDumpCommand(client *c) {
     slotsmgrtAsyncDumpGenericCommand(c, 1);
 }
 
-/* ================== Slotsmgrt{One,TagOne,Slot,TagSlot}AsyncCommand ======= */
+/* ================== SlotsMgrt{One,TagOne,Slot,TagSlot}AsyncCommand ======= */
 
 static unsigned int slotsmgrtAsyncMaxBufferLimit(unsigned int maxbytes) {
     clientBufferLimitsConfig *config = &server.client_obuf_limits[CLIENT_TYPE_NORMAL];
@@ -1154,7 +1156,7 @@ static void slotsmgrtAsyncGenericCommand(client *c, int usetag, int usekey) {
                     (--loop) >= 0);
         }
     } else {
-        for (int i = 6; i < c->argc; i ++) {
+        for (int i = 6; i < c->argc; i++) {
             batchedObjectIteratorAddKey(c->db, it, c->argv[i]);
         }
     }
@@ -1221,6 +1223,8 @@ void slotsmgrtTagSlotAsyncCommand(client *c) {
     slotsmgrtAsyncGenericCommand(c, 1, 0);
 }
 
+/* ================== SlotsMgrtAsync Commands ============================== */
+
 /* *
  * SLOTSMGRT-ASYNC-FENCE
  * */
@@ -1240,7 +1244,133 @@ void slotsmgrtAsyncCancelCommand(client *c) {
     addReplyLongLong(c, releaseSlotsmgrtAsyncClient(c->db->id, "interrupted: canceled"));
 }
 
-/* ================== SlotsmgrtExecWrapper ================================= */
+static void singleObjectIteratorStatus(client *c, singleObjectIterator *it) {
+    if (it == NULL) {
+        addReply(c, shared.nullmultibulk);
+        return;
+    }
+    void *ptr = addDeferredMultiBulkLength(c);
+    int fields = 0;
+
+    fields++; addReplyBulkCString(c, "key");
+    addReplyBulk(c, it->key);
+
+    fields++; addReplyBulkCString(c, "val.type");
+    addReplyBulkLongLong(c, it->val == NULL ? -1 : it->val->type);
+
+    fields++; addReplyBulkCString(c, "stage");
+    addReplyBulkLongLong(c, it->stage);
+
+    fields++; addReplyBulkCString(c, "expire");
+    addReplyBulkLongLong(c, it->expire);
+
+    fields++; addReplyBulkCString(c, "cursor");
+    addReplyBulkLongLong(c, it->cursor);
+
+    fields++; addReplyBulkCString(c, "lindex");
+    addReplyBulkLongLong(c, it->lindex);
+
+    fields++; addReplyBulkCString(c, "zindex");
+    addReplyBulkLongLong(c, it->zindex);
+
+    fields++; addReplyBulkCString(c, "chunked_msgs");
+    addReplyBulkLongLong(c, it->chunked_msgs);
+
+    setDeferredMultiBulkLength(c, ptr, fields * 2);
+}
+
+static void batchedObjectIteratorStatus(client *c, batchedObjectIterator *it) {
+    if (it == NULL) {
+        addReply(c, shared.nullmultibulk);
+        return;
+    }
+    void *ptr = addDeferredMultiBulkLength(c);
+    int fields = 0;
+
+    fields++; addReplyBulkCString(c, "keys");
+    addReplyMultiBulkLen(c, 2);
+    addReplyBulkLongLong(c, dictSize(it->keys));
+    addReplyMultiBulkLen(c, dictSize(it->keys));
+    dictIterator *di = dictGetIterator(it->keys);
+    dictEntry *de;
+    while((de = dictNext(di)) != NULL) {
+        addReplyBulk(c, dictGetKey(de));
+    }
+    dictReleaseIterator(di);
+
+    fields++; addReplyBulkCString(c, "timeout");
+    addReplyBulkLongLong(c, it->timeout);
+
+    fields++; addReplyBulkCString(c, "maxbulks");
+    addReplyBulkLongLong(c, it->maxbulks);
+
+    fields++; addReplyBulkCString(c, "maxbytes");
+    addReplyBulkLongLong(c, it->maxbytes);
+
+    fields++; addReplyBulkCString(c, "estimate_msgs");
+    addReplyBulkLongLong(c, it->estimate_msgs);
+
+    fields++; addReplyBulkCString(c, "removed_keys");
+    addReplyBulkLongLong(c, listLength(it->removed_keys));
+
+    fields++; addReplyBulkCString(c, "chunked_vals");
+    addReplyBulkLongLong(c, listLength(it->chunked_vals));
+
+    fields++; addReplyBulkCString(c, "iterators");
+    addReplyMultiBulkLen(c, 2);
+    addReplyBulkLongLong(c, listLength(it->list));
+    singleObjectIterator *sp = NULL;
+    if (listLength(it->list) != 0) {
+        sp = listNodeValue(listFirst(it->list));
+    }
+    singleObjectIteratorStatus(c, sp);
+
+    setDeferredMultiBulkLength(c, ptr, fields * 2);
+}
+
+/* *
+ * SLOTSMGRT-ASYNC-STATUS
+ * */
+void slotsmgrtAsyncStatusCommand(client *c) {
+    slotsmgrtAsyncClient *ac = getSlotsmgrtAsyncClient(c->db->id);
+    if (ac->c == NULL) {
+        addReply(c, shared.nullmultibulk);
+        return;
+    }
+    void *ptr = addDeferredMultiBulkLength(c);
+    int fields = 0;
+
+    fields++; addReplyBulkCString(c, "host");
+    addReplyBulkCString(c, ac->host);
+
+    fields++; addReplyBulkCString(c, "port");
+    addReplyBulkLongLong(c, ac->port);
+
+    fields++; addReplyBulkCString(c, "used");
+    addReplyBulkLongLong(c, ac->used);
+
+    fields++; addReplyBulkCString(c, "timeout");
+    addReplyBulkLongLong(c, ac->timeout);
+
+    fields++; addReplyBulkCString(c, "lastuse");
+    addReplyBulkLongLong(c, ac->lastuse);
+
+    fields++; addReplyBulkCString(c, "since_lastuse");
+    addReplyBulkLongLong(c, mstime() - ac->lastuse);
+
+    fields++; addReplyBulkCString(c, "blocked_clients");
+    addReplyBulkLongLong(c, listLength(ac->blocked_list));
+
+    fields++; addReplyBulkCString(c, "sending_messages");
+    addReplyBulkLongLong(c, ac->sending_msgs);
+
+    fields++; addReplyBulkCString(c, "batched_iterator");
+    batchedObjectIteratorStatus(c, ac->batched_iter);
+
+    setDeferredMultiBulkLength(c, ptr, fields * 2);
+}
+
+/* ================== SlotsMgrtExecWrapperCommand ========================== */
 
 /* *
  * SLOTSMGRT-EXEC-WRAPPER $hashkey $command [$arg1 ...]
@@ -1293,7 +1423,7 @@ void slotsmgrtExecWrapperCommand(client *c) {
     }
 }
 
-/* ================== SlotsrestoreAsync Commands =========================== */
+/* ================== SlotsRestoreAsync Commands =========================== */
 
 static void slotsrestoreReplyAck(client *c, int errcode, const char *fmt, ...) {
     va_list ap;

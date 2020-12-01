@@ -2196,6 +2196,7 @@ void slotsmgrtSlotAsyncCommand(client *c);
 void slotsmgrtTagSlotAsyncCommand(client *c);
 void slotsmgrtAsyncFenceCommand(client *c);
 void slotsmgrtAsyncCancelCommand(client *c);
+void slotsmgrtAsyncStatusCommand(client *c);
 void slotsmgrtExecWrapperCommand(client *c);
 void slotsrestoreAsyncCommand(client *c);
 void slotsrestoreAsyncAuthCommand(client *c);
