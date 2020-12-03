@@ -1,58 +1,5 @@
 #include "server.h"
 
-/* ================== Worker Thread for Lazy Release ======================= */
-
-typedef struct {
-    pthread_t thread;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    list *objs;
-} lazyReleaseWorker;
-
-static void *lazyReleaseWorkerMain(void *args) {
-    lazyReleaseWorker *p = args;
-    while (1) {
-        pthread_mutex_lock(&p->mutex);
-        while (listLength(p->objs) == 0) {
-            pthread_cond_wait(&p->cond, &p->mutex);
-        }
-        listNode *head = listFirst(p->objs);
-        robj *o = listNodeValue(head);
-        listDelNode(p->objs, head);
-        pthread_mutex_unlock(&p->mutex);
-
-        decrRefCount(o);
-    }
-    return NULL;
-}
-
-static void lazyReleaseObject(robj *o) {
-    serverAssert(o->refcount == 1);
-    lazyReleaseWorker *p = server.slotsmgrt_lazy_release;
-    pthread_mutex_lock(&p->mutex);
-    if (listLength(p->objs) == 0) {
-        pthread_cond_broadcast(&p->cond);
-    }
-    listAddNodeTail(p->objs, o);
-    pthread_mutex_unlock(&p->mutex);
-}
-
-static lazyReleaseWorker *createLazyReleaseWorkerThread() {
-    lazyReleaseWorker *p = zmalloc(sizeof(lazyReleaseWorker));
-    pthread_mutex_init(&p->mutex, NULL);
-    pthread_cond_init(&p->cond, NULL);
-    p->objs = listCreate();
-    if (pthread_create(&p->thread, NULL, lazyReleaseWorkerMain, p) != 0) {
-        serverLog(LL_WARNING,"Fatal: Can't initialize Worker Thread for Lazy Release Jobs.");
-        exit(1);
-    }
-    return p;
-}
-
-void slotsmgrtInitLazyReleaseWorkerThread() {
-    server.slotsmgrt_lazy_release = createLazyReleaseWorkerThread();
-}
-
 /* ================== Iterator for Data Migration ========================== */
 
 #define STAGE_PREPARE 0
@@ -69,7 +16,6 @@ typedef struct {
     unsigned long cursor;
     unsigned long lindex;
     unsigned long zindex;
-    unsigned long chunked_msgs;
 } singleObjectIterator;
 
 static singleObjectIterator *createSingleObjectIterator(robj *key) {
@@ -82,7 +28,6 @@ static singleObjectIterator *createSingleObjectIterator(robj *key) {
     it->cursor = 0;
     it->lindex = 0;
     it->zindex = 0;
-    it->chunked_msgs = 0;
     return it;
 }
 
@@ -261,10 +206,8 @@ static int singleObjectIteratorNext(client *c, singleObjectIterator *it,
         long n = numberOfRestoreCommandsFromObject(val, maxbulks);
         if (n >= 2) {
             it->stage = STAGE_CHUNKED;
-            it->chunked_msgs = n;
         } else {
             it->stage = STAGE_PAYLOAD;
-            it->chunked_msgs = 0;
         }
         return 1 + leading_msgs;
     }
@@ -451,7 +394,6 @@ typedef struct {
     unsigned int maxbulks;
     unsigned int maxbytes;
     list *removed_keys;
-    list *chunked_vals;
     long estimate_msgs;
 } batchedObjectIterator;
 
@@ -470,8 +412,6 @@ static batchedObjectIterator *createBatchedObjectIterator(dict *hash_slot,
     it->maxbytes = maxbytes;
     it->removed_keys = listCreate();
     listSetFreeMethod(it->removed_keys, decrRefCountVoid);
-    it->chunked_vals = listCreate();
-    listSetFreeMethod(it->chunked_vals, decrRefCountVoid);
     it->estimate_msgs = 0;
     return it;
 }
@@ -481,7 +421,6 @@ static void freeBatchedObjectIterator(batchedObjectIterator *it) {
     dictRelease(it->keys);
     listRelease(it->list);
     listRelease(it->removed_keys);
-    listRelease(it->chunked_vals);
     zfree(it);
 }
 
@@ -495,10 +434,6 @@ static int batchedObjectIteratorHasNext(batchedObjectIterator *it) {
         if (sp->val != NULL) {
             incrRefCount(sp->key);
             listAddNodeTail(it->removed_keys, sp->key);
-            if (sp->chunked_msgs != 0) {
-                incrRefCount(sp->val);
-                listAddNodeTail(it->chunked_vals, sp->val);
-            }
         }
         listDelNode(it->list, head);
     }
@@ -1111,9 +1046,6 @@ static void singleObjectIteratorStatus(client *c, singleObjectIterator *it) {
     fields++; addReplyBulkCString(c, "zindex");
     addReplyBulkLongLong(c, it->zindex);
 
-    fields++; addReplyBulkCString(c, "chunked_msgs");
-    addReplyBulkLongLong(c, it->chunked_msgs);
-
     setDeferredMultiBulkLength(c, ptr, fields * 2);
 }
 
@@ -1150,9 +1082,6 @@ static void batchedObjectIteratorStatus(client *c, batchedObjectIterator *it) {
 
     fields++; addReplyBulkCString(c, "removed_keys");
     addReplyBulkLongLong(c, listLength(it->removed_keys));
-
-    fields++; addReplyBulkCString(c, "chunked_vals");
-    addReplyBulkLongLong(c, listLength(it->chunked_vals));
 
     fields++; addReplyBulkCString(c, "iterators");
     addReplyMultiBulkLen(c, 2);
@@ -1652,7 +1581,7 @@ static int slotsrestoreAsyncAckHandle(client *c) {
         for (int i = 1; i < c->argc; i++) {
             listNode *head = listFirst(ll);
             robj *key = listNodeValue(head);
-            if (dbDelete(c->db, key)) {
+            if (dbAsyncDelete(c->db, key)) {
                 signalModifiedKey(c->db, key);
                 server.dirty++;
             }
@@ -1661,21 +1590,6 @@ static int slotsrestoreAsyncAckHandle(client *c) {
             listDelNode(ll, head);
         }
         c->argv[0] = createStringObject("DEL", 3);
-    }
-
-    if (listLength(it->chunked_vals) != 0) {
-        list *ll = it->chunked_vals;
-        while (listLength(ll) != 0) {
-            listNode *head = listFirst(ll);
-            robj *o = listNodeValue(head);
-            incrRefCount(o);
-            listDelNode(ll, head);
-            if (o->refcount != 1) {
-                decrRefCount(o);
-            } else {
-                lazyReleaseObject(o);
-            }
-        }
     }
 
     ac->batched_iter = NULL;

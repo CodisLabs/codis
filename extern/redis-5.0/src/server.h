@@ -1984,7 +1984,6 @@ int slots_num(const sds s, uint32_t *pcrc, int *phastag);
 void slotsmgrt_cleanup();
 
 /* slots_async.c -- handling of codis-server async migration. */
-void slotsmgrtInitLazyReleaseWorkerThread();
 void slotsmgrtAsyncUnlinkClient(client *c);
 void slotsmgrtAsyncCleanup();
 

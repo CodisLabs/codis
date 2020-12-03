@@ -2143,7 +2143,6 @@ void initServer(void) {
         slotsmgrtAsyncClient *ac = &server.slotsmgrt_cached_clients[j];
         memset(ac, 0, sizeof(*ac));
     }
-    slotsmgrtInitLazyReleaseWorkerThread();
 
     /* Open the TCP listening socket for the user commands. */
     if (server.port != 0 &&
