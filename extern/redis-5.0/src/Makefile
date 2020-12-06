@@ -273,6 +273,9 @@ test: $(REDIS_SERVER_NAME) $(REDIS_CHECK_AOF_NAME)
 test-sentinel: $(REDIS_SENTINEL_NAME)
 	@(cd ..; ./runtest-sentinel)
 
+test-codis: $(REDIS_SERVER_NAME) $(REDIS_SENTINEL_NAME)
+	@(cd ..; ./runtest-codis)
+
 check: test
 
 lcov:
