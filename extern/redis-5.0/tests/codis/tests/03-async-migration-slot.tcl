@@ -30,18 +30,10 @@ test "Migrate one static slot(no writing) by async method" {
     set rand [randomInt 102400]
     set prefix "{test_$rand}"
     set slot [get_key_slot $src $prefix]
-    set small 50;   # size of the normal complex key
-    set large 500;  # size of the big complex key
-    set count 5;    # number of the keys in each type
-    set start 0
-    set start [create_some_magic_pairs $src $prefix "hash" $small $count $start]
-    set start [create_some_magic_pairs $src $prefix "hash" $large $count $start]
-    set start [create_some_magic_pairs $src $prefix "zset" $small $count $start]
-    set start [create_some_magic_pairs $src $prefix "zset" $large $count $start]
-    set start [create_some_magic_pairs $src $prefix "set" $small $count $start]
-    set start [create_some_magic_pairs $src $prefix "set" $large $count $start]
-    set start [create_some_magic_pairs $src $prefix "list" $small $count $start]
-    set total [create_some_magic_pairs $src $prefix "list" $large $count $start]
+    set small 20;   # size of the small complex key
+    set large 500;  # size of the large complex key
+    set cnt 5;      # number of the keys in each type
+    set total [create_some_pairs $src $prefix $cnt $cnt $small $large]
     assert_equal OK [R $src slotscheck]
     # record the digest and slot size brfore migration
     set dig_src [R $src debug digest]
@@ -49,9 +41,9 @@ test "Migrate one static slot(no writing) by async method" {
     puts ">>> Init the enviroment(slot=$slot,size=$bak_size,prefix=$prefix): OK"
 
     # set the parameters of the migration
-    set maxbulks 200;      # should be much larger than the bigkey size($large)
+    set maxbulks 200;      # $small < $maxbulks < $large
     set maxbytes 1048576;  # 1MB
-    set numkeys 20
+    set numkeys 30;        # should be much smaller than the slot size
     set print 1;           # if print the detail in each round or not
 
     # migrate the slot from $src to $dst by SLOTSMGRTSLOT-ASYNC

@@ -97,10 +97,10 @@ test "Migrate one tagged key by async method in PAYLOAD encoding" {
     R $src debug populate $count $prefix
     set ksize 5;  # size of the complex key
     set start $count
-    set start [create_some_magic_pairs $src $prefix "hash" $ksize $count $start]
-    set start [create_some_magic_pairs $src $prefix "zset" $ksize $count $start]
-    set start [create_some_magic_pairs $src $prefix "set" $ksize $count $start]
-    set total [create_some_magic_pairs $src $prefix "list" $ksize $count $start]
+    set start [create_complex_keys $src $prefix "hash" $ksize $count $start]
+    set start [create_complex_keys $src $prefix "zset" $ksize $count $start]
+    set start [create_complex_keys $src $prefix "set" $ksize $count $start]
+    set total [create_complex_keys $src $prefix "list" $ksize $count $start]
     set dig_src [R $src debug digest]
     assert_equal OK [R $src slotscheck]
     puts ">>> Init the enviroment(count=$count,total=$total): OK"
@@ -146,8 +146,8 @@ proc test_bigkey_async_migration {type} {
     puts "Starting..."
     set src 0; R $src flushall;
     set dst 1; R $dst flushall;
-    set ksize 20000
-    create_some_magic_pairs $src "{test}" $type $ksize 1 0
+    set ksize 100000
+    create_complex_keys $src "{test}" $type $ksize 1 0 100
     assert_equal OK [R $src slotscheck]
     set key "{test}:0"
     set dig_val [R $src debug digest-value $key]

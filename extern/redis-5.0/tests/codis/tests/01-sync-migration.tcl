@@ -79,10 +79,10 @@ test "Migrate one tagged key by sync method" {
     R $src debug populate $count $prefix
     set ksize 5;  # size of the complex key
     set start $count
-    set start [create_some_magic_pairs $src $prefix "hash" $ksize $count $start]
-    set start [create_some_magic_pairs $src $prefix "zset" $ksize $count $start]
-    set start [create_some_magic_pairs $src $prefix "set" $ksize $count $start]
-    set total [create_some_magic_pairs $src $prefix "list" $ksize $count $start]
+    set start [create_complex_keys $src $prefix "hash" $ksize $count $start]
+    set start [create_complex_keys $src $prefix "zset" $ksize $count $start]
+    set start [create_complex_keys $src $prefix "set" $ksize $count $start]
+    set total [create_complex_keys $src $prefix "list" $ksize $count $start]
     set dig_src [R $src debug digest]
     assert_equal OK [R $src slotscheck]
     puts ">>> Init the enviroment(count=$count,total=$total): OK"
@@ -133,10 +133,10 @@ test "Migrate one static slot(no writing) by sync method" {
     set ksize 5;  # size of the complex key
     set count 5;  # number of the keys in each type
     set start 0
-    set start [create_some_magic_pairs $src $prefix "hash" $ksize $count $start]
-    set start [create_some_magic_pairs $src $prefix "zset" $ksize $count $start]
-    set start [create_some_magic_pairs $src $prefix "set" $ksize $count $start]
-    set total [create_some_magic_pairs $src $prefix "list" $ksize $count $start]
+    set start [create_complex_keys $src $prefix "hash" $ksize $count $start]
+    set start [create_complex_keys $src $prefix "zset" $ksize $count $start]
+    set start [create_complex_keys $src $prefix "set" $ksize $count $start]
+    set total [create_complex_keys $src $prefix "list" $ksize $count $start]
     assert_equal OK [R $src slotscheck]
     # record the digest and slot size brfore migration
     set dig_src [R $src debug digest]

@@ -38,20 +38,59 @@ proc get_slot_size {id slot} {
     return $slot_size
 }
 
-proc create_some_magic_pairs {id prefix type size {num 1} {start 0}} {
+proc pick_slot_key {id slot} {
+    set res [R $id slotsscan $slot 0]
+    set keys [lindex $res 1]
+    return [lindex $keys 0]
+}
+
+proc generate_hset_args {x y batch} {
+    set args {}
+    for {set i 0} {$i < $batch} {incr i} {
+        lappend args "f_$x" $y
+        incr x
+        incr y
+    }
+    return $args
+}
+
+proc generate_zadd_args {x y batch} {
+    set args {}
+    for {set i 0} {$i < $batch} {incr i} {
+        lappend args $y "e_$x"
+        incr x
+        incr y
+    }
+    return $args
+}
+
+proc generate_sadd_args {x y batch} {
+    set args {}
+    for {set i 0} {$i < $batch} {incr i} {
+        lappend args "e_$y"
+        incr y
+    }
+    return $args
+}
+
+proc create_complex_keys {id prefix type size {num 1} {start 0} {batch 1}} {
     set max_idx [expr {$start + $num}]
     for {set j $start} {$j < $max_idx} {incr j} {
         set key "$prefix:$j"
-        for {set x 0} {$x < $size} {incr x} {
+        for {set x 0} {$x < $size} {incr x $batch} {
             set y [expr {$j + $x}]
             if {[string compare $type "hash"] == 0} {
-                R $id hset $key "k_$x" $y
+                set args [generate_hset_args $x $y $batch]
+                R $id hset $key {*}$args
             } elseif {[string compare $type "zset"] == 0} {
-                R $id zadd $key $y "k_$x"
+                set args [generate_zadd_args $x $y $batch]
+                R $id zadd $key {*}$args
             } elseif {[string compare $type "set"] == 0} {
-                R $id sadd $key "e_$y"
+                set args [generate_sadd_args $x $y $batch]
+                R $id sadd $key {*}$args
             } elseif {[string compare $type "list"] == 0} {
-                R $id lpush $key "e_$y"
+                set args [generate_sadd_args $x $y $batch]
+                R $id lpush $key {*}$args
             } else {
                 puts "unsupported type: $type"
                 assert {1 == 0}
@@ -61,10 +100,28 @@ proc create_some_magic_pairs {id prefix type size {num 1} {start 0}} {
     return $max_idx
 }
 
+proc create_some_pairs {id prefix cnt1 cnt2 small large} {
+    # generate some string type k-v pairs by $prefix
+    R $id DEBUG populate $cnt1 $prefix
+
+    # generate some complex type k-v pairs by $prefix
+    set batch 100;  # how many new elements will be generated in each round
+    set start $cnt1
+    set start [create_complex_keys $id $prefix "hash" $small $cnt2 $start]
+    set start [create_complex_keys $id $prefix "hash" $large $cnt2 $start $batch]
+    set start [create_complex_keys $id $prefix "zset" $small $cnt2 $start]
+    set start [create_complex_keys $id $prefix "zset" $large $cnt2 $start $batch]
+    set start [create_complex_keys $id $prefix "set" $small $cnt2 $start]
+    set start [create_complex_keys $id $prefix "set" $large $cnt2 $start $batch]
+    set start [create_complex_keys $id $prefix "list" $small $cnt2 $start]
+    set total [create_complex_keys $id $prefix "list" $large $cnt2 $start $batch]
+    return $total
+}
+
 proc sync_migrate_key {src dst tag key} {
     # init the parameters for the migration
-    set dst_host [get_instance_attrib redis $dst host]
-    set dst_port [get_instance_attrib redis $dst port]
+    set dhost [get_instance_attrib redis $dst host]
+    set dport [get_instance_attrib redis $dst port]
     if {$tag == 1} {
         set cmd SLOTSMGRTTAGONE
     } else {
@@ -73,14 +130,14 @@ proc sync_migrate_key {src dst tag key} {
     set timeout 10;  # seconds
 
     # do the migration
-    set res [R $src $cmd $dst_host $dst_port $timeout $key]
+    set res [R $src $cmd $dhost $dport $timeout $key]
     return $res
 }
 
 proc sync_migrate_slot {src dst tag slot {print 0}} {
     # init the parameters for the migration
-    set dst_host [get_instance_attrib redis $dst host]
-    set dst_port [get_instance_attrib redis $dst port]
+    set dhost [get_instance_attrib redis $dst host]
+    set dport [get_instance_attrib redis $dst port]
     if {$tag == 1} {
         set cmd SLOTSMGRTTAGSLOT
     } else {
@@ -93,7 +150,7 @@ proc sync_migrate_slot {src dst tag slot {print 0}} {
     set total 0
     while 1 {
         incr round
-        set res [R $src $cmd $dst_host $dst_port $timeout $slot]
+        set res [R $src $cmd $dhost $dport $timeout $slot]
         set succ [lindex $res 0]
         set size [lindex $res 1]
         if {$print == 1} {
@@ -108,8 +165,8 @@ proc sync_migrate_slot {src dst tag slot {print 0}} {
 
 proc async_migrate_key {src dst tag bulks bytes args} {
     # init the parameters for the migration
-    set dst_host [get_instance_attrib redis $dst host]
-    set dst_port [get_instance_attrib redis $dst port]
+    set dhost [get_instance_attrib redis $dst host]
+    set dport [get_instance_attrib redis $dst port]
     if {$tag == 1} {
         set cmd SLOTSMGRTTAGONE-ASYNC
     } else {
@@ -118,14 +175,14 @@ proc async_migrate_key {src dst tag bulks bytes args} {
     set timeout 10;  # seconds
 
     # do the migration
-    set res [R $src $cmd $dst_host $dst_port $timeout $bulks $bytes {*}$args]
+    set res [R $src $cmd $dhost $dport $timeout $bulks $bytes {*}$args]
     return $res
 }
 
 proc async_migrate_slot {src dst tag bulks bytes slot num {print 0}} {
     # init the parameters for the migration
-    set dst_host [get_instance_attrib redis $dst host]
-    set dst_port [get_instance_attrib redis $dst port]
+    set dhost [get_instance_attrib redis $dst host]
+    set dport [get_instance_attrib redis $dst port]
     if {$tag == 1} {
         set cmd SLOTSMGRTTAGSLOT-ASYNC
     } else {
@@ -138,7 +195,7 @@ proc async_migrate_slot {src dst tag bulks bytes slot num {print 0}} {
     set total 0
     while 1 {
         incr round
-        set res [R $src $cmd $dst_host $dst_port $timeout $bulks $bytes $slot $num]
+        set res [R $src $cmd $dhost $dport $timeout $bulks $bytes $slot $num]
         set succ [lindex $res 0]
         set size [lindex $res 1]
         if {$print == 1} {
@@ -149,6 +206,65 @@ proc async_migrate_slot {src dst tag bulks bytes slot num {print 0}} {
     }
     set res [list $round $total]
     return $res
+}
+
+proc handle_async_migrate_done {link type reply} {
+    puts "AsyncMigrate finished: $type '$reply'"
+}
+
+proc trigger_async_migrate_key {src dst tag bulks bytes args} {
+    # create a new client for async migration
+    set shost [get_instance_attrib redis $src host]
+    set sport [get_instance_attrib redis $src port]
+    set link [redis $shost $sport]
+    $link blocking 0;  # use non-blocking mode
+
+    # init the parameters for the migration
+    set dhost [get_instance_attrib redis $dst host]
+    set dport [get_instance_attrib redis $dst port]
+    if {$tag == 1} {
+        set cmd SLOTSMGRTTAGONE-ASYNC
+    } else {
+        set cmd SLOTSMGRTONE-ASYNC
+    }
+    set timeout 10;  # seconds
+
+    # trigger the migration
+    set callback [list handle_async_migrate_done]
+    $link $cmd $dhost $dport $timeout $bulks $bytes {*}$args $callback
+    puts "AsyncMigrate key([lindex $args 0]) starting..."
+}
+
+proc trigger_async_migrate_slot {src dst tag bulks bytes slot num} {
+    # create a new client for async migration
+    set shost [get_instance_attrib redis $src host]
+    set sport [get_instance_attrib redis $src port]
+    set link [redis $shost $sport]
+    $link blocking 0;  # use non-blocking mode
+
+    # init the parameters for the migration
+    set dhost [get_instance_attrib redis $dst host]
+    set dport [get_instance_attrib redis $dst port]
+    if {$tag == 1} {
+        set cmd SLOTSMGRTTAGSLOT-ASYNC
+    } else {
+        set cmd SLOTSMGRTSLOT-ASYNC
+    }
+    set timeout 10;  # seconds
+
+    # trigger the migration
+    set callback [list handle_async_migrate_done]
+    $link $cmd $dhost $dport $timeout $bulks $bytes $slot $num $callback
+    puts "AsyncMigrate slot_$slot starting..."
+}
+
+proc migrate_exec_wrapper {id key args} {
+    catch {R $id SLOTSMGRT-EXEC-WRAPPER $key {*}$args} e
+    return $e
+}
+
+proc get_migration_status {id} {
+    puts [R $id SLOTSMGRT-ASYNC-STATUS]
 }
 
 proc test_async_migration_with_invalid_params {src key tag args} {
