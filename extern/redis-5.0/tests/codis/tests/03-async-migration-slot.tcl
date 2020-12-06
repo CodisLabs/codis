@@ -72,5 +72,6 @@ test "Migrate one static slot(no writing) by async method" {
 
     # verify the data isn't corrupted or changed after 2 migrations
     assert_equal $dig_src [R $src debug digest]
+    puts ">>> Verify the data after migration: PASS"
     puts -nonewline ">>> End of the case: "
 }

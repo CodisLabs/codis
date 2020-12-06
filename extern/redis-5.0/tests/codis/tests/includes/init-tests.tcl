@@ -27,6 +27,10 @@ proc get_ping_reply {type id} {
 }
 
 test "(init) All instances are reachable" {
+    if {$debug_print == 1} {
+        puts "Starting..."
+    }
+
     foreach type {redis sentinel} {
         foreach_${type}_id id {
             # Every redis node should be reachable.
@@ -53,6 +57,10 @@ test "(init) Remove old master entries from sentinels" {
 }
 
 test "(init) Flush old data and reset the role of redis instances" {
+    if {$debug_print == 1} {
+        puts "Starting..."
+    }
+
     foreach_redis_id id {
         if {$id < $::group_count} {
             # Master instance
@@ -74,6 +82,7 @@ test "(init) Flush old data and reset the role of redis instances" {
         } elseif {$id > $::group_count} {
             set max_retry 3;  # for 2nd,3rd,4th... replica instances
         }
+
         wait_for_condition $max_retry 50 {
             [RI $id master_link_status] eq {up}
         } else {
@@ -105,6 +114,10 @@ test "(init) Sentinels can start monitoring all master instances" {
 }
 
 test "(init) Sentinels can talk with all master instances" {
+    if {$debug_print == 1} {
+        puts "Starting..."
+    }
+
     for {set gid 1} {$gid <= $::group_count} {incr gid} {
         set name [group_ms_name $gid]
         foreach_sentinel_id id {
@@ -125,6 +138,10 @@ proc ms_info_item {id name item} {
 }
 
 test "(init) Sentinels are able to auto-discover other sentinels" {
+    if {$debug_print == 1} {
+        puts "Starting..."
+    }
+
     set other_count [expr {$::sentinel_count - 1}]
     for {set gid 1} {$gid <= $::group_count} {incr gid} {
         set name [group_ms_name $gid]
@@ -142,6 +159,10 @@ test "(init) Sentinels are able to auto-discover other sentinels" {
 }
 
 test "(init) Sentinels are able to auto-discover slaves" {
+    if {$debug_print == 1} {
+        puts "Starting..."
+    }
+
     for {set gid 1} {$gid <= $::group_count} {incr gid} {
         set name [group_ms_name $gid]
         foreach_sentinel_id id {

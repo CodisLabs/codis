@@ -84,6 +84,7 @@ test "Migrate one untagged key by async method in PAYLOAD encoding" {
 
     # verify the data isn't corrupted or changed after migration
     assert_equal $dig_src [R $dst debug digest]
+    puts ">>> Verify the data after migration: PASS"
     puts -nonewline ">>> End of the case: "
 }
 
@@ -138,6 +139,7 @@ test "Migrate one tagged key by async method in PAYLOAD encoding" {
 
     # verify the data isn't corrupted or changed after migration
     assert_equal $dig_src [R $src debug digest]
+    puts ">>> Verify the data after migration: PASS"
     puts -nonewline ">>> End of the case: "
 }
 

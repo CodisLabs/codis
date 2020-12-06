@@ -232,7 +232,7 @@ proc trigger_async_migrate_key {src dst tag bulks bytes args} {
     # trigger the migration
     set callback [list handle_async_migrate_done]
     $link $cmd $dhost $dport $timeout $bulks $bytes {*}$args $callback
-    puts "AsyncMigrate key([lindex $args 0]) starting..."
+    puts "AsyncMigrate key([lindex $args 0]){#$src => #$dst} starting..."
 }
 
 proc trigger_async_migrate_slot {src dst tag bulks bytes slot num} {
@@ -255,7 +255,7 @@ proc trigger_async_migrate_slot {src dst tag bulks bytes slot num} {
     # trigger the migration
     set callback [list handle_async_migrate_done]
     $link $cmd $dhost $dport $timeout $bulks $bytes $slot $num $callback
-    puts "AsyncMigrate slot_$slot starting..."
+    puts "AsyncMigrate slot_$slot{#$src => #$dst} starting..."
 }
 
 proc migrate_exec_wrapper {id key args} {

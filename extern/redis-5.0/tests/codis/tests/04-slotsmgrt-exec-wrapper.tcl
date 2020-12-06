@@ -9,13 +9,13 @@ test "Read&&Write a key by wrapper combine with key async migrating" {
     set dst 1; R $dst flushall;
     set slot 1
     set strcnt 100;    # count of the string type keys
-    set comcnt 1;      # count of each complex type keys
+    set cpxcnt 1;      # count of each complex type keys
     set small 20;      # size of the small complex key
     set large 100000;  # size of the large complex key
     set prefix1 "{2J8mrF}";  # can be hashed to slot1
-    set total1 [create_some_pairs $src $prefix1 $strcnt $comcnt $small $large]
+    set total1 [create_some_pairs $src $prefix1 $strcnt $cpxcnt $small $large]
     set prefix2 "{key:65}";  # can be hashed to slot1
-    set total2 [create_some_pairs $src $prefix2 $strcnt $comcnt $small $large]
+    set total2 [create_some_pairs $src $prefix2 $strcnt $cpxcnt $small $large]
     assert_equal OK [R $src slotscheck]
     # record the digest and slot size brfore migration
     set dig_src [R $src debug digest]
@@ -71,7 +71,7 @@ test "Read&&Write a key by wrapper combine with key async migrating" {
     } else {
         fail "AsyncMigrate key($k1) is taking too much time!"
     }
-    puts "AsyncMigrate key($k1) finished."
+    puts "AsyncMigrate key($k1){#$src => #$dst} finished."
 
     # trigger the async migration of k2
     trigger_async_migrate_key $src $dst $tag $maxbulks $maxbytes $k2
@@ -100,7 +100,7 @@ test "Read&&Write a key by wrapper combine with key async migrating" {
     } else {
         fail "AsyncMigrate key($k2) is taking too much time!"
     }
-    puts "AsyncMigrate key($k2) finished."
+    puts "AsyncMigrate key($k2){#$src => #$dst} finished."
 
     # check and remove the ttl on dst server
     assert {[lindex [R $dst TTL $k2] 0] > 0}
@@ -110,6 +110,7 @@ test "Read&&Write a key by wrapper combine with key async migrating" {
     assert_equal $dig_src [R $dst debug digest]
     assert_equal OK [R $dst slotscheck]
     assert_equal OK [R $src slotscheck]
+    puts ">>> Verify the data after migration: PASS"
     puts -nonewline ">>> End of the case: "
 }
 
@@ -131,10 +132,10 @@ test "Read&&Write a key by wrapper combine with slot async migrating" {
     R $src debug populate 100 "{key:8468}"
     set prefix "{2J8mrF}"
     set strcnt 100;    # count of the string type keys
-    set comcnt 1;      # count of each complex type keys
+    set cpxcnt 1;      # count of each complex type keys
     set small 20;      # size of the small complex key
     set large 100000;  # size of the large complex key
-    set total [create_some_pairs $src $prefix $strcnt $comcnt $small $large]
+    set total [create_some_pairs $src $prefix $strcnt $cpxcnt $small $large]
     assert_equal OK [R $src slotscheck]
     # record the digest and slot size brfore migration
     set dig_src [R $src debug digest]
@@ -181,7 +182,7 @@ test "Read&&Write a key by wrapper combine with slot async migrating" {
     } else {
         fail "AsyncMigrate is taking too much time!"
     }
-    puts "AsyncMigrate slot_$slot finished."
+    puts "AsyncMigrate slot_$slot{#$src => #$dst} finished."
 
     # read/write the key by wrapper after migration
     set res [migrate_exec_wrapper $src $key TYPE $key]
@@ -201,5 +202,6 @@ test "Read&&Write a key by wrapper combine with slot async migrating" {
     assert_equal $dig_src [R $dst debug digest]
     assert_equal OK [R $dst slotscheck]
     assert_equal OK [R $src slotscheck]
+    puts ">>> Verify the data after migration: PASS"
     puts -nonewline ">>> End of the case: "
 }
