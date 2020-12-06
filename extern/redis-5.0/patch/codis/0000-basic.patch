@@ -1245,6 +1245,18 @@ index 00000000..4dd865bc
 +    }
 +    addReply(c, shared.ok);
 +}
+diff --git a/extern/redis-5.0/tests/test_helper.tcl b/extern/redis-5.0/tests/test_helper.tcl
+index 8978631e..c0f99632 100644
+--- a/extern/redis-5.0/tests/test_helper.tcl
++++ b/extern/redis-5.0/tests/test_helper.tcl
+@@ -62,6 +62,7 @@ set ::all_tests {
+     unit/lazyfree
+     unit/wait
+     unit/pendingquerybuf
++    unit/codis
+ }
+ # Index to the next test to run in the ::all_tests list.
+ set ::next_test 0
 diff --git a/extern/redis-5.0/tests/unit/codis.tcl b/extern/redis-5.0/tests/unit/codis.tcl
 new file mode 100644
 index 00000000..2c7bc3b4
