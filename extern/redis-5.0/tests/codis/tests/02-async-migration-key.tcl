@@ -1,4 +1,4 @@
-# Codis async migration test for single key.
+# Codis async migration test for a single key.
 
 source "../tests/includes/init-tests.tcl"
 
@@ -78,18 +78,19 @@ test "Migrate one tagged key by async method in PAYLOAD encoding" {
     set prefix "{test}"
     set count [randomInt 10]; incr count;  # avoid the bad case: count == 0
     R $src debug populate $count $prefix
-    set total $count
-    set total [create_some_magic_pairs $src $prefix "hash" 5 $count $total]
-    set total [create_some_magic_pairs $src $prefix "zset" 5 $count $total]
-    set total [create_some_magic_pairs $src $prefix "set" 5 $count $total]
-    set total [create_some_magic_pairs $src $prefix "list" 5 $count $total]
+    set ksize 5;  # size of the complex key
+    set start $count
+    set start [create_some_magic_pairs $src $prefix "hash" $ksize $count $start]
+    set start [create_some_magic_pairs $src $prefix "zset" $ksize $count $start]
+    set start [create_some_magic_pairs $src $prefix "set" $ksize $count $start]
+    set total [create_some_magic_pairs $src $prefix "list" $ksize $count $start]
     set dig_src [R $src debug digest]
     assert_equal OK [R $src slotscheck]
     puts ">>> Init the enviroment(count=$count,total=$total): OK"
 
     # set the parameters of the migration
     set tag 1;  # 0 means SLOTSMGRTONE-ASYNC, while 1 means SLOTSMGRTTAGONE-ASYNC
-    set maxbulks 200;      # should be much larger than the key size
+    set maxbulks 200;      # should be much larger than the key size($ksize)
     set maxbytes 1048576;  # 1MB
 
     # check the migration of a non-existent tagged key
@@ -128,8 +129,8 @@ proc test_bigkey_async_migration {type} {
     puts "Starting..."
     set src 0; R $src flushall;
     set dst 1; R $dst flushall;
-    set size 50000
-    create_some_magic_pairs $src "{test}" $type $size 1 0
+    set ksize 20000
+    create_some_magic_pairs $src "{test}" $type $ksize 1 0
     assert_equal OK [R $src slotscheck]
     set key "{test}:0"
     set dig_val [R $src debug digest-value $key]
@@ -137,7 +138,7 @@ proc test_bigkey_async_migration {type} {
     puts ">>> Init the enviroment($desc): OK"
 
     # set the parameters of the migration
-    set maxbulks 200;      # should be much smaller than the key size
+    set maxbulks 200;      # should be much smaller than the key size($ksize)
     set maxbytes 1048576;  # 1MB
 
     # migrate the bigkey by SLOTSMGRTONE-ASYNC

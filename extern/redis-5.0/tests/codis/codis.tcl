@@ -77,7 +77,7 @@ proc sync_migrate_key {src dst tag key} {
     return $res
 }
 
-proc sync_migrate_slot {src dst tag slot} {
+proc sync_migrate_slot {src dst tag slot {print 0}} {
     # init the parameters for the migration
     set dst_host [get_instance_attrib redis $dst host]
     set dst_port [get_instance_attrib redis $dst port]
@@ -90,15 +90,19 @@ proc sync_migrate_slot {src dst tag slot} {
 
     # circularly migrate the keys of the slot from $src to $dst
     set round 0
-    set succ 0
+    set total 0
     while 1 {
         incr round
         set res [R $src $cmd $dst_host $dst_port $timeout $slot]
-        incr succ [lindex $res 0]
+        set succ [lindex $res 0]
         set size [lindex $res 1]
+        if {$print == 1} {
+            puts "Round $round: size=$size,succ=$succ"
+        }
+        incr total $succ
         if {$size == 0} break
     }
-    set res [list $round $succ]
+    set res [list $round $total]
     return $res
 }
 
@@ -118,7 +122,7 @@ proc async_migrate_key {src dst tag bulks bytes args} {
     return $res
 }
 
-proc async_migrate_slot {src dst tag bulks bytes slot num} {
+proc async_migrate_slot {src dst tag bulks bytes slot num {print 0}} {
     # init the parameters for the migration
     set dst_host [get_instance_attrib redis $dst host]
     set dst_port [get_instance_attrib redis $dst port]
@@ -131,14 +135,18 @@ proc async_migrate_slot {src dst tag bulks bytes slot num} {
 
     # circularly migrate the keys of the slot from $src to $dst
     set round 0
-    set succ 0
+    set total 0
     while 1 {
         incr round
         set res [R $src $cmd $dst_host $dst_port $timeout $bulks $bytes $slot $num]
-        incr succ [lindex $res 0]
+        set succ [lindex $res 0]
         set size [lindex $res 1]
+        if {$print == 1} {
+            puts "Round $round: size=$size,succ=$succ"
+        }
+        incr total $succ
         if {$size == 0} break
     }
-    set res [list $round $succ]
+    set res [list $round $total]
     return $res
 }

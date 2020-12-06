@@ -77,11 +77,12 @@ test "Migrate one tagged key by sync method" {
     set prefix "{test}"
     set count [randomInt 10]; incr count;  # avoid the bad case: count == 0
     R $src debug populate $count $prefix
-    set total $count
-    set total [create_some_magic_pairs $src $prefix "hash" 5 $count $total]
-    set total [create_some_magic_pairs $src $prefix "zset" 5 $count $total]
-    set total [create_some_magic_pairs $src $prefix "set" 5 $count $total]
-    set total [create_some_magic_pairs $src $prefix "list" 5 $count $total]
+    set ksize 5;  # size of the complex key
+    set start $count
+    set start [create_some_magic_pairs $src $prefix "hash" $ksize $count $start]
+    set start [create_some_magic_pairs $src $prefix "zset" $ksize $count $start]
+    set start [create_some_magic_pairs $src $prefix "set" $ksize $count $start]
+    set total [create_some_magic_pairs $src $prefix "list" $ksize $count $start]
     set dig_src [R $src debug digest]
     assert_equal OK [R $src slotscheck]
     puts ">>> Init the enviroment(count=$count,total=$total): OK"
@@ -129,16 +130,18 @@ test "Migrate one static slot(no writing) by sync method" {
     set rand [randomInt 102400]
     set prefix "{test_$rand}"
     set slot [get_key_slot $src $prefix]
-    create_some_magic_pairs $src $prefix "hash" 5 10 0
-    create_some_magic_pairs $src $prefix "zset" 5 10 10
-    create_some_magic_pairs $src $prefix "set" 5 10 20
-    create_some_magic_pairs $src $prefix "list" 5 10 30
+    set ksize 5;  # size of the complex key
+    set count 5;  # number of the keys in each type
+    set start 0
+    set start [create_some_magic_pairs $src $prefix "hash" $ksize $count $start]
+    set start [create_some_magic_pairs $src $prefix "zset" $ksize $count $start]
+    set start [create_some_magic_pairs $src $prefix "set" $ksize $count $start]
+    set total [create_some_magic_pairs $src $prefix "list" $ksize $count $start]
     assert_equal OK [R $src slotscheck]
-    puts ">>> Init the enviroment(slot=$slot,prefix=$prefix): OK"
-
     # record the digest and slot size brfore migration
     set dig_src [R $src debug digest]
     set bak_size [get_slot_size $src $slot]
+    puts ">>> Init the enviroment(slot=$slot,size=$bak_size,prefix=$prefix): OK"
 
     # migrate the slot from $src to $dst by SLOTSMGRTSLOT
     set tag 0;  # 0 means SLOTSMGRTSLOT, while 1 means SLOTSMGRTTAGSLOT
