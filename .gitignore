@@ -10,6 +10,7 @@
 .htaccess
 
 /bin
+/config
 /tmp
 /pkg/utils/version.go
 

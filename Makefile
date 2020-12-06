@@ -5,8 +5,10 @@ REDIS_VER="5.0"
 
 build-all: codis-server codis-dashboard codis-proxy codis-admin codis-ha codis-fe clean-gotest
 
-codis-deps:
+deps:
 	@mkdir -p bin config && bash version
+
+codis-deps: deps
 	@make --no-print-directory -C vendor/github.com/spinlock/jemalloc-go/
 
 codis-dashboard: codis-deps
@@ -27,8 +29,7 @@ codis-fe: codis-deps
 	go build -i -o bin/codis-fe ./cmd/fe
 	@rm -rf bin/assets; cp -rf cmd/fe/assets bin/
 
-codis-server:
-	@mkdir -p bin
+codis-server: deps
 	@rm -f bin/codis-server*
 	make -j4 -C extern/redis-$(REDIS_VER)/
 	@cp -f extern/redis-$(REDIS_VER)/src/redis-server  bin/codis-server
@@ -43,6 +44,7 @@ clean-gotest:
 
 clean: clean-gotest
 	@rm -rf bin
+	@rm -rf config
 	@rm -rf scripts/tmp
 
 distclean: clean
