@@ -4,6 +4,25 @@
 # This software is released under the BSD License. See the COPYING file for
 # more information.
 
+proc get_key_type_size {id key} {
+    set type [R $id type $key]
+    if {[string compare $type "list"] == 0} {
+        set tmp [R $id llen $key]
+    } elseif {[string compare $type "hash"] == 0} {
+        set tmp [R $id hlen $key]
+    } elseif {[string compare $type "zset"] == 0} {
+        set tmp [R $id zcard $key]
+    } elseif {[string compare $type "set"] == 0} {
+        set tmp [R $id scard $key]
+    } else {
+        puts "unsupported type: $type"
+        assert {1 == 0}
+    }
+    set size [lindex $tmp 0]
+    set res [list $type $size]
+    return $res
+}
+
 proc get_key_slot {id key} {
     set res [R $id slotshashkey $key]
     return [lindex $res 0]
@@ -19,55 +38,103 @@ proc get_slot_size {id slot} {
     return $slot_size
 }
 
-proc creat_some_keys {id prefix type {num 1} {start 0}} {
+proc create_some_magic_pairs {id prefix type size {num 1} {start 0}} {
     set max_idx [expr {$start + $num}]
     for {set j $start} {$j < $max_idx} {incr j} {
         set key "$prefix:$j"
-        if {[string compare $type "hash"] == 0} {
-            R $id hset $key a $j b [expr $j+1] c [expr $j+2]
-        } elseif {[string compare $type "zset"] == 0} {
-            R $id zadd $key $j a [expr $j+1] b [expr $j+2] c
-        } elseif {[string compare $type "set"] == 0} {
-            R $id sadd $key a $j b [expr $j+1] c [expr $j+2]
-        } elseif {[string compare $type "list"] == 0} {
-            R $id lpush $key a $j b [expr $j+1] c [expr $j+2]
-        } else {
-            puts "unknown type: $type"
-            assert {1 == 0}
+        for {set x 0} {$x < $size} {incr x} {
+            set y [expr {$j + $x}]
+            if {[string compare $type "hash"] == 0} {
+                R $id hset $key "k_$x" $y
+            } elseif {[string compare $type "zset"] == 0} {
+                R $id zadd $key $y "k_$x"
+            } elseif {[string compare $type "set"] == 0} {
+                R $id sadd $key "e_$y"
+            } elseif {[string compare $type "list"] == 0} {
+                R $id lpush $key "e_$y"
+            } else {
+                puts "unsupported type: $type"
+                assert {1 == 0}
+            }
         }
     }
     return $max_idx
 }
 
-proc sync_migrate_key {src dst key {tag 1}} {
-    set dst_host [get_instance_attrib redis $dst host]
-    set dst_port [get_instance_attrib redis $dst port]
-    set timeout 10;  # seconds
-    if {$tag == 0} {
-        set res [R $src SLOTSMGRTONE $dst_host $dst_port $timeout $key]
-    } else {
-        set res [R $src SLOTSMGRTTAGONE $dst_host $dst_port $timeout $key]
-    }
-    return $res
-}
-
-proc sync_migrate_slot {src dst slot {tag 1}} {
+proc sync_migrate_key {src dst tag key} {
     # init the parameters for the migration
     set dst_host [get_instance_attrib redis $dst host]
     set dst_port [get_instance_attrib redis $dst port]
-    set timeout 10;  # seconds
-    if {$tag == 0} {
-        set cmd SLOTSMGRTSLOT
+    if {$tag == 1} {
+        set cmd SLOTSMGRTTAGONE
     } else {
-        set cmd SLOTSMGRTTAGSLOT
+        set cmd SLOTSMGRTONE
     }
+    set timeout 10;  # seconds
 
-    # circularly migrate the slot from $src to $dst
+    # do the migration
+    set res [R $src $cmd $dst_host $dst_port $timeout $key]
+    return $res
+}
+
+proc sync_migrate_slot {src dst tag slot} {
+    # init the parameters for the migration
+    set dst_host [get_instance_attrib redis $dst host]
+    set dst_port [get_instance_attrib redis $dst port]
+    if {$tag == 1} {
+        set cmd SLOTSMGRTTAGSLOT
+    } else {
+        set cmd SLOTSMGRTSLOT
+    }
+    set timeout 10;  # seconds
+
+    # circularly migrate the keys of the slot from $src to $dst
     set round 0
     set succ 0
     while 1 {
         incr round
         set res [R $src $cmd $dst_host $dst_port $timeout $slot]
+        incr succ [lindex $res 0]
+        set size [lindex $res 1]
+        if {$size == 0} break
+    }
+    set res [list $round $succ]
+    return $res
+}
+
+proc async_migrate_key {src dst tag bulks bytes args} {
+    # init the parameters for the migration
+    set dst_host [get_instance_attrib redis $dst host]
+    set dst_port [get_instance_attrib redis $dst port]
+    if {$tag == 1} {
+        set cmd SLOTSMGRTTAGONE-ASYNC
+    } else {
+        set cmd SLOTSMGRTONE-ASYNC
+    }
+    set timeout 10;  # seconds
+
+    # do the migration
+    set res [R $src $cmd $dst_host $dst_port $timeout $bulks $bytes {*}$args]
+    return $res
+}
+
+proc async_migrate_slot {src dst tag bulks bytes slot num} {
+    # init the parameters for the migration
+    set dst_host [get_instance_attrib redis $dst host]
+    set dst_port [get_instance_attrib redis $dst port]
+    if {$tag == 1} {
+        set cmd SLOTSMGRTTAGSLOT-ASYNC
+    } else {
+        set cmd SLOTSMGRTSLOT-ASYNC
+    }
+    set timeout 10;  # seconds
+
+    # circularly migrate the keys of the slot from $src to $dst
+    set round 0
+    set succ 0
+    while 1 {
+        incr round
+        set res [R $src $cmd $dst_host $dst_port $timeout $bulks $bytes $slot $num]
         incr succ [lindex $res 0]
         set size [lindex $res 1]
         if {$size == 0} break
