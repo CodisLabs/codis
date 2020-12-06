@@ -9,9 +9,11 @@ source ../instances.tcl
 set ::master_base_port 30000;
 set ::replica_base_port 40000;
 set ::group_count 3;  # How many groups(master + replica) we use at max.
+set ::sentinel_count 3;  # How many sentinels we use at max.
 
 proc main {} {
     parse_options
+    spawn_instance sentinel $::sentinel_base_port $::sentinel_count 0
     spawn_instance redis $::master_base_port $::group_count 0
     spawn_instance redis $::replica_base_port $::group_count $::group_count {
         "appendonly yes"
