@@ -2,6 +2,23 @@
 
 source "../tests/includes/init-tests.tcl"
 
+test "Migrate a single key by async method with invalid parameters" {
+    # init the env
+    puts "Starting..."
+    set src 0; R $src flushall;
+    assert_equal OK [R $src slotscheck]
+    puts ">>> Init the enviroment: OK"
+
+    set key 1;  # 1 means migrate key, while 0 means migrate slot
+    set tag 0;  # 1 means use the cmd with TAG, while 0 means not
+    set cmd [test_async_migration_with_invalid_params $src $key $tag "none"]
+    puts ">>> Checking of $cmd completed."
+    set tag 1
+    set cmd [test_async_migration_with_invalid_params $src $key $tag "{none}"]
+    puts ">>> Checking of $cmd completed."
+    puts -nonewline ">>> End of the case: "
+}
+
 test "Migrate one untagged key by async method in PAYLOAD encoding" {
     # init the env
     puts "Starting..."

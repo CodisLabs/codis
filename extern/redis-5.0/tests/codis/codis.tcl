@@ -150,3 +150,77 @@ proc async_migrate_slot {src dst tag bulks bytes slot num {print 0}} {
     set res [list $round $total]
     return $res
 }
+
+proc test_async_migration_with_invalid_params {src key tag args} {
+    if {$key == 1} {
+        if {$tag == 1} {
+            set cmd SLOTSMGRTTAGONE-ASYNC
+        } else {
+            set cmd SLOTSMGRTONE-ASYNC
+        }
+    } else {
+        if {$tag == 1} {
+            set cmd SLOTSMGRTTAGSLOT-ASYNC
+        } else {
+            set cmd SLOTSMGRTSLOT-ASYNC
+        }
+    }
+    # set the normal value of the migration parameters
+    set dhost "127.0.0.1"
+    set dport 10000
+    set timeout 10
+    set maxbulks 200
+    set maxbytes 1024000
+    # set the value over range
+    set bigv1 65536;       # USHRT_MAX+1
+    set bigv2 2147483648;  # INT_MAX+1
+
+    # check invalid dst port
+    catch {R $src $cmd $dhost 0 $timeout $maxbulks $maxbytes {*}$args} e
+    assert_match {*ERR*invalid*port*} $e
+    catch {R $src $cmd $dhost $bigv1 $timeout $maxbulks $maxbytes {*}$args} e
+    assert_match {*ERR*invalid*port*} $e
+    puts ">>> ($cmd) Checking of invalid port value: PASS"
+
+    # check invalid timeout
+    catch {R $src $cmd $dhost $dport -1 $maxbulks $maxbytes {*}$args} e
+    assert_match {*ERR*invalid*timeout*} $e
+    catch {R $src $cmd $dhost $dport $bigv2 $maxbulks $maxbytes {*}$args} e
+    assert_match {*ERR*invalid*timeout*} $e
+    puts ">>> ($cmd) Checking of invalid timeout value: PASS"
+
+    # check invalid maxbulks
+    catch {R $src $cmd $dhost $dport $timeout -1 $maxbytes {*}$args} e
+    assert_match {*ERR*invalid*maxbulks*} $e
+    catch {R $src $cmd $dhost $dport $timeout $bigv2 $maxbytes {*}$args} e
+    assert_match {*ERR*invalid*maxbulks*} $e
+    puts ">>> ($cmd) Checking of invalid maxbulks value: PASS"
+
+    # check invalid maxbytes
+    catch {R $src $cmd $dhost $dport $timeout $maxbulks -1 {*}$args} e
+    assert_match {*ERR*invalid*maxbytes*} $e
+    catch {R $src $cmd $dhost $dport $timeout $maxbulks $bigv2 {*}$args} e
+    assert_match {*ERR*invalid*maxbytes*} $e
+    puts ">>> ($cmd) Checking of invalid maxbytes value: PASS"
+
+    if {$key == 1} {
+        return $cmd
+    }
+    set slot [lindex $args 0]
+    set num [lindex $args 1]
+
+    # check invalid slotId
+    catch {R $src $cmd $dhost $dport $timeout $maxbulks $maxbytes -1 $num} e
+    assert_match {*ERR*invalid*slot*} $e
+    catch {R $src $cmd $dhost $dport $timeout $maxbulks $maxbytes 1024 $num} e
+    assert_match {*ERR*invalid*slot*} $e
+    puts ">>> ($cmd) Checking of invalid slotId value: PASS"
+
+    # check invalid numkeys
+    catch {R $src $cmd $dhost $dport $timeout $maxbulks $maxbytes $slot -1} e
+    assert_match {*ERR*invalid*numkeys*} $e
+    catch {R $src $cmd $dhost $dport $timeout $maxbulks $maxbytes $slot $bigv2} e
+    assert_match {*ERR*invalid*numkeys*} $e
+    puts ">>> ($cmd) Checking of invalid numkeys value: PASS"
+    return $cmd
+}
