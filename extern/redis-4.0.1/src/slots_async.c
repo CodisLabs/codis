@@ -590,14 +590,16 @@ batchedObjectIteratorAddKey(redisDb *db, batchedObjectIterator *it, robj *key) {
     zskiplistNode *node = zslFirstInRange(it->hash_tags, &range);
     while (node != NULL && node->score == (double)crc) {
         node = node->level[0].forward;
-        keyCopy = sdsdup(node->ele);
-        if (dictAdd(it->keys, keyCopy, NULL) != C_OK) {
-            sdsfree(keyCopy);
-            continue;
+        if (node) {
+            keyCopy = sdsdup(node->ele);
+            if (dictAdd(it->keys, keyCopy, NULL) != C_OK) {
+                sdsfree(keyCopy);
+                continue;
+            }
+            robj *key = createObject(OBJ_STRING, sdsdup(node->ele));
+            listAddNodeTail(it->list, createSingleObjectIterator(key));
+            it->estimate_msgs += estimateNumberOfRestoreCommands(db, key, it->maxbulks);
         }
-        robj *key = createObject(OBJ_STRING, sdsdup(node->ele));
-        listAddNodeTail(it->list, createSingleObjectIterator(key));
-        it->estimate_msgs += estimateNumberOfRestoreCommands(db, key, it->maxbulks);
     }
 
 out:
