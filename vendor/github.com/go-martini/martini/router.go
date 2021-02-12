@@ -172,7 +172,7 @@ func (r *router) appendRoute(rt *route) {
 func (r *router) getRoutes() []*route {
 	r.routesLock.RLock()
 	defer r.routesLock.RUnlock()
-	return r.routes[:]
+	return r.routes
 }
 
 func (r *router) findRoute(name string) *route {

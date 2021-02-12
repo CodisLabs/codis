@@ -214,7 +214,7 @@ func validateStruct(errors Errors, obj interface{}) Errors {
 			errors = validateStruct(errors, fieldValue)
 		}
 
-		if strings.Index(field.Tag.Get("binding"), "required") > -1 {
+		if strings.Contains(field.Tag.Get("binding"), "required") {
 			if reflect.DeepEqual(zero, fieldValue) {
 				name := field.Name
 				if j := field.Tag.Get("json"); j != "" {

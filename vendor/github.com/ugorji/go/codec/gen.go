@@ -1072,7 +1072,7 @@ func (x *genRunner) decVar(varname string, t reflect.Type, canBeNil bool) {
 				ptrPfx, varname, ptrPfx, varname, x.genTypeName(t))
 		}
 		// if varname has [ in it, then create temp variable for this ptr thingie
-		if strings.Index(varname, "[") >= 0 {
+		if strings.Contains(varname, "[") {
 			varname2 := genTempVarPfx + "w" + i
 			x.line(varname2 + " := " + varname)
 			varname = varname2

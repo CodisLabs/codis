@@ -41,7 +41,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"html/template"
-  "io"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -239,7 +239,7 @@ func compile(options Options) *template.Template {
 }
 
 func getExt(s string) string {
-	if strings.Index(s, ".") == -1 {
+	if !strings.Contains(s, ".") {
 		return ""
 	}
 	return "." + strings.Join(strings.Split(s, ".")[1:], ".")
