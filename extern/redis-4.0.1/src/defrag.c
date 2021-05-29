@@ -285,6 +285,18 @@ int defragKey(redisDb *db, dictEntry *de) {
     newsds = activeDefragSds(keysds);
     if (newsds)
         defragged++, de->key = newsds;
+
+    /* 对slot对应的dict进行内存碎片整理，并且使用新的key地址替换老的key地址 
+     * 这里没有对hashtag对应的zset数据结构进行内存整理，向zset数据结构中添加key时，对key做了dup处理，key指针是有效的
+     */
+    do {
+        uint32_t crc;
+        int hastag;
+        int slot = slots_num(de->key, &crc, &hastag);
+        unsigned int hash = dictGetHash(db->hash_slots[slot], de->key);
+        replaceSateliteDictKeyPtrAndOrDefragDictEntry(db->hash_slots[slot], keysds, newsds, hash, &defragged);
+    } while (0);
+
     if (dictSize(db->expires)) {
          /* Dirty code:
           * I can't search in db->expires for that key after i already released
