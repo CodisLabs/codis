@@ -30,6 +30,8 @@ type Client struct {
 	Pipeline struct {
 		Send, Recv uint64
 	}
+
+	ShouldClose bool
 }
 
 func NewClientNoAuth(addr string, timeout time.Duration) (*Client, error) {
@@ -48,6 +50,7 @@ func NewClient(addr string, auth string, timeout time.Duration) (*Client, error)
 	return &Client{
 		conn: c, Addr: addr, Auth: auth,
 		LastUse: time.Now(), Timeout: timeout,
+		ShouldClose: false,
 	}, nil
 }
 
@@ -57,6 +60,8 @@ func (c *Client) Close() error {
 
 func (c *Client) isRecyclable() bool {
 	switch {
+	case c.ShouldClose:
+		return false
 	case c.conn.Err() != nil:
 		return false
 	case c.Pipeline.Send != c.Pipeline.Recv:
