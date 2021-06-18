@@ -30,10 +30,6 @@ type Client struct {
 	Pipeline struct {
 		Send, Recv uint64
 	}
-
-	ExecCmd struct {
-		Do, Done uint64
-	}
 }
 
 func NewClientNoAuth(addr string, timeout time.Duration) (*Client, error) {
@@ -65,8 +61,6 @@ func (c *Client) isRecyclable() bool {
 		return false
 	case c.Pipeline.Send != c.Pipeline.Recv:
 		return false
-	case c.ExecCmd.Do != c.ExecCmd.Done:
-		return false
 	case c.Timeout != 0 && c.Timeout <= time.Since(c.LastUse):
 		return false
 	}
@@ -74,9 +68,7 @@ func (c *Client) isRecyclable() bool {
 }
 
 func (c *Client) Do(cmd string, args ...interface{}) (interface{}, error) {
-	c.ExecCmd.Do++
 	r, err := c.conn.Do(cmd, args...)
-	c.ExecCmd.Done++
 	if err != nil {
 		c.Close()
 		return nil, errors.Trace(err)
