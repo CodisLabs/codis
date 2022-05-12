@@ -1,9 +1,14 @@
+
 <img src="doc/pictures/logo-3.png" height=80></img>
+
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/CodisLabs/codis?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Build Status](https://travis-ci.org/CodisLabs/codis.svg)](https://travis-ci.org/CodisLabs/codis)
 
+# This version adds Codis Pika sharding DevOps and Guide.
+
 Codis is a proxy based high performance Redis cluster solution written in Go. It is production-ready and widely used at [wandoujia.com](http://wandoujia.com) and many companies. You can see [Codis Releases](https://github.com/CodisLabs/codis/releases) for latest and most stable realeases.
+
 
 ## Donation
 Donate if you want to help us maintaining this project. Thank you!
