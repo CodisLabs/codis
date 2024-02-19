@@ -1,3 +1,11 @@
+#Please look at Pika's codis, current repo's codis' etcd is "broken". Use pika's codis until further notice.
+https://github.com/OpenAtomFoundation/pika
+
+
+TODO
+1. faster connection using redhub
+2. higher throughput, lower latency and to maintain professionally.
+
 <img src="doc/pictures/logo-3.png" height=80></img>
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/CodisLabs/codis?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
