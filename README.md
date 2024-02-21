@@ -1,3 +1,7 @@
+# USE pika's codis here instead of this:
+https://github.com/OpenAtomFoundation/pika
+
+
 Fork of codis with updates to use options 1024, 4096, 8192, 16384 or 32768 or 65536 nodes instead of just 1024
 
 TODO
