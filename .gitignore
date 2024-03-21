@@ -1,5 +1,5 @@
 *.log
-*.swp
+*.sw*
 *.out
 *.dump
 *.log.*
@@ -10,6 +10,7 @@
 .htaccess
 
 /bin
+/config
 /tmp
 /pkg/utils/version.go
 

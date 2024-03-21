@@ -1,0 +1,465 @@
+diff --git a/extern/redis-5.0/runtest-cluster b/extern/redis-5.0/runtest-cluster
+index 27829a5f..a86e9314 100755
+--- a/extern/redis-5.0/runtest-cluster
++++ b/extern/redis-5.0/runtest-cluster
+@@ -8,7 +8,7 @@ done
+ 
+ if [ -z $TCLSH ]
+ then
+-    echo "You need tcl 8.5 or newer in order to run the Redis Sentinel test"
++    echo "You need tcl 8.5 or newer in order to run the Redis Cluster test"
+     exit 1
+ fi
+ $TCLSH tests/cluster/run.tcl $*
+diff --git a/extern/redis-5.0/runtest-codis b/extern/redis-5.0/runtest-codis
+new file mode 100755
+index 00000000..35cc550c
+--- /dev/null
++++ b/extern/redis-5.0/runtest-codis
+@@ -0,0 +1,14 @@
++#!/bin/sh
++TCL_VERSIONS="8.5 8.6"
++TCLSH=""
++
++for VERSION in $TCL_VERSIONS; do
++	TCL=`which tclsh$VERSION 2>/dev/null` && TCLSH=$TCL
++done
++
++if [ -z $TCLSH ]
++then
++    echo "You need tcl 8.5 or newer in order to run the Codis test"
++    exit 1
++fi
++$TCLSH tests/codis/run.tcl $*
+diff --git a/extern/redis-5.0/runtest-moduleapi b/extern/redis-5.0/runtest-moduleapi
+index 8e1c0cb2..b02ef639 100755
+--- a/extern/redis-5.0/runtest-moduleapi
++++ b/extern/redis-5.0/runtest-moduleapi
+@@ -8,7 +8,7 @@ done
+ 
+ if [ -z $TCLSH ]
+ then
+-    echo "You need tcl 8.5 or newer in order to run the Redis test"
++    echo "You need tcl 8.5 or newer in order to run the Redis ModuleApi test"
+     exit 1
+ fi
+ 
+diff --git a/extern/redis-5.0/tests/cluster/run.tcl b/extern/redis-5.0/tests/cluster/run.tcl
+index 93603ddc..5660b0eb 100644
+--- a/extern/redis-5.0/tests/cluster/run.tcl
++++ b/extern/redis-5.0/tests/cluster/run.tcl
+@@ -11,7 +11,7 @@ set ::instances_count 20 ; # How many instances we use at max.
+ 
+ proc main {} {
+     parse_options
+-    spawn_instance redis $::redis_base_port $::instances_count {
++    spawn_instance redis $::redis_base_port $::instances_count 0 {
+         "cluster-enabled yes"
+         "appendonly yes"
+     }
+diff --git a/extern/redis-5.0/tests/codis/codis.tcl b/extern/redis-5.0/tests/codis/codis.tcl
+new file mode 100644
+index 00000000..f7dd3805
+--- /dev/null
++++ b/extern/redis-5.0/tests/codis/codis.tcl
+@@ -0,0 +1,77 @@
++# Codis-specific test functions.
++#
++# Copyright (C) 2020 pingfan.spf tuobaye2006@gmail.com
++# This software is released under the BSD License. See the COPYING file for
++# more information.
++
++proc get_key_slot {id key} {
++    set res [R $id slotshashkey $key]
++    return [lindex $res 0]
++}
++
++proc get_slot_size {id slot} {
++    set res [R $id slotsinfo $slot 1]
++    set slot_info [lindex $res 0]
++    set slot_size [lindex $slot_info 1]
++    if {[string compare $slot_size ""] == 0} {
++        return 0
++    }
++    return $slot_size
++}
++
++proc creat_some_keys {id prefix type {num 1} {start 0}} {
++    set max_idx [expr {$start + $num}]
++    for {set j $start} {$j < $max_idx} {incr j} {
++        set key "$prefix:$j"
++        if {[string compare $type "hash"] == 0} {
++            R $id hset $key a $j b [expr $j+1] c [expr $j+2]
++        } elseif {[string compare $type "zset"] == 0} {
++            R $id zadd $key $j a [expr $j+1] b [expr $j+2] c
++        } elseif {[string compare $type "set"] == 0} {
++            R $id sadd $key a $j b [expr $j+1] c [expr $j+2]
++        } elseif {[string compare $type "list"] == 0} {
++            R $id lpush $key a $j b [expr $j+1] c [expr $j+2]
++        } else {
++            puts "unknown type: $type"
++            assert {1 == 0}
++        }
++    }
++    return $max_idx
++}
++
++proc sync_migrate_key {src dst key {tag 1}} {
++    set dst_host [get_instance_attrib redis $dst host]
++    set dst_port [get_instance_attrib redis $dst port]
++    set timeout 10;  # seconds
++    if {$tag == 0} {
++        set res [R $src SLOTSMGRTONE $dst_host $dst_port $timeout $key]
++    } else {
++        set res [R $src SLOTSMGRTTAGONE $dst_host $dst_port $timeout $key]
++    }
++    return $res
++}
++
++proc sync_migrate_slot {src dst slot {tag 1}} {
++    # init the parameters for the migration
++    set dst_host [get_instance_attrib redis $dst host]
++    set dst_port [get_instance_attrib redis $dst port]
++    set timeout 10;  # seconds
++    if {$tag == 0} {
++        set cmd SLOTSMGRTSLOT
++    } else {
++        set cmd SLOTSMGRTTAGSLOT
++    }
++
++    # circularly migrate the slot from $src to $dst
++    set round 0
++    set succ 0
++    while 1 {
++        incr round
++        set res [R $src $cmd $dst_host $dst_port $timeout $slot]
++        incr succ [lindex $res 0]
++        set size [lindex $res 1]
++        if {$size == 0} break
++    }
++    set res [list $round $succ]
++    return $res
++}
+diff --git a/extern/redis-5.0/tests/codis/run.tcl b/extern/redis-5.0/tests/codis/run.tcl
+new file mode 100644
+index 00000000..9e4741be
+--- /dev/null
++++ b/extern/redis-5.0/tests/codis/run.tcl
+@@ -0,0 +1,29 @@
++# Codis test suite. Copyright (C) 2020 pingfan.spf tuobaye2006@gmail.com
++# This software is released under the BSD License. See the COPYING file for
++# more information.
++
++cd tests/codis
++source codis.tcl
++source ../instances.tcl
++
++set ::master_base_port 30000;
++set ::replica_base_port 40000;
++set ::group_count 3;  # How many groups(master + replica) we use at max.
++
++proc main {} {
++    parse_options
++    spawn_instance redis $::master_base_port $::group_count 0
++    spawn_instance redis $::replica_base_port $::group_count $::group_count {
++        "appendonly yes"
++    }
++    run_tests
++    cleanup
++    end_tests
++}
++
++if {[catch main e]} {
++    puts $::errorInfo
++    if {$::pause_on_error} pause_on_error
++    cleanup
++    exit 1
++}
+diff --git a/extern/redis-5.0/tests/codis/tests/01-sync-migration.tcl b/extern/redis-5.0/tests/codis/tests/01-sync-migration.tcl
+new file mode 100644
+index 00000000..8b56474b
+--- /dev/null
++++ b/extern/redis-5.0/tests/codis/tests/01-sync-migration.tcl
+@@ -0,0 +1,170 @@
++# Codis sync migration test.
++
++source "../tests/includes/init-tests.tcl"
++
++test "Migrate one untagged key by sync method" {
++    # init the env
++    puts "Starting..."
++    set src 0; R $src flushall;
++    set dst 1; R $dst flushall;
++    R $src debug populate 2 "test"
++    R $src lpush ltest a b c d
++    R $src hset htest h1 v1 h2 v2 h3 v3
++    R $src zadd ztest 0 a 1 b 2 c 3 d
++    R $src sadd stest a b c d
++    set dig_src [R $src debug digest]
++    assert_equal OK [R $src slotscheck]
++    puts ">>> Init the enviroment: PASS"
++
++    # select the command for migration
++    set tag 0;  # 0 means SLOTSMGRTONE, while 1 means SLOTSMGRTTAGONE
++
++    # check the migration of a non-existent key
++    assert_equal 0 [sync_migrate_key $src $dst "none" $tag]
++    puts ">>> Migrate a non-existent key: PASS"
++
++    # check the migration of a string type key
++    set dig_vals [R $src debug digest-value "test:0" "test:1"]
++    assert_equal 1 [sync_migrate_key $src $dst "test:0" $tag]
++    assert_equal 1 [sync_migrate_key $src $dst "test:1" $tag]
++    assert_equal $dig_vals [R $dst debug digest-value "test:0" "test:1"]
++    assert_equal OK [R $src slotscheck]
++    assert_equal OK [R $dst slotscheck]
++    puts ">>> Migrate a string type key: PASS"
++
++    # check the migration of a list type key
++    set dig_val [R $src debug digest-value "ltest"]
++    assert_equal 1 [sync_migrate_key $src $dst "ltest" $tag]
++    assert_equal $dig_val [R $dst debug digest-value "ltest"]
++    assert_equal OK [R $src slotscheck]
++    assert_equal OK [R $dst slotscheck]
++    puts ">>> Migrate a list type key: PASS"
++
++    # check the migration of a hash type key
++    set dig_val [R $src debug digest-value "htest"]
++    assert_equal 1 [sync_migrate_key $src $dst "htest" $tag]
++    assert_equal $dig_val [R $dst debug digest-value "htest"]
++    assert_equal OK [R $src slotscheck]
++    assert_equal OK [R $dst slotscheck]
++    puts ">>> Migrate a hash type key: PASS"
++
++    # check the migration of a zset type key
++    set dig_val [R $src debug digest-value "ztest"]
++    assert_equal 1 [sync_migrate_key $src $dst "ztest" $tag]
++    assert_equal $dig_val [R $dst debug digest-value "ztest"]
++    assert_equal OK [R $src slotscheck]
++    assert_equal OK [R $dst slotscheck]
++    puts ">>> Migrate a zset type key: PASS"
++
++    # check the migration of a set type key
++    set dig_val [R $src debug digest-value "stest"]
++    assert_equal 1 [sync_migrate_key $src $dst "stest" $tag]
++    assert_equal $dig_val [R $dst debug digest-value "stest"]
++    assert_equal OK [R $src slotscheck]
++    assert_equal OK [R $dst slotscheck]
++    puts ">>> Migrate a set type key: PASS"
++
++    # verify the data isn't corrupted or changed after migration
++    assert_equal $dig_src [R $dst debug digest]
++    puts -nonewline ">>> End of the case: "
++}
++
++test "Migrate one tagged key by sync method" {
++    # init the env
++    puts "Starting..."
++    set src 0; R $src flushall;
++    set dst 1; R $dst flushall;
++    set prefix "{test}"
++    set count [randomInt 10]; incr count;  # avoid the bad case: count == 0
++    R $src debug populate $count $prefix
++    set total $count
++    set total [creat_some_keys $src $prefix "hash" $count $total]
++    set total [creat_some_keys $src $prefix "zset" $count $total]
++    set total [creat_some_keys $src $prefix "set" $count $total]
++    set total [creat_some_keys $src $prefix "list" $count $total]
++    set dig_src [R $src debug digest]
++    assert_equal OK [R $src slotscheck]
++    puts ">>> Init the enviroment(count=$count,total=$total): PASS"
++
++    # select the command for migration
++    set tag 1;  # 0 means SLOTSMGRTONE, while 1 means SLOTSMGRTTAGONE
++
++    # check the migration of a non-existent tagged key
++    assert_equal 0 [sync_migrate_key $src $dst "{none}" $tag]
++    puts ">>> Migrate a non-existent key: PASS"
++
++    # check the migration of a randomly picked tagged key
++    set rand [randomInt $total]
++    set key "$prefix:$rand"
++    set type [R $src type $key]
++    set dig_val [R $src debug digest-value $key]
++    assert_equal $total [sync_migrate_key $src $dst $key $tag]
++    assert_equal $dig_val [R $dst debug digest-value $key]
++    assert_equal OK [R $src slotscheck]
++    assert_equal OK [R $dst slotscheck]
++    puts ">>> Migrate a tagged key($type, $key){#$src => #$dst}: PASS"
++
++    # check the migration of another tagged key with different type
++    set j [expr {($rand + $count) % $total}]
++    set key "$prefix:$j"
++    set type [R $dst type $key]
++    set dig_val [R $dst debug digest-value $key]
++    assert_equal $total [sync_migrate_key $dst $src $key $tag]
++    assert_equal $dig_val [R $src debug digest-value $key]
++    assert_equal OK [R $src slotscheck]
++    assert_equal OK [R $dst slotscheck]
++    puts ">>> Migrate a tagged key($type, $key){#$dst => #$src}: PASS"
++
++    # verify the data isn't corrupted or changed after migration
++    assert_equal $dig_src [R $src debug digest]
++    puts -nonewline ">>> End of the case: "
++}
++
++test "Migrate one static slot(no writing) by sync method" {
++    # init the env
++    puts "Starting..."
++    set src 0; R $src flushall;
++    set dst 1; R $dst flushall;
++    R $src debug populate 102400;  # almost 100 keys in each slot
++    set rand [randomInt 102400]
++    set prefix "{test_$rand}"
++    set slot [get_key_slot $src $prefix]
++    creat_some_keys $src $prefix "hash" 10 0
++    creat_some_keys $src $prefix "zset" 10 10
++    creat_some_keys $src $prefix "set" 10 20
++    creat_some_keys $src $prefix "list" 10 30
++    assert_equal OK [R $src slotscheck]
++    puts ">>> Init the enviroment(slot=$slot,prefix=$prefix): PASS"
++
++    # record the digest and slot size brfore migration
++    set dig_src [R $src debug digest]
++    set bak_size [get_slot_size $src $slot]
++
++    # migrate the slot from $src to $dst by SLOTSMGRTSLOT
++    set tag 0
++    set res [sync_migrate_slot $src $dst $slot $tag]
++    set round1 [lindex $res 0]
++    assert_equal $bak_size [lindex $res 1];    # succ == original slot size
++    set dst_size [get_slot_size $dst $slot]
++    assert_equal $bak_size $dst_size;          # all the keys have been moved
++    assert_equal 0 [get_slot_size $src $slot]; # nothing has been left on $src
++    assert_equal OK [R $src slotscheck]
++    assert_equal OK [R $dst slotscheck]
++    puts ">>> Migrate slot_$slot{#$src => #$dst} by SLOTSMGRTSLOT: PASS"
++
++    # migrate the slot from $dst to $src by SLOTSMGRTTAGSLOT
++    set tag 1
++    set res [sync_migrate_slot $dst $src $slot $tag]
++    assert {[lindex $res 0] < $round1};        # *TAG* cmd should be faster
++    assert_equal $bak_size [lindex $res 1];    # succ == original slot size
++    set src_size [get_slot_size $src $slot];
++    assert_equal $bak_size $src_size;          # all the keys have been moved
++    assert_equal 0 [get_slot_size $dst $slot]; # nothing has been left on $dst
++    assert_equal OK [R $src slotscheck]
++    assert_equal OK [R $dst slotscheck]
++    puts ">>> Migrate slot_$slot{#$dst => #$src} by SLOTSMGRTTAGSLOT: PASS"
++
++    # verify the data isn't corrupted or changed after 2 migrations
++    assert_equal $dig_src [R $src debug digest]
++    puts -nonewline ">>> End of the case: "
++}
+diff --git a/extern/redis-5.0/tests/codis/tests/includes/init-tests.tcl b/extern/redis-5.0/tests/codis/tests/includes/init-tests.tcl
+new file mode 100644
+index 00000000..dd2645cc
+--- /dev/null
++++ b/extern/redis-5.0/tests/codis/tests/includes/init-tests.tcl
+@@ -0,0 +1,58 @@
++# Initialization tests -- most units will start including this.
++
++test "(init) Restart killed instances" {
++    foreach type {redis} {
++        foreach_${type}_id id {
++            if {[get_instance_attrib $type $id pid] == -1} {
++                puts -nonewline "$type/$id "
++                flush stdout
++                restart_instance $type $id
++            }
++        }
++    }
++}
++
++test "(init) All instances are reachable" {
++    foreach_redis_id id {
++        # Every node should be reachable.
++        wait_for_condition 1000 50 {
++            ([catch {R $id ping} ping_reply] == 0) &&
++            ($ping_reply eq {PONG})
++        } else {
++            catch {R $id ping} err
++            fail "Node #$id keeps replying '$err' to PING."
++        }
++    }
++}
++
++test "(init) Flush old data and reset the server role" {
++    set group_count [expr {[llength $::redis_instances]/2}]
++    foreach_redis_id id {
++        if {$id < $group_count} {
++            # Master instance
++            R $id replicaof no one
++            R $id flushall
++        } else {
++            # Replica instance
++            set ms_id [expr {$id - $group_count}]
++            set ms_host [get_instance_attrib redis $ms_id host]
++            set ms_port [get_instance_attrib redis $ms_id port]
++            R $id replicaof $ms_host $ms_port
++        }
++    }
++
++    # Wait for all the replicas to sync
++    set max_retry 1000
++    foreach_redis_id id {
++        if {$id < $group_count} {
++            continue
++        } elseif {$id > $group_count} {
++            set max_retry 3
++        }
++        wait_for_condition $max_retry 50 {
++            [RI $id master_link_status] eq {up}
++        } else {
++            fail "Unable to init the server role."
++        }
++    }
++}
+diff --git a/extern/redis-5.0/tests/codis/tmp/.gitignore b/extern/redis-5.0/tests/codis/tmp/.gitignore
+new file mode 100644
+index 00000000..f581f73e
+--- /dev/null
++++ b/extern/redis-5.0/tests/codis/tmp/.gitignore
+@@ -0,0 +1,2 @@
++redis_*
++sentinel_*
+diff --git a/extern/redis-5.0/tests/instances.tcl b/extern/redis-5.0/tests/instances.tcl
+index 352b2a2e..d8f8e343 100644
+--- a/extern/redis-5.0/tests/instances.tcl
++++ b/extern/redis-5.0/tests/instances.tcl
+@@ -54,8 +54,9 @@ proc exec_instance {type cfgfile} {
+ }
+ 
+ # Spawn a redis or sentinel instance, depending on 'type'.
+-proc spawn_instance {type base_port count {conf {}}} {
+-    for {set j 0} {$j < $count} {incr j} {
++proc spawn_instance {type base_port count start {conf {}}} {
++    set max_id [expr {$start + $count}]
++    for {set j $start} {$j < $max_id} {incr j} {
+         set port [find_available_port $base_port]
+         incr base_port
+         puts "Starting $type #$j at port $port"
+@@ -341,7 +342,7 @@ proc Rn {n} {
+     return [dict get [lindex $::redis_instances $n] link]
+ }
+ 
+-# Like R but to chat with Redis instances.
++# Like "S" but to chat with Redis instances.
+ proc R {n args} {
+     [Rn $n] {*}$args
+ }
+diff --git a/extern/redis-5.0/tests/sentinel/run.tcl b/extern/redis-5.0/tests/sentinel/run.tcl
+index 9a2fcfb4..f69401f4 100644
+--- a/extern/redis-5.0/tests/sentinel/run.tcl
++++ b/extern/redis-5.0/tests/sentinel/run.tcl
+@@ -9,8 +9,8 @@ set ::instances_count 5 ; # How many instances we use at max.
+ 
+ proc main {} {
+     parse_options
+-    spawn_instance sentinel $::sentinel_base_port $::instances_count
+-    spawn_instance redis $::redis_base_port $::instances_count
++    spawn_instance sentinel $::sentinel_base_port $::instances_count 0
++    spawn_instance redis $::redis_base_port $::instances_count 0
+     run_tests
+     cleanup
+     end_tests
