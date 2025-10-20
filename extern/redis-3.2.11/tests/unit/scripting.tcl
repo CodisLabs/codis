@@ -337,6 +337,12 @@ start_server {tags {"scripting"}} {
         set e
     } {*ERR*attempted to create global*}
 
+    test {lua bit.tohex bug} {
+        set res [run_script {return bit.tohex(65535, -2147483648)} 0]
+        r ping
+        set res
+    } {0000FFFF}
+
     test {Test an example script DECR_IF_GT} {
         set decr_if_gt {
             local current
